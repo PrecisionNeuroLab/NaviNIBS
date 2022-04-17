@@ -53,7 +53,7 @@ class _Panel_CreateOrLoadSession(_MainViewPanel):
         self._saveAsBtn = btn
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-remove'), text='Close session')
-        btn.clicked.connect(lambda checked: self._closeSession())
+        btn.clicked.connect(lambda checked: self._tryVerifyThenCloseSession())
         self._wdgt.layout().addWidget(btn, 2, 1)
         self._closeBtn = btn
 
@@ -200,10 +200,46 @@ class _Panel_CreateOrLoadSession(_MainViewPanel):
 
 @attrs.define()
 class _Panel_SessionInfo(_MainViewPanel):
+    _wdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
+
     def __attrs_post_init__(self):
         self._wdgt.setLayout(QtWidgets.QFormLayout())
-        self._wdgt.layout().addRow('Subject ID', QtWidgets.QLineEdit())
+
+        wdgt = QtWidgets.QLineEdit()
+        wdgt.textChanged.connect(lambda text, key='subjectID': self._onTextChanged(key, text))
+        self._wdgts['subjectID'] = wdgt
+        self._wdgt.layout().addRow('Subject ID', wdgt)
         # TODO: continue here
+
+        wdgt = QtWidgets.QLineEdit()
+        wdgt.textChanged.connect(lambda text, key='sessionID': self._onTextChanged(key, text))
+        self._wdgts['sessionID'] = wdgt
+        self._wdgt.layout().addRow('Session ID', wdgt)
+
+        self._parent.sigLoadedSession.connect(self._onSessionLoaded)
+        self._parent.sigClosedSession.connect(lambda _: self._onSessionInfoChanged())
+
+    def _onSessionLoaded(self, session: Session):
+        session.sigInfoChanged.connect(self._onSessionInfoChanged)
+        self._onSessionInfoChanged()
+
+    def _onSessionInfoChanged(self):
+        if self._parent.session is None:
+            for key in ('subjectID', 'sessionID'):
+                self._wdgts[key].setText('')
+        else:
+            for key in ('subjectID', 'sessionID'):
+                val = getattr(self._parent.session, key)
+                self._wdgts[key].setText('' if val is None else val)
+
+    def _onTextChanged(self, key: str, text: str):
+        if len(text) == 0:
+            text = None
+        if self._parent.session is not None:
+            logger.info('Applying edited value of {} to session: {}'.format(key, text))
+            setattr(self._parent.session, key, text)
+        else:
+            logger.warning('Ignoring edited value of {} since session is closed.'.format(key))
 
 
 @attrs.define()
@@ -282,10 +318,13 @@ class NavigatorGUI(RunnableAsApp):
             logger.debug('Showing window')
             self._win.show()
 
+    @property
+    def session(self):
+        return self._session
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         self._mainViewPanels['New / load'].loadSession(sesFilepath=filepath)
-
 
     def _onLoadedSession(self, session: Session):
         logger.info('Loaded session {}'.format(session.filepath))
@@ -342,8 +381,6 @@ class NavigatorGUI(RunnableAsApp):
         self._mainViewStackedWdgt.setCurrentWidget(panel.wdgt)
 
         logger.info('Switched to view "{}"'.format(viewKey))
-
-
 
 
 if __name__ == '__main__':

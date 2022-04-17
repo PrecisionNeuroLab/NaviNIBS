@@ -150,7 +150,7 @@ class Session:
         shutil.make_archive(
             base_name=self._filepath,
             format='zip',
-            root_dir=self._unpackedSessionDir,
+            root_dir=self.unpackedSessionDir,
             base_dir='.',
         )
         shutil.move(self._filepath + '.zip', self._filepath)
@@ -169,20 +169,23 @@ class Session:
         logger.debug('Unpacking archive from {}'.format(filepath))
         shutil.unpack_archive(filepath, unpackedSessionDir, 'zip')
         logger.debug('Done unpacking')
-        return cls.loadFromUnpackedDir(unpackedSessionDir=unpackedSessionDir, filepath=filepath)
+        return cls.loadFromUnpackedDir(unpackedSessionDir=unpackedSessionDir, filepath=filepath,
+                                       compressedFileIsDirty=False)
 
     @classmethod
-    def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None):
+    def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None, **kwargs):
         infoPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename)
         with open(infoPath, 'r') as f:
             info = json.load(f)
             # TODO: validate against schema
 
-        kwargs = {}
+        kwargs['unpackedSessionDir'] = unpackedSessionDir
         kwargs['filepath'] = filepath if filepath is not None else info['filepath']
         for key in ('subjectID', 'sessionID'):
             kwargs[key] = info[key]
 
         # TODO: load other available fields (MRI, etc.)
+
+        logger.debug('Loaded from unpacked dir:\n{}'.format(kwargs))
 
         return cls(**kwargs)
