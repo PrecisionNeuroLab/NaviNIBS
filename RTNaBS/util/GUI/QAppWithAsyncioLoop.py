@@ -16,7 +16,7 @@ class RunnableAsApp:
     _appName: tp.Optional[str] = None
     _appAsyncPollPeriod = 0.01
     _doRunAsApp: bool = False
-    _appLogEveryNLoops: tp.Optional[int] = 100
+    _appLogEveryNLoops: tp.Optional[int] = None
 
     _app: QtGui.QGuiApplication = attr.ib(init=False)
     _win: QMainWindowWithCloseSignal = attr.ib(init=False)
