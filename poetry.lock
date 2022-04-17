@@ -412,7 +412,7 @@ url = "https://wheels.pyvista.org/vtk-9.1.0.dev0-cp310-cp310-win_amd64.whl#sha25
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "d227e2c4c765de346120e02cd808d16009914365a50543bed5c82749009dc403"
+content-hash = "9ae3fd0e2db9529f51ee3e7925e8f710495bc94150e23e609301d4801d7704d8"
 
 [metadata.files]
 appdirs = [

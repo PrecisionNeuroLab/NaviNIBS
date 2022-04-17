@@ -17,6 +17,7 @@ vtk = {url = "https://wheels.pyvista.org/vtk-9.1.0.dev0-cp310-cp310-win_amd64.wh
 QtPy = "^2.0.1"
 matplotlib = "^3.5.1"
 QtAwesome = "^1.1.1"
+appdirs = "^1.4.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.1"
