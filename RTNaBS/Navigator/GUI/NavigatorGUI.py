@@ -29,8 +29,9 @@ logger = logging.getLogger(__name__)
 class NavigatorGUI(RunnableAsApp):
     _appName: str = 'RTNaBS Navigator GUI'
 
-    _sesFilepath: tp.Optional[str] = None
+    _sesFilepath: tp.Optional[str] = None  # only used to load session on startup
     _inProgressBaseDir: tp.Optional[str] = None
+
     _session: tp.Optional[Session] = None
 
     _mainViewStackedWdgt: QtWidgets.QStackedWidget = attrs.field(init=False)
@@ -171,7 +172,8 @@ class NavigatorGUI(RunnableAsApp):
 
 if __name__ == '__main__':
     if True:  # TODO: debug, delete or set to False
-        NavigatorGUI.createAndRun(sesFilepath=r'C:\Users\chris\Desktop\tmp6\TestSession1.rtnabs')
+        sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/TestSession1.rtnabs')
+        NavigatorGUI.createAndRun(sesFilepath=sesFilepath)
     else:
         NavigatorGUI.createAndRun()
 
