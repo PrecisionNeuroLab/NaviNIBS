@@ -13,7 +13,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from . import _MainViewPanel
+from . import MainViewPanel
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define()
-class _Panel_CreateOrLoadSession(_MainViewPanel):
+class CreateOrLoadSessionPanel(MainViewPanel):
 
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)

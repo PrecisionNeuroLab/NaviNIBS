@@ -18,7 +18,26 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class MRI:
-    pass
+    _filepath: tp.Optional[str] = None
+
+    sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
+
+    @property
+    def filepath(self):
+        return self._filepath
+
+    @filepath.setter
+    def filepath(self, newPath: str):
+        if self._filepath == newPath:
+            return
+        # TODO: assert newPath exists
+        self._filepath = newPath
+        self.sigDataChanged.emit()
+        # TODO: here or with slots connected to sigDataChanged, make sure any cached MRI data or metadata is cleared/reloaded
+
+    @property
+    def isSet(self):
+        return self._filepath is not None
 
 
 @attrs.define()
@@ -45,7 +64,7 @@ class Session:
     _filepath: str  # path to compressed session file
     _subjectID: tp.Optional[str] = attrs.field(default=None)
     _sessionID: tp.Optional[str] = None
-    MRI: tp.Optional[MRI] = None
+    _MRI: MRI = attrs.field(factory=MRI)
     headModel: tp.Optional[HeadModel] = None
     MNIRegistration: tp.Optional[MNIRegistration] = None
     subjectRegistration: tp.Optional[SubjectRegistration] = None
@@ -100,6 +119,10 @@ class Session:
         if newVal != self._filepath:
             self._filepath = newVal
             self.sigInfoChanged.emit()
+
+    @property
+    def MRI(self):
+        return self._MRI
 
     @property
     def compressedFileIsDirty(self):
