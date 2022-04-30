@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define()
-class _MainViewPanel:
+class MainViewPanel:
     _session: tp.Optional[Session] = None
     _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
 

@@ -11,7 +11,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from . import _MainViewPanel
+from . import MainViewPanel
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define()
-class _Panel_SessionInfo(_MainViewPanel):
+class SessionInfoPanel(MainViewPanel):
     _wdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):

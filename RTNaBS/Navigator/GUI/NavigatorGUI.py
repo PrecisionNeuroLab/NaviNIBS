@@ -17,9 +17,10 @@ import typing as tp
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.GUI.ViewPanels import _MainViewPanel
-from RTNaBS.Navigator.GUI.ViewPanels.CreateOrLoadSession import _Panel_CreateOrLoadSession
-from RTNaBS.Navigator.GUI.ViewPanels.SessionInfo import _Panel_SessionInfo
+from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
+from RTNaBS.Navigator.GUI.ViewPanels.CreateOrLoadSession import CreateOrLoadSessionPanel
+from RTNaBS.Navigator.GUI.ViewPanels.SessionInfo import SessionInfoPanel
+from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class NavigatorGUI(RunnableAsApp):
     _session: tp.Optional[Session] = None
 
     _mainViewStackedWdgt: QtWidgets.QStackedWidget = attrs.field(init=False)
-    _mainViewPanels: tp.Dict[str, _MainViewPanel] = attrs.field(init=False, factory=dict)
+    _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
     _toolbarWdgt: QtWidgets.QToolBar = attrs.field(init=False)
     _toolbarBtnActions: tp.Dict[str, QtWidgets.QAction] = attrs.field(init=False, factory=dict)
 
@@ -58,35 +59,48 @@ class NavigatorGUI(RunnableAsApp):
         self._mainViewStackedWdgt = QtWidgets.QStackedWidget()
         rootWdgt.layout().addWidget(self._mainViewStackedWdgt)
 
-        def createViewPanel(key: str, panel: _MainViewPanel, icon: tp.Optional[QtGui.QIcon]=None):
+        def createViewPanel(key: str, panel: MainViewPanel, icon: tp.Optional[QtGui.QIcon]=None):
             self._mainViewPanels[key] = panel
             self._mainViewStackedWdgt.addWidget(panel.wdgt)
             self._toolbarBtnActions[key] = self._toolbarWdgt.addAction(key) if icon is None else self._toolbarWdgt.addAction(icon, key)
             self._toolbarBtnActions[key].setCheckable(True)
             self._toolbarBtnActions[key].triggered.connect(lambda checked=False, key=key: self._activateView(viewKey=key))
 
-        panel = _Panel_CreateOrLoadSession(session=self._session,
-                                           inProgressBaseDir=self._inProgressBaseDir)
+        panel = CreateOrLoadSessionPanel(session=self._session,
+                                         inProgressBaseDir=self._inProgressBaseDir)
         createViewPanel('New / load', panel, icon=qta.icon('mdi6.folder'))
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
-        createViewPanel('Session info', _Panel_SessionInfo(session=self._session), icon=qta.icon('mdi6.form-select'))
+        createViewPanel('Session info', SessionInfoPanel(session=self._session), icon=qta.icon('mdi6.form-select'))
 
-        createViewPanel('Set MRI', _MainViewPanel(session=self._session), icon=qta.icon('mdi6.image'))
+        createViewPanel('Set MRI', MRIPanel(session=self._session), icon=qta.icon('mdi6.image'))
         # TODO: set up MRI widget
 
-        createViewPanel('Set head model', _MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
+        createViewPanel('Set head model', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
         # TODO: set up head model widget
 
-        createViewPanel('Set fiducials', _MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
+        createViewPanel('Set fiducials', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
         # TODO: set up fiducials widget
 
-        createViewPanel('Set transforms', _MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
+        createViewPanel('Set transforms', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
         # TODO: set up transforms widget
 
-        createViewPanel('Set targets', _MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
+        createViewPanel('Set targets', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
         # TODO: set up targets widget
+
+        self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
+
+        createViewPanel('Camera', MainViewPanel(session=self._session), icon=qta.icon('mdi6.cctv'))
+        # TODO
+
+        createViewPanel('Tools', MainViewPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
+        # TODO
+
+        createViewPanel('Register', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
+        # TODO
+
+
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
@@ -134,7 +148,7 @@ class NavigatorGUI(RunnableAsApp):
 
         if self._session is not None:
             activeKeys += ['Session info', 'Set MRI']
-            if self._session.MRI is not None:
+            if self._session.MRI.isSet:
                 activeKeys += ['Set head model']
                 if self._session.headModel is not None:
                     activeKeys += ['Set fiducials', 'Set transforms', 'Set targets']
@@ -172,7 +186,11 @@ class NavigatorGUI(RunnableAsApp):
 
 if __name__ == '__main__':
     if True:  # TODO: debug, delete or set to False
-        sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/TestSession1.rtnabs')
+        if True:
+            sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test1.rtnabs')
+        else:
+            sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
+                                       'data/TestSession1.rtnabs')
         NavigatorGUI.createAndRun(sesFilepath=sesFilepath)
     else:
         NavigatorGUI.createAndRun()
