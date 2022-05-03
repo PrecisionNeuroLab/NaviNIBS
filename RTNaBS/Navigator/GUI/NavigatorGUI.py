@@ -21,6 +21,7 @@ from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CreateOrLoadSession import CreateOrLoadSessionPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SessionInfo import SessionInfoPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
+from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ class NavigatorGUI(RunnableAsApp):
         createViewPanel('Set MRI', MRIPanel(session=self._session), icon=qta.icon('mdi6.image'))
         # TODO: set up MRI widget
 
-        createViewPanel('Set head model', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
+        createViewPanel('Set head model', HeadModelPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
         # TODO: set up head model widget
 
         createViewPanel('Set fiducials', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
@@ -122,6 +123,7 @@ class NavigatorGUI(RunnableAsApp):
             pane.session = session
         self._updateEnabledToolbarBtns()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
+        session.headModel.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
 
     def _onSessionClosed(self, prevSession: Session):
         logger.info('Closed session {}'.format(prevSession.filepath))
@@ -151,7 +153,7 @@ class NavigatorGUI(RunnableAsApp):
             activeKeys += ['Session info', 'Set MRI']
             if self._session.MRI.isSet:
                 activeKeys += ['Set head model']
-                if self._session.headModel is not None:
+                if self._session.headModel.isSet:
                     activeKeys += ['Set fiducials', 'Set transforms', 'Set targets']
 
         for key in activeKeys:
