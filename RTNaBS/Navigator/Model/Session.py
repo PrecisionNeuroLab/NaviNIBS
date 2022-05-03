@@ -25,6 +25,7 @@ class MRI:
 
     def __attrs_post_init__(self):
         self.sigFilepathChanged.connect(self.sigDataChanged.emit)
+        self.validateFilepath(self._filepath)
 
     @property
     def filepath(self):
@@ -34,7 +35,7 @@ class MRI:
     def filepath(self, newPath: str):
         if self._filepath == newPath:
             return
-        assert os.path.exists(newPath), 'File not found at {}'.format(newPath)
+        self.validateFilepath(newPath)
         self._filepath = newPath
         self.sigFilepathChanged.emit()
         # TODO: here or with slots connected to sigDataChanged, make sure any cached MRI data or metadata is cleared/reloaded
@@ -43,6 +44,12 @@ class MRI:
     def isSet(self):
         return self._filepath is not None
 
+    @classmethod
+    def validateFilepath(cls, filepath: tp.Optional[str]) -> None:
+        if filepath is None:
+            return
+        assert filepath.endswith('.nii') or filepath.endswith('.nii.gz')
+        assert os.path.exists(filepath), 'File not found at {}'.format(filepath)
 
 @attrs.define()
 class MNIRegistration:
@@ -64,6 +71,7 @@ class HeadModel:
 
     def __attrs_post_init__(self):
         self.sigFilepathChanged.connect(self.sigDataChanged.emit)
+        self.validateFilepath(self._filepath)
 
     @property
     def filepath(self):
@@ -73,7 +81,7 @@ class HeadModel:
     def filepath(self, newPath: str):
         if self._filepath == newPath:
             return
-        assert os.path.exists(newPath), 'File not found at {}'.format(newPath)
+        self.validateFilepath(newPath)
         self._filepath = newPath
         self.sigFilepathChanged.emit()
         # TODO: here or with slots connected to sigDataChanged, make sure any cached MRI data or metadata is cleared/reloaded
@@ -81,6 +89,14 @@ class HeadModel:
     @property
     def isSet(self):
         return self._filepath is not None
+
+    @classmethod
+    def validateFilepath(cls, filepath: tp.Optional[str]) -> None:
+        if filepath is None:
+            return
+        assert filepath.endswith('.msh')
+        assert os.path.exists(filepath), 'File not found at {}'.format(filepath)
+        # TODO: also verify that expected related files (e.g. m2m_* folder) are next to the referenced .msh filepath
 
 @attrs.define()
 class Target:
@@ -287,7 +303,7 @@ class Session:
                 info = json.load(f)
                 # TODO: validate against schema
                 mriFilepath = os.path.join(otherPathsRelTo, info['filepath'])
-                assert os.path.exists(mriFilepath), 'MRI not found at {}'.format(mriFilepath)
+                MRI.validateFilepath(mriFilepath)
                 kwargs['MRI'] = MRI(filepath=mriFilepath)
 
         headModelMetaPath = os.path.join(unpackedSessionDir, cls._headModelConfigFilename)
@@ -296,7 +312,7 @@ class Session:
                 info = json.load(f)
                 # TODO: validate against schema
                 headModelFilepath = os.path.join(otherPathsRelTo, '..', info['filepath'])
-                assert os.path.exists(headModelFilepath), 'headModel not found at {}'.format(headModelFilepath)
+                HeadModel.validateFilepath(headModelFilepath)
                 kwargs['headModel'] = HeadModel(filepath=headModelFilepath)
 
         # TODO: load other available fields (head model, etc.)
