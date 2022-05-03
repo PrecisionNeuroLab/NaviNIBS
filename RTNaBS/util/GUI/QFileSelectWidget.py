@@ -98,10 +98,24 @@ class QFileSelectWidget(QtWidgets.QWidget):
         self._filepath = newFilepath
         self.sigFilepathChanged.emit(newFilepath)
 
+    @property
+    def showRelativeTo(self):
+        return self._showRelativeTo
+
+    @showRelativeTo.setter
+    def showRelativeTo(self, newPath: tp.Optional[str]):
+        if self._showRelativeTo == newPath:
+            return
+        self._showRelativeTo = newPath
+        self._updateFilepathDisplay()
+
     def _updateFilepathDisplay(self):
-        if self._showRelativeTo is not None:
-            displayPath = os.path.relpath(self._filepath, self._showRelativeTo)  # TODO: confirm working as intended
+        if self._filepath is None:
+            displayPath = ''
         else:
-            displayPath = self._filepath
+            if self._showRelativeTo is not None:
+                displayPath = os.path.relpath(self._filepath, self._showRelativeTo)  # TODO: confirm working as intended
+            else:
+                displayPath = self._filepath
         self._textWidget.setText(displayPath)
         # TODO: scroll cursor to end of text widget (to show filename, effectively hide nested parent folders first)

@@ -121,6 +121,7 @@ class NavigatorGUI(RunnableAsApp):
         for pane in self._mainViewPanels.values():
             pane.session = session
         self._updateEnabledToolbarBtns()
+        session.MRI.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
 
     def _onSessionClosed(self, prevSession: Session):
         logger.info('Closed session {}'.format(prevSession.filepath))
