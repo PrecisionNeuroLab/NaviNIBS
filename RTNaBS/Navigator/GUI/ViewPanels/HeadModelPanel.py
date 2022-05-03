@@ -23,22 +23,21 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define()
-class MRIPanel(MainViewPanel):
+class HeadModelPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
-                                 extFilters='Nifti (*.nii; *.nii.gz)')
-        # TODO: set supported file formats to (.nii | .nii.gz) only
+                                 extFilters='Gmsh (*.msh)')
         wdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
         self._wdgt.layout().addWidget(wdgt)
         self._filepathWdgt = wdgt
 
     def _onSessionSet(self):
         super()._onSessionSet()
-        self._filepathWdgt.filepath = self.session.MRI.filepath
+        self._filepathWdgt.filepath = self.session.headModel.filepath
         self._updateRelativeToPath()
         self.session.sigInfoChanged.connect(lambda: self._updateRelativeToPath())
 
@@ -46,7 +45,4 @@ class MRIPanel(MainViewPanel):
         self._filepathWdgt.showRelativeTo = os.path.dirname(self.session.filepath)
 
     def _onBrowsedNewFilepath(self, newFilepath: str):
-        self.session.MRI.filepath = newFilepath
-
-
-
+        self.session.headModel.filepath = newFilepath
