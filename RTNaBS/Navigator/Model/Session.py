@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__)
 class MRI:
     _filepath: tp.Optional[str] = None
 
+    sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
+
+    def __attrs_post_init__(self):
+        self.sigFilepathChanged.connect(self.sigDataChanged.emit)
 
     @property
     def filepath(self):
@@ -32,7 +36,7 @@ class MRI:
             return
         # TODO: assert newPath exists
         self._filepath = newPath
-        self.sigDataChanged.emit()
+        self.sigFilepathChanged.emit()
         # TODO: here or with slots connected to sigDataChanged, make sure any cached MRI data or metadata is cleared/reloaded
 
     @property
@@ -74,6 +78,7 @@ class Session:
     _compressedFileIsDirty: bool = True
 
     _sessionConfigFilename: ClassVar[str] = 'SessionConfig.json'
+    _MRIConfigFilename: ClassVar[str] = 'MRIConfig.json'
     _unpackedSessionDir: tp.Optional[tp.Union[tempfile.TemporaryDirectory, str]] = attrs.field(default=None)
 
     sigInfoChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -87,6 +92,8 @@ class Session:
             os.makedirs(self.unpackedSessionDir)
 
         self.sigInfoChanged.connect(lambda: self._dirtyKeys.add('info'))
+
+        self.MRI.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('MRI'))
 
         # TODO
 
@@ -160,6 +167,23 @@ class Session:
             logger.debug('Saved session info to {}'.format(infoPath))
             keysToSave.remove('info')
 
+        if 'MRI' in keysToSave:
+            # save MRI path relative to location of compressed file
+            if self.MRI.filepath is None:
+                mriRelPath = None
+            else:
+                mriRelPath = os.path.relpath(self.MRI.filepath, self.filepath)
+                toSave = dict(
+                    filepath=mriRelPath
+                )
+                mriMetaPath = os.path.join(self.unpackedSessionDir, self._MRIConfigFilename)
+                # TODO: add user-selectable option on whether to save MRI file itself into compressed rtnabs file or not
+                # for now, do not include MRI file itself, just a relative path reference
+                with open(mriMetaPath, 'w') as f:
+                    json.dump(toSave, f)
+                logger.debug('Saved MRI config to {}'.format(mriMetaPath))
+                keysToSave.remove('MRI')
+
         # TODO: save other fields
         assert len(keysToSave) == 0
 
@@ -207,7 +231,14 @@ class Session:
         for key in ('subjectID', 'sessionID'):
             kwargs[key] = info[key]
 
-        # TODO: load other available fields (MRI, etc.)
+        mriMetaPath = os.path.join(unpackedSessionDir, cls._MRIConfigFilename)
+        if os.path.exists(mriMetaPath):
+            with open(mriMetaPath, 'r') as f:
+                info = json.load(f)
+                # TODO: validate against schema
+                kwargs['MRI'] = MRI(filepath=info['filepath'])
+
+        # TODO: load other available fields (head model, etc.)
 
         logger.debug('Loaded from unpacked dir:\n{}'.format(kwargs))
 

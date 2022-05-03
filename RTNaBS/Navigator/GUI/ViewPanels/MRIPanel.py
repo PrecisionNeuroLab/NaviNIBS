@@ -38,6 +38,11 @@ class MRIPanel(MainViewPanel):
     def _onSessionSet(self):
         super()._onSessionSet()
         self._filepathWdgt.filepath = self.session.MRI.filepath
+        self._updateRelativeToPath()
+        self.session.sigInfoChanged.connect(lambda: self._updateRelativeToPath())
+
+    def _updateRelativeToPath(self):
+        self._filepathWdgt.showRelativeTo = os.path.dirname(self.session.filepath)
 
     def _onBrowsedNewFilepath(self, newFilepath: str):
         self.session.MRI.filepath = newFilepath
