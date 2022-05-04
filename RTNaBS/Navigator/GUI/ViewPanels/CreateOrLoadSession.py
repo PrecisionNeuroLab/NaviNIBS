@@ -14,6 +14,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.util import exceptionToStr
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -143,7 +144,13 @@ class CreateOrLoadSessionPanel(MainViewPanel):
                 return
         logger.info('Load session filepath: {}'.format(sesFilepath))
 
-        self.session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+        try:
+            session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+        except Exception as e:
+            logger.warning('Problem loading session from {}:\n{}'.format(sesFilepath, exceptionToStr(e)))
+            return
+
+        self.session = session
         self.sigLoadedSession.emit(self.session)
 
     def _recoverSession(self, sesDataDir: tp.Optional[str] = None):
