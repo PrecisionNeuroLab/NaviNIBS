@@ -5,6 +5,7 @@ import shutil
 import attrs
 import json
 import logging
+import numpy as np
 import os
 import tempfile
 import typing as tp
@@ -43,6 +44,23 @@ class MRI:
     @property
     def isSet(self):
         return self._filepath is not None
+
+    def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
+        d = dict(
+            filepath=self._filepath
+        )
+        if d['filepath'] is not None:
+            d['filepath'] = os.path.relpath(d['filepath'], filepathRelTo)
+
+        return d
+
+    @classmethod
+    def fromDict(cls, d: tp.Dict[str, tp.Any], filepathRelTo: str) -> MRI:
+        # TODO: validate against schema
+        if 'filepath' in d:
+            d['filepath'] = os.path.join(filepathRelTo, d['filepath'])
+            cls.validateFilepath(d['filepath'])
+        return cls(**d)
 
     @classmethod
     def validateFilepath(cls, filepath: tp.Optional[str]) -> None:
@@ -90,6 +108,23 @@ class HeadModel:
     def isSet(self):
         return self._filepath is not None
 
+    def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
+        d = dict(
+            filepath=self._filepath
+        )
+        if d['filepath'] is not None:
+            d['filepath'] = os.path.relpath(d['filepath'], filepathRelTo)
+
+        return d
+
+    @classmethod
+    def fromDict(cls, d: tp.Dict[str, tp.Any], filepathRelTo: str) -> HeadModel:
+        # TODO: validate against schema
+        if 'filepath' in d:
+            d['filepath'] = os.path.join(filepathRelTo, d['filepath'])
+            cls.validateFilepath(d['filepath'])
+        return cls(**d)
+
     @classmethod
     def validateFilepath(cls, filepath: tp.Optional[str]) -> None:
         if filepath is None:
@@ -118,8 +153,7 @@ class Session:
     _compressedFileIsDirty: bool = True
 
     _sessionConfigFilename: ClassVar[str] = 'SessionConfig.json'
-    _MRIConfigFilename: ClassVar[str] = 'MRIConfig.json'
-    _headModelConfigFilename: ClassVar[str] = 'HeadModelConfig.json'
+    _latestConfigFormatVersion: ClassVar[str] = '0.0.1'
     _unpackedSessionDir: tp.Optional[tp.Union[tempfile.TemporaryDirectory, str]] = attrs.field(default=None)
 
     sigInfoChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -190,7 +224,6 @@ class Session:
     def saveToUnpackedDir(self, saveDirtyOnly: bool = True):
 
         keysToSave = self._dirtyKeys.copy()
-        self._dirtyKeys.clear()
 
         if not saveDirtyOnly:
             keysToSave.update(['info'])
@@ -201,55 +234,43 @@ class Session:
 
         self._compressedFileIsDirty = True
 
+        configPath = os.path.join(self.unpackedSessionDir, self._sessionConfigFilename)
+        if os.path.exists(configPath):
+            with open(configPath, 'r') as f:
+                config = json.load(f)
+            assert config['formatVersion'] == self._latestConfigFormatVersion
+        else:
+            config = dict(formatVersion=self._latestConfigFormatVersion)
+
         if 'info' in keysToSave:
+            logger.debug('Writing session info')
             infoFields = ('filepath', 'subjectID', 'sessionID')
-            toSave = {}
             for field in infoFields:
-                toSave[field] = getattr(self, field)
-            infoPath = os.path.join(self.unpackedSessionDir, self._sessionConfigFilename)
-            with open(infoPath, 'w') as f:
-                json.dump(toSave, f)
-            logger.debug('Saved session info to {}'.format(infoPath))
+                config[field] = getattr(self, field)
             keysToSave.remove('info')
 
         otherPathsRelTo = os.path.dirname(self.filepath)
 
         if 'MRI' in keysToSave:
             # save MRI path relative to location of compressed file
-            if self.MRI.filepath is None:
-                mriRelPath = None
-            else:
-                mriRelPath = os.path.relpath(self.MRI.filepath, otherPathsRelTo)
-                toSave = dict(
-                    filepath=mriRelPath
-                )
-                mriMetaPath = os.path.join(self.unpackedSessionDir, self._MRIConfigFilename)
-                # TODO: add user-selectable option on whether to save MRI file itself into compressed rtnabs file or not
-                # for now, do not include MRI file itself, just a relative path reference
-                with open(mriMetaPath, 'w') as f:
-                    json.dump(toSave, f)
-                logger.debug('Saved MRI config to {}'.format(mriMetaPath))
-                keysToSave.remove('MRI')
+            logger.debug('Writing MRI info')
+            config['MRI'] = self.MRI.asDict(filepathRelTo=otherPathsRelTo)
+            keysToSave.remove('MRI')
 
         if 'headModel' in keysToSave:
             # save head model path relative to location of compressed file
-            if self.headModel.filepath is None:
-                headModelRelPath = None
-            else:
-                headModelRelPath = os.path.relpath(self.headModel.filepath, otherPathsRelTo)
-                toSave = dict(
-                    filepath=headModelRelPath
-                )
-                headModelMetaPath = os.path.join(self.unpackedSessionDir, self._headModelConfigFilename)
-                # TODO: add user-selectable option on whether to save headModel file itself into compressed rtnabs file or not
-                # for now, do not include headModel file itself, just a relative path reference
-                with open(headModelMetaPath, 'w') as f:
-                    json.dump(toSave, f)
-                logger.debug('Saved headModel config to {}'.format(headModelMetaPath))
-                keysToSave.remove('headModel')
+            logger.debug('Writing headModel info')
+            config['headModel'] = self.headModel.asDict(filepathRelTo=otherPathsRelTo)
+            keysToSave.remove('headModel')
 
         # TODO: save other fields
         assert len(keysToSave) == 0
+
+        with open(configPath, 'w') as f:
+            json.dump(config, f)
+            logger.debug('Wrote updated session config')
+
+        self._dirtyKeys.clear()
 
     def saveToFile(self):
         self.saveToUnpackedDir()
@@ -277,7 +298,7 @@ class Session:
 
     @classmethod
     def loadFromFile(cls, filepath: str, unpackedSessionDir: tp.Optional[str] = None):
-        logger.debug('Unpacking archive from {}'.format(filepath))
+        logger.debug('Unpacking archive from {}\nto {}'.format(filepath, unpackedSessionDir))
         shutil.unpack_archive(filepath, unpackedSessionDir, 'zip')
         logger.debug('Done unpacking')
         return cls.loadFromUnpackedDir(unpackedSessionDir=unpackedSessionDir, filepath=filepath,
@@ -285,37 +306,26 @@ class Session:
 
     @classmethod
     def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None, **kwargs):
-        infoPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename)
-        with open(infoPath, 'r') as f:
-            info = json.load(f)
-            # TODO: validate against schema
+        configPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename)
+        with open(configPath, 'r') as f:
+            config = json.load(f)
+        # TODO: validate against schema
+        assert config['formatVersion'] == cls._latestConfigFormatVersion
 
         kwargs['unpackedSessionDir'] = unpackedSessionDir
-        kwargs['filepath'] = filepath if filepath is not None else info['filepath']
+        kwargs['filepath'] = filepath if filepath is not None else config['filepath']
         for key in ('subjectID', 'sessionID'):
-            kwargs[key] = info[key]
+            kwargs[key] = config[key]
 
         otherPathsRelTo = os.path.dirname(kwargs['filepath'])
 
-        mriMetaPath = os.path.join(unpackedSessionDir, cls._MRIConfigFilename)
-        if os.path.exists(mriMetaPath):
-            with open(mriMetaPath, 'r') as f:
-                info = json.load(f)
-                # TODO: validate against schema
-                mriFilepath = os.path.join(otherPathsRelTo, info['filepath'])
-                MRI.validateFilepath(mriFilepath)
-                kwargs['MRI'] = MRI(filepath=mriFilepath)
+        if 'MRI' in config:
+            kwargs['MRI'] = MRI.fromDict(config['MRI'], filepathRelTo=otherPathsRelTo)
 
-        headModelMetaPath = os.path.join(unpackedSessionDir, cls._headModelConfigFilename)
-        if os.path.exists(headModelMetaPath):
-            with open(headModelMetaPath, 'r') as f:
-                info = json.load(f)
-                # TODO: validate against schema
-                headModelFilepath = os.path.join(otherPathsRelTo, '..', info['filepath'])
-                HeadModel.validateFilepath(headModelFilepath)
-                kwargs['headModel'] = HeadModel(filepath=headModelFilepath)
+        if 'headModel' in config:
+            kwargs['headModel'] = HeadModel.fromDict(config['headModel'], filepathRelTo=otherPathsRelTo)
 
-        # TODO: load other available fields (head model, etc.)
+        # TODO: load other available fields
 
         logger.debug('Loaded from unpacked dir:\n{}'.format(kwargs))
 
