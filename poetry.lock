@@ -141,6 +141,29 @@ python-dateutil = ">=2.7"
 setuptools_scm = ">=4"
 
 [[package]]
+name = "nibabel"
+version = "3.2.2"
+description = "Access a multitude of neuroimaging data formats"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+numpy = ">=1.14"
+packaging = ">=14.3"
+
+[package.extras]
+all = ["pydicom (>=1.0.0)", "pillow", "gitpython", "twine", "matplotlib (>=1.5.3)", "numpydoc", "sphinx (>=0.3,<3)", "texext", "h5py", "scipy", "flake8", "coverage", "pytest (!=5.3.4)", "pytest-cov", "pytest-doctestplus (!=0.9.0)", "pytest (<7)"]
+dev = ["gitpython", "twine"]
+dicom = ["pydicom (>=1.0.0)"]
+dicomfs = ["pydicom (>=1.0.0)", "pillow"]
+doc = ["matplotlib (>=1.5.3)", "numpydoc", "sphinx (>=0.3,<3)", "texext"]
+minc2 = ["h5py"]
+spm = ["scipy"]
+style = ["flake8"]
+test = ["coverage", "pytest (!=5.3.4)", "pytest-cov", "pytest-doctestplus (!=0.9.0)", "pytest (<7)"]
+
+[[package]]
 name = "numpy"
 version = "1.22.3"
 description = "NumPy is the fundamental package for array computing with Python."
@@ -416,7 +439,7 @@ url = "data/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_universal2.whl"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "90f1369d228e1d5b30d11a6d99d732bbafd2bf38c485ae5acd4c94c182085967"
+content-hash = "fe115a1a01fe532dfd6c3f26d4e68614905573431121d36fbe14b8dc7c2dfb02"
 
 [metadata.files]
 appdirs = [
@@ -584,6 +607,10 @@ matplotlib = [
     {file = "matplotlib-3.5.1-pp37-pypy37_pp73-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:6803299cbf4665eca14428d9e886de62e24f4223ac31ab9c5d6d5339a39782c7"},
     {file = "matplotlib-3.5.1-pp37-pypy37_pp73-win_amd64.whl", hash = "sha256:14334b9902ec776461c4b8c6516e26b450f7ebe0b3ef8703bf5cdfbbaecf774a"},
     {file = "matplotlib-3.5.1.tar.gz", hash = "sha256:b2e9810e09c3a47b73ce9cab5a72243a1258f61e7900969097a817232246ce1c"},
+]
+nibabel = [
+    {file = "nibabel-3.2.2-py3-none-any.whl", hash = "sha256:7df7a2733461441d3aacc61f36f5e100ec533d43ed09a191293bb4ca5a4f10f6"},
+    {file = "nibabel-3.2.2.tar.gz", hash = "sha256:b0dcc174b30405ce9e8fec1eab3cbbb20f5c5e4920976c08b22e050b7c124f94"},
 ]
 numpy = [
     {file = "numpy-1.22.3-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:92bfa69cfbdf7dfc3040978ad09a48091143cffb778ec3b03fa170c494118d75"},

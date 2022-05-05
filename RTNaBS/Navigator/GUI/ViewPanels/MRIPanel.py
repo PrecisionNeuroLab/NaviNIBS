@@ -6,6 +6,7 @@ import appdirs
 import attrs
 from datetime import datetime
 import logging
+import numpy as np
 import os
 import pathlib
 import pyvista as pv
@@ -28,6 +29,8 @@ logger = logging.getLogger(__name__)
 class MRIPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _plotters: tp.Dict[str, pvqt.QtInteractor] = attrs.field(init=False, factory=dict)
+    _plottersInitialized: bool = attrs.field(init=False, default=False)
+    _sliceOrigin: tp.Optional[np.ndarray] = None
 
     def __attrs_post_init__(self):
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
@@ -69,27 +72,68 @@ class MRIPanel(MainViewPanel):
     def _onBrowsedNewFilepath(self, newFilepath: str):
         self.session.MRI.filepath = newFilepath
 
+    def _onSlicePointChanged(self, key: str):
+        pos = self._plotters[key].picked_point
+        self._sliceOrigin = pos
+        self._updateImagePreview()
+
     def _updateImagePreview(self):
         data = self.session.MRI.data
+
         if data is None:
             # no data available
-            # TODO: clear any previous return
+
+            for plotter in self._plotters.values():
+                plotter.clear()
+
+            self._sliceOrigin = None
+            self._plottersInitialized = False
             return
 
         # data available, update display
+        if self._sliceOrigin is None:
+            self._sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
 
-
-        for key in ('x', 'y', 'z'):
-            slice = self.session.MRI.dataAsUniformGrid.slice_along_axis(n=1, axis=key)
+        for iKey, key in enumerate(('x', 'y', 'z')):
+            slice = self.session.MRI.dataAsUniformGrid.slice(normal=key, origin=self._sliceOrigin)
             self._plotters[key].add_mesh(slice,
+                                         name='slice',
                                          cmap='gray')
             self._plotters[key].camera_position = 'xyz'.replace(key, '')
+            self._plotters[key].enable_image_style()
+            if not self._plottersInitialized:
+                self._plotters[key].enable_point_picking(left_clicking=True,
+                                                         show_message=False,
+                                                         show_point=False,
+                                                         callback=lambda newPt, key=key: self._onSlicePointChanged(key))
 
-        self._plotters['3D'].add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
-                                 cmap='bone',
-                                 opacity='geom',
-                                 shade=True)
+        if not self._plottersInitialized:
+            self._plotters['3D'].add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
+                                     name='vol',
+                                     cmap='bone',
+                                     opacity='geom',
+                                     shade=True)
 
-        # TODO
+        for key in ('x', 'y', 'z', '3D'):
+            lineLength = 300  # TODO: scale by image size
+            pts = None
+            if key == '3D':
+                crosshairAxes = 'xyz'
+                centerGapLength = 10  # TODO: scale by image size
+            else:
+                crosshairAxes = 'xyz'.replace(key, '')
+                centerGapLength = 0
+            for axis in crosshairAxes:
+                mask = np.zeros((1, 3))
+                mask[0, 'xyz'.index(axis)] = 1
+                newPts = np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask
+                newPts = np.concatenate((newPts, -1 * newPts), axis=0)
+                newPts += self._sliceOrigin
+                if pts is None:
+                    pts = newPts
+                else:
+                    pts = np.concatenate((pts, newPts), axis=0)
+            self._plotters[key].add_lines(pts, color='#11DD11', width=2, name='Crosshair')
 
+        self._plottersInitialized = True
 
