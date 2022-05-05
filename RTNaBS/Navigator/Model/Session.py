@@ -3,10 +3,12 @@ from __future__ import annotations
 import shutil
 
 import attrs
+import nibabel as nib
 import json
 import logging
 import numpy as np
 import os
+import pyvista
 import tempfile
 import typing as tp
 from typing import ClassVar
@@ -21,12 +23,53 @@ logger = logging.getLogger(__name__)
 class MRI:
     _filepath: tp.Optional[str] = None
 
+    _data: tp.Optional[nib.Nifti1Image] = attrs.field(init=False, default=None)
+    _dataAsUniformGrid: tp.Optional[pyvista.UniformGrid] = attrs.field(init=False, default=None)
+
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
-        self.sigFilepathChanged.connect(self.sigDataChanged.emit)
+        self.sigFilepathChanged.connect(self._onFilepathChanged)
         self.validateFilepath(self._filepath)
+
+    def loadCache(self):
+        if not self.isSet:
+            logger.warning('Load data requested, but no filepath set. Returning.')
+        logger.info('Loading image into cache from {}'.format(self.filepath))
+        self._data = nib.load(self.filepath)
+
+        if True:
+            # create pyvista data object
+
+            # get grid spacing from affine transform
+            if np.all((self._data.affine[:-1, :-1] * (1-np.eye(3))) == 0):
+                # for now, only on-diagonal transform supported
+                gridSpacing = self._data.affine.diagonal()[:-1]
+            else:
+                raise NotImplementedError()
+
+            self._dataAsUniformGrid = pyvista.UniformGrid(
+                dims=self._data.shape,
+                spacing=gridSpacing,
+                origin=self._data.affine[:-1, 3]
+            )
+
+            self._dataAsUniformGrid.point_data['MRI'] = self._data.get_fdata().ravel(order='F')
+
+        self.sigDataChanged.emit()
+
+    def clearCache(self):
+        if self._data is None:
+            return
+        self._data = None
+        self._dataAsUniformGrid = None
+        self.sigDataChanged.emit()  # TODO: determine if necessary (since underlying uncached data didn't necessarily change)
+
+    def _onFilepathChanged(self):
+        with self.sigDataChanged.blocked():
+            self.clearCache()
+        self.sigDataChanged.emit()
 
     @property
     def filepath(self):
@@ -44,6 +87,20 @@ class MRI:
     @property
     def isSet(self):
         return self._filepath is not None
+
+    @property
+    def data(self):
+        if self.isSet and self._data is None:
+            # data was not previously loaded, but it is available. Load now.
+            self.loadCache()
+        return self._data
+
+    @property
+    def dataAsUniformGrid(self):
+        if self.isSet and self._data is None:
+            # data was not previously loaded, but it is available. Load now.
+            self.loadCache()
+        return self._dataAsUniformGrid
 
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
         d = dict(
