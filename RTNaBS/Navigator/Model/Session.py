@@ -55,7 +55,7 @@ class MRI:
                 origin=self._data.affine[:-1, 3]
             )
 
-            self._dataAsUniformGrid.point_data['MRI'] = self._data.get_fdata().ravel(order='F')
+            self._dataAsUniformGrid.point_data['MRI'] = np.asanyarray(self.data.dataobj).ravel(order='F')
 
         self.sigDataChanged.emit()
 
