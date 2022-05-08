@@ -217,7 +217,7 @@ class Session:
 
     def __attrs_post_init__(self):
         if self._unpackedSessionDir is None:
-            self._unpackedSessionDir = tempfile.TemporaryDirectory(prefix='RTNaBSSession_')
+            self._unpackedSessionDir = self.getTempUnpackDir()
 
         if not os.path.isdir(self.unpackedSessionDir):
             logger.debug('Creating dir for unpacking session at {}'.format(self.unpackedSessionDir))
@@ -355,7 +355,10 @@ class Session:
 
     @classmethod
     def loadFromFile(cls, filepath: str, unpackedSessionDir: tp.Optional[str] = None):
+        if unpackedSessionDir is None:
+            unpackedSessionDir = cls.getTempUnpackDir()
         logger.debug('Unpacking archive from {}\nto {}'.format(filepath, unpackedSessionDir))
+        assert os.path.exists(filepath)
         shutil.unpack_archive(filepath, unpackedSessionDir, 'zip')
         logger.debug('Done unpacking')
         return cls.loadFromUnpackedDir(unpackedSessionDir=unpackedSessionDir, filepath=filepath,
@@ -387,3 +390,7 @@ class Session:
         logger.debug('Loaded from unpacked dir:\n{}'.format(kwargs))
 
         return cls(**kwargs)
+
+    @classmethod
+    def getTempUnpackDir(cls):
+        return tempfile.TemporaryDirectory(prefix='RTNaBSSession_').name
