@@ -21,6 +21,8 @@ class MRISliceView:
     _session: tp.Optional[Session] = None
     _sliceOrigin: tp.Optional[np.ndarray] = None
 
+    _slicePlotMethod: str = 'cameraClippedVolume'
+
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
@@ -38,6 +40,7 @@ class MRISliceView:
             show=False,
             app=QtWidgets.QApplication.instance()
         )
+        self._plotter.set_background(self._backgroundColor)
 
         self._updateView()
 
@@ -52,6 +55,10 @@ class MRISliceView:
     @property
     def wdgt(self):
         return self._plotter.interactor
+
+    @property
+    def plotter(self):
+        return self._plotter
 
     @property
     def session(self):
@@ -117,11 +124,14 @@ class MRISliceView:
             
     def _onMRIDataChanged(self):
         if self._plotterInitialized:
-            logger.debug('Clearing plot for {} slice'.format(self.label))
-            self._plotter.clear()
-            self.sliceOrigin = None
-            self._plotterInitialized = False
+            self._clearPlot()
         self._updateView()
+
+    def _clearPlot(self):
+        logger.debug('Clearing plot for {} slice'.format(self.label))
+        self._plotter.clear()
+        self.sliceOrigin = None
+        self._plotterInitialized = False
 
     def _updateView(self):
         if self.session is None or self.session.MRI.data is None:
@@ -152,7 +162,7 @@ class MRISliceView:
             for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
                 self._plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
 
-        if False:
+        if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
             slice = self.session.MRI.dataAsUniformGrid.slice(normal=self._normal, origin=self._sliceOrigin)  # this is very slow for some reason
             self._plotter.add_mesh(slice,
@@ -162,7 +172,8 @@ class MRISliceView:
                 self._plotter.camera_position = 'xyz'.replace(self._normal, '')
             else:
                 raise NotImplementedError()  # TODO
-        else:
+
+        elif self._slicePlotMethod == 'cameraClippedVolume':
             # volume plotting with camera clipping
             if not self._plotterInitialized:
                 logger.debug('Getting MRI data as uniform grid')
@@ -217,7 +228,8 @@ class MRISliceView:
             self._plotter.camera.up = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
         else:
             raise NotImplementedError()  # TODO
-        self._plotter.camera.clipping_range = (99, 102)
+        if self._slicePlotMethod == 'cameraClippedVolume':
+            self._plotter.camera.clipping_range = (99, 102)
         self._plotter.camera.parallel_scale = 90
 
         self._plotterInitialized = True

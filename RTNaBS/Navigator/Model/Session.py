@@ -8,7 +8,7 @@ import json
 import logging
 import numpy as np
 import os
-import pyvista
+import pyvista as pv
 import tempfile
 import typing as tp
 from typing import ClassVar
@@ -24,7 +24,7 @@ class MRI:
     _filepath: tp.Optional[str] = None
 
     _data: tp.Optional[nib.Nifti1Image] = attrs.field(init=False, default=None)
-    _dataAsUniformGrid: tp.Optional[pyvista.UniformGrid] = attrs.field(init=False, default=None)
+    _dataAsUniformGrid: tp.Optional[pv.UniformGrid] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -36,6 +36,8 @@ class MRI:
     def loadCache(self):
         if not self.isSet:
             logger.warning('Load data requested, but no filepath set. Returning.')
+            return
+
         logger.info('Loading image into cache from {}'.format(self.filepath))
         self._data = nib.load(self.filepath)
 
@@ -49,7 +51,7 @@ class MRI:
             else:
                 raise NotImplementedError()
 
-            self._dataAsUniformGrid = pyvista.UniformGrid(
+            self._dataAsUniformGrid = pv.UniformGrid(
                 dims=self._data.shape,
                 spacing=gridSpacing,
                 origin=self._data.affine[:-1, 3]
@@ -136,17 +138,73 @@ class SubjectRegistration:
     pass
 
 
+SurfMesh = pv.PolyData
+VolMesh = pv.PolyData
+
+
 @attrs.define()
 class HeadModel:
     _filepath: tp.Optional[str] = None  # path to .msh file in simnibs folder
     # (note that .msh file and other nested files in same parent dir will be used)
 
+    _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigDataChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # emits key `which` indicating what changed, e.g. which='gmSurf'
 
     def __attrs_post_init__(self):
-        self.sigFilepathChanged.connect(self.sigDataChanged.emit)
+        self.sigFilepathChanged.connect(self._onFilepathChanged)
         self.validateFilepath(self._filepath)
+
+    def loadCache(self, which: str):
+        if not self.isSet:
+            logger.warning('Load data requested, but no filepath set. Returning.')
+            return
+
+        parentDir = os.path.dirname(self.filepath)  # simnibs results dir
+        subStr = os.path.splitext(os.path.basename(self.filepath))[0]  # e.g. 'sub-1234'
+        m2mDir = os.path.join(parentDir, 'm2m_' + subStr)
+        assert os.path.exists(m2mDir), 'm2m folder not found. Are full SimNIBS results available next to specified .msh file?'
+
+        if which in ('skinSurf', 'gmSurf'):
+            if which == 'gmSurf':
+                meshPath = os.path.join(m2mDir, 'gm.stl')
+            elif which == 'skinSurf':
+                meshPath = os.path.join(m2mDir, 'skin.stl')
+            else:
+                raise NotImplementedError()
+
+            logger.info('Loading {} mesh from {}'.format(which, meshPath))
+            mesh = pv.read(meshPath)
+
+            setattr(self, '_' + which, mesh)
+        else:
+            raise NotImplementedError()
+
+        self.sigDataChanged.emit(which)
+
+    def clearCache(self, which: str):
+
+        if which == 'all':
+            allKeys = ('skinSurf', 'gmSurf')  # TODO: add more keys here once implemented
+            for w in allKeys:
+                self.clearCache(which=w)
+            return
+
+        if which in ('skinSurf', 'gmSurf'):
+            if getattr(self, '_' + which) is None:
+                return
+            setattr(self, '_' + which, None)
+        else:
+            raise NotImplementedError()
+
+        self.sigDataChanged.emit(which)
+
+    def _onFilepathChanged(self):
+        with self.sigDataChanged.blocked():
+            self.clearCache('all')
+        self.sigDataChanged.emit()
 
     @property
     def filepath(self):
@@ -164,6 +222,25 @@ class HeadModel:
     @property
     def isSet(self):
         return self._filepath is not None
+
+    @property
+    def surfKeys(self):
+        # TODO: set this dynamically instead of hardcoded
+        # TODO: add others
+        allSurfKeys = ('skinSurf', 'gmSurf')
+        return allSurfKeys
+
+    @property
+    def gmSurf(self):
+        if self.isSet and self._gmSurf is None:
+            self.loadCache(which='gmSurf')
+        return self._gmSurf
+
+    @property
+    def skinSurf(self):
+        if self.isSet and self._skinSurf is None:
+            self.loadCache(which='skinSurf')
+        return self._skinSurf
 
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
         d = dict(
