@@ -19,7 +19,7 @@ from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CreateOrLoadSession import CreateOrLoadSessionPanel
-from RTNaBS.Navigator.GUI.ViewPanels.SessionInfo import SessionInfoPanel
+from RTNaBS.Navigator.GUI.ViewPanels.SessionInfoPanel import SessionInfoPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 
