@@ -186,6 +186,11 @@ class NavigatorGUI(RunnableAsApp):
 
         logger.info('Switched to view "{}"'.format(viewKey))
 
+        prevPanel = self._mainViewPanels[prevViewKey]
+        prevPanel.sigPanelDeactivated.emit()
+
+        panel.sigPanelActivated.emit()
+
 
 if __name__ == '__main__':
     if True:  # TODO: debug, delete or set to False
