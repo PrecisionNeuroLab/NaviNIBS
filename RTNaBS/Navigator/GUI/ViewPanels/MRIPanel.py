@@ -98,6 +98,7 @@ class MRI3DView(MRISliceView):
 class MRIPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, MRI3DView]] = attrs.field(init=False, factory=dict)
+    _hasBeenActivated: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
@@ -115,15 +116,24 @@ class MRIPanel(MainViewPanel):
         self._wdgt.layout().addWidget(containerWdgt)
         for iRow, iCol, key in ((0, 0, 'x'), (0, 1, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if key in ('x', 'y', 'z'):
-                self._views[key] = MRISliceView(normal=key, session=self.session)
+                self._views[key] = MRISliceView(normal=key)
             elif key == '3D':
-                self._views[key] = MRI3DView(label=key, session=self.session)
+                self._views[key] = MRI3DView(label=key)
             else:
                 raise NotImplementedError()
 
             self._views[key].sigSliceOriginChanged.connect(lambda key=key: self._onSliceOriginChanged(sourceKey=key))
 
             containerLayout.addWidget(self._views[key].wdgt, iRow, iCol)
+
+        self.sigPanelActivated.connect(self._onPanelActivated)
+
+    def _onPanelActivated(self):
+        # don't initialize computationally-demanding views until panel is activated (viewed)
+        for key, view in self._views.items():
+            if view.session is None and self.session is not None:
+                view.session = self.session
+        self._hasBeenActivated = True
 
     def _onSliceOriginChanged(self, sourceKey: str):
         for key, view in self._views.items():
@@ -133,15 +143,17 @@ class MRIPanel(MainViewPanel):
 
     def _onSessionSet(self):
         super()._onSessionSet()
-        self._filepathWdgt.filepath = self.session.MRI.filepath
-
-        for key, view in self._views.items():
-            view.session = self.session
-
+        self._updateFilepath()
         self._updateRelativeToPath()
-
         self.session.sigInfoChanged.connect(self._updateRelativeToPath)
-        self.session.MRI.sigFilepathChanged.connect(self._updateRelativeToPath)
+        self.session.MRI.sigFilepathChanged.connect(self._updateFilepath)
+
+        if self._hasBeenActivated:
+            for key, view in self._views.items():
+                view.session = self.session
+
+    def _updateFilepath(self):
+        self._filepathWdgt.filepath = self.session.MRI.filepath
 
     def _updateRelativeToPath(self):
         self._filepathWdgt.showRelativeTo = os.path.dirname(self.session.filepath)
