@@ -197,11 +197,16 @@ class MRISliceView:
         for axis in crosshairAxes:
             mask = np.zeros((1, 3))
             mask[0, 'xyz'.index(axis)] = 1
-            for iDir, dir in enumerate((-1, 1)):
-                pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
+            for iDir, dir in enumerate((-1, 0, 1)):
+                if dir == 0:
+                    pts = np.asarray([centerGapLength / 2, -centerGapLength / 2])[:, np.newaxis] * mask + self._sliceOrigin
+                    width = 1
+                else:
+                    pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
+                    width = 2
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
-                    line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
+                    line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
                     self._lineActors[lineKey] = line
                 else:
                     logger.debug('Moving previous crosshairs')
