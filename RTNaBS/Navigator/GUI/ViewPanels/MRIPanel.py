@@ -19,7 +19,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Navigator.GUI.Widgets.MRISliceView import MRISliceView
+from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -28,70 +28,6 @@ from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
-class MRI3DView(MRISliceView):
-    _clim: tp.Tuple[float, float] = (300, 1000)  # TODO: set to auto-initialize instead of hardcoding default
-
-    def __attrs_post_init__(self):
-        MRISliceView.__attrs_post_init__(self)
-
-    @property
-    def label(self):
-        if self._label is None:
-            return 'MRI3D'
-        else:
-            return self._label
-
-    def _updateView(self):
-
-        if self.session is None or self.session.MRI.data is None:
-            # no data available
-            if self._plotterInitialized:
-                logger.debug('Clearing plot for {} slice'.format(self.label))
-                self._plotter.clear()
-
-                self.sliceOrigin = None
-                self._plotterInitialized = False
-            return
-
-        # data available, update display
-        logger.debug('Updating plot for {} slice'.format(self.label))
-        if self._sliceOrigin is None:
-            self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape) / 2,
-                                                                         1))[:-1]
-            return  # prev line will have triggered its own update
-
-        if not self._plotterInitialized:
-            logger.debug('Initializing 3D plot')
-            self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
-                                     scalars='MRI',
-                                     name='vol',
-                                     clim=self._clim,
-                                     cmap='gray',
-                                     mapper='gpu',
-                                     opacity=[0, 1, 1],
-                                     shade=False)
-
-        logger.debug('Setting crosshairs for {} plot'.format(self.label))
-        lineLength = 300  # TODO: scale by image size
-        crosshairAxes = 'xyz'
-        centerGapLength = 0
-        for axis in crosshairAxes:
-            mask = np.zeros((1, 3))
-            mask[0, 'xyz'.index(axis)] = 1
-            for iDir, dir in enumerate((-1, 1)):
-                pts = dir*np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
-                lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
-                if not self._plotterInitialized:
-                    line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
-                    self._lineActors[lineKey] = line
-                else:
-                    logger.debug('Moving previous crosshairs')
-                    line = self._lineActors[lineKey]
-                    pts_pv = pv.lines_from_points(pts)
-                    line.GetMapper().SetInputData(pts_pv)
-
-        self._plotterInitialized = True
 
 
 @attrs.define()
@@ -114,7 +50,7 @@ class MRIPanel(MainViewPanel):
         containerLayout = QtWidgets.QGridLayout()
         containerWdgt.setLayout(containerLayout)
         self._wdgt.layout().addWidget(containerWdgt)
-        for iRow, iCol, key in ((0, 0, 'x'), (0, 1, 'y'), (1, 0, 'z'), (1, 1, '3D')):
+        for iRow, iCol, key in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if key in ('x', 'y', 'z'):
                 self._views[key] = MRISliceView(normal=key)
             elif key == '3D':
