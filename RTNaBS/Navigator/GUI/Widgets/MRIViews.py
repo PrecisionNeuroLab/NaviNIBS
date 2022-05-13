@@ -217,6 +217,8 @@ class MRISliceView:
         offsetDir = np.zeros((3,))
         if isinstance(self._normal, str):
             offsetDir['xyz'.index(self._normal)] = 1
+            if self._normal == 'y':
+                offsetDir *= -1  # reverse direction for coronal slice to match L/R of other views
         else:
             raise NotImplementedError()  #TODO
         if True:
@@ -230,11 +232,82 @@ class MRISliceView:
 
         self._plotter.camera.focal_point = self._sliceOrigin
         if isinstance(self._normal, str):
-            self._plotter.camera.up = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
+            upDir = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
+            if self._normal == 'y':
+                upDir *= -1
+            self._plotter.camera.up = upDir
         else:
             raise NotImplementedError()  # TODO
         if self._slicePlotMethod == 'cameraClippedVolume':
             self._plotter.camera.clipping_range = (99, 102)
         self._plotter.camera.parallel_scale = 90
+
+        self._plotterInitialized = True
+
+
+
+
+@attrs.define()
+class MRI3DView(MRISliceView):
+    _clim: tp.Tuple[float, float] = (300, 1000)  # TODO: set to auto-initialize instead of hardcoding default
+
+    def __attrs_post_init__(self):
+        MRISliceView.__attrs_post_init__(self)
+
+    @property
+    def label(self):
+        if self._label is None:
+            return 'MRI3D'
+        else:
+            return self._label
+
+    def _updateView(self):
+
+        if self.session is None or self.session.MRI.data is None:
+            # no data available
+            if self._plotterInitialized:
+                logger.debug('Clearing plot for {} slice'.format(self.label))
+                self._plotter.clear()
+
+                self.sliceOrigin = None
+                self._plotterInitialized = False
+            return
+
+        # data available, update display
+        logger.debug('Updating plot for {} slice'.format(self.label))
+        if self._sliceOrigin is None:
+            self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape) / 2,
+                                                                         1))[:-1]
+            return  # prev line will have triggered its own update
+
+        if not self._plotterInitialized:
+            logger.debug('Initializing 3D plot')
+            self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
+                                     scalars='MRI',
+                                     name='vol',
+                                     clim=self._clim,
+                                     cmap='gray',
+                                     mapper='gpu',
+                                     opacity=[0, 1, 1],
+                                     shade=False)
+
+        logger.debug('Setting crosshairs for {} plot'.format(self.label))
+        lineLength = 300  # TODO: scale by image size
+        crosshairAxes = 'xyz'
+        centerGapLength = 0
+        for axis in crosshairAxes:
+            mask = np.zeros((1, 3))
+            mask[0, 'xyz'.index(axis)] = 1
+            for iDir, dir in enumerate((-1, 1)):
+                pts = dir*np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
+                lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
+                if not self._plotterInitialized:
+                    line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
+                    self._lineActors[lineKey] = line
+                else:
+                    logger.debug('Moving previous crosshairs')
+                    line = self._lineActors[lineKey]
+                    pts_pv = pv.lines_from_points(pts)
+                    line.GetMapper().SetInputData(pts_pv)
 
         self._plotterInitialized = True
