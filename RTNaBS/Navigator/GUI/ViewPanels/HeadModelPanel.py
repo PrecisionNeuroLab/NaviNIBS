@@ -155,6 +155,7 @@ class HeadModelPanel(MainViewPanel):
         containerWdgt.setLayout(QtWidgets.QFormLayout())
         self._activeSurfWidget = QtWidgets.QListWidget()
         self._activeSurfWidget.itemSelectionChanged.connect(lambda *args, **kwargs: self._onSurfSelectionChanged())
+        self._activeSurfWidget.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
         containerWdgt.layout().addRow('Surfaces', self._activeSurfWidget)
         self._wdgt.layout().addWidget(containerWdgt)
 
