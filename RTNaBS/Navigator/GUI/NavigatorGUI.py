@@ -22,6 +22,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.CreateOrLoadSession import CreateOrLoadSess
 from RTNaBS.Navigator.GUI.ViewPanels.SessionInfoPanel import SessionInfoPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
+from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 
 
 logger = logging.getLogger(__name__)
@@ -76,13 +77,10 @@ class NavigatorGUI(RunnableAsApp):
         createViewPanel('Session info', SessionInfoPanel(session=self._session), icon=qta.icon('mdi6.form-select'))
 
         createViewPanel('Set MRI', MRIPanel(session=self._session), icon=qta.icon('mdi6.image'))
-        # TODO: set up MRI widget
 
         createViewPanel('Set head model', HeadModelPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
-        # TODO: set up head model widget
 
-        createViewPanel('Set fiducials', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
-        # TODO: set up fiducials widget
+        createViewPanel('Set fiducials', FiducialsPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
 
         createViewPanel('Set transforms', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
         # TODO: set up transforms widget

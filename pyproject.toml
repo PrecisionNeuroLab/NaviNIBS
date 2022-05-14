@@ -23,6 +23,8 @@ matplotlib = "^3.5.1"
 QtAwesome = "^1.1.1"
 appdirs = "^1.4.4"
 nibabel = "^3.2.2"
+pytransform3d = "^1.13.0"
+pandas = "^1.4.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.1"
