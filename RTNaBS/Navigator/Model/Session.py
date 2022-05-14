@@ -3,11 +3,13 @@ from __future__ import annotations
 import shutil
 
 import attrs
+from datetime import datetime
 import nibabel as nib
 import json
 import logging
 import numpy as np
 import os
+import pandas as pd
 import pyvista as pv
 import tempfile
 import typing as tp
@@ -128,14 +130,165 @@ class MRI:
         assert filepath.endswith('.nii') or filepath.endswith('.nii.gz')
         assert os.path.exists(filepath), 'File not found at {}'.format(filepath)
 
+
 @attrs.define()
 class MNIRegistration:
     pass
 
 
+FiducialCoord = tp.Tuple[np.ndarray]
+FiducialSet = tp.Dict[str, tp.Optional[FiducialCoord]]
+Transform = np.ndarray
+
+
 @attrs.define()
 class SubjectRegistration:
-    pass
+
+    _plannedFiducials: FiducialSet = attrs.field(factory=dict)  # in MRI space
+    _sampledFiducials: FiducialSet = attrs.field(factory=dict)  # in head tracker space
+    _sampledHeadPoints: tp.Optional[np.ndarray] = attrs.field(default=None)
+    _trackerToMRITransf: tp.Optional[Transform] = None
+
+    _plannedFiducialsHistory: tp.Dict[str, FiducialSet] = attrs.field(factory=dict)
+    _sampledFiducialsHistory: tp.Dict[str, FiducialSet] = attrs.field(factory=dict)
+    _sampledHeadPointsHistory: tp.Dict[str, tp.Optional[np.ndarray]] = attrs.field(factory=dict)
+    _trackerToMRITransfHistory: tp.Dict[str, tp.Optional[Transform]] = attrs.field(factory=dict)
+
+    sigPlannedFiducialsChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigSampledFiducialsChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigSampledHeadPointsChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigTrackerToMRITransfChanged: Signal = attrs.field(init=False, factory=Signal)
+
+    def __attrs_post_init__(self):
+
+        # convert types as needed (e.g. if coming from deserialized json)
+        for whichSet in ('planned', 'sampled'):
+            fiducials = getattr(self, '_' + whichSet + 'Fiducials')
+            fiducialsHistory = getattr(self, '_' + whichSet + 'FiducialsHistory')
+            for key in fiducials.keys():
+                if isinstance(fiducials[key], list):
+                    fiducials[key] = np.asarray(fiducials[key])
+            for timeStr in fiducialsHistory.keys():
+                for key in fiducialsHistory[timeStr].keys():
+                    if isinstance(fiducialsHistory[timeStr][key], list):
+                        fiducialsHistory[timeStr][key] = np.asarray(fiducialsHistory[timeStr][key])
+        if isinstance(self._sampledHeadPoints, list):
+            self._sampledHeadPoints = np.asarray(self._sampledHeadPoints)
+        for timeStr in self._sampledHeadPointsHistory.keys():
+            if isinstance(self._sampledHeadPointsHistory[timeStr], list):
+                self._sampledHeadPointsHistory[timeStr] = np.asarray(self._sampledHeadPointsHistory[timeStr])
+        if isinstance(self._trackerToMRITransf, list):
+            self._trackerToMRITransf = np.asarray(self._trackerToMRITransf)
+        for timeStr in self._trackerToMRITransfHistory.keys():
+            if isinstance(self._trackerToMRITransfHistory[timeStr], list):
+                self._trackerToMRITransfHistory[timeStr] = np.asarray(self._trackerToMRITransfHistory[timeStr])
+
+        # make sure histories are up to date with current values
+        for whichSet in ('planned', 'sampled'):
+            fiducials = getattr(self, '_' + whichSet + 'Fiducials')
+            fiducialsHistory = getattr(self, '_' + whichSet + 'FiducialsHistory')
+            if len(fiducials) > 0 and (len(fiducialsHistory)==0 or list(fiducialsHistory.values())[-1] != fiducials):
+                fiducialsHistory[self._getTimestampStr()] = fiducials.copy()
+        if self._sampledHeadPoints is not None:
+            if len(self._sampledHeadPointsHistory) == 0 or not np.array_equal(list(self._sampledHeadPointsHistory.values())[-1], self._sampledHeadPoints):
+                self._sampledHeadPointsHistory[self._getTimestampStr()] = self._sampledHeadPoints.copy()
+        if self._trackerToMRITransf is not None:
+            if len(self._trackerToMRITransfHistory) == 0 or not np.array_equal(list(self._trackerToMRITransfHistory.values())[-1], self._trackerToMRITransf):
+                self._trackerToMRITransfHistory[self._getTimestampStr()] = self._trackerToMRITransf.copy()
+
+        # TODO: connect to sig*Changed signals to have some 'dirty' flag whenever planned or sampled fiducials or sampled headpoints are changed without updating latest trackerToMRITransf as well
+
+    def getFiducial(self, whichSet: str, whichFiducial: str) -> tp.Optional[FiducialCoord]:
+        if whichSet == 'planned':
+            return self._plannedFiducials[whichFiducial]
+        elif whichSet == 'sampled':
+            return self._sampledFiducials[whichFiducial]
+        else:
+            raise NotImplementedError()
+
+    def setFiducial(self, whichSet: str, whichFiducial: str, coord: tp.Optional[FiducialCoord]):
+        try:
+            prevCoord = self.getFiducial(whichSet=whichSet, whichFiducial=whichFiducial)
+        except KeyError:
+            hadCoord = False
+        else:
+            hadCoord = True
+        if hadCoord and np.array_equal(prevCoord, coord):
+            logger.debug('No change in {} {} coordinate, returning.'.format(whichSet, whichFiducial))
+            return
+
+        # TODO: do validation of coord
+
+        fiducials = getattr(self, '_' + whichSet + 'Fiducials')
+
+        logger.info('Set {} fiducial {} to {}'.format(whichSet, whichFiducial, coord))
+        fiducials[whichFiducial] = coord
+
+        # save new fiducials to history
+        getattr(self, '_' + whichSet + 'FiducialsHistory')[self._getTimestampStr()] = fiducials.copy()
+
+        getattr(self, 'sig' + whichSet.capitalize() + 'FiducialsChanged').emit()
+
+    @property
+    def plannedFiducials(self):
+        return self._plannedFiducials  # note: result should not be modified
+
+    @property
+    def sampledFiducials(self):
+        return self._sampledFiducials  # note: result should not be modified
+
+    @property
+    def trackerToMRITransf(self):
+        return self._trackerToMRITransf
+
+    @trackerToMRITransf.setter
+    def trackerToMRITransf(self, newTransf: tp.Optional[Transform]):
+        if np.array_equal(self._trackerToMRITransf, newTransf):
+            logger.debug('No change in trackerToMRITransf, returning')
+            return
+
+        # TODO: do validation of newTransf
+
+        self._trackerToMRITransfHistory[self._getTimestampStr()] = None if self._trackerToMRITransf is None else self._trackerToMRITransf.copy()
+
+        logger.info('Set trackerToMRITransf to {}'.format(newTransf))
+        self._trackerToMRITransf = newTransf
+        self.sigTrackerToMRITransfChanged.emit()
+
+    def asDict(self) -> tp.Dict[str, tp.Any]:
+        d = dict()
+
+        def exportFiducialSet(fiducials: FiducialSet) -> tp.Dict[str, tp.Optional[tp.List[float, float, float]]]:
+            d = dict()
+            for key, val in fiducials.items():
+                if val is None:
+                    d[key] = val
+                else:
+                    assert isinstance(val, np.ndarray)
+                    d[key] = val.tolist()
+            return d
+
+        d['plannedFiducials'] = exportFiducialSet(self._plannedFiducials)
+        d['sampledFiducials'] = exportFiducialSet(self._sampledFiducials)
+        if self._sampledHeadPoints is not None:
+            d['sampledHeadPoints'] = self._sampledHeadPoints.tolist()
+        if self._trackerToMRITransf is not None:
+            d['trackerToMRITransf'] = self._trackerToMRITransf.tolist()
+
+        d['plannedFiducialsHistory'] = [dict(time=key, fiducials=exportFiducialSet(val)) for key, val in self._plannedFiducialsHistory.items()]
+        d['sampledFiducialsHistory'] = [dict(time=key, fiducials=exportFiducialSet(val)) for key, val in self._sampledFiducialsHistory.items()]
+
+        return d
+
+    @classmethod
+    def fromDict(cls, d: tp.Dict[str, tp.Any]) -> SubjectRegistration:
+        # TODO: validate against schema
+        return cls(**d)  # rely on constructor to do any necessary type conversions
+
+    @staticmethod
+    def _getTimestampStr():
+        return datetime.today().strftime('%y%m%d%H%M%S.%f')
+
 
 
 SurfMesh = pv.PolyData
@@ -149,6 +302,7 @@ class HeadModel:
 
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     sigDataChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # emits key `which` indicating what changed, e.g. which='gmSurf'
@@ -179,6 +333,14 @@ class HeadModel:
             mesh = pv.read(meshPath)
 
             setattr(self, '_' + which, mesh)
+
+        elif which == 'eegPositions':
+            csvPath = os.path.join(m2mDir, 'eeg_positions', 'EEG10-10_UI_Jurak_2007.csv')
+            columnLabels = ('type', 'x', 'y', 'z', 'label')
+            logger.info('Loading EEG positions from {}'.format(csvPath))
+            self._eegPositions = pd.read_csv(csvPath, names=columnLabels, index_col='label')
+            assert self._eegPositions.shape[1] == len(columnLabels) - 1
+
         else:
             raise NotImplementedError()
 
@@ -187,12 +349,12 @@ class HeadModel:
     def clearCache(self, which: str):
 
         if which == 'all':
-            allKeys = ('skinSurf', 'gmSurf')  # TODO: add more keys here once implemented
+            allKeys = ('skinSurf', 'gmSurf', 'eegPositions')  # TODO: add more keys here once implemented
             for w in allKeys:
                 self.clearCache(which=w)
             return
 
-        if which in ('skinSurf', 'gmSurf'):
+        if which in ('skinSurf', 'gmSurf', 'eegPositions'):
             if getattr(self, '_' + which) is None:
                 return
             setattr(self, '_' + which, None)
@@ -242,6 +404,12 @@ class HeadModel:
             self.loadCache(which='skinSurf')
         return self._skinSurf
 
+    @property
+    def eegPositions(self):
+        if self.isSet and self._eegPositions is None:
+            self.loadCache(which='eegPositions')
+        return self._eegPositions
+
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
         d = dict(
             filepath=self._filepath
@@ -279,8 +447,8 @@ class Session:
     _sessionID: tp.Optional[str] = None
     _MRI: MRI = attrs.field(factory=MRI)
     _headModel: HeadModel = attrs.field(factory=HeadModel)
+    _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     MNIRegistration: tp.Optional[MNIRegistration] = None
-    subjectRegistration: tp.Optional[SubjectRegistration] = None
     targets: tp.Dict[str, Target] = None
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)
@@ -303,6 +471,10 @@ class Session:
         self.sigInfoChanged.connect(lambda: self._dirtyKeys.add('info'))
         self.MRI.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('headModel'))
+        self.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
+        self.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
+        self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
+        self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
 
         # TODO
 
@@ -343,6 +515,10 @@ class Session:
     @property
     def headModel(self):
         return self._headModel
+
+    @property
+    def subjectRegistration(self):
+        return self._subjectRegistration
 
     @property
     def compressedFileIsDirty(self):
@@ -396,6 +572,12 @@ class Session:
             logger.debug('Writing headModel info')
             config['headModel'] = self.headModel.asDict(filepathRelTo=otherPathsRelTo)
             keysToSave.remove('headModel')
+
+        if 'subjectRegistration' in keysToSave:
+            logger.debug('Writing subjectRegistration info')
+            config['subjectRegistration'] = self.subjectRegistration.asDict()
+            # TODO: save contents of potentially larger *History fields to separate file(s)
+            keysToSave.remove('subjectRegistration')
 
         # TODO: save other fields
         assert len(keysToSave) == 0
@@ -461,6 +643,9 @@ class Session:
 
         if 'headModel' in config:
             kwargs['headModel'] = HeadModel.fromDict(config['headModel'], filepathRelTo=otherPathsRelTo)
+
+        if 'subjectRegistration' in config:
+            kwargs['subjectRegistration'] = SubjectRegistration.fromDict(config['subjectRegistration'])
 
         # TODO: load other available fields
 

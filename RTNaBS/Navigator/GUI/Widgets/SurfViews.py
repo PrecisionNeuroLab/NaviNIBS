@@ -83,6 +83,8 @@ class SurfSliceView(MRISliceView):
 
 @attrs.define()
 class Surf3DView(SurfSliceView):
+    _opacity: float = 1
+
     def _updateView(self):
         if self.session is None or self.session.MRI.data is None:
             # no data available
@@ -107,7 +109,7 @@ class Surf3DView(SurfSliceView):
             logger.debug('Initializing 3D plot')
             self._surfPlotActor = self._plotter.add_mesh(mesh=getattr(self.session.headModel, self._activeSurf),
                                                          color=self._surfColor,
-                                                         opacity=1,
+                                                         opacity=self._opacity,
                                                          name=self.label + '_surf',
                                                          )
             self._surfPlotInitialized = True
