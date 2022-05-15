@@ -229,13 +229,26 @@ class SubjectRegistration:
 
         getattr(self, 'sig' + whichSet.capitalize() + 'FiducialsChanged').emit()
 
+    def deleteFiducial(self, whichSet: str, whichFiducial: str):
+        fiducials = getattr(self, '_' + whichSet + 'Fiducials')
+        logger.info('Delete {} fiducial {}'.format(whichSet, whichFiducial))
+        del fiducials[whichFiducial]
+        getattr(self, 'sig' + whichSet.capitalize() + 'FiducialsChanged').emit()
+
     @property
     def plannedFiducials(self):
-        return self._plannedFiducials  # note: result should not be modified
+        return self._plannedFiducials  # note: result should not be modified, should instead call setter
+
+    @plannedFiducials.setter
+    def plannedFiducials(self, newFiducials: FiducialSet):
+        # TODO: do input validation
+        # TODO: check for equality, skip set if no change
+        self._plannedFiducials = newFiducials
+        self.sigPlannedFiducialsChanged.emit()
 
     @property
     def sampledFiducials(self):
-        return self._sampledFiducials  # note: result should not be modified
+        return self._sampledFiducials  # note: result should not be modified, should instead call setter
 
     @property
     def trackerToMRITransf(self):

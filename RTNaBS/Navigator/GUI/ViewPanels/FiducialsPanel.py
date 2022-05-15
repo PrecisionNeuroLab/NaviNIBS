@@ -20,6 +20,7 @@ from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.Navigator.Model.Session import Session
 
 
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class FiducialsPanel(MainViewPanel):
-    _tblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
+    _tblWdgt: QTableWidgetDragRows = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _hasBeenActivated: bool = attrs.field(init=False, default=False)
     _surfKey: str = 'skinSurf'
@@ -42,33 +43,36 @@ class FiducialsPanel(MainViewPanel):
         container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.MinimumExpanding)
         self._wdgt.layout().addWidget(container)
 
-        self._tblWdgt = QtWidgets.QTableWidget(0, 2)
-        self._tblWdgt.setHorizontalHeaderLabels(['Label', 'XYZ'])
-        container.layout().addWidget(self._tblWdgt)
-
         btnContainer = QtWidgets.QWidget()
-        btnContainer.setLayout(QtWidgets.QHBoxLayout())
+        btnContainer.setLayout(QtWidgets.QGridLayout())
         container.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Autoset fiducials from head model')
         btn.clicked.connect(self._onAutosetBtnClicked)
-        btnContainer.layout().addWidget(btn)
-
-        btnContainer = QtWidgets.QWidget()
-        btnContainer.setLayout(QtWidgets.QHBoxLayout())
-        container.layout().addWidget(btnContainer)
+        btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
 
         btn = QtWidgets.QPushButton('Add fiducial')
         btn.clicked.connect(self._onAddBtnClicked)
-        btnContainer.layout().addWidget(btn)
+        btnContainer.layout().addWidget(btn, 1, 0)
+
+        btn = QtWidgets.QPushButton('Delete fiducial')
+        btn.clicked.connect(self._onDeleteBtnClicked)
+        btnContainer.layout().addWidget(btn, 1, 1)
 
         btn = QtWidgets.QPushButton('Set fiducial')
         btn.clicked.connect(self._onSetBtnClicked)
-        btnContainer.layout().addWidget(btn)
+        btnContainer.layout().addWidget(btn, 2, 0)
 
         btn = QtWidgets.QPushButton('Goto fiducial')
         btn.clicked.connect(self._onGotoBtnClicked)
-        btnContainer.layout().addWidget(btn)
+        btnContainer.layout().addWidget(btn, 2, 1)
+
+        self._tblWdgt = QTableWidgetDragRows(0, 2)
+        self._tblWdgt.setHorizontalHeaderLabels(['Label', 'XYZ'])
+        self._tblWdgt.sigDragAndDropReordered.connect(self._onDragAndDropReorderedRows)
+        self._tblWdgt.cellChanged.connect(self._onTblCellChanged)
+        self._tblWdgt.cellDoubleClicked.connect(self._onTblCellDoubleClicked)
+        container.layout().addWidget(self._tblWdgt)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -110,6 +114,33 @@ class FiducialsPanel(MainViewPanel):
             for key, view in self._views.items():
                 view.session = self.session
 
+    def _onDragAndDropReorderedRows(self):
+        newOrder = [self._tblWdgt.item(iR, 0).text() for iR in range(self._tblWdgt.rowCount())]
+        logger.info('Reordering fiducials: {}'.format(newOrder))
+        self.session.subjectRegistration.plannedFiducials = {key: self.session.subjectRegistration.plannedFiducials[key] for key in newOrder}
+
+    def _onTblCellChanged(self, row: int, col: int):
+        if col != 0:
+            # ignore
+            return
+        if self._tblWdgt.dropInProgress:
+            # ignore any changes during drag-and-drop processing (these are signals separately)
+            return
+        newLabel = self._tblWdgt.item(row, col).text()
+        oldLabel = list(self.session.subjectRegistration.plannedFiducials.keys())[row]
+        if newLabel != oldLabel:
+            logger.info('Fiducial label changed from {} to {}'.format(oldLabel, newLabel))
+            oldKeys = list(self.session.subjectRegistration.plannedFiducials.keys())
+            newKeys = oldKeys.copy()
+            newKeys[newKeys.index(oldLabel)] = newLabel
+            self.session.subjectRegistration.plannedFiducials = {
+                newKey: self.session.subjectRegistration.plannedFiducials[oldKey] for oldKey, newKey in zip(oldKeys, newKeys)}
+
+    def _onTblCellDoubleClicked(self, row: int, col: int):
+        coord = list(self.session.subjectRegistration.plannedFiducials.values())[row]
+        if coord is not None:
+            self._views['3D'].sliceOrigin = coord
+
     def _onPlannedFiducialsChanged(self):
         logger.debug('Planned fiducials changed. Updating table and plots')
 
@@ -121,6 +152,7 @@ class FiducialsPanel(MainViewPanel):
             item = QtWidgets.QTableWidgetItem(label)
             self._tblWdgt.setItem(iFid, 0, item)
             item = QtWidgets.QTableWidgetItem('{:.1f}, {:.1f}, {:.1f}'.format(*coord) if coord is not None else '')
+            item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
             self._tblWdgt.setItem(iFid, 1, item)
         # TODO: restore selected row
 
@@ -133,18 +165,30 @@ class FiducialsPanel(MainViewPanel):
 
         if self._hasBeenActivated:
             for viewKey, view in self._views.items():
-                self._fiducialActors[viewKey] = view.plotter.add_point_labels(
-                    name='plannedFiducials',
-                    points=coords,
-                    labels=labels,
-                    point_color='blue',
-                    text_color='blue',
-                    point_size=20,
-                    shape=None,
-                    render_points_as_spheres=True,
-                    reset_camera=False,
-                    render=True
-                )
+                if viewKey == '3D':
+                    self._fiducialActors[viewKey] = view.plotter.add_point_labels(
+                        name='plannedFiducials',
+                        points=coords,
+                        labels=labels,
+                        point_color='blue',
+                        text_color='blue',
+                        point_size=15,
+                        shape=None,
+                        render_points_as_spheres=True,
+                        reset_camera=False,
+                        render=True
+                    )
+                else:
+                    self._fiducialActors[viewKey] = view.plotter.add_points(
+                        name='plannedFiducials',
+                        points=coords,
+                        color='blue',
+                        opacity=0.85,
+                        point_size=15,
+                        render_points_as_spheres=True,
+                        reset_camera=False,
+                        render=True
+                    )
 
     def _onHeadModelUpdated(self, whatChanged: str):
         if whatChanged != self._surfKey:
@@ -176,11 +220,41 @@ class FiducialsPanel(MainViewPanel):
             noseCoord = getattr(self.session.headModel, self._surfKey).points[iMax, :]
             subReg.setFiducial(whichSet='planned', whichFiducial='NoseTip', coord=noseCoord)
 
+    def _getTblCurrentFiducialKey(self) -> tp.Optional[str]:
+        curItem = self._tblWdgt.currentItem()
+        if curItem is None:
+            # no item selected
+            return None
+        return self._tblWdgt.item(curItem.row(), 0).text()
+
     def _onAddBtnClicked(self, checked: bool):
         raise NotImplementedError()  # TODO
 
+    def _onDeleteBtnClicked(self, checked: bool):
+        key = self._getTblCurrentFiducialKey()
+        if key is None:
+            # no fiducial selected
+            return
+        logger.info('Deleting {} fiducial'.format(key))
+        self.session.subjectRegistration.deleteFiducial(whichSet='planned', whichFiducial=key)
+
     def _onSetBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        key = self._getTblCurrentFiducialKey()
+        if key is None:
+            # no fiducial selected
+            return
+        coord = self._views['3D'].sliceOrigin
+        logger.info('Setting {} fiducial coord to {}'.format(key, coord))
+        self.session.subjectRegistration.setFiducial(whichSet='planned', whichFiducial=key, coord=coord)
 
     def _onGotoBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        key = self._getTblCurrentFiducialKey()
+        if key is None:
+            # no fiducial selected
+            return
+        coord = self.session.subjectRegistration.getFiducial(whichSet='planned', whichFiducial=key)
+        if coord is None:
+            # no coordinates set for this fiducial
+            return
+        logger.info('Going to {} at {}'.format(key, coord))
+        self._views['3D'].sliceOrigin = coord

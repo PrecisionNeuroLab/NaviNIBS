@@ -166,8 +166,11 @@ class MRISliceView:
             # single-slice plot
             slice = self.session.MRI.dataAsUniformGrid.slice(normal=self._normal, origin=self._sliceOrigin)  # this is very slow for some reason
             self._plotter.add_mesh(slice,
-                                         name='slice',
-                                         cmap='gray')
+                                   name='slice',
+                                   cmap='gray',
+                                   render=False,
+                                   reset_camera=False
+                                   )
             if isinstance(self._normal, str):
                 self._plotter.camera_position = 'xyz'.replace(self._normal, '')
             else:
@@ -184,7 +187,9 @@ class MRISliceView:
                                          name='MRI',
                                          mapper='gpu',
                                          clim=self._clim,
-                                         cmap='gray')
+                                         cmap='gray',
+                                         render=False,
+                                         reset_camera=False)
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
