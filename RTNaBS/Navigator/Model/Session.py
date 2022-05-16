@@ -161,33 +161,11 @@ class SubjectRegistration:
 
     def __attrs_post_init__(self):
 
-        # convert types as needed (e.g. if coming from deserialized json)
-        for whichSet in ('planned', 'sampled'):
-            fiducials = getattr(self, '_' + whichSet + 'Fiducials')
-            fiducialsHistory = getattr(self, '_' + whichSet + 'FiducialsHistory')
-            for key in fiducials.keys():
-                if isinstance(fiducials[key], list):
-                    fiducials[key] = np.asarray(fiducials[key])
-            for timeStr in fiducialsHistory.keys():
-                for key in fiducialsHistory[timeStr].keys():
-                    if isinstance(fiducialsHistory[timeStr][key], list):
-                        fiducialsHistory[timeStr][key] = np.asarray(fiducialsHistory[timeStr][key])
-        if isinstance(self._sampledHeadPoints, list):
-            self._sampledHeadPoints = np.asarray(self._sampledHeadPoints)
-        for timeStr in self._sampledHeadPointsHistory.keys():
-            if isinstance(self._sampledHeadPointsHistory[timeStr], list):
-                self._sampledHeadPointsHistory[timeStr] = np.asarray(self._sampledHeadPointsHistory[timeStr])
-        if isinstance(self._trackerToMRITransf, list):
-            self._trackerToMRITransf = np.asarray(self._trackerToMRITransf)
-        for timeStr in self._trackerToMRITransfHistory.keys():
-            if isinstance(self._trackerToMRITransfHistory[timeStr], list):
-                self._trackerToMRITransfHistory[timeStr] = np.asarray(self._trackerToMRITransfHistory[timeStr])
-
         # make sure histories are up to date with current values
         for whichSet in ('planned', 'sampled'):
             fiducials = getattr(self, '_' + whichSet + 'Fiducials')
             fiducialsHistory = getattr(self, '_' + whichSet + 'FiducialsHistory')
-            if len(fiducials) > 0 and (len(fiducialsHistory)==0 or list(fiducialsHistory.values())[-1] != fiducials):
+            if len(fiducials) > 0 and (len(fiducialsHistory)==0 or not np.array_equal(list(fiducialsHistory.values())[-1],  fiducials)):
                 fiducialsHistory[self._getTimestampStr()] = fiducials.copy()
         if self._sampledHeadPoints is not None:
             if len(self._sampledHeadPointsHistory) == 0 or not np.array_equal(list(self._sampledHeadPointsHistory.values())[-1], self._sampledHeadPoints):
@@ -283,20 +261,73 @@ class SubjectRegistration:
 
         d['plannedFiducials'] = exportFiducialSet(self._plannedFiducials)
         d['sampledFiducials'] = exportFiducialSet(self._sampledFiducials)
-        if self._sampledHeadPoints is not None:
-            d['sampledHeadPoints'] = self._sampledHeadPoints.tolist()
-        if self._trackerToMRITransf is not None:
-            d['trackerToMRITransf'] = self._trackerToMRITransf.tolist()
 
         d['plannedFiducialsHistory'] = [dict(time=key, fiducials=exportFiducialSet(val)) for key, val in self._plannedFiducialsHistory.items()]
         d['sampledFiducialsHistory'] = [dict(time=key, fiducials=exportFiducialSet(val)) for key, val in self._sampledFiducialsHistory.items()]
+
+        if self._sampledHeadPoints is not None:
+            d['sampledHeadPoints'] = self._sampledHeadPoints.tolist()
+        if len(self._sampledHeadPointsHistory) > 0:
+            d['sampledHeadPointsHistory'] = [dict(time=key, sampledHeadPoints=val.tolist()) for key, val in self._sampledHeadPointsHistory.items()]
+
+        if self._trackerToMRITransf is not None:
+            d['trackerToMRITransf'] = self._trackerToMRITransf.tolist()
+        if len(self._trackerToMRITransfHistory) > 0:
+            d['trackerToMRITransfHistory'] = [dict(time=key, trackerToMRITransf=val.tolist()) for key, val in self._trackerToMRITransfHistory.items()]
 
         return d
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any]) -> SubjectRegistration:
         # TODO: validate against schema
-        return cls(**d)  # rely on constructor to do any necessary type conversions
+
+        # note: input dict is modified for arg conversion below
+
+        # convert types as needed (e.g. if coming from deserialized json)
+
+        def convertFiducials(fiducials: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
+            for key in fiducials.keys():
+                if isinstance(fiducials[key], list):
+                    fiducials[key] = np.asarray(fiducials[key])
+            return fiducials
+
+        def convertHeadpoints(headPts: tp.List[tp.List[float, float, float]]) -> np.ndarray:
+            return np.asarray(headPts)
+
+        def convertTransf(transf: tp.List[tp.List[float, float, float]]) -> np.ndarray:
+            return np.asarray(transf)
+
+        def convertHistoryListToDict(historyList: tp.List[tp.Dict[str, tp.Any]], field: str, entryConverter: tp.Callable) -> tp.Dict[str, tp.Any]:
+            historyDict = {}
+            for entry in historyList:
+                timeStr = entry['time']
+                historyDict[timeStr] = entryConverter(entry[field])
+            return historyDict
+
+        for whichSet in ('planned', 'sampled'):
+            d[whichSet + 'Fiducials'] = convertFiducials(d[whichSet + 'Fiducials'])
+
+            d[whichSet + 'FiducialsHistory'] = convertHistoryListToDict(d[whichSet + 'FiducialsHistory'],
+                                                                        field='fiducials',
+                                                                        entryConverter=convertFiducials)
+
+        if 'sampledHeadPoints' in d:
+            d['sampledHeadPoints'] = convertHeadpoints(d['sampledHeadPoints'])
+
+        if 'sampledHeadPointsHistory' in d:
+            d['sampledHeadPointsHistory'] = convertHistoryListToDict(d['sampledHeadPointsHistory'],
+                                                                     field='sampledHeadPoints',
+                                                                     entryConverter=convertHeadpoints)
+
+        if 'trackerToMRITransf' in d:
+            d['trackerToMRITransf'] = convertTransf(d['trackerToMRITransf'])
+
+        if 'trackerToMRITransfHistory' in d:
+            d['trackerToMRITransfHistory'] = convertHistoryListToDict(d['trackerToMRITransfHistory'],
+                                                                      field='trackerToMRITransf',
+                                                                      entryConverter=convertTransf)
+
+        return cls(**d)
 
     @staticmethod
     def _getTimestampStr():
@@ -448,10 +479,186 @@ class HeadModel:
         assert os.path.exists(filepath), 'File not found at {}'.format(filepath)
         # TODO: also verify that expected related files (e.g. m2m_* folder) are next to the referenced .msh filepath
 
+
 @attrs.define()
 class Target:
-    pass
+    """
+    Can specify (targetCoord, entryCoord, angle, [depthOffset]) to autogenerate coilToMRITransf,
+    or (coilToMRITransf, [targetCoord]) to use transform directly.
+    """
+    _key: str
+    _targetCoord: tp.Optional[np.ndarray] = None
+    _entryCoord: tp.Optional[np.ndarray] = None
+    _angle: tp.Optional[float] = None  # typical coil handle angle, in coil's horizontal plane
+    _depthOffset: tp.Optional[float] = None  # offset beyond entryCoord, e.g. due to EEG electrode thickness, coil foam
+    _coilToMRITransf: tp.Optional[np.ndarray] = None
 
+    _cachedCoilToMRITransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)
+
+    sigTargetAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # includes key
+    sigTargetChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # includes key
+
+    @property
+    def key(self):
+        return self._key
+
+    @property
+    def targetCoord(self):
+        return self._targetCoord
+
+    @property
+    def entryCoord(self):
+        return self._entryCoord
+
+    @property
+    def angle(self):
+        return self._angle if self._angle is not None else 0
+
+    @property
+    def depthOffset(self):
+        return self._depthOffset if self._depthOffset is not None else 0
+
+    @property
+    def coilToMRITransf(self):
+        if self._coilToMRITransf is not None:
+            return self._coilToMRITransf
+        else:
+            if self._cachedCoilToMRITransf is None:
+                raise NotImplementedError()  # TODO: generate transform from target, entry, angle, offset
+                self._cachedCoilToMRITransf = 'todo'
+            return self._cachedCoilToMRITransf
+
+    def asDict(self) -> tp.Dict[str, tp.Any]:
+        def convertOptionalNDArray(val: tp.Optional[np.ndarray]) -> tp.Optional[tp.List[tp.Any]]:
+            if val is None:
+                return None
+            else:
+                # noinspection PyTypeChecker
+                return val.tolist()
+
+        d = dict(
+            key=self._key,
+            targetCoord=convertOptionalNDArray(self._targetCoord),
+            entryCoord=convertOptionalNDArray(self._entryCoord),
+            angle=self._angle,
+            depthOffset=self._depthOffset,
+            coilToMRITransf=convertOptionalNDArray(self._coilToMRITransf)
+        )
+        return d
+
+    @classmethod
+    def fromDict(cls, d: tp.Dict[str, tp.Any]):
+
+        def convertOptionalNDArray(val: tp.Optional[tp.List[tp.Any]]) -> tp.Optional[np.ndarray]:
+            if val is None:
+                return None
+            else:
+                return np.asarray(val)
+
+        for attrKey in ('targetCoord', 'entryCoord', 'coilToMRITransf'):
+            if attrKey in d:
+                d[attrKey] = convertOptionalNDArray(d[attrKey])
+
+        return cls(**d)
+
+
+@attrs.define()
+class Targets:
+    _targets: tp.Dict[str, Target] = attrs.field(factory=dict)
+
+    sigTargetsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))  # includes list of keys of targets about to change
+    sigTargetsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))  # includes list of keys of changed targets
+
+    def __attrs_post_init__(self):
+        for key, target in self._targets.items():
+            assert target.key == key
+            target.sigTargetAboutToChange.connect(self._onTargetAboutToChange)
+            target.sigTargetChanged.connect(self._onTargetChanged)
+
+    def addTarget(self, target: Target):
+        assert target.key not in self._targets
+        return self.setTarget(target=target)
+
+    def deleteTarget(self, key: str):
+        raise NotImplementedError()  # TODO
+
+    def setTarget(self, target: Target):
+        self.sigTargetsAboutToChange.emit([target.key])
+        if target.key in self._targets:
+            self._targets[target.key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
+            self._targets[target.key].sigTargetChanged.disconnect(self._onTargetChanged)
+        self._targets[target.key] = target
+
+        target.sigTargetAboutToChange.connect(self._onTargetAboutToChange)
+        target.sigTargetChanged.connect(self._onTargetChanged)
+
+        self.sigTargetsChanged.emit([target.key])
+
+    def setTargets(self, targets: tp.List[Target]):
+        # assume all keys are changing, though we could do comparisons to find subset changed
+        oldKeys = list(self.targets.keys())
+        newKeys = [target.key for target in targets]
+        combinedKeys = list(set(oldKeys) | set(newKeys))
+        self.sigTargetsAboutToChange.emit(combinedKeys)
+        for key in oldKeys:
+            self._targets[key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
+            self._targets[key].sigTargetChanged.disconnect(self._onTargetChanged)
+        self._targets = {target.key: target for target in targets}
+        for key, target in self._targets.items():
+            self._targets[key].sigTargetAboutToChange.connect(self._onTargetAboutToChange)
+            self._targets[key].sigTargetChanged.connect(self._onTargetChanged)
+        self.sigTargetsChanged.emit(combinedKeys)
+
+    def _onTargetAboutToChange(self, key: str):
+        self.sigTargetsAboutToChange.emit([key])
+
+    def _onTargetChanged(self, key: str):
+        self.sigTargetsChanged.emit([key])
+
+    def __getitem__(self, key):
+        return self._targets[key]
+
+    def __setitem__(self, key, target: Target):
+        assert key == target.key
+        self.setTarget(target=target)
+
+    def __iter__(self):
+        return iter(self._targets)
+
+    def keys(self):
+        return self._targets.keys()
+
+    def items(self):
+        return self._targets.items()
+
+    def values(self):
+        return self._targets.values()
+
+    def merge(self, otherTargets: Targets):
+
+        self.sigTargetsAboutToChange.emit(list(otherTargets.keys()))
+
+        with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
+            for target in otherTargets.values():
+                self.setTarget(target)
+
+        self.sigTargetsChanged.emit(list(otherTargets.keys()))
+
+    @property
+    def targets(self):
+        return self._targets  # note: result should not be modified directly
+
+    def asList(self) -> tp.List[tp.Dict[str, tp.Any]]:
+        raise NotImplementedError()  # TODO
+
+    @classmethod
+    def fromList(cls, targetList: tp.List[tp.Dict[str, tp.Any]]) -> Targets:
+
+        targets = {}
+        for targetDict in targetList:
+            targets[targetDict['key']] = Target.fromDict(targetDict)
+
+        return cls(targets=targets)
 
 @attrs.define()
 class Session:
@@ -462,7 +669,7 @@ class Session:
     _headModel: HeadModel = attrs.field(factory=HeadModel)
     _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     MNIRegistration: tp.Optional[MNIRegistration] = None
-    targets: tp.Dict[str, Target] = None
+    _targets: Targets = attrs.field(factory=Targets)
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)
     _compressedFileIsDirty: bool = True
@@ -488,6 +695,7 @@ class Session:
         self.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
+        self.targets.sigTargetsChanged.connect(lambda targetKeys: self._dirtyKeys.add('targets'))
 
         # TODO
 
@@ -532,6 +740,10 @@ class Session:
     @property
     def subjectRegistration(self):
         return self._subjectRegistration
+
+    @property
+    def targets(self):
+        return self._targets
 
     @property
     def compressedFileIsDirty(self):
@@ -592,6 +804,11 @@ class Session:
             # TODO: save contents of potentially larger *History fields to separate file(s)
             keysToSave.remove('subjectRegistration')
 
+        if 'targets' in keysToSave:
+            logger.debug('Writing targets info')
+            config['targets'] = self.targets.asList()
+            keysToSave.remove('targets')
+
         # TODO: save other fields
         assert len(keysToSave) == 0
 
@@ -618,6 +835,28 @@ class Session:
         logger.debug('Done saving')
 
         self._compressedFileIsDirty = False
+
+    def mergeFromFile(self, filepath: str, sections: tp.Optional[tp.List[str]] = None):
+        """
+        Import session elements from another file. Specify `sections` to only read a subset of elements from the file to merge, e.g. `sections=['targets']` to ignore everything but the targets section in the loaded file.
+        """
+
+        logger.info('Merge {} from file: {}'.format('all' if sections is None else sections, filepath))
+
+        _, ext = os.path.splitext(filepath)
+
+        if ext == '.json':
+            if sections == ['targets']:
+                with open(filepath, 'r') as f:
+                    d = json.load(f)
+                # TODO: validate against schema
+                assert 'targets' in d, 'Targets to import/merge should be in json with "targets" as a field in a root-level dict'
+                newTargets = Targets.fromList(d['targets'])
+                self.targets.merge(newTargets)
+            else:
+                raise NotImplementedError()
+        else:
+            raise NotImplementedError()  # TODO: implement more general merging of .rtnabs files
 
     @classmethod
     def createNew(cls, filepath: str, unpackedSessionDir: tp.Optional[str] = None):
@@ -659,6 +898,9 @@ class Session:
 
         if 'subjectRegistration' in config:
             kwargs['subjectRegistration'] = SubjectRegistration.fromDict(config['subjectRegistration'])
+
+        if 'targets' in config:
+            kwargs['targets'] = Targets.fromList(config['targets'])
 
         # TODO: load other available fields
 

@@ -23,6 +23,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.SessionInfoPanel import SessionInfoPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
+from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 
 
 logger = logging.getLogger(__name__)
@@ -85,8 +86,7 @@ class NavigatorGUI(RunnableAsApp):
         createViewPanel('Set transforms', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
         # TODO: set up transforms widget
 
-        createViewPanel('Set targets', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
-        # TODO: set up targets widget
+        createViewPanel('Set targets', TargetsPanel(session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
 
         self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
