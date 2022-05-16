@@ -8,6 +8,7 @@ import typing as tp
 
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.Transforms import composeTransform, applyTransform
 
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class MRISliceView:
-    _normal: tp.Union[str, np.ndarray] = 'x'
+    _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
     _clim: tp.Tuple[float, float] = (300, 2000)  # TODO: set to auto-initialize instead of hardcoding default
     _session: tp.Optional[Session] = None
@@ -30,6 +31,8 @@ class MRISliceView:
     _backgroundColor: str = '#000000'
 
     sigSliceOriginChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigNormalChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigSliceTransformChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         self.sigSliceOriginChanged.connect(self._updateView)
@@ -89,6 +92,48 @@ class MRISliceView:
             return
         self._sliceOrigin = newVal
         self.sigSliceOriginChanged.emit()
+        self.sigSliceTransformChanged.emit()
+
+    @property
+    def sliceTransform(self):
+        transf = np.eye(4)
+        if isinstance(self._normal, str):
+            # TODO: double check these
+            if self._normal == 'x':
+                transf[0:3, 0:3] = np.asarray([[0, 0, 1], [0, 1, 0], [-1, 0, 0]])
+            elif self._normal == 'y':
+                transf[0:3, 0:3] = np.asarray([[1, 0, 0], [0, 0, -1], [0, 1, 0]])
+            elif self._normal == 'z':
+                pass
+            else:
+                raise NotImplementedError()
+        else:
+            transf[0:3, 0:3] = self._normal
+
+        transf[0:3, 3] = self._sliceOrigin
+
+        return transf
+
+    @sliceTransform.setter
+    def sliceTransform(self, newTransf: np.array):
+        newOrigin = newTransf[0:3, 3]
+        newRot = newTransf[0:3, 0:3]
+        assert np.array_equal(newTransf[3, :], np.asarray([0, 0, 0, 1]))
+
+        originChanged = not np.array_equal(newOrigin, self._sliceOrigin)
+        rotChanged = not np.array_equal(self._normal, newRot)
+
+        if not originChanged and not rotChanged:
+            return
+
+        self._sliceOrigin = newOrigin
+        self._normal = newRot
+
+        self.sigSliceTransformChanged.emit()
+        if originChanged:
+            self.sigSliceOriginChanged.emit()
+        if rotChanged:
+            self.sigNormalChanged.emit()
 
     def _onSlicePointChanged(self):
         pos = self._plotter.picked_point
@@ -98,7 +143,8 @@ class MRISliceView:
             if isinstance(self._normal, str):
                 pos['xyz'.index(self._normal)] = self._sliceOrigin['xyz'.index(self._normal)]
             else:
-                raise NotImplementedError()  # TODO
+                normalDir = self._normal @ np.asarray([0, 0, 1])
+                pos = pos - np.dot(pos - self._sliceOrigin, normalDir) * normalDir
         self.sliceOrigin = pos
 
     def _onSliceScrolled(self, change: int):
@@ -107,7 +153,7 @@ class MRISliceView:
         if isinstance(self._normal, str):
             offset['xyz'.index(self._normal)] = change
         else:
-            raise NotImplementedError()  # TODO
+            offset = self._normal @ np.asarray([0, 0, 1]) * change
         pos = self._sliceOrigin + offset
         self.sliceOrigin = pos
 
@@ -196,7 +242,7 @@ class MRISliceView:
         if isinstance(self._normal, str):
             crosshairAxes = 'xyz'.replace(self._normal, '')
         else:
-            raise NotImplementedError()  # TODO
+            crosshairAxes = 'xy'  # will be transformed below
         centerGapLength = 10  # TODO: scale by image size
 
         for axis in crosshairAxes:
@@ -204,11 +250,17 @@ class MRISliceView:
             mask[0, 'xyz'.index(axis)] = 1
             for iDir, dir in enumerate((-1, 0, 1)):
                 if dir == 0:
-                    pts = np.asarray([centerGapLength / 2, -centerGapLength / 2])[:, np.newaxis] * mask + self._sliceOrigin
+                    pts = np.asarray([centerGapLength / 2, -centerGapLength / 2])[:, np.newaxis] * mask
                     width = 1
                 else:
-                    pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
+                    pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask
                     width = 2
+                if isinstance(self._normal, str):
+                    pts += self._sliceOrigin
+                else:
+                    viewToWorldTransf = composeTransform(self._normal, self._sliceOrigin)
+                    pts = applyTransform(viewToWorldTransf, pts)
+
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
@@ -225,7 +277,7 @@ class MRISliceView:
             if self._normal == 'y':
                 offsetDir *= -1  # reverse direction for coronal slice to match L/R of other views
         else:
-            raise NotImplementedError()  #TODO
+            offsetDir = self._normal @ np.asarray([0, 0, 1])  # TODO: double check
         if True:
             self._plotter.camera.position = offsetDir * 100 + self._sliceOrigin
         else:
@@ -240,9 +292,9 @@ class MRISliceView:
             upDir = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
             if self._normal == 'y':
                 upDir *= -1
-            self._plotter.camera.up = upDir
         else:
-            raise NotImplementedError()  # TODO
+            upDir = self._normal @ np.asarray([0, 1, 0])
+        self._plotter.camera.up = upDir
         if self._slicePlotMethod == 'cameraClippedVolume':
             self._plotter.camera.clipping_range = (99, 102)
         self._plotter.camera.parallel_scale = 90
@@ -250,9 +302,7 @@ class MRISliceView:
         self._plotterInitialized = True
 
 
-
-
-@attrs.define()
+@attrs.define
 class MRI3DView(MRISliceView):
     _clim: tp.Tuple[float, float] = (300, 1000)  # TODO: set to auto-initialize instead of hardcoding default
 
