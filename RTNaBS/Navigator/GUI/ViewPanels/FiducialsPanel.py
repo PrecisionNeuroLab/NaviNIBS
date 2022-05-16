@@ -81,7 +81,7 @@ class FiducialsPanel(MainViewPanel):
             if key in ('x', 'y', 'z'):
                 self._views[key] = MRISliceView(normal=key)
             elif key == '3D':
-                self._views[key] = Surf3DView(normal=key, activeSurf=self._surfKey, opacity=0.7)
+                self._views[key] = Surf3DView(normal=key, activeSurf=self._surfKey, surfOpacity=0.7)
             else:
                 raise NotImplementedError()
 
@@ -96,8 +96,8 @@ class FiducialsPanel(MainViewPanel):
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
                 view.session = self.session
-        self._onPlannedFiducialsChanged()
         self._hasBeenActivated = True
+        self._onPlannedFiducialsChanged()
 
     def _onSliceOriginChanged(self, sourceKey: str):
         for key, view in self._views.items():

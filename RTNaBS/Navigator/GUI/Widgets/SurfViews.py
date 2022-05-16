@@ -27,11 +27,12 @@ logger = logging.getLogger(__name__)
 @attrs.define()
 class SurfSliceView(MRISliceView):
 
-    _activeSurf: str = 'gmSurf'
+    _activeSurf: tp.Union[str, tp.List[str]] = 'gmSurf'
 
     _slicePlotMethod: str = 'slicedSurface'
 
-    _surfColor: str = '#d9a5b2'
+    _surfColor: tp.Union[str, tp.List[str]] = '#d9a5b2'
+    _surfOpacity: tp.Union[float, tp.List[float]] = 0.5
     _surfPlotInitialized: bool = attrs.field(init=False, default=False)
     _surfPlotActor: tp.Optional[tp.Any] = attrs.field(init=False, default=None)
 
@@ -39,6 +40,7 @@ class SurfSliceView(MRISliceView):
         super().__attrs_post_init__()
         if self._session is not None:
             self._session.headModel.sigDataChanged.connect(self._onHeadModelDataChanged)
+        self.plotter.enable_depth_peeling(4)
 
     @property
     def activeSurf(self):
@@ -68,24 +70,46 @@ class SurfSliceView(MRISliceView):
     def _updateView(self):
         super()._updateView()
 
+        if isinstance(self._activeSurf, str):
+            surfKeys = [self._activeSurf]
+        else:
+            surfKeys = self._activeSurf
+
+        if isinstance(self._surfColor, str):
+            surfColors = [self._surfColor]
+        else:
+            surfColors = self._surfColor
+
+        if not isinstance(self._surfOpacity, list):
+            surfOpacities = [self._surfOpacity]
+        else:
+            surfOpacities = self._surfOpacity
+
         if not self._surfPlotInitialized \
-                and self.session is not None \
-                and getattr(self.session.headModel, self._activeSurf) is not None:
-            self._surfPlotActor = self._plotter.add_mesh(mesh=getattr(self.session.headModel, self._activeSurf),
-                                                         color=self._surfColor,
-                                                         opacity=0.5,
-                                                         name=self.label + '_surf',
-                                                         )
-            self._surfPlotInitialized = True
+                and self.session is not None:
+            actors = []
+            for iSurf, surfKey in enumerate(surfKeys):
+                if getattr(self.session.headModel, self._activeSurf) is not None:
+                    actor = self._plotter.add_mesh(mesh=getattr(self.session.headModel, surfKey),
+                                                                 color=surfColors[iSurf % len(surfColors)],
+                                                                 opacity=surfOpacities[iSurf % len(surfOpacities)],
+                                                                 name=self.label + '_' + surfKey + '_surf',
+                                                                 )
+                    actors.append(actor)
+                    self._surfPlotInitialized = True
+
+            if len(actors) > 0:
+                self._surfPlotActor = actors
 
         self._plotter.camera.clipping_range = (90, 110)
 
 
 @attrs.define()
 class Surf3DView(SurfSliceView):
-    _opacity: float = 1
+    _surfOpacity: float = 1.
 
     def _updateView(self):
+
         if self.session is None or self.session.MRI.data is None:
             # no data available
             if self._plotterInitialized:
@@ -103,16 +127,37 @@ class Surf3DView(SurfSliceView):
                                                                          1))[:-1]
             return  # prev line will have triggered its own update
 
-        if not self._surfPlotInitialized \
-                and self.session is not None \
-                and getattr(self.session.headModel, self._activeSurf) is not None:
-            logger.debug('Initializing 3D plot')
-            self._surfPlotActor = self._plotter.add_mesh(mesh=getattr(self.session.headModel, self._activeSurf),
-                                                         color=self._surfColor,
-                                                         opacity=self._opacity,
-                                                         name=self.label + '_surf',
-                                                         )
-            self._surfPlotInitialized = True
+        if not self._surfPlotInitialized and self.session is not None:
+
+            if isinstance(self._activeSurf, str):
+                surfKeys = [self._activeSurf]
+            else:
+                surfKeys = self._activeSurf
+
+            if isinstance(self._surfColor, str):
+                surfColors = [self._surfColor]
+            else:
+                surfColors = self._surfColor
+
+            if not isinstance(self._surfOpacity, list):
+                surfOpacities = [self._surfOpacity]
+            else:
+                surfOpacities = self._surfOpacity
+
+            actors = []
+            for iSurf, surfKey in enumerate(surfKeys):
+                if getattr(self.session.headModel, surfKey) is not None:
+                    if not self._surfPlotInitialized:
+                        logger.debug('Initializing 3D plot')
+
+                    actor = self._plotter.add_mesh(mesh=getattr(self.session.headModel, surfKey),
+                                                   color=surfColors[iSurf % len(surfColors)],
+                                                   opacity=surfOpacities[iSurf % len(surfOpacities)],
+                                                   name=self.label + '_' + surfKey + '_surf',
+                                                   )
+                    actors.append(actor)
+
+                    self._surfPlotInitialized = True
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
