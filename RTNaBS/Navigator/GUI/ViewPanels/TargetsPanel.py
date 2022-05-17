@@ -9,6 +9,7 @@ import logging
 import numpy as np
 import os
 import pathlib
+import pytransform3d.rotations as ptr
 import pyvista as pv
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
@@ -21,6 +22,7 @@ from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from RTNaBS.util.Transforms import composeTransform, applyTransform
 from RTNaBS.Navigator.Model.Session import Session, Target
 
 
@@ -106,7 +108,7 @@ class TargetsPanel(MainViewPanel):
         self._wdgt.layout().addWidget(container)
         for iRow, iCol, key in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if key in ('x', 'y', 'z'):
-                self._views[key] = MRISliceView(label=key, normal=np.eye(3))
+                self._views[key] = MRISliceView(label=key, normal=self._getRotMatForCoilAxis(key))
             elif key == '3D':
                 self._views[key] = Surf3DView(label=key, normal=np.eye(3),
                                               activeSurf=self._surfKeys,
@@ -120,6 +122,17 @@ class TargetsPanel(MainViewPanel):
 
         self.sigPanelActivated.connect(self._onPanelActivated)
 
+    @staticmethod
+    def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
+        if axis == 'x':
+            return ptr.active_matrix_from_extrinsic_euler_yxy([np.pi/2, np.pi/2, 0])
+        elif axis == 'y':
+            return ptr.active_matrix_from_angle(0, np.pi/2)
+        elif axis in ('z', '3D'):
+            return np.eye(3)
+        else:
+            raise NotImplementedError()
+
     def _onPanelActivated(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
         for key, view in self._views.items():
@@ -129,10 +142,13 @@ class TargetsPanel(MainViewPanel):
         self._onTargetsChanged()
 
     def _onSliceTransformChanged(self, sourceKey: str):
+        logger.debug('Slice {} transform changed'.format(sourceKey))
+        crossTransf = self._views[sourceKey].sliceTransform @ composeTransform(np.linalg.pinv(self._getRotMatForCoilAxis(axis=sourceKey)))  # TODO: double check order
         for key, view in self._views.items():
             if key == sourceKey:
                 continue
-            view.sliceTransform = self._views[sourceKey].sliceTransform
+            logger.debug('Updating {} slice transform'.format(key))
+            view.sliceTransform = crossTransf @ composeTransform(self._getRotMatForCoilAxis(axis=key))
 
     def _onSessionSet(self):
         super()._onSessionSet()
@@ -141,6 +157,15 @@ class TargetsPanel(MainViewPanel):
         if self._hasBeenActivated:
             for key, view in self._views.items():
                 view.session = self.session
+
+    def _getCurrentTargetKey(self) -> tp.Optional[str]:
+        curItem = self._treeWdgt.currentItem()
+        if curItem is not None:
+            raise NotImplementedError()  # TODO
+        elif len(self.session.targets) > 0:
+            return list(self.session.targets.values())[0].key
+        else:
+            return None
 
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None):
         logger.debug('Targets changed. Updating tree view and plots')
@@ -164,6 +189,18 @@ class TargetsPanel(MainViewPanel):
                                                                                 plotter=view.plotter,
                                                                                 style=style)
 
+            if len(self.session.targets) > 0:
+                # change slice camera views to align with selected target
+                self._views['3D'].sliceTransform = self.session.targets[self._getCurrentTargetKey()].coilToMRITransf \
+                                                   @ composeTransform(ptr.active_matrix_from_angle(0, np.pi)) \
+                                                   @ composeTransform(self._getRotMatForCoilAxis(axis='3D'))
+
+                if True:
+                    # also set camera position for 3D view to align with target
+                    self._views['3D'].plotter.camera.focal_point = self._views['3D'].sliceOrigin
+                    self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 100]))
+                    self._views['3D'].plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
+                                                                               np.asarray([0, 100, 0])) - self._views['3D'].plotter.camera.position
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,

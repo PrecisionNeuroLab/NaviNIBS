@@ -7,6 +7,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from RTNaBS.Navigator.Model.Session import Session
+from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import composeTransform, applyTransform
 
@@ -87,7 +88,7 @@ class MRISliceView:
 
     @sliceOrigin.setter
     def sliceOrigin(self, newVal: tp.Optional[np.ndarray]):
-        if np.array_equal(newVal, self._sliceOrigin):
+        if array_equalish(newVal, self._sliceOrigin):
             # no change
             return
         self._sliceOrigin = newVal
@@ -118,10 +119,10 @@ class MRISliceView:
     def sliceTransform(self, newTransf: np.array):
         newOrigin = newTransf[0:3, 3]
         newRot = newTransf[0:3, 0:3]
-        assert np.array_equal(newTransf[3, :], np.asarray([0, 0, 0, 1]))
+        assert array_equalish(newTransf[3, :], np.asarray([0, 0, 0, 1]))
 
-        originChanged = not np.array_equal(newOrigin, self._sliceOrigin)
-        rotChanged = not np.array_equal(self._normal, newRot)
+        originChanged = not array_equalish(newOrigin, self._sliceOrigin)
+        rotChanged = not array_equalish(self._normal, newRot)
 
         if not originChanged and not rotChanged:
             return
