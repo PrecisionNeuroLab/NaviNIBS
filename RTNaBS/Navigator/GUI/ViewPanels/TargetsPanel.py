@@ -42,9 +42,27 @@ class VisualizedTarget:
     _style: str
     _color: str = '#0000FF'
     _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict)
+    _visible: bool = True
 
     def __attrs_post_init__(self):
         self.plot()
+
+    @property
+    def visible(self):
+        return self._visible
+
+    @visible.setter
+    def visible(self, isVisible: bool):
+        if self._visible == isVisible:
+            return
+
+        if isVisible:
+            for actor in self._actors.values():
+                actor.VisibilityOn()
+        else:
+            for actor in self._actors.values():
+                actor.VisibilityOff()
+        self._visible = isVisible
 
     def plot(self):
         if self._style == 'line':
@@ -55,6 +73,32 @@ class VisualizedTarget:
                                                            label=self._target.key,
                                                            name=self._target.key + 'line',
                                                            )
+
+        elif self._style == 'lines':
+            pts_line1 = np.vstack((self._target.entryCoord, self._target.targetCoord))
+            self._actors['line1'] = self._plotter.add_lines(pts_line1,
+                                                           color=self._color,
+                                                           width=5,
+                                                           label=self._target.key,
+                                                           name=self._target.key + 'line1',
+                                                           )
+
+            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 10, 0], [0, 0, 0]]))
+            self._actors['line2'] = self._plotter.add_lines(pts_line2,
+                                                            color=self._color,
+                                                            width=5,
+                                                            label=self._target.key,
+                                                            name=self._target.key + 'line2',
+                                                            )
+            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 50]]))
+            self._actors['line3'] = self._plotter.add_lines(pts_line3,
+                                                            color=self._color,
+                                                            width=2,
+                                                            label=self._target.key,
+                                                            name=self._target.key + 'line3',
+                                                            )
+
+
         else:
             raise NotImplementedError()
 
@@ -65,6 +109,7 @@ class TargetsPanel(MainViewPanel):
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _hasBeenActivated: bool = attrs.field(init=False, default=False)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
+    _treeItems: tp.Dict[str, QtWidgets.QTreeWidgetItem] = attrs.field(init=False, factory=dict)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -102,6 +147,7 @@ class TargetsPanel(MainViewPanel):
 
         self._treeWdgt = QtWidgets.QTreeWidget()
         container.layout().addWidget(self._treeWdgt)
+        self._treeWdgt.setColumnCount(2)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -159,18 +205,66 @@ class TargetsPanel(MainViewPanel):
                 view.session = self.session
 
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
+        def getRootItem(treeItem: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:
+            if treeItem.parent() is None:
+                return treeItem
+            else:
+                return getRootItem(treeItem.parent())
+
         curItem = self._treeWdgt.currentItem()
         if curItem is not None:
-            raise NotImplementedError()  # TODO
+            return getRootItem(curItem).text(0)
         elif len(self.session.targets) > 0:
             return list(self.session.targets.values())[0].key
         else:
             return None
 
+    def _gotoTarget(self, targetKey: str):
+        # change slice camera views to align with selected target
+        self._views['3D'].sliceTransform = self.session.targets[targetKey].coilToMRITransf \
+                                           @ composeTransform(ptr.active_matrix_from_angle(0, np.pi)) \
+                                           @ composeTransform(self._getRotMatForCoilAxis(axis='3D'))
+
+        if True:
+            # also set camera position for 3D view to align with target
+            self._views['3D'].plotter.camera.focal_point = self._views['3D'].sliceOrigin
+            self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform,
+                                                                       np.asarray([0, 0, 100]))
+            self._views['3D'].plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
+                                                                 np.asarray([0, 100, 0])) - self._views[
+                                                      '3D'].plotter.camera.position
+
+    def _onTargetVisibleBtnClicked(self, key: str):
+        for viewKey in self._views:
+            self._targetActors[viewKey + key].visible = not self._targetActors[viewKey + key].visible
+        btn = self._treeWdgt.itemWidget(self._treeItems[key], 1)
+        assert isinstance(btn, QtWidgets.QPushButton)
+        if self._targetActors['3D' + key].visible:
+            btn.setIcon(qta.icon('mdi6.eye'))
+        else:
+            btn.setIcon(qta.icon('mdi6.eye-off-outline'))
+
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None):
         logger.debug('Targets changed. Updating tree view and plots')
 
-        # TODO: update tree view
+        # update tree view
+        # TODO: do incremental tree updates rather than entirely clearing and rebuilding
+        prevSelectedItem = self._treeWdgt.currentItem()
+        self._treeWdgt.clear()
+        self._treeItems = {}
+        for iT, (key, target) in enumerate(self.session.targets.items()):
+            targetItem = QtWidgets.QTreeWidgetItem([key, ''])
+            self._treeItems[key] = targetItem
+            for field in ('targetCoord', 'entryCoord', 'angle', 'depthOffset', 'coilToMRITransf'):
+                with np.printoptions(precision=2):
+                    fieldItem = QtWidgets.QTreeWidgetItem(targetItem, [field, '{}'.format(getattr(target, field))])
+        self._treeWdgt.insertTopLevelItems(0, list(self._treeItems.values()))
+        for iT, (key, target) in enumerate(self.session.targets.items()):
+            btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.eye'), text='')
+            btn.setFlat(True)
+            btn.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+            self._treeWdgt.setItemWidget(self._treeItems[key], 1, btn)
+            btn.clicked.connect(lambda checked=False, key=key: self._onTargetVisibleBtnClicked(key=key))
 
         if self._hasBeenActivated:
             # update views
@@ -181,26 +275,16 @@ class TargetsPanel(MainViewPanel):
                 for key in changedTargetKeys:
                     target = self.session.targets[key]
                     if viewKey == '3D':
-                        style = 'line'
+                        style = 'lines'
                     else:
-                        style = 'line'
+                        style = 'lines'
 
                     self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
                                                                                 plotter=view.plotter,
                                                                                 style=style)
 
             if len(self.session.targets) > 0:
-                # change slice camera views to align with selected target
-                self._views['3D'].sliceTransform = self.session.targets[self._getCurrentTargetKey()].coilToMRITransf \
-                                                   @ composeTransform(ptr.active_matrix_from_angle(0, np.pi)) \
-                                                   @ composeTransform(self._getRotMatForCoilAxis(axis='3D'))
-
-                if True:
-                    # also set camera position for 3D view to align with target
-                    self._views['3D'].plotter.camera.focal_point = self._views['3D'].sliceOrigin
-                    self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 100]))
-                    self._views['3D'].plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
-                                                                               np.asarray([0, 100, 0])) - self._views['3D'].plotter.camera.position
+                self._gotoTarget(self._getCurrentTargetKey())
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
@@ -220,7 +304,7 @@ class TargetsPanel(MainViewPanel):
         raise NotImplementedError()  # TODO
 
     def _onGotoBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        self._gotoTarget(self._getCurrentTargetKey())
 
 
 

@@ -670,7 +670,7 @@ class Targets:
         return self._targets  # note: result should not be modified directly
 
     def asList(self) -> tp.List[tp.Dict[str, tp.Any]]:
-        raise NotImplementedError()  # TODO
+        return [target.asDict() for target in self._targets.values()]
 
     @classmethod
     def fromList(cls, targetList: tp.List[tp.Dict[str, tp.Any]]) -> Targets:
@@ -680,6 +680,7 @@ class Targets:
             targets[targetDict['key']] = Target.fromDict(targetDict)
 
         return cls(targets=targets)
+
 
 @attrs.define()
 class Session:
