@@ -28,8 +28,6 @@ from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 logger = logging.getLogger(__name__)
 
 
-
-
 @attrs.define()
 class MRIPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)

@@ -17,6 +17,7 @@ import typing as tp
 
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.Transforms import composeTransform, applyTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -167,7 +168,12 @@ class Surf3DView(SurfSliceView):
             mask = np.zeros((1, 3))
             mask[0, 'xyz'.index(axis)] = 1
             for iDir, dir in enumerate((-1, 1)):
-                pts = dir*np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
+                pts = dir*np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask
+                if isinstance(self._normal, str):
+                    pts += self._sliceOrigin
+                else:
+                    viewToWorldTransf = composeTransform(self._normal, self._sliceOrigin)
+                    pts = applyTransform(viewToWorldTransf, pts)
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)

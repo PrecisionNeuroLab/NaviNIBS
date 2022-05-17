@@ -16,6 +16,7 @@ import typing as tp
 from typing import ClassVar
 
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.numpy import array_equalish
 
 
 logger = logging.getLogger(__name__)
@@ -136,7 +137,7 @@ class MNIRegistration:
     pass
 
 
-FiducialCoord = tp.Tuple[np.ndarray]
+FiducialCoord = np.ndarray
 FiducialSet = tp.Dict[str, tp.Optional[FiducialCoord]]
 Transform = np.ndarray
 
@@ -165,13 +166,13 @@ class SubjectRegistration:
         for whichSet in ('planned', 'sampled'):
             fiducials = getattr(self, '_' + whichSet + 'Fiducials')
             fiducialsHistory = getattr(self, '_' + whichSet + 'FiducialsHistory')
-            if len(fiducials) > 0 and (len(fiducialsHistory)==0 or not np.array_equal(list(fiducialsHistory.values())[-1],  fiducials)):
+            if len(fiducials) > 0 and (len(fiducialsHistory) == 0 or not self.fiducialsEqual(list(fiducialsHistory.values())[-1],  fiducials)):
                 fiducialsHistory[self._getTimestampStr()] = fiducials.copy()
         if self._sampledHeadPoints is not None:
-            if len(self._sampledHeadPointsHistory) == 0 or not np.array_equal(list(self._sampledHeadPointsHistory.values())[-1], self._sampledHeadPoints):
+            if len(self._sampledHeadPointsHistory) == 0 or not array_equalish(list(self._sampledHeadPointsHistory.values())[-1], self._sampledHeadPoints):
                 self._sampledHeadPointsHistory[self._getTimestampStr()] = self._sampledHeadPoints.copy()
         if self._trackerToMRITransf is not None:
-            if len(self._trackerToMRITransfHistory) == 0 or not np.array_equal(list(self._trackerToMRITransfHistory.values())[-1], self._trackerToMRITransf):
+            if len(self._trackerToMRITransfHistory) == 0 or not array_equalish(list(self._trackerToMRITransfHistory.values())[-1], self._trackerToMRITransf):
                 self._trackerToMRITransfHistory[self._getTimestampStr()] = self._trackerToMRITransf.copy()
 
         # TODO: connect to sig*Changed signals to have some 'dirty' flag whenever planned or sampled fiducials or sampled headpoints are changed without updating latest trackerToMRITransf as well
@@ -191,7 +192,7 @@ class SubjectRegistration:
             hadCoord = False
         else:
             hadCoord = True
-        if hadCoord and np.array_equal(prevCoord, coord):
+        if hadCoord and array_equalish(prevCoord, coord):
             logger.debug('No change in {} {} coordinate, returning.'.format(whichSet, whichFiducial))
             return
 
@@ -220,7 +221,11 @@ class SubjectRegistration:
     @plannedFiducials.setter
     def plannedFiducials(self, newFiducials: FiducialSet):
         # TODO: do input validation
-        # TODO: check for equality, skip set if no change
+
+        if self.fiducialsEqual(self._plannedFiducials, newFiducials):
+            logger.debug('No change in plannedFiducials, returning')
+            return
+
         self._plannedFiducials = newFiducials
         self.sigPlannedFiducialsChanged.emit()
 
@@ -234,7 +239,7 @@ class SubjectRegistration:
 
     @trackerToMRITransf.setter
     def trackerToMRITransf(self, newTransf: tp.Optional[Transform]):
-        if np.array_equal(self._trackerToMRITransf, newTransf):
+        if array_equalish(self._trackerToMRITransf, newTransf):
             logger.debug('No change in trackerToMRITransf, returning')
             return
 
@@ -333,7 +338,20 @@ class SubjectRegistration:
     def _getTimestampStr():
         return datetime.today().strftime('%y%m%d%H%M%S.%f')
 
+    @staticmethod
+    def fiducialsEqual(fidsA: FiducialSet, fidsB: FiducialSet) -> bool:
+        if len(fidsA) != len(fidsB):
+            return False
 
+        if list(fidsA.keys()) != list(fidsB.keys()):
+            # order matters for this comparison
+            return False
+
+        for key in fidsA.keys():
+            if not array_equalish(fidsA[key], fidsB[key]):
+                return False
+
+        return True
 
 SurfMesh = pv.PolyData
 VolMesh = pv.PolyData
@@ -624,6 +642,9 @@ class Targets:
 
     def __iter__(self):
         return iter(self._targets)
+
+    def __len__(self):
+        return len(self._targets)
 
     def keys(self):
         return self._targets.keys()
