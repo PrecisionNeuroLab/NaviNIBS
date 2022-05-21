@@ -25,3 +25,27 @@ def exceptionToStr(e: Exception) -> str:
     eStr += "Stack trace : %s\n" % stack_trace
 
     return eStr
+
+
+def makeStrUnique(baseStr: str, existingStrs: tp.List[str], delimiter: str = '_') -> str:
+    count = 1
+    uniqueStr = baseStr
+
+    if delimiter in baseStr:
+        try:
+            prevNum = int(baseStr[baseStr.rindex(delimiter)+1:])
+        except ValueError as e:
+            pass
+        else:
+            baseStr = baseStr[:baseStr.rindex(delimiter)]
+            count = prevNum
+
+    while uniqueStr in existingStrs:
+        count += 1
+        uniqueStr = '{}_{}'.format(baseStr, count)
+
+    return uniqueStr
+
+
+
+
