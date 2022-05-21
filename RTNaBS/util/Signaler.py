@@ -31,8 +31,9 @@ class Signal:
     def emit(self, *args, **kwargs) -> None:
         if self._blockedSemaphoreCounter > 0:
             return
-        for fn in self._connections:
-            fn(*args, **kwargs)
+        for fn in self._connections.copy():
+            if fn in self._connections:
+                fn(*args, **kwargs)
 
     @contextlib.contextmanager
     def blocked(self):
