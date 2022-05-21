@@ -40,8 +40,8 @@ class FiducialsPanel(MainViewPanel):
 
         container = QtWidgets.QGroupBox('Planned fiducials')
         container.setLayout(QtWidgets.QVBoxLayout())
-        container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.MinimumExpanding)
         self._wdgt.layout().addWidget(container)
+        container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.MinimumExpanding)
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
