@@ -19,6 +19,7 @@ from RTNaBS.Navigator.Model.MRI import MRI
 from RTNaBS.Navigator.Model.HeadModel import HeadModel
 from RTNaBS.Navigator.Model.Targets import Targets, Target
 from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
+from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish
 
@@ -26,12 +27,12 @@ from RTNaBS.util.numpy import array_equalish
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
+@attrs.define
 class MNIRegistration:
     pass
 
 
-@attrs.define()
+@attrs.define
 class Session:
     _filepath: str  # path to compressed session file
     _subjectID: tp.Optional[str] = attrs.field(default=None)
@@ -41,6 +42,7 @@ class Session:
     _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     MNIRegistration: tp.Optional[MNIRegistration] = None
     _targets: Targets = attrs.field(factory=Targets)
+    _tools: Tools = attrs.field(default=None)
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)
     _compressedFileIsDirty: bool = True
@@ -59,6 +61,9 @@ class Session:
             logger.debug('Creating dir for unpacking session at {}'.format(self.unpackedSessionDir))
             os.makedirs(self.unpackedSessionDir)
 
+        if self._tools is None:
+            self._tools = Tools(sessionPath=os.path.dirname(self._filepath))
+
         self.sigInfoChanged.connect(lambda: self._dirtyKeys.add('info'))
         self.MRI.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('headModel'))
@@ -67,6 +72,7 @@ class Session:
         self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.targets.sigTargetsChanged.connect(lambda targetKeys: self._dirtyKeys.add('targets'))
+        self.tools.sigToolsChanged.connect(lambda toolKeys: self._dirtyKeys.add('tools'))
 
         # TODO
 
@@ -99,6 +105,7 @@ class Session:
         if newVal != self._filepath:
             self._filepath = newVal
             self.sigInfoChanged.emit()
+            self.tools.sessionPath = os.path.dirname(self._filepath)
 
     @property
     def MRI(self):
@@ -115,6 +122,10 @@ class Session:
     @property
     def targets(self):
         return self._targets
+
+    @property
+    def tools(self):
+        return self._tools
 
     @property
     def compressedFileIsDirty(self):
@@ -179,6 +190,11 @@ class Session:
             logger.debug('Writing targets info')
             config['targets'] = self.targets.asList()
             keysToSave.remove('targets')
+
+        if 'tools' in keysToSave:
+            logger.debug('Writing tools info')
+            config['tools'] = self.tools.asList()
+            keysToSave.remove('tools')
 
         # TODO: save other fields
         assert len(keysToSave) == 0
@@ -272,6 +288,9 @@ class Session:
 
         if 'targets' in config:
             kwargs['targets'] = Targets.fromList(config['targets'])
+
+        if 'tools' in config:
+            kwargs['tools'] = Tools.fromList(config['tools'], sessionPath=otherPathsRelTo)
 
         # TODO: load other available fields
 

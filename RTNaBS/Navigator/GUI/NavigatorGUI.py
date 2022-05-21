@@ -23,7 +23,8 @@ from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
-
+from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
+from RTNaBS.util import exceptionToStr
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +75,6 @@ class NavigatorGUI(RunnableAsApp):
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
-        createViewPanel('Session info', SessionInfoPanel(session=self._session), icon=qta.icon('mdi6.form-select'))
-
         createViewPanel('Set MRI', MRIPanel(session=self._session), icon=qta.icon('mdi6.image'))
 
         createViewPanel('Set head model', HeadModelPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
@@ -92,7 +91,7 @@ class NavigatorGUI(RunnableAsApp):
         createViewPanel('Camera', MainViewPanel(session=self._session), icon=qta.icon('mdi6.cctv'))
         # TODO
 
-        createViewPanel('Tools', MainViewPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
+        createViewPanel('Tools', ToolsPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
         # TODO
 
         createViewPanel('Register', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
@@ -147,7 +146,7 @@ class NavigatorGUI(RunnableAsApp):
         activeKeys.append('Manage session')
 
         if self._session is not None:
-            activeKeys += ['Session info', 'Set MRI']
+            activeKeys += ['Set MRI', 'Camera', 'Tools']
             if self._session.MRI.isSet:
                 activeKeys += ['Set head model']
                 if self._session.headModel.isSet:
