@@ -18,8 +18,7 @@ from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
-from RTNaBS.Navigator.GUI.ViewPanels.CreateOrLoadSession import CreateOrLoadSessionPanel
-from RTNaBS.Navigator.GUI.ViewPanels.SessionInfoPanel import SessionInfoPanel
+from RTNaBS.Navigator.GUI.ViewPanels.ManageSessionPanel import ManageSessionPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
@@ -69,9 +68,9 @@ class NavigatorGUI(RunnableAsApp):
             self._toolbarBtnActions[key].setCheckable(True)
             self._toolbarBtnActions[key].triggered.connect(lambda checked=False, key=key: self._activateView(viewKey=key))
 
-        panel = CreateOrLoadSessionPanel(session=self._session,
-                                         inProgressBaseDir=self._inProgressBaseDir)
-        createViewPanel('New / load', panel, icon=qta.icon('mdi6.folder'))
+        panel = ManageSessionPanel(session=self._session,
+                                   inProgressBaseDir=self._inProgressBaseDir)
+        createViewPanel('Manage session', panel, icon=qta.icon('mdi6.form-select'))
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
@@ -104,7 +103,7 @@ class NavigatorGUI(RunnableAsApp):
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
         self._updateEnabledToolbarBtns()
-        self._activateView('New / load')
+        self._activateView('Manage session')
 
         if self._sesFilepath is not None:
             asyncio.create_task(self._loadAfterSetup(filepath=self._sesFilepath))
@@ -136,7 +135,7 @@ class NavigatorGUI(RunnableAsApp):
 
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
-        self._mainViewPanels['New / load'].loadSession(sesFilepath=filepath)
+        self._mainViewPanels['Manage session'].loadSession(sesFilepath=filepath)
 
     def _updateEnabledToolbarBtns(self):
 
@@ -145,7 +144,7 @@ class NavigatorGUI(RunnableAsApp):
 
         activeKeys = []
 
-        activeKeys.append('New / load')
+        activeKeys.append('Manage session')
 
         if self._session is not None:
             activeKeys += ['Session info', 'Set MRI']
@@ -158,7 +157,7 @@ class NavigatorGUI(RunnableAsApp):
             self._toolbarBtnActions[key].setEnabled(True)
 
         if self.activeViewKey not in activeKeys:
-            fallbackViews = ['New / load', 'Session info', 'Set MRI', 'Set head model']
+            fallbackViews = ['Manage session', 'Set MRI', 'Set head model']
             changeToView = ''
             while changeToView not in activeKeys:
                 changeToView = fallbackViews.pop()

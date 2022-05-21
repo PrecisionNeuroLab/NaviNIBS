@@ -23,61 +23,96 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define()
-class CreateOrLoadSessionPanel(MainViewPanel):
+class ManageSessionPanel(MainViewPanel):
 
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveAsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _fileGroup: QtWidgets.QGroupBox = attrs.field(init=False)
+    _infoGroup: QtWidgets.QGroupBox = attrs.field(init=False)
+    _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
 
     sigLoadedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
 
     def __attrs_post_init__(self):
-        self._wdgt.setLayout(QtWidgets.QGridLayout())
+        self._wdgt.setLayout(QtWidgets.QHBoxLayout())
+
+        container = QtWidgets.QGroupBox('File')
+        self._wdgt.layout().addWidget(container)
+        container.setLayout(QtWidgets.QVBoxLayout())
+        self._fileGroup = container
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
+        btn.clicked.connect(lambda checked: self._createNewSession())
+        container.layout().addWidget(btn)
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-open'), text='Load session')
+        btn.clicked.connect(lambda checked: self.loadSession())
+        container.layout().addWidget(btn)
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
+        btn.clicked.connect(lambda checked: self._recoverSession())
+        container.layout().addWidget(btn)
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.clipboard-file'), text='Clone session')
+        btn.clicked.connect(lambda checked: self._cloneSession())
+        container.layout().addWidget(btn)
+
+        container.layout().addSpacing(10)
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save session')
         btn.clicked.connect(lambda checked: self._saveSession())
-        self._wdgt.layout().addWidget(btn, 0, 1)
+        container.layout().addWidget(btn)
         self._saveBtn = btn
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit'), text='Save session as...')
         btn.clicked.connect(lambda checked: self._saveSessionAs())
-        self._wdgt.layout().addWidget(btn, 1, 1)
+        container.layout().addWidget(btn)
         self._saveAsBtn = btn
+
+        container.layout().addSpacing(10)
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-remove'), text='Close session')
         btn.clicked.connect(lambda checked: self._tryVerifyThenCloseSession())
-        self._wdgt.layout().addWidget(btn, 2, 1)
+        container.layout().addWidget(btn)
         self._closeBtn = btn
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
-        btn.clicked.connect(lambda checked: self._createNewSession())
-        self._wdgt.layout().addWidget(btn, 0, 0)
+        container.layout().addStretch()
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-open'), text='Load session')
-        btn.clicked.connect(lambda checked: self.loadSession())
-        self._wdgt.layout().addWidget(btn, 1, 0)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
-        btn.clicked.connect(lambda checked: self._recoverSession())
-        self._wdgt.layout().addWidget(btn, 2, 0)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.clipboard-file'), text='Clone session')
-        btn.clicked.connect(lambda checked: self._cloneSession())
-        self._wdgt.layout().addWidget(btn, 3, 0)
+        container = QtWidgets.QGroupBox('Info')
+        self._wdgt.layout().addWidget(container)
+        container.setLayout(QtWidgets.QFormLayout())
+        self._infoGroup = container
 
-        self._updateEnabledBtns()
+        wdgt = QtWidgets.QLineEdit()
+        wdgt.textEdited.connect(lambda text, key='subjectID': self._onInfoTextEdited(key, text))
+        self._infoWdgts['subjectID'] = wdgt
+        container.layout().addRow('Subject ID', wdgt)
+        # TODO: continue here
+
+        wdgt = QtWidgets.QLineEdit()
+        wdgt.textEdited.connect(lambda text, key='sessionID': self._onInfoTextEdited(key, text))
+        self._infoWdgts['sessionID'] = wdgt
+        container.layout().addRow('Session ID', wdgt)
+
+        self._updateEnabledWdgts()
 
     def _onSessionSet(self):
-        self._updateEnabledBtns()
+        self._updateEnabledWdgts()
+        if self.session is not None:
+            self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
+        self._onSessionInfoChanged()
 
     def _getNewInProgressSessionDir(self) -> str:
         return os.path.join(self._inProgressBaseDir, 'RTNaBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
-    def _updateEnabledBtns(self):
-        for btn in (self._saveBtn, self._saveAsBtn, self._closeBtn):
-            btn.setEnabled(self.session is not None)
+    def _updateEnabledWdgts(self):
+        for wdgt in (self._saveBtn, self._saveAsBtn, self._closeBtn, self._infoGroup):
+            wdgt.setEnabled(self.session is not None)
 
     def _saveSession(self):
         self.session.saveToFile()
@@ -151,7 +186,11 @@ class CreateOrLoadSessionPanel(MainViewPanel):
             return
 
         self.session = session
-        self.sigLoadedSession.emit(self.session)
+        try:
+            self.sigLoadedSession.emit(self.session)
+        except Exception as e:
+            logger.error('Problem handling loaded session:\n{}'.format(exceptionToStr(e)))
+            raise e
 
     def _recoverSession(self, sesDataDir: tp.Optional[str] = None):
         self._tryVerifyThenCloseSession()
@@ -195,3 +234,21 @@ class CreateOrLoadSessionPanel(MainViewPanel):
         logger.debug('Done copying')
 
         self.loadSession(sesFilepath=toSesFilepath)
+
+    def _onSessionInfoChanged(self):
+        if self.session is None:
+            for key in ('subjectID', 'sessionID'):
+                self._infoWdgts[key].setText('')
+        else:
+            for key in ('subjectID', 'sessionID'):
+                val = getattr(self.session, key)
+                self._infoWdgts[key].setText('' if val is None else val)
+
+    def _onInfoTextEdited(self, key: str, text: str):
+        if len(text) == 0:
+            text = None
+        if self.session is not None:
+            logger.info('Applying edited value of {} to session: {}'.format(key, text))
+            setattr(self.session, key, text)
+        else:
+            logger.warning('Ignoring edited value of {} since session is closed.'.format(key))
