@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @attrs.define(init=False, slots=False)
 class QFileSelectWidget(QtWidgets.QWidget):
 
-    _browseMode: str
+    _browseMode: str  # one of ('getSaveFileName', 'getOpenFilename', 'getExistingDirectory')
 
     _filepath: tp.Optional[str] = None
     _showRelativeTo: tp.Optional[str] = None
@@ -32,6 +32,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     def __attrs_post_init__(self):
         layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         self._textWidget = QtWidgets.QLineEdit()
@@ -44,6 +45,8 @@ class QFileSelectWidget(QtWidgets.QWidget):
         layout.addWidget(self._browseBtn)
 
         self.sigFilepathChanged.connect(lambda _: self._updateFilepathDisplay())
+
+        self._updateFilepathDisplay()
 
     def browse(self):
         if self._browseCaption is None:
