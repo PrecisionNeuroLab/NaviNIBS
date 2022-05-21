@@ -40,7 +40,7 @@ class VisualizedTarget:
     _target: Target
     _plotter: pv.Plotter
     _style: str
-    _color: str = '#0000FF'
+    _color: str = '#2222FF'
     _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict)
     _visible: bool = True
 
@@ -65,11 +65,13 @@ class VisualizedTarget:
         self._visible = isVisible
 
     def plot(self):
+        thinWidth = 3
+        thickWidth = 6
         if self._style == 'line':
             pts_line = np.vstack((self._target.entryCoord, self._target.targetCoord))
             self._actors['line'] = self._plotter.add_lines(pts_line,
                                                            color=self._color,
-                                                           width=5,
+                                                           width=thickWidth,
                                                            label=self._target.key,
                                                            name=self._target.key + 'line',
                                                            )
@@ -78,7 +80,7 @@ class VisualizedTarget:
             pts_line1 = np.vstack((self._target.entryCoord, self._target.targetCoord))
             self._actors['line1'] = self._plotter.add_lines(pts_line1,
                                                            color=self._color,
-                                                           width=5,
+                                                           width=thickWidth,
                                                            label=self._target.key,
                                                            name=self._target.key + 'line1',
                                                            )
@@ -86,18 +88,62 @@ class VisualizedTarget:
             pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 10, 0], [0, 0, 0]]))
             self._actors['line2'] = self._plotter.add_lines(pts_line2,
                                                             color=self._color,
-                                                            width=5,
+                                                            width=thinWidth,
                                                             label=self._target.key,
                                                             name=self._target.key + 'line2',
                                                             )
             pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 50]]))
             self._actors['line3'] = self._plotter.add_lines(pts_line3,
                                                             color=self._color,
-                                                            width=2,
+                                                            width=thinWidth,
                                                             label=self._target.key,
                                                             name=self._target.key + 'line3',
                                                             )
 
+            self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
+                                                              color=self._color,
+                                                              point_size=10.,
+                                                              render_points_as_spheres=True,
+                                                              label=self._target.key,
+                                                              name=self._target.key + 'target')
+
+        elif self._style == 'coilLines':
+            coilDiameter = 10
+            coilHandleLength = 7
+
+            theta = np.linspace(0, 2*np.pi, 361)
+            circlePts = np.column_stack((coilDiameter/2 * np.cos(theta), coilDiameter/2 * np.sin(theta), np.zeros(theta.shape)))
+
+            for wing, dir in (('wing1', 1.), ('wing2', -1.)):
+                pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
+                self._actors[wing] = self._plotter.add_lines(pts_wing,
+                                                             color=self._color,
+                                                             width=thinWidth,
+                                                             label=self._target.key,
+                                                             name=self._target.key + wing,
+                                                             )
+
+            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, coilHandleLength, 0], [0, 0, 0]]))
+            self._actors['line2'] = self._plotter.add_lines(pts_line2,
+                                                            color=self._color,
+                                                            width=thinWidth,
+                                                            label=self._target.key,
+                                                            name=self._target.key + 'line2',
+                                                            )
+            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 50]]))
+            self._actors['line3'] = self._plotter.add_lines(pts_line3,
+                                                            color=self._color,
+                                                            width=thinWidth,
+                                                            label=self._target.key,
+                                                            name=self._target.key + 'line3',
+                                                            )
+
+            self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
+                                                              color=self._color,
+                                                              point_size=10.,
+                                                              render_points_as_spheres=True,
+                                                              label=self._target.key,
+                                                              name=self._target.key + 'target')
 
         else:
             raise NotImplementedError()
@@ -147,7 +193,7 @@ class TargetsPanel(MainViewPanel):
 
         self._treeWdgt = QtWidgets.QTreeWidget()
         container.layout().addWidget(self._treeWdgt)
-        self._treeWdgt.setColumnCount(2)
+        self._treeWdgt.setHeaderLabels(['Target', 'Info'])
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -158,7 +204,7 @@ class TargetsPanel(MainViewPanel):
             elif key == '3D':
                 self._views[key] = Surf3DView(label=key, normal=np.eye(3),
                                               activeSurf=self._surfKeys,
-                                              surfOpacity=[0.9, 0.6])
+                                              surfOpacity=[0.8, 0.5])
             else:
                 raise NotImplementedError()
 
@@ -275,7 +321,7 @@ class TargetsPanel(MainViewPanel):
                 for key in changedTargetKeys:
                     target = self.session.targets[key]
                     if viewKey == '3D':
-                        style = 'lines'
+                        style = 'coilLines'
                     else:
                         style = 'lines'
 

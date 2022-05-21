@@ -51,6 +51,7 @@ class SurfSliceView(MRISliceView):
     def activeSurf(self, newKey: str):
         if self._activeSurf == newKey:
             return
+        self._clearSurfPlotActor()
         self._activeSurf = newKey
         self._onHeadModelDataChanged(whatChanged=self._activeSurf)
 
@@ -58,11 +59,14 @@ class SurfSliceView(MRISliceView):
         super()._clearPlot()
         self._surfPlotInitialized = False
 
+    def _clearSurfPlotActor(self):
+        self._plotter.remove_actor(self._surfPlotActor)
+        self._surfPlotActor = None
+        self._surfPlotInitialized = False
+
     def _onHeadModelDataChanged(self, whatChanged: str):
         if whatChanged == self._activeSurf:
-            self._plotter.remove_actor(self._surfPlotActor)
-            self._surfPlotActor = None
-            self._surfPlotInitialized = False
+            self._clearSurfPlotActor()
             self._updateView()
         else:
             # ignore other changes
