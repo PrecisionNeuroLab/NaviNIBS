@@ -23,6 +23,9 @@ from RTNaBS.util.attrs import attrsAsDict
 logger = logging.getLogger(__name__)
 
 
+SurfMesh = pv.PolyData
+
+
 @attrs.define
 class Tool:
     _key: str
@@ -35,6 +38,8 @@ class Tool:
 
     _installPath: tp.Optional[str] = None  # used for relative paths
     _sessionPath: tp.Optional[str] = None  # used for relative paths
+
+    _trackerSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
 
     _trackerToToolTransfHistory: tp.Dict[str, tp.Optional[np.ndarray]] = attrs.field(factory=dict)
 
@@ -160,6 +165,13 @@ class Tool:
         self._trackerToToolTransf = newTransf
         self.sigToolChanged.emit(self.key)
 
+    @property
+    def trackerSurf(self):
+        if self._stlFilepath is not None and self._trackerSurf is None:
+            logger.info('Loading tracker mesh from {}'.format(self.stlFilepath))
+            self._trackerSurf = pv.read(self.stlFilepath)
+        return self._trackerSurf
+
     def asDict(self) -> tp.Dict[str, tp.Any]:
         d = attrsAsDict(self, eqs=dict(
             trackerToToolTransf=array_equalish,
@@ -213,6 +225,8 @@ class CoilTool(Tool):
     _usedFor: str = 'coil'
     _coilStlFilepath: tp.Optional[str] = None
 
+    _coilSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+
     @property
     def coilStlFilepath(self):
         if self._coilStlFilepath is None:
@@ -226,9 +240,16 @@ class CoilTool(Tool):
             return
         logger.info('Changing {} coilStlFilepath to {}'.format(self.key, newFilepath))
         self.sigToolAboutToChange.emit(self.key)
+        self._coilSurf = None
         self._coilStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
         self.sigToolChanged.emit(self.key)
 
+    @property
+    def coilSurf(self):
+        if self._coilStlFilepath is not None and self._coilSurf is None:
+            logger.info('Loading coil mesh from {}'.format(self.coilStlFilepath))
+            self._coilSurf = pv.read(self.coilStlFilepath)
+        return self._coilSurf
 
 @attrs.define
 class Pointer(Tool):
