@@ -63,6 +63,14 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
+name = "crcmod"
+version = "1.7"
+description = "CRC Generator"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "cycler"
 version = "0.11.0"
 description = "Composable style cycles"
@@ -268,6 +276,18 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [[package]]
+name = "pyigtl"
+version = "0.1.0"
+description = "Python interface for OpenIGTLink"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+crcmod = "*"
+numpy = "*"
+
+[[package]]
 name = "pyparsing"
 version = "3.0.8"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
@@ -407,6 +427,18 @@ colormaps = ["matplotlib", "colorcet", "cmocean"]
 io = ["meshio (>=5.2)"]
 
 [[package]]
+name = "pyvistaqt"
+version = "0.9.0"
+description = "pyvista qt plotter"
+category = "main"
+optional = false
+python-versions = ">=3.6.*"
+
+[package.dependencies]
+pyvista = ">=0.32.0"
+QtPy = ">=1.9.0"
+
+[[package]]
 name = "pyzmq"
 version = "22.3.0"
 description = "Python bindings for 0MQ"
@@ -531,7 +563,7 @@ url = "data/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_universal2.whl"
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "9055137b7584b9053811e1e59b940b41837f587c0690baa69d6d2d944306f49c"
+content-hash = "6384f6def27bb07c249b71bb8e5025f012b0808ad4014b54a3020404c15bc7e2"
 
 [metadata.files]
 appdirs = [
@@ -605,6 +637,12 @@ cffi = [
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
+]
+crcmod = [
+    {file = "crcmod-1.7.tar.gz", hash = "sha256:dc7051a0db5f2bd48665a990d3ec1cc305a466a77358ca4492826f41f283601e"},
+    {file = "crcmod-1.7.win32-py2.6.msi", hash = "sha256:69a2e5c6c36d0f096a7beb4cd34e5f882ec5fd232efb710cdb85d4ff196bd52e"},
+    {file = "crcmod-1.7.win32-py2.7.msi", hash = "sha256:737fb308fa2ce9aed2e29075f0d5980d4a89bfbec48a368c607c5c63b3efb90e"},
+    {file = "crcmod-1.7.win32-py3.1.msi", hash = "sha256:50586ab48981f11e5b117523d97bb70864a2a1af246cf6e4f5c4a21ef4611cd1"},
 ]
 cycler = [
     {file = "cycler-0.11.0-py3-none-any.whl", hash = "sha256:3a27e95f763a428a739d2add979fa7494c912a32c17c4c38c4d5f082cad165a3"},
@@ -872,6 +910,10 @@ pycparser = [
     {file = "pycparser-2.21-py2.py3-none-any.whl", hash = "sha256:8ee45429555515e1f6b185e78100aea234072576aa43ab53aefcae078162fca9"},
     {file = "pycparser-2.21.tar.gz", hash = "sha256:e644fdec12f7872f86c58ff790da456218b10f863970249516d60a5eaca77206"},
 ]
+pyigtl = [
+    {file = "pyigtl-0.1.0-py3-none-any.whl", hash = "sha256:8bad41574e91ae187fd2de38ffb4c8146c55a3728a78a28e39128d5f84b4430d"},
+    {file = "pyigtl-0.1.0.tar.gz", hash = "sha256:e088acf2fa993f3a44529db6e1f090d27c9572c39f54ae220cc86d3c2634bc7d"},
+]
 pyparsing = [
     {file = "pyparsing-3.0.8-py3-none-any.whl", hash = "sha256:ef7b523f6356f763771559412c0d7134753f037822dad1b16945b7b846f7ad06"},
     {file = "pyparsing-3.0.8.tar.gz", hash = "sha256:7bf433498c016c4314268d95df76c81b842a4cb2b276fa3312cfb1e1d85f6954"},
@@ -913,6 +955,10 @@ pytz = [
 pyvista = [
     {file = "pyvista-0.34.1-py3-none-any.whl", hash = "sha256:93d725b84eb037b44cccc45ea65f59bb25f9515238781217614a297f9cdff5fd"},
     {file = "pyvista-0.34.1.tar.gz", hash = "sha256:3fe322d76c5e74797242026d338f948c4cebeee99efcc817fbf97e39a09ccfb0"},
+]
+pyvistaqt = [
+    {file = "pyvistaqt-0.9.0-py3-none-any.whl", hash = "sha256:0c885e2032c45463cd00474ea69c9e230d72c98ee34026993fbc172c8c251202"},
+    {file = "pyvistaqt-0.9.0.tar.gz", hash = "sha256:259ff09e3f36086a11fa49bd27d4749e502799ef1f51419fa81f5dd540babe9e"},
 ]
 pyzmq = [
     {file = "pyzmq-22.3.0-cp310-cp310-macosx_10_15_universal2.whl", hash = "sha256:6b217b8f9dfb6628f74b94bdaf9f7408708cb02167d644edca33f38746ca12dd"},

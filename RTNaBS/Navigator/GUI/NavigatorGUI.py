@@ -24,6 +24,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
+from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.util import exceptionToStr
 
 logger = logging.getLogger(__name__)
@@ -88,10 +89,10 @@ class NavigatorGUI(RunnableAsApp):
 
         self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        createViewPanel('Camera', MainViewPanel(session=self._session), icon=qta.icon('mdi6.cctv'))
+        createViewPanel('Tools', ToolsPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
         # TODO
 
-        createViewPanel('Tools', ToolsPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
+        createViewPanel('Camera', CameraPanel(session=self._session), icon=qta.icon('mdi6.cctv'))
         # TODO
 
         createViewPanel('Register', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
