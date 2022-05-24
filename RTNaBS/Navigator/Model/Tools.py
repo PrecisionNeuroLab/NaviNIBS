@@ -35,6 +35,7 @@ class Tool:
     _stlFilepath: tp.Optional[str] = None
     _filepathsRelTo: str = '<session>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
     _trackerToToolTransf: tp.Optional[np.ndarray] = None
+    _stlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual reported tracker orientation
 
     _installPath: tp.Optional[str] = None  # used for relative paths
     _sessionPath: tp.Optional[str] = None  # used for relative paths
@@ -166,6 +167,24 @@ class Tool:
         self.sigToolChanged.emit(self.key)
 
     @property
+    def stlToTrackerTransf(self):
+        if self._stlToTrackerTransf is None:
+            return np.eye(4)
+        else:
+            return self._stlToTrackerTransf
+
+    @stlToTrackerTransf.setter
+    def stlToTrackerTransf(self, newTransf: tp.Optional[np.ndarray]):
+        if array_equalish(self._stlToTrackerTransf, newTransf):
+            logger.debug('No change in stlToTrackerTransf, returning')
+            return
+
+        self.sigToolAboutToChange.emit(self.key)
+        logger.info('Set stlToTrackerTransf to {}'.format(newTransf))
+        self._stlToTrackerTransf = newTransf
+        self.sigToolChanged.emit(self.key)
+
+    @property
     def trackerSurf(self):
         if self._stlFilepath is not None and self._trackerSurf is None:
             logger.info('Loading tracker mesh from {}'.format(self.stlFilepath))
@@ -175,10 +194,14 @@ class Tool:
     def asDict(self) -> tp.Dict[str, tp.Any]:
         d = attrsAsDict(self, eqs=dict(
             trackerToToolTransf=array_equalish,
+            stlToTrackerTransf=array_equalish,
             trackerToToolTransfHistory=lambda a, b: len(a) == len(b) \
                                                     and ((keyA == keyB and array_equalish(a[keyA], b[keyB])) for keyA, keyB in zip(a, b))))
-        if 'trackerToToolTransf' in d:
-            d['trackerToToolTransf'] = d['trackerToToolTransf'].tolist()
+
+        for key in ('trackerToToolTransf', 'stlToTrackerTransf'):
+            if key in d:
+                d[key] = d[key].tolist()
+
         if 'trackerToToolTransfHistory' in d:
             d['trackerToToolTransfHistory'] = [dict(time=key, trackerToToolTransf=val.tolist()) for key, val in d['trackerToToolTransfHistory']]
 
@@ -191,8 +214,10 @@ class Tool:
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None):
-        if 'trackerToToolTransf' in d:
-            d['trackerToToolTransf'] = np.asarray(d['trackerToToolTransf'])
+        for key in ('trackerToToolTransf', 'stlToTrackerTransf'):
+            if key in d:
+                d[key] = np.asarray(d[key])
+
         if 'trackerToToolTransfHistory' in d:
             def convertTransf(transf: tp.List[tp.List[float, float, float]]) -> np.ndarray:
                 return np.asarray(transf)
@@ -250,6 +275,7 @@ class CoilTool(Tool):
             logger.info('Loading coil mesh from {}'.format(self.coilStlFilepath))
             self._coilSurf = pv.read(self.coilStlFilepath)
         return self._coilSurf
+
 
 @attrs.define
 class Pointer(Tool):
