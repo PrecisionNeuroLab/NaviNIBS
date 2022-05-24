@@ -91,8 +91,14 @@ class ToolWidget:
         formContainer.layout().addRow('STL filepath', self._stlFilepath)
 
         with np.printoptions(precision=2):
+            self._stlToTrackerTransf = QtWidgets.QLineEdit('{}'.format(self._tool.stlToTrackerTransf))
+        self._stlToTrackerTransf.editingFinished.connect(self._onStlToTrackerTransfEdited)
+
+        with np.printoptions(precision=2):
             self._trackerToToolTransf = QtWidgets.QLineEdit('{}'.format(self._tool.trackerToToolTransf))
         self._trackerToToolTransf.editingFinished.connect(self._onTrackerToToolTransfEdited)
+
+
 
     @property
     def wdgt(self):
@@ -113,6 +119,9 @@ class ToolWidget:
     def _onStlFilepathEdited(self):
         self._tool.stlFilepath = self._stlFilepath.filepath
 
+    def _onStlToTrackerTransfEdited(self):
+        raise NotImplementedError()  # TODO
+
     def _onTrackerToToolTransfEdited(self):
         raise NotImplementedError()  # TODO
 
@@ -123,7 +132,9 @@ class ToolWidget:
         self._romFilepath.filepath = self._tool.romFilepath
         self._stlFilepath.filepath = self._tool.stlFilepath
         with np.printoptions(precision=2):
+            self._stlToTrackerTransf.setText('{}'.format(self._tool.stlToTrackerTransf))
             self._trackerToToolTransf.setText('{}'.format(self._tool.trackerToToolTransf))
+
 
 @attrs.define
 class CoilToolWidget(ToolWidget):

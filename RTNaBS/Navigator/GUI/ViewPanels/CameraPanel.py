@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 Actor = pv._vtk.vtkActor
 
+
 @attrs.define
 class CameraPanel(MainViewPanel):
     """
@@ -111,14 +112,15 @@ class CameraPanel(MainViewPanel):
                     self._ignoredKeys.append(longKey)
                 continue
             key = longKey[:-len('ToTracker')]
+
+            if key not in self.session.tools:
+                logger.warning('Position key {} has no match in session tool keys. Ignoring'.format(key))
+                self._actors[key] = None
+                continue
+
+            tool = self.session.tools[key]
+
             if key not in self._actors:
-                if key not in self.session.tools:
-                    logger.warning('Position key {} has no match in session tool keys. Ignoring'.format(key))
-                    self._actors[key] = None
-                    continue
-
-                tool = self.session.tools[key]
-
                 # initialize graphic
 
                 if tool.stlFilepath is not None:
@@ -140,12 +142,6 @@ class CameraPanel(MainViewPanel):
 
             # TODO: apply transform to existing actor
             t = pv._vtk.vtkTransform()
-            t.SetMatrix(pv.vtkmatrix_from_array(pos.transf))
+            t.SetMatrix(pv.vtkmatrix_from_array(pos.transf @ tool.stlToTrackerTransf))
             self._actors[key].SetUserTransform(t)
-
-
-
-
-
-
 
