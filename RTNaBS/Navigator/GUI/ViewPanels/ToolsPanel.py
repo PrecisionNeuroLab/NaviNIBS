@@ -38,6 +38,7 @@ class ToolWidget:
     _romFilepath: QFileSelectWidget = attrs.field(init=False)
     _stlFilepath: QFileSelectWidget = attrs.field(init=False)
     _trackerToToolTransf: QtWidgets.QLineEdit = attrs.field(init=False)
+    _stlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self._wdgt = QtWidgets.QGroupBox('Selected tool: {}'.format(self._tool.key))

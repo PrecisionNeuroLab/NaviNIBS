@@ -351,6 +351,19 @@ class Tools:
             tool.sigToolChanged.connect(self._onToolChanged)
         self.sigToolsChanged.emit(combinedKeys)
 
+    @property
+    def subjectTracker(self) -> tp.Optional[SubjectTracker]:
+        subjectTracker = None
+        for key, tool in self._tools.items():
+            if not tool.isActive:
+                continue
+            if isinstance(tool, SubjectTracker):
+                if subjectTracker is not None:
+                    raise ValueError('More than one subject tracker tool is active')
+                else:
+                    subjectTracker = tool
+        return subjectTracker
+
     def _getActiveToolKeys(self) -> tp.Dict[str, tp.Union[str, tp.List[str,...]]]:
         activeToolKeys = {}
         for key, tool in self._tools.items():
