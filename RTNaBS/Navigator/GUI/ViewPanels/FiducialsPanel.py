@@ -31,11 +31,12 @@ logger = logging.getLogger(__name__)
 class FiducialsPanel(MainViewPanel):
     _tblWdgt: QTableWidgetDragRows = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
-    _hasBeenActivated: bool = attrs.field(init=False, default=False)
     _surfKey: str = 'skinSurf'
     _fiducialActors: tp.Dict[str, tp.Any] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('Planned fiducials')
@@ -89,14 +90,15 @@ class FiducialsPanel(MainViewPanel):
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
 
-        self.sigPanelActivated.connect(self._onPanelActivated)
-
     def _onPanelActivated(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
+
+        super()._onPanelActivated()
+
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
                 view.session = self.session
-        self._hasBeenActivated = True
+
         self._onPlannedFiducialsChanged()
 
     def _onSliceOriginChanged(self, sourceKey: str):

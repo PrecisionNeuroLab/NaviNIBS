@@ -22,14 +22,12 @@ from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool
+from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
 logger = logging.getLogger(__name__)
-
-
-Actor = pv._vtk.vtkActor
 
 
 @attrs.define
@@ -49,9 +47,9 @@ class CameraPanel(MainViewPanel):
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
     _ignoredKeys: tp.List[str] = attrs.field(init=False, factory=list)
 
-    _hasBeenActivated: bool = attrs.field(init=False, default=False)
-
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('Camera connection')
@@ -81,10 +79,8 @@ class CameraPanel(MainViewPanel):
         )
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
-        self.sigPanelActivated.connect(self._onPanelActivated)
-
     def _onPanelActivated(self):
-        self._hasBeenActivated = True
+        super()._onPanelActivated()
         self._onLatestPositionsChanged()
 
     def _onStartStopServerClicked(self, checked: bool):
