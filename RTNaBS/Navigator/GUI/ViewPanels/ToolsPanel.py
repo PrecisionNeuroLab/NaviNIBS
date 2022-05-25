@@ -170,9 +170,10 @@ class ToolsPanel(MainViewPanel):
     _selectedToolKey: tp.Optional[str] = attrs.field(default=None)
     _toolWdgt: tp.Optional[ToolWidget] = attrs.field(init=False, default=None)
     _wdgts: tp.Dict[str, QtWidgets.QWidget] = attrs.field(init=False, factory=dict)
-    _hasBeenActivated: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('Tools')
@@ -203,10 +204,8 @@ class ToolsPanel(MainViewPanel):
         self._tblWdgt.currentCellChanged.connect(self._onTblCurrentCellChanged)
         container.layout().addWidget(self._tblWdgt)
 
-        self.sigPanelActivated.connect(self._onPanelActivated)
-
     def _onPanelActivated(self):
-        self._hasBeenActivated = True
+        super()._onPanelActivated()
         self._onToolsChanged()
 
     def _onSessionSet(self):

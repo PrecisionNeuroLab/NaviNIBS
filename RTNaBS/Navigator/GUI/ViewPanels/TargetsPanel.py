@@ -19,6 +19,7 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -27,8 +28,6 @@ from RTNaBS.Navigator.Model.Session import Session, Target
 
 
 logger = logging.getLogger(__name__)
-
-Actor = pv._vtk.vtkActor
 
 
 @attrs.define
@@ -153,13 +152,14 @@ class VisualizedTarget:
 class TargetsPanel(MainViewPanel):
     _treeWdgt: QtWidgets.QTreeWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
-    _hasBeenActivated: bool = attrs.field(init=False, default=False)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
     _treeItems: tp.Dict[str, QtWidgets.QTreeWidgetItem] = attrs.field(init=False, factory=dict)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('Planned targets')
@@ -212,8 +212,6 @@ class TargetsPanel(MainViewPanel):
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
 
-        self.sigPanelActivated.connect(self._onPanelActivated)
-
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
         if axis == 'x':
@@ -227,10 +225,12 @@ class TargetsPanel(MainViewPanel):
 
     def _onPanelActivated(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
+
+        super()._onPanelActivated()
+
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
                 view.session = self.session
-        self._hasBeenActivated = True
         self._onTargetsChanged()
 
     def _onSliceTransformChanged(self, sourceKey: str):

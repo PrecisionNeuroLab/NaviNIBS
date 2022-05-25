@@ -31,9 +31,10 @@ class HeadModelPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
-    _hasBeenActivated: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
@@ -66,14 +67,14 @@ class HeadModelPanel(MainViewPanel):
 
             containerLayout.addWidget(self._views[key].wdgt, iRow, iCol)
 
-        self.sigPanelActivated.connect(self._onPanelActivated)
-
     def _onPanelActivated(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
+
+        super()._onPanelActivated()
+
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
                 view.session = self.session
-        self._hasBeenActivated = True
 
     def _onSliceOriginChanged(self, sourceKey: str):
         for key, view in self._views.items():

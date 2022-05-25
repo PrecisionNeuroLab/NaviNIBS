@@ -37,6 +37,8 @@ class ManageSessionPanel(MainViewPanel):
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('File')
@@ -80,8 +82,6 @@ class ManageSessionPanel(MainViewPanel):
         self._closeBtn = btn
 
         container.layout().addStretch()
-
-
 
         container = QtWidgets.QGroupBox('Info')
         self._wdgt.layout().addWidget(container)
