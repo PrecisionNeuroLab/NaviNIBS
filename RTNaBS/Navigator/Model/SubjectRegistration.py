@@ -119,6 +119,10 @@ class SubjectRegistration:
         return self._sampledFiducials  # note: result should not be modified, should instead call setter
 
     @property
+    def sampledHeadPoints(self):
+        return self._sampledHeadPoints
+
+    @property
     def trackerToMRITransf(self):
         return self._trackerToMRITransf
 

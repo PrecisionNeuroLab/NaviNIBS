@@ -22,7 +22,7 @@ from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool
-from RTNaBS.util.pyvista import Actor
+from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
@@ -136,8 +136,6 @@ class CameraPanel(MainViewPanel):
                     # TODO: plot some generate shape (e.g. small crosshairs) for object
                     continue
 
-            # TODO: apply transform to existing actor
-            t = pv._vtk.vtkTransform()
-            t.SetMatrix(pv.vtkmatrix_from_array(pos.transf @ tool.stlToTrackerTransf))
-            self._actors[key].SetUserTransform(t)
+            # apply transform to existing actor
+            setActorUserTransform(self._actors[key], pos.transf @ tool.stlToTrackerTransf)
 
