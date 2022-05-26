@@ -101,18 +101,15 @@ class CameraPanel(MainViewPanel):
         if not self._hasBeenActivated:
             return
 
-        for longKey, pos in self._positionsClient.latestPositions.items():
-            if not longKey.endswith('ToTracker'):
-                if longKey not in self._ignoredKeys:
-                    logger.warning('Unexpected transform: {}. Ignoring'.format(longKey))
-                    self._ignoredKeys.append(longKey)
-                continue
-            key = longKey[:-len('ToTracker')]
-
+        for key, pos in self._positionsClient.latestPositions.items():
             if key not in self.session.tools:
-                logger.warning('Position key {} has no match in session tool keys. Ignoring'.format(key))
-                self._actors[key] = None
+                if key not in self._ignoredKeys:
+                    logger.warning('Position key {} has no match in session tool keys. Ignoring'.format(key))
+                    self._actors[key] = None
                 continue
+            else:
+                if key in self._ignoredKeys:
+                    self._ignoredKeys.remove(key)
 
             tool = self.session.tools[key]
 

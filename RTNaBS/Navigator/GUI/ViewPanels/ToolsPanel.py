@@ -5,6 +5,7 @@ import asyncio
 import appdirs
 import attrs
 from datetime import datetime
+import json
 import logging
 import numpy as np
 import os
@@ -18,8 +19,11 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.Transforms import transformToString, stringToTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
 
 
@@ -91,15 +95,15 @@ class ToolWidget:
         self._stlFilepath.sigFilepathChanged.connect(lambda filepath: self._onStlFilepathEdited())
         formContainer.layout().addRow('STL filepath', self._stlFilepath)
 
-        with np.printoptions(precision=2):
-            self._stlToTrackerTransf = QtWidgets.QLineEdit('{}'.format(self._tool.stlToTrackerTransf))
+        self._stlToTrackerTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.stlToTrackerTransf))
+        self._stlToTrackerTransf.setValidator(OptionalTransformValidator())
         self._stlToTrackerTransf.editingFinished.connect(self._onStlToTrackerTransfEdited)
+        formContainer.layout().addRow('STL to tracker transf', self._stlToTrackerTransf)
 
-        with np.printoptions(precision=2):
-            self._trackerToToolTransf = QtWidgets.QLineEdit('{}'.format(self._tool.trackerToToolTransf))
+        self._trackerToToolTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.trackerToToolTransf))
+        self._trackerToToolTransf.setValidator(OptionalTransformValidator())
         self._trackerToToolTransf.editingFinished.connect(self._onTrackerToToolTransfEdited)
-
-
+        formContainer.layout().addRow('Tracker to tool transf', self._trackerToToolTransf)
 
     @property
     def wdgt(self):
@@ -121,10 +125,20 @@ class ToolWidget:
         self._tool.stlFilepath = self._stlFilepath.filepath
 
     def _onStlToTrackerTransfEdited(self):
-        raise NotImplementedError()  # TODO
+        newTransf = self._strToTransf(self._stlToTrackerTransf.text())
+        if self._transfToStr(newTransf) == self._transfToStr(self._tool.stlToTrackerTransf):
+            # no change
+            return
+        logger.info('User edited {} stlToTrackerTransf: {}'.format(self._tool.key, newTransf))
+        self._tool.stlToTrackerTransf = newTransf
 
     def _onTrackerToToolTransfEdited(self):
-        raise NotImplementedError()  # TODO
+        newTransf = self._strToTransf(self._trackerToToolTransf.text())
+        if self._transfToStr(newTransf) == self._transfToStr(self._tool.trackerToToolTransf):
+            # no change
+            return
+        logger.info('User edited {} trackerToToolTransf: {}'.format(self._tool.key, newTransf))
+        self._tool.trackerToToolTransf = newTransf
 
     def _onToolChanged(self):
         self._key.setText(self._tool.key)
@@ -132,9 +146,22 @@ class ToolWidget:
         self._isActive.setChecked(self._tool.isActive)
         self._romFilepath.filepath = self._tool.romFilepath
         self._stlFilepath.filepath = self._tool.stlFilepath
-        with np.printoptions(precision=2):
-            self._stlToTrackerTransf.setText('{}'.format(self._tool.stlToTrackerTransf))
-            self._trackerToToolTransf.setText('{}'.format(self._tool.trackerToToolTransf))
+        self._stlToTrackerTransf.setText(self._transfToStr(self._tool.stlToTrackerTransf))
+        self._trackerToToolTransf.setText(self._transfToStr(self._tool.trackerToToolTransf))
+
+    @staticmethod
+    def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:
+        if transf is None:
+            return ''
+        else:
+            return transformToString(transf, precision=6)
+
+    @staticmethod
+    def _strToTransf(inputStr: str) -> tp.Optional[np.ndarray]:
+        if len(inputStr.strip()) == 0:
+            return None
+        else:
+            return stringToTransform(inputStr)
 
 
 @attrs.define
