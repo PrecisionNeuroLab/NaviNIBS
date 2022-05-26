@@ -17,11 +17,12 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform
+from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.Navigator.Model.Session import Session
@@ -31,13 +32,15 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class SubjectRegistration(MainViewPanel):
+class SubjectRegistrationPanel(MainViewPanel):
     _surfKey: str = 'skinSurf'
 
     _fidTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _headPtsTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+
+    _positionsClient: ToolPositionsClient = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -124,6 +127,9 @@ class SubjectRegistration(MainViewPanel):
         )
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
+        self._positionsClient = ToolPositionsClient()
+        self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which='pointerPosition'))
+
     def _onPanelActivated(self):
         super()._onPanelActivated()
         self._redraw(which='all')
@@ -132,9 +138,19 @@ class SubjectRegistration(MainViewPanel):
         super()._onSessionSet()
         # TODO: connect relevant session changed signals to _redraw calls
 
+        self.session.headModel.sigDataChanged.connect(lambda which: self._redraw(which='initSurf'))
+        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._redraw(which='initPlannedFids'))
+        self.session.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._redraw(which='initSampledFids'))
+        self.session.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._redraw(which='initHeadPts'))
+        self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
+            'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
+
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
         logger.debug('redraw {}'.format(which))
+
+        if not self._isActivated:
+            return
 
         if isinstance(which, list):
             for subWhich in which:
@@ -142,7 +158,7 @@ class SubjectRegistration(MainViewPanel):
             return
 
         if which == 'all':
-            which = ['initSurf', 'initTools', 'initFids', 'initHeadPts']
+            which = ['initSurf', 'initSubjectTracker', 'initPointer', 'initPlannedFids', 'initSampledFids', 'initHeadPts']
             self._redraw(which=which)
             return
 
@@ -153,11 +169,12 @@ class SubjectRegistration(MainViewPanel):
                                                           opacity=0.8,  # TODO: make GUI-configurable
                                                           name=actorKey)
 
-        elif which == 'initTools':
+        elif which == 'initSubjectTracker':
 
+            subjectTracker = self.session.tools.subjectTracker
             doShowSubjectTracker = self.session.subjectRegistration.trackerToMRITransf is not None \
-                                and self.session.tools.subjectTracker is not None \
-                                and self.session.tools.subjectTracker.trackerSurf is not None
+                                and subjectTracker is not None \
+                                and subjectTracker.trackerSurf is not None
             actorKey = 'subjectTracker'
             if not doShowSubjectTracker:
                 if actorKey in self._actors:
@@ -171,6 +188,55 @@ class SubjectRegistration(MainViewPanel):
                                                                 name=actorKey)
                 self._redraw(which='subjectTrackerPosition')
 
+        elif which in ('initPointer', 'pointerPosition'):
+            pointer = self.session.tools.pointer
+            subjectTracker = self.session.tools.subjectTracker
+            doShowPointer = self.session.subjectRegistration.trackerToMRITransf is not None \
+                            and pointer is not None \
+                            and pointer.trackerSurf is not None \
+                            and subjectTracker is not None
+
+            actorKey = 'pointer'
+            if not doShowPointer:
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(self._actors[actorKey])
+                    self._actors.pop(actorKey)
+                return
+
+            if which == 'initPointer':
+                self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.tools.pointer.trackerSurf,
+                                                                color='#999999',
+                                                                opacity=0.6,
+                                                                name=actorKey)
+                self._redraw(which='pointerPosition')
+
+            elif which == 'pointerPosition':
+                if actorKey not in self._actors:
+                    self._redraw(which='initPointer')
+                    return
+
+                pointerToCameraTransf = self._positionsClient.latestPositions.get(pointer.key, None)
+                subjectTrackerToCameraTransf = self._positionsClient.latestPositions.get(subjectTracker.key, None)
+
+                if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
+                    # don't have valid info for determining pointer position relative to head tracker
+                    if self._actors[actorKey].GetVisibility():
+                        self._actors[actorKey].VisibilityOff()
+                    return
+
+                if not self._actors[actorKey].GetVisibility():
+                    self._actors[actorKey].VisibilityOn()
+
+                pointerToSubjectTrackerTransf = invertTransform(subjectTrackerToCameraTransf) @ pointerToCameraTransf
+
+                setActorUserTransform(
+                    self._actors[actorKey],
+                    self.session.subjectRegistration.trackerToMRITransf @ pointerToSubjectTrackerTransf @ self.session.tools.pointer.stlToTrackerTransf
+                )
+
+            else:
+                raise NotImplementedError()
+
         elif which == 'subjectTrackerPosition':
             actorKey = 'subjectTracker'
             if actorKey not in self._actors:
@@ -179,7 +245,8 @@ class SubjectRegistration(MainViewPanel):
 
             setActorUserTransform(
                 self._actors[actorKey],
-                self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.stlToTrackerTransf)
+                self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.stlToTrackerTransf
+            )
 
         elif which == 'initPlannedFids':
 
