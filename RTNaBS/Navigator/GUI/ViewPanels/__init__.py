@@ -18,12 +18,14 @@ class MainViewPanel:
     _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
 
     _hasBeenActivated: bool = attrs.field(init=False, default=False)
+    _isActivated: bool = attrs.field(init=False, default=False)
 
     sigPanelActivated: Signal = attrs.field(init=False, factory=Signal)
     sigPanelDeactivated: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         self.sigPanelActivated.connect(self._onPanelActivated)
+        self.sigPanelDeactivated.connect(self._onPanelDeactivated)
 
     @property
     def wdgt(self):
@@ -43,3 +45,7 @@ class MainViewPanel:
 
     def _onPanelActivated(self):
         self._hasBeenActivated = True
+        self._isActivated = True
+
+    def _onPanelDeactivated(self):
+        self._isActivated = False

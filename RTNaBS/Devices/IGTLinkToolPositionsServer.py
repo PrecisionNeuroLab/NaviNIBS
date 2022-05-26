@@ -7,7 +7,7 @@ from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer, TimestampedT
 
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define
@@ -47,7 +47,14 @@ class IGTLinkToolPositionsServer(ToolPositionsServer):
                         if msg.message_type == 'TRANSFORM':
                             position = TimestampedToolPosition(time=msg.timestamp,
                                                                transf=msg.matrix)
-                            await self._recordNewPosition(key=msg.device_name, position=position)
+                            key = msg.device_name
+                            if key.endswith('ToTracker'):
+                                # strip 'ToTracker' suffix from device_name, assuming plus config is set to only send *ToTracker transforms
+                                key = key[:-len('ToTracker')]
+                            else:
+                                raise KeyError('Unexpected position device_name: {}'.format(key))
+
+                            await self._recordNewPosition(key=key, position=position)
                         else:
                             logger.error('Unexpected message type: {}'.format(msg.message_type))
                             raise NotImplementedError()

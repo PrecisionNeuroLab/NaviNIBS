@@ -34,7 +34,7 @@ class Tool:
     _romFilepath: tp.Optional[str] = None
     _stlFilepath: tp.Optional[str] = None
     _filepathsRelTo: str = '<session>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
-    _trackerToToolTransf: tp.Optional[np.ndarray] = None
+    _trackerToToolTransf: tp.Optional[np.ndarray] = None  # used for aligning Polaris-reported position to actual device position (e.g. coil tracker to actual coil, or uncalibrated pointer to actual pointer)
     _stlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual reported tracker orientation
 
     _installPath: tp.Optional[str] = None  # used for relative paths
@@ -363,6 +363,19 @@ class Tools:
                 else:
                     subjectTracker = tool
         return subjectTracker
+
+    @property
+    def pointer(self) -> tp.Optional[Pointer]:
+        pointer = None
+        for key, tool in self._tools.items():
+            if not tool.isActive:
+                continue
+            if isinstance(tool, Pointer):
+                if pointer is not None:
+                    raise ValueError('More than one pointer tool is active')
+                else:
+                    pointer = tool
+        return pointer
 
     def _getActiveToolKeys(self) -> tp.Dict[str, tp.Union[str, tp.List[str,...]]]:
         activeToolKeys = {}
