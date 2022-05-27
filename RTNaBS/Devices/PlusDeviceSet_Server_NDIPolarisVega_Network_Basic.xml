@@ -11,11 +11,11 @@
       NetworkPort="8765"
       ToolReferenceFrame="Tracker" >
       <DataSources>
-        <DataSource Type="Tool" Id="Coil1" RomFile="tools/LOCALITE-TMS-Coil-1.rom"  />
-        <DataSource Type="Tool" Id="Coil2" RomFile="tools/LOCALITE-TMS-Coil-2.rom"  />
-        <DataSource Type="Tool" Id="Pointer" RomFile="tools/LOCALITE-Pointer.rom"  />
-        <DataSource Type="Tool" Id="Subject" RomFile="tools/LOCALITE-TMS-Reference.rom"  />
-        <DataSource Type="Tool" Id="Calibration" RomFile="tools/LOCALITE-TMS-Calibration-Plate.rom"  />
+        <DataSource Type="Tool" Id="Coil1" RomFile="../../data/tools/LOCALITE-TMS-Coil-1.rom"  />
+        <DataSource Type="Tool" Id="Coil2" RomFile="../../data/tools/LOCALITE-TMS-Coil-2.rom"  />
+        <DataSource Type="Tool" Id="Pointer" RomFile="../../data/tools/LOCALITE-Pointer.rom"  />
+        <DataSource Type="Tool" Id="Subject" RomFile="../../data/tools/LOCALITE-TMS-Reference.rom"  />
+        <DataSource Type="Tool" Id="Calibration" RomFile="../../data/tools/LOCALITE-TMS-Calibration-Plate.rom"  />
       </DataSources>
       <OutputChannels>
         <OutputChannel Id="TrackerStream" >
