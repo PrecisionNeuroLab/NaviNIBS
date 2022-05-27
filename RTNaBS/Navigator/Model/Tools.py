@@ -77,6 +77,8 @@ class Tool:
     def usedFor(self, newUsedFor: str):
         if self._usedFor == newUsedFor:
             return
+
+        logger.info('Changing {} usedFor from {} to {}'.format(self.key, self._usedFor, newUsedFor))
         self.sigToolAboutToChange.emit(self._key)
         prevUsedFor = self._usedFor
         self._usedFor = newUsedFor
@@ -86,6 +88,16 @@ class Tool:
     @property
     def isActive(self):
         return self._isActive
+
+    @isActive.setter
+    def isActive(self, newIsActive: bool):
+        if self._isActive == newIsActive:
+            return
+
+        logger.info('Changing {} isActive to {}'.format(self.key, newIsActive))
+        self.sigToolAboutToChange.emit(self._key)
+        self._isActive = newIsActive
+        self.sigToolChanged.emit(self._key)
 
     @property
     def romFilepath(self):
@@ -467,10 +479,23 @@ class Tools:
     @classmethod
     def _toolFromDict(cls, toolDict: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None) -> Tool:
         usedFor = toolDict['usedFor']
-        if usedFor == 'coil':
-            tool = CoilTool.fromDict(toolDict, sessionPath=sessionPath)
-        else:
-            tool = Tool.fromDict(toolDict, sessionPath=sessionPath)
+
+        match usedFor:
+            case 'coil':
+                ToolCls = CoilTool
+            case 'pointer':
+                ToolCls = Pointer
+            case 'calibration':
+                ToolCls = CalibrationPlate
+            case 'subject':
+                ToolCls = SubjectTracker
+            case '':
+                ToolCls = Tool
+            case _:
+                raise NotImplementedError('Unexpected tool usedFor: {}'.format(usedFor))
+
+        tool = ToolCls.fromDict(toolDict, sessionPath=sessionPath)
+
         return tool
     
     
