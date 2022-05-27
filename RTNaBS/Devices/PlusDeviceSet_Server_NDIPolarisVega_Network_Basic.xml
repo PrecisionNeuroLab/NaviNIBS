@@ -1,0 +1,63 @@
+<PlusConfiguration version="2.1">
+
+  <DataCollection StartupDelaySec="1.0" >
+    <DeviceSet 
+      Name="PlusServer: NDI Polaris Vega Network Basic"
+      Description="Broadcasting tool tracking data through OpenIGTLink" />
+    <Device
+      Id="TrackerDevice"
+      Type="NDITracker"
+	  NetworkHostname="192.155.1.82"
+      NetworkPort="8765"
+      ToolReferenceFrame="Tracker" >
+      <DataSources>
+        <DataSource Type="Tool" Id="Coil1" RomFile="tools/LOCALITE-TMS-Coil-1.rom"  />
+        <DataSource Type="Tool" Id="Coil2" RomFile="tools/LOCALITE-TMS-Coil-2.rom"  />
+        <DataSource Type="Tool" Id="Pointer" RomFile="tools/LOCALITE-Pointer.rom"  />
+        <DataSource Type="Tool" Id="Subject" RomFile="tools/LOCALITE-TMS-Reference.rom"  />
+        <DataSource Type="Tool" Id="Calibration" RomFile="tools/LOCALITE-TMS-Calibration-Plate.rom"  />
+      </DataSources>
+      <OutputChannels>
+        <OutputChannel Id="TrackerStream" >
+          <DataSource Id="Coil1"/>
+          <DataSource Id="Coil2"/>
+          <DataSource Id="Pointer"/>
+          <DataSource Id="Subject"/>
+          <DataSource Id="Calibration"/>
+        </OutputChannel>
+      </OutputChannels>
+    </Device>
+  </DataCollection>
+
+  <CoordinateDefinitions>
+    <Transform From="PointerTip" To="Pointer"
+      Matrix="
+        1	0	0	0
+        0	1	0	0
+        0	0	1	0
+        0	0	0	1"
+       Error="0" Date="220521_142600" />
+  </CoordinateDefinitions>
+
+  <PlusOpenIGTLinkServer 
+    MaxNumberOfIgtlMessagesToSend="100"
+    MaxTimeSpentWithProcessingMs="50"
+    ListeningPort="18944"
+    SendValidTransformsOnly="false"
+    NumberOfRetryAttempts="10"
+    OutputChannelId="TrackerStream" >
+    <DefaultClientInfo>
+      <MessageTypes>
+        <Message Type="TRANSFORM" />
+      </MessageTypes>
+      <TransformNames>
+        <Transform Name="Coil1ToTracker" />
+        <Transform Name="Coil2ToTracker" />
+        <Transform Name="PointerToTracker" />
+        <Transform Name="SubjectToTracker" />
+        <Transform Name="CalibrationToTracker" />
+      </TransformNames>
+    </DefaultClientInfo>
+  </PlusOpenIGTLinkServer>
+
+</PlusConfiguration>
