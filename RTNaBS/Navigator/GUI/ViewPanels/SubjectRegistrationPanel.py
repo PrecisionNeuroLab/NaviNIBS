@@ -22,7 +22,7 @@ from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform
+from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.Navigator.Model.Session import Session
@@ -37,6 +37,9 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     _fidTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _headPtsTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
+    _sampleFiducialBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _alignToFiducialsBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _sampleHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
 
@@ -49,6 +52,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         sidebar = QtWidgets.QWidget()
         sidebar.setLayout(QtWidgets.QVBoxLayout())
+        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
         self._wdgt.layout().addWidget(sidebar)
 
         fiducialsBox = QtWidgets.QGroupBox('Fiducials')
@@ -61,19 +65,21 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton('Sample fiducial')
         btn.clicked.connect(self._onSampleFidBtnClicked)
-        # TODO: set this to only be enabled when necessary tools are visible
+        self._sampleFiducialBtn = btn
         btnContainer.layout().addWidget(btn, 0, 0,)
 
         btn = QtWidgets.QPushButton('Clear fiducial')
         btn.clicked.connect(self._onClearFidBtnClicked)
-        btnContainer.layout().addWidget(btn, 0, 0)
+        btnContainer.layout().addWidget(btn, 0, 1)
         # TODO: change this to "clear fiducials" when multiple selected
 
         # TODO: add prev/next fiducial buttons for mapping to foot pedal actions
         # (i.e. without requiring click in fidTbl to select different fiducial)
 
-        self._fidTblWdgt = QtWidgets.QTableWidget(0, 2)
-        self._fidTblWdgt.setHorizontalHeaderLabels(['Fiducial', 'Sampled'])
+        self._fidTblWdgt = QtWidgets.QTableWidget(0, 3)
+        self._fidTblWdgt.setHorizontalHeaderLabels(['Fiducial', 'Planned', 'Sampled'])
+        self._fidTblWdgt.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        self._fidTblWdgt.currentCellChanged.connect(self._onFidTblCurrentCellChanged)
         self._fidTblWdgt.cellDoubleClicked.connect(self._onFidTblCellDoubleClicked)
         fiducialsBox.layout().addWidget(self._fidTblWdgt)
 
@@ -83,9 +89,8 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton('Align to sampled fiducials')
         btn.clicked.connect(self._onAlignToFidBtnClicked)
-        # TODO: set this to only be enabled when at least 3 fiducials are sampled
+        self._alignToFiducialsBtn = btn
         btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
-
 
         headPtsBox = QtWidgets.QGroupBox('Head shape points')
         headPtsBox.setLayout(QtWidgets.QVBoxLayout())
@@ -97,12 +102,12 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton('Sample head point')
         btn.clicked.connect(self._onSampleHeadPtsBtnClicked)
-        # TODO: set this to only be enabled when necessary tools are visible
-        btnContainer.layout().addWidget(btn, 0, 0, )
+        btn = self._sampleHeadPtsBtn = btn
+        btnContainer.layout().addWidget(btn, 0, 0)
 
         btn = QtWidgets.QPushButton('Clear head point')
         btn.clicked.connect(self._onClearHeadPtsBtnClicked)
-        btnContainer.layout().addWidget(btn, 0, 0)
+        btnContainer.layout().addWidget(btn, 0, 1)
         # TODO: change this to "clear head points" when multiple selected
 
         self._headPtsTblWdgt = QtWidgets.QTableWidget(0, 2)
@@ -125,10 +130,10 @@ class SubjectRegistrationPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
+        self._plotter.enable_depth_peeling(4)
         self._wdgt.layout().addWidget(self._plotter.interactor)
-
         self._positionsClient = ToolPositionsClient()
-        self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which='pointerPosition'))
+        self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which=['pointerPosition', 'sampleBtns']))
 
     def _onPanelActivated(self):
         super()._onPanelActivated()
@@ -145,12 +150,108 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
             'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
 
-    def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
+    def _currentFidTblFidKey(self) -> tp.Optional[str]:
+        if self._fidTblWdgt.currentItem() is None:
+            return None
+        currentRow = self._fidTblWdgt.currentRow()
+        return self._fidTblWdgt.item(currentRow, 0).text()
 
-        logger.debug('redraw {}'.format(which))
+    def _onSampleFidBtnClicked(self):
+        fidKey = self._currentFidTblFidKey()
+
+        # TODO: spin-wait update positionsClient.latestPositions to make sure we have the most up to date position
+
+        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.key, None)
+        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.key, None)
+
+        if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
+            logger.warning('Tried to sample, but do not have valid positions. Returning.')
+            return
+
+        logger.info('Sampled fiducial:\npointer: {}\ntracker: {}'.format(pointerToCameraTransf, subjectTrackerToCameraTransf))
+
+        pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.trackerToToolTransf,
+                                                       pointerToCameraTransf,
+                                                       invertTransform(subjectTrackerToCameraTransf)
+                                                      ], np.zeros((3,)))
+
+        self.session.subjectRegistration.setFiducial(whichSet='sampled', whichFiducial=fidKey, coord=pointerCoord_relToSubTracker)
+
+        if True:
+            currentRow = self._fidTblWdgt.currentRow()
+            if currentRow == self._fidTblWdgt.rowCount() - 1:
+                # already at end of table
+                # TODO: auto-advance to prompt about aligning
+                pass
+            else:
+                # advance to next fiducial in table
+                self._fidTblWdgt.setCurrentCell(currentRow + 1, 0)
+
+    def _onClearFidBtnClicked(self):
+        raise NotImplementedError()  # TODO
+
+    def _onFidTblCurrentCellChanged(self, currentRow: int, currentCol: int, previousRow: int, previousCol: int):
+        if previousRow == currentRow:
+            return  # no change in row selection
+
+        self._redraw(which=['sampleBtns'])
+
+        fidKey = self._currentFidTblFidKey()
+
+        if fidKey is None:
+            # no selection (perhaps table was temporarily cleared)
+            return
+
+        subReg = self.session.subjectRegistration
+        if fidKey in subReg.plannedFiducials and subReg.plannedFiducials[fidKey] is not None:
+            lookAt = subReg.plannedFiducials[fidKey]
+        elif fidKey in subReg.sampledFiducials and subReg.sampledFiducials[fidKey] is not None and subReg.trackerToMRITransf is not None:
+            lookAt = applyTransform(subReg.trackerToMRITransf, subReg.sampledFiducials[fidKey])
+        else:
+            lookAt = None
+        if lookAt is not None:
+            self._plotter.camera.focal_point = lookAt
+            vec = lookAt - subReg.approxHeadCenter
+            self._plotter.camera.position = lookAt + vec*10
+            self._plotter.reset_camera()
+
+    def _onFidTblCellDoubleClicked(self):
+        raise NotImplementedError()  # TODO
+
+    def _onAlignToFidBtnClicked(self):
+
+        subReg = self.session.subjectRegistration
+        assert subReg.hasMinimumSampledFiducials
+
+        validPlannedFidKeys = {key for key, coord in subReg.plannedFiducials.items() if coord is not None}
+        validSampledFidKeys = {key for key, coord in subReg.sampledFiducials.items() if coord is not None}
+        commonKeys = validPlannedFidKeys & validSampledFidKeys
+        assert len(commonKeys) >= 3
+
+        plannedPts_mriSpace = np.vstack(subReg.plannedFiducials[key] for key in commonKeys)
+        sampledPts_subSpace = np.vstack(subReg.sampledFiducials[key] for key in commonKeys)
+
+        logger.info('Estimating transform aligning sampled fiducials to planned fiducials')
+        subReg.trackerToMRITransf = estimateAligningTransform(sampledPts_subSpace, plannedPts_mriSpace)
+
+    def _onSampleHeadPtsBtnClicked(self):
+        raise NotImplementedError()  # TODO
+
+    def _onClearHeadPtsBtnClicked(self):
+        raise NotImplementedError()  # TODO
+
+    def _onHeadPtsTblCellDoubleClicked(self):
+        raise NotImplementedError()  # TODO
+
+    def _onAlignToHeadPtsBtnClicked(self):
+        raise NotImplementedError()  # TODO
+
+    def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
         if not self._isActivated:
             return
+
+        logger.debug('redraw {}'.format(which))
 
         if isinstance(which, list):
             for subWhich in which:
@@ -158,7 +259,8 @@ class SubjectRegistrationPanel(MainViewPanel):
             return
 
         if which == 'all':
-            which = ['initSurf', 'initSubjectTracker', 'initPointer', 'initPlannedFids', 'initSampledFids', 'initHeadPts']
+            which = ['initSurf', 'initSubjectTracker', 'initPointer', 'initPlannedFids', 'initSampledFids', 'initHeadPts',
+                     'sampleBtns']
             self._redraw(which=which)
             return
 
@@ -188,9 +290,22 @@ class SubjectRegistrationPanel(MainViewPanel):
                                                                 name=actorKey)
                 self._redraw(which='subjectTrackerPosition')
 
+        elif which in ('sampleBtns',):
+            pointer = self.session.tools.pointer
+            subjectTracker = self.session.tools.subjectTracker
+
+            allowSampling = False
+            if pointer is not None and subjectTracker is not None:
+                if self._fidTblWdgt.currentItem() is not None:
+                    allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.key, subjectTracker.key))
+
+            self._sampleFiducialBtn.setEnabled(allowSampling)
+            self._sampleHeadPtsBtn.setEnabled(allowSampling)
+
         elif which in ('initPointer', 'pointerPosition'):
             pointer = self.session.tools.pointer
             subjectTracker = self.session.tools.subjectTracker
+
             doShowPointer = self.session.subjectRegistration.trackerToMRITransf is not None \
                             and pointer is not None \
                             and pointer.trackerSurf is not None \
@@ -215,8 +330,8 @@ class SubjectRegistrationPanel(MainViewPanel):
                     self._redraw(which='initPointer')
                     return
 
-                pointerToCameraTransf = self._positionsClient.latestPositions.get(pointer.key, None)
-                subjectTrackerToCameraTransf = self._positionsClient.latestPositions.get(subjectTracker.key, None)
+                pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.key, None)
+                subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.key, None)
 
                 if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
                     # don't have valid info for determining pointer position relative to head tracker
@@ -252,6 +367,9 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             actorKey = 'plannedFids'
 
+            # also update table
+            self._redraw(which='fidTbl')
+
             labels = []
             coords = np.full((len(self.session.subjectRegistration.plannedFiducials), 3), np.nan)
             for iFid, (label, coord) in enumerate(self.session.subjectRegistration.plannedFiducials.items()):
@@ -275,6 +393,9 @@ class SubjectRegistrationPanel(MainViewPanel):
         elif which == 'initSampledFids':
 
             actorKey = 'sampledFids'
+
+            # also update table
+            self._redraw(which='fidTbl')
 
             doShowSampledFids = len(self.session.subjectRegistration.sampledFiducials) > 0 \
                                 and self.session.subjectRegistration.trackerToMRITransf is not None
@@ -334,6 +455,55 @@ class SubjectRegistrationPanel(MainViewPanel):
                 reset_camera=False,
                 render=False
             )
+
+        elif which == 'fidTbl':
+            # TODO: do iterative partial updates rather than entirely clearing and repopulating table with every change
+            prevKey = self._currentFidTblFidKey()
+            subReg = self.session.subjectRegistration
+            self._fidTblWdgt.clearContents()
+            allFidKeys = list(subReg.plannedFiducials.keys()) + [key for key in subReg.sampledFiducials if key not in subReg.plannedFiducials]
+            self._fidTblWdgt.setRowCount(len(allFidKeys))
+
+            checkIcon_planned = qta.icon('mdi6.checkbox-marked-circle', color='blue')
+            checkIcon_sampled = qta.icon('mdi6.checkbox-marked-circle', color='green')
+            neutralIcon = qta.icon('mdi6.circle-medium', color='gray')
+            xIcon = qta.icon('mdi6.close-circle-outline', color='red')
+
+            for iFid, key in enumerate(allFidKeys):
+                item = QtWidgets.QTableWidgetItem(key)
+                self._fidTblWdgt.setItem(iFid, 0, item)
+
+                if key in subReg.plannedFiducials:
+                    if subReg.plannedFiducials[key] is not None:
+                        icon = checkIcon_planned
+                    else:
+                        icon = xIcon
+                else:
+                    icon = xIcon
+                item = QtWidgets.QTableWidgetItem(icon, '')
+                self._fidTblWdgt.setItem(iFid, 1, item)
+
+                if key in subReg.sampledFiducials:
+                    if subReg.sampledFiducials[key] is not None:
+                        icon = checkIcon_sampled
+                    else:
+                        icon = xIcon
+                else:
+                    icon = xIcon
+                item = QtWidgets.QTableWidgetItem(icon, '')
+                self._fidTblWdgt.setItem(iFid, 2, item)
+
+            self._alignToFiducialsBtn.setEnabled(subReg.hasMinimumSampledFiducials)
+
+            if prevKey is not None:
+                if prevKey in allFidKeys:
+                    row = allFidKeys.index(prevKey)
+                else:
+                    # no match, reset to beginning
+                    row = 0
+            else:
+                row = 0
+            self._fidTblWdgt.setCurrentCell(row, 0)
 
         else:
             raise NotImplementedError('Unexpected redraw key: {}'.format(which))
