@@ -19,7 +19,7 @@ from RTNaBS.Navigator.Model.MRI import MRI
 from RTNaBS.Navigator.Model.HeadModel import HeadModel
 from RTNaBS.Navigator.Model.Targets import Targets, Target
 from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
-from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool
+from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish
 
