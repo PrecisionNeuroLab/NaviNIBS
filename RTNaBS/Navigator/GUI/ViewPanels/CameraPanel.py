@@ -21,9 +21,10 @@ from . import MainViewPanel
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
-from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool
+from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.Transforms import invertTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
@@ -77,6 +78,7 @@ class CameraPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
+        self._plotter.enable_depth_peeling(4)
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
 
@@ -104,46 +106,71 @@ class CameraPanel(MainViewPanel):
         if not self._hasBeenActivated:
             return
 
-        for key, pos in self._positionsClient.latestPositions.items():
-            if key not in self.session.tools:
-                if key not in self._ignoredKeys:
-                    logger.warning('Position key {} has no match in session tool keys. Ignoring'.format(key))
-                    self._actors[key] = None
-                continue
+        for key, tool in self.session.tools.items():
+            if isinstance(tool, SubjectTracker):
+                actorKeysForTool = [key, key + '_subject']
+            elif isinstance(tool, CoilTool):
+                actorKeysForTool = [key, key + '_coil']
             else:
-                if key in self._ignoredKeys:
-                    self._ignoredKeys.remove(key)
+                actorKeysForTool = [key]
 
-            tool = self.session.tools[key]
-
-            if pos.transf is None:
+            if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
                 # no valid position available
-                if key in self._actors and self._actors[key].GetVisibility():
-                    self._actors[key].VisibilityOff()
+                for actorKey in actorKeysForTool:
+                    if actorKey in self._actors and self._actors[actorKey].GetVisibility():
+                        self._actors[actorKey].VisibilityOff()
                 continue
 
-            if key not in self._actors:
-                # initialize graphic
+            for actorKey in actorKeysForTool:
+                if actorKey == key:
+                    if actorKey not in self._actors:
+                        # initialize graphic
+                        if tool.stlFilepath is not None:
+                            self._actors[actorKey] = self._plotter.add_mesh(mesh=tool.trackerSurf,
+                                                   color='#2222FF',
+                                                   opacity=0.8,
+                                                   name=actorKey)
+                        else:
+                            pass  # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
+                            continue
 
-                if tool.stlFilepath is not None:
-                    self._actors[key] = self._plotter.add_mesh(mesh=tool.trackerSurf,
-                                           color='#2222FF',
-                                           opacity=0.8,
-                                           name=tool.key)
-                elif isinstance(tool, CoilTool) and tool.coilStlFilepath is not None:
-                    # TODO: this should only be plotted if tool.trackerToToolTransf is set, but for now include anyways
-                    self._actors[key] = self._plotter.add_mesh(mesh=tool.coilSurf,
-                                           color='#FF2222',
-                                           opacity=0.8,
-                                           name=tool.key)
+                    # apply transform to existing actor
+                    setActorUserTransform(self._actors[actorKey], self._positionsClient.getLatestTransf(key) @ tool.stlToTrackerTransf)
 
+                elif isinstance(tool, CoilTool) and actorKey == tool.key + '_coil':
+                    if tool.coilStlFilepath is not None and tool.toolToTrackerTransf is not None:
+                        if actorKey not in self._actors:
+                            self._actors[actorKey] = self._plotter.add_mesh(mesh=tool.coilSurf,
+                                                   color='#FF2222',
+                                                   opacity=0.8,
+                                                   name=actorKey)
+
+                        setActorUserTransform(self._actors[actorKey],
+                                              self._positionsClient.getLatestTransf(key) @ tool.toolToTrackerTransf)
+
+                    else:
+                        if actorKey in self._actors:
+                            self._actors[actorKey].VisibilityOff()
+                        continue
+                            
+                elif isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
+                    if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
+                        if actorKey not in self._actors:
+                            self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
+                                                                            color='#d9a5b2',
+                                                                            opacity=0.8,
+                                                                            name=actorKey)
+
+                        setActorUserTransform(self._actors[actorKey],
+                                              self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                    else:
+                        if actorKey in self._actors:
+                            self._actors[actorKey].VisibilityOff()
+                        continue
                 else:
-                    logger.warning('No mesh available for {}, not plotting'.format(key))
-                    # TODO: plot some generate shape (e.g. small crosshairs) for object
-                    continue
+                    raise NotImplementedError()
 
-            elif not self._actors[key].GetVisibility():
-                self._actors[key].VisibilityOn()
+                if not self._actors[actorKey].GetVisibility():
+                    self._actors[actorKey].VisibilityOn()
 
-            # apply transform to existing actor
-            setActorUserTransform(self._actors[key], pos.transf @ tool.stlToTrackerTransf)
+

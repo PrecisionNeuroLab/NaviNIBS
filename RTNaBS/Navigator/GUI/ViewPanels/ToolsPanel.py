@@ -41,7 +41,7 @@ class ToolWidget:
     _isActive: QtWidgets.QCheckBox = attrs.field(init=False)
     _romFilepath: QFileSelectWidget = attrs.field(init=False)
     _stlFilepath: QFileSelectWidget = attrs.field(init=False)
-    _trackerToToolTransf: QtWidgets.QLineEdit = attrs.field(init=False)
+    _toolToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _stlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
 
     def __attrs_post_init__(self):
@@ -100,10 +100,10 @@ class ToolWidget:
         self._stlToTrackerTransf.editingFinished.connect(self._onStlToTrackerTransfEdited)
         formContainer.layout().addRow('STL to tracker transf', self._stlToTrackerTransf)
 
-        self._trackerToToolTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.trackerToToolTransf))
-        self._trackerToToolTransf.setValidator(OptionalTransformValidator())
-        self._trackerToToolTransf.editingFinished.connect(self._onTrackerToToolTransfEdited)
-        formContainer.layout().addRow('Tracker to tool transf', self._trackerToToolTransf)
+        self._toolToTrackerTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.toolToTrackerTransf))
+        self._toolToTrackerTransf.setValidator(OptionalTransformValidator())
+        self._toolToTrackerTransf.editingFinished.connect(self._onToolToTrackerTransfEdited)
+        formContainer.layout().addRow('Tool to tracker transf', self._toolToTrackerTransf)
 
     @property
     def wdgt(self):
@@ -132,13 +132,13 @@ class ToolWidget:
         logger.info('User edited {} stlToTrackerTransf: {}'.format(self._tool.key, newTransf))
         self._tool.stlToTrackerTransf = newTransf
 
-    def _onTrackerToToolTransfEdited(self):
-        newTransf = self._strToTransf(self._trackerToToolTransf.text())
-        if self._transfToStr(newTransf) == self._transfToStr(self._tool.trackerToToolTransf):
+    def _onToolToTrackerTransfEdited(self):
+        newTransf = self._strToTransf(self._toolToTrackerTransf.text())
+        if self._transfToStr(newTransf) == self._transfToStr(self._tool.toolToTrackerTransf):
             # no change
             return
-        logger.info('User edited {} trackerToToolTransf: {}'.format(self._tool.key, newTransf))
-        self._tool.trackerToToolTransf = newTransf
+        logger.info('User edited {} toolToTrackerTransf: {}'.format(self._tool.key, newTransf))
+        self._tool.toolToTrackerTransf = newTransf
 
     def _onToolChanged(self):
         self._key.setText(self._tool.key)
@@ -147,7 +147,7 @@ class ToolWidget:
         self._romFilepath.filepath = self._tool.romFilepath
         self._stlFilepath.filepath = self._tool.stlFilepath
         self._stlToTrackerTransf.setText(self._transfToStr(self._tool.stlToTrackerTransf))
-        self._trackerToToolTransf.setText(self._transfToStr(self._tool.trackerToToolTransf))
+        self._toolToTrackerTransf.setText(self._transfToStr(self._tool.toolToTrackerTransf))
 
     @staticmethod
     def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:

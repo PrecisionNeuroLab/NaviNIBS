@@ -34,7 +34,7 @@ class Tool:
     _romFilepath: tp.Optional[str] = None
     _stlFilepath: tp.Optional[str] = None
     _filepathsRelTo: str = '<session>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
-    _trackerToToolTransf: tp.Optional[np.ndarray] = None  # used for aligning Polaris-reported position to actual device position (e.g. coil tracker to actual coil, or uncalibrated pointer to actual pointer)
+    _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning Polaris-reported position to actual device position (e.g. coil tracker to actual coil, or uncalibrated pointer to actual pointer)
     _stlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual reported tracker orientation
 
     _installPath: tp.Optional[str] = None  # used for relative paths
@@ -42,7 +42,7 @@ class Tool:
 
     _trackerSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
 
-    _trackerToToolTransfHistory: tp.Dict[str, tp.Optional[np.ndarray]] = attrs.field(factory=dict)
+    _toolToTrackerTransfHistory: tp.Dict[str, tp.Optional[np.ndarray]] = attrs.field(factory=dict)
 
     sigToolAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # includes key
     sigKeyChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str, str)))  # includes old key, new key
@@ -160,25 +160,25 @@ class Tool:
             self.sigToolChanged.emit(self.key)
 
     @property
-    def trackerToToolTransf(self):
-        if self._trackerToToolTransf is None:
+    def toolToTrackerTransf(self):
+        if self._toolToTrackerTransf is None:
             return np.eye(4)
         else:
-            return self._trackerToToolTransf
+            return self._toolToTrackerTransf
 
-    @trackerToToolTransf.setter
-    def trackerToToolTransf(self, newTransf: tp.Optional[np.ndarray]):
-        if array_equalish(self._trackerToToolTransf, newTransf):
-            logger.debug('No change in trackerToToolTransf, returning')
+    @toolToTrackerTransf.setter
+    def toolToTrackerTransf(self, newTransf: tp.Optional[np.ndarray]):
+        if array_equalish(self._toolToTrackerTransf, newTransf):
+            logger.debug('No change in toolToTrackerTransf, returning')
             return
 
         # TODO: do validation of newTransf
 
         self.sigToolAboutToChange.emit(self.key)
-        self._trackerToToolTransfHistory[self._getTimestampStr()] = None if self._trackerToToolTransf is None else self._trackerToToolTransf.copy()
+        self._toolToTrackerTransfHistory[self._getTimestampStr()] = None if self._toolToTrackerTransf is None else self._toolToTrackerTransf.copy()
 
-        logger.info('Set trackerToToolTransf to {}'.format(newTransf))
-        self._trackerToToolTransf = newTransf
+        logger.info('Set toolToTrackerTransf to {}'.format(newTransf))
+        self._toolToTrackerTransf = newTransf
         self.sigToolChanged.emit(self.key)
 
     @property
@@ -208,17 +208,17 @@ class Tool:
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
         d = attrsAsDict(self, eqs=dict(
-            trackerToToolTransf=array_equalish,
+            toolToTrackerTransf=array_equalish,
             stlToTrackerTransf=array_equalish,
-            trackerToToolTransfHistory=lambda a, b: len(a) == len(b) \
+            toolToTrackerTransfHistory=lambda a, b: len(a) == len(b) \
                                                     and ((keyA == keyB and array_equalish(a[keyA], b[keyB])) for keyA, keyB in zip(a, b))))
 
-        for key in ('trackerToToolTransf', 'stlToTrackerTransf'):
+        for key in ('toolToTrackerTransf', 'stlToTrackerTransf'):
             if key in d:
                 d[key] = d[key].tolist()
 
-        if 'trackerToToolTransfHistory' in d:
-            d['trackerToToolTransfHistory'] = [dict(time=key, trackerToToolTransf=val.tolist()) for key, val in d['trackerToToolTransfHistory']]
+        if 'toolToTrackerTransfHistory' in d:
+            d['toolToTrackerTransfHistory'] = [dict(time=key, toolToTrackerTransf=val.tolist()) for key, val in d['toolToTrackerTransfHistory']]
 
         for key in ('installPath', 'sessionPath'):
             d.pop(key, None)
@@ -229,11 +229,11 @@ class Tool:
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None):
-        for key in ('trackerToToolTransf', 'stlToTrackerTransf'):
+        for key in ('toolToTrackerTransf', 'stlToTrackerTransf'):
             if key in d:
                 d[key] = np.asarray(d[key])
 
-        if 'trackerToToolTransfHistory' in d:
+        if 'toolToTrackerTransfHistory' in d:
             def convertTransf(transf: tp.List[tp.List[float, float, float]]) -> np.ndarray:
                 return np.asarray(transf)
 
@@ -245,8 +245,8 @@ class Tool:
                     historyDict[timeStr] = entryConverter(entry[field])
                 return historyDict
 
-            d['trackerToToolTransfHistory'] = convertHistoryListToDict(
-                d['trackerToToolTransfHistory'], 'trackerToToolTransf', convertTransf)
+            d['toolToTrackerTransfHistory'] = convertHistoryListToDict(
+                d['toolToTrackerTransfHistory'], 'toolToTrackerTransf', convertTransf)
 
         return cls(**d, sessionPath=sessionPath)
 
@@ -267,13 +267,13 @@ class CoilTool(Tool):
 
     _coilSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
 
-    @Tool.trackerToToolTransf.getter
-    def trackerToToolTransf(self):
+    @Tool.toolToTrackerTransf.getter
+    def toolToTrackerTransf(self):
         """
         Override parent class to not assume identity transform by default. Unlike other tools, this will
         return None if no transform is set.
         """
-        return self._trackerToToolTransf
+        return self._toolToTrackerTransf
 
     @property
     def coilStlFilepath(self):

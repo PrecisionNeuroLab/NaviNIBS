@@ -170,7 +170,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         logger.info('Sampled fiducial:\npointer: {}\ntracker: {}'.format(pointerToCameraTransf, subjectTrackerToCameraTransf))
 
-        pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.trackerToToolTransf,
+        pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.toolToTrackerTransf,
                                                        pointerToCameraTransf,
                                                        invertTransform(subjectTrackerToCameraTransf)
                                                       ], np.zeros((3,)))
