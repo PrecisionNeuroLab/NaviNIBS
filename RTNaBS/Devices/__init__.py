@@ -9,13 +9,14 @@ positionsServerPort = 18950
 @attrs.define
 class TimestampedToolPosition:
     time: float
-    transf: np.ndarray
+    transf: tp.Optional[np.ndarray]  # None indicates invalid / not tracked
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        return dict(time=self.time, transf=self.transf.tolist())
+        return dict(time=self.time, transf=self.transf.tolist() if self.transf is not None else None)
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any]):
-        d['transf'] = np.asarray(d['transf'])
+        if d['transf'] is not None:
+            d['transf'] = np.asarray(d['transf'])
         return cls(**d)
 

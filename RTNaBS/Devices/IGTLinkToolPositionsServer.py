@@ -1,6 +1,7 @@
 import asyncio
 import attrs
 import logging
+import numpy as np
 import pyigtl
 
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer, TimestampedToolPosition
@@ -45,8 +46,14 @@ class IGTLinkToolPositionsServer(ToolPositionsServer):
                 async with self._publishingLatestLock:  # delay publishing until after handling all these messages
                     for msg in msgs:
                         if msg.message_type == 'TRANSFORM':
+                            transf = msg.matrix
+                            if np.allclose(transf, np.eye(4)):
+                                # plus sends identity when transforms are invalid
+                                logger.debug('Transform for {} is invalid'.format(msg.device_name))
+                                transf = None
+
                             position = TimestampedToolPosition(time=msg.timestamp,
-                                                               transf=msg.matrix)
+                                                               transf=transf)
                             key = msg.device_name
                             if key.endswith('ToTracker'):
                                 # strip 'ToTracker' suffix from device_name, assuming plus config is set to only send *ToTracker transforms
