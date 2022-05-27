@@ -77,6 +77,9 @@ class CameraPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
+
+        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
+
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
     def _onPanelActivated(self):
@@ -113,6 +116,12 @@ class CameraPanel(MainViewPanel):
 
             tool = self.session.tools[key]
 
+            if pos.transf is None:
+                # no valid position available
+                if key in self._actors and self._actors[key].GetVisibility():
+                    self._actors[key].VisibilityOff()
+                continue
+
             if key not in self._actors:
                 # initialize graphic
 
@@ -133,6 +142,8 @@ class CameraPanel(MainViewPanel):
                     # TODO: plot some generate shape (e.g. small crosshairs) for object
                     continue
 
+            elif not self._actors[key].GetVisibility():
+                self._actors[key].VisibilityOn()
+
             # apply transform to existing actor
             setActorUserTransform(self._actors[key], pos.transf @ tool.stlToTrackerTransf)
-
