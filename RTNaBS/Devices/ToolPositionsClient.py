@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+_novalue = object()
+
+
 @attrs.define
 class ToolPositionsClient:
     _serverHostname: str = positionsServerHostname
@@ -38,6 +41,15 @@ class ToolPositionsClient:
     @property
     def latestPositions(self):
         return self._latestPositions
+
+    def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
+        tsPos = self.latestPositions.get(key, None)
+        if tsPos is None or tsPos.transf is None:
+            if default is _novalue:
+                raise KeyError('No matching, valid transf found')
+            else:
+                return default
+        return tsPos.transf
 
     async def _receiveLatestPositionsLoop(self):
         poller = azmq.Poller()

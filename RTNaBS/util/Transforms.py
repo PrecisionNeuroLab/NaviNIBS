@@ -12,12 +12,28 @@ def composeTransform(R: np.ndarray, p: tp.Optional[np.ndarray] = None) -> np.nda
     return ptt.transform_from(R, p)
 
 
-def applyTransform(A2B: np.ndarray, pts: np.ndarray) -> np.ndarray:
+def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.ndarray) -> np.ndarray:
+    """
+    Apply 4x4 transform(s) to a set of points
+    :param A2B: single 4x4 transform, or iterable of 4x4 transforms. If multiple, will apply in reversed order, so that
+        `applyTransform([space1ToSpace2Transf, space2TransfToSpace3Transf], pts)` correctly transforms from space1 to space3
+        as might be expected with `space2TransfToSpace3Transf @ space1ToSpace2Transf @ augmentedPts`
+    :param pts: Nx3 points. Or can be in shape (3,) and will return transformed points with same shape.
+    :return: transform points
+    """
     if pts.ndim == 1:
         didInsertAxis = True
         pts = pts[np.newaxis, :]
     else:
         didInsertAxis = False
+        assert pts.shape[1] == 3
+
+    if not isinstance(A2B, np.ndarray):
+        A2B_combined = np.eye(4)
+        for A2B_i in A2B:
+            A2B_combined = A2B_i @ A2B_combined
+        A2B = A2B_combined
+
     result = ptt.transform(A2B, ptt.vectors_to_points(pts))[:, 0:3]
     if didInsertAxis:
         result = result[0, :]
@@ -45,3 +61,62 @@ def stringToTransform(inputStr: str) -> np.ndarray:
     arrayVal = np.asarray(listVal, dtype=np.float64)  # raises value error if problem
     ptt.check_transform(arrayVal)
     return arrayVal
+
+
+def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd') -> np.ndarray:
+    """
+    Estimate a transform that aligns one set of points onto another, assuming row-wise matching of points between sets.
+    
+    Implemented (for now) using SVD-based Kabsch algorithm. For details, see:
+     - https://stackoverflow.com/questions/60877274/optimal-rotation-in-3d-with-kabsch-algorithm
+     - https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
+     - http://nghiaho.com/?page_id=671
+    
+    :param ptsA: Nx3 ndarray of points 
+    :param ptsB: Nx3 ndarray of points
+    :param method: method to use for estimating transform. Default is 'kabsch-svd''
+    :return: A2B, 4x4 transform aligning ptsA to ptsB 
+    """
+
+    # adapted from http://nghiaho.com/?page_id=671
+
+    match method:
+        case 'kabsch-svd':
+            if ptsA.shape != ptsB.shape:
+                raise ValueError('ptsA and ptsB should be matched sizes!')
+
+            if any(pts.ndim < 2 or pts.shape[1] != 3 for pts in (ptsA, ptsB)):
+                raise ValueError('pts should be of size Nx3')
+
+            if ptsA.shape[0] < 3:
+                raise ValueError('Need at least 3 points to estimate aligning transform')
+
+            centroidA = ptsA.mean(axis=0)
+            centroidB = ptsB.mean(axis=0)
+
+            ptsA_ctrd = ptsA - centroidA
+            ptsB_ctrd = ptsB - centroidB
+
+            H = ptsA_ctrd.T @ ptsB_ctrd
+
+            U, S, Vt = np.linalg.svd(H)
+            R = Vt.T @ U.T
+
+            # reflection
+            if np.linalg.det(R) < 0:
+                Vt[2, :] *= -1
+                R = Vt.T @ U.T
+
+            t = -R @ centroidA.reshape(-1, 1) + centroidB.reshape(-1, 1)
+
+            transf = np.eye(4)
+            transf[:3, :3] = R
+            transf[:3, 3] = t.reshape(3)
+
+            return transf
+
+        case _:
+            raise NotImplementedError()
+
+
+

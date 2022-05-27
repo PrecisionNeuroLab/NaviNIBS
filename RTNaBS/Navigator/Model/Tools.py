@@ -161,7 +161,10 @@ class Tool:
 
     @property
     def trackerToToolTransf(self):
-        return self._trackerToToolTransf
+        if self._trackerToToolTransf is None:
+            return np.eye(4)
+        else:
+            return self._trackerToToolTransf
 
     @trackerToToolTransf.setter
     def trackerToToolTransf(self, newTransf: tp.Optional[np.ndarray]):
@@ -263,6 +266,14 @@ class CoilTool(Tool):
     _coilStlFilepath: tp.Optional[str] = None
 
     _coilSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+
+    @Tool.trackerToToolTransf.getter
+    def trackerToToolTransf(self):
+        """
+        Override parent class to not assume identity transform by default. Unlike other tools, this will
+        return None if no transform is set.
+        """
+        return self._trackerToToolTransf
 
     @property
     def coilStlFilepath(self):

@@ -127,6 +127,14 @@ class SubjectRegistration:
         return self._sampledFiducials  # note: result should not be modified, should instead call setter
 
     @property
+    def hasMinimumSampledFiducials(self) -> bool:
+        numFiducialsSet = 0
+        for key, fid in self._sampledFiducials.items():
+            if fid is not None and self._plannedFiducials.get(key, None) is not None:
+                numFiducialsSet += 1
+        return numFiducialsSet >= 3
+
+    @property
     def sampledHeadPoints(self):
         return self._sampledHeadPoints
 
@@ -142,11 +150,24 @@ class SubjectRegistration:
 
         # TODO: do validation of newTransf
 
-        self._trackerToMRITransfHistory[self._getTimestampStr()] = None if self._trackerToMRITransf is None else self._trackerToMRITransf.copy()
-
         logger.info('Set trackerToMRITransf to {}'.format(newTransf))
         self._trackerToMRITransf = newTransf
+
+        self._trackerToMRITransfHistory[self._getTimestampStr()] = None if newTransf is None else newTransf.copy()
+
         self.sigTrackerToMRITransfChanged.emit()
+
+    @property
+    def approxHeadCenter(self) -> tp.Optional[np.ndarray]:
+        lpa = self.plannedFiducials.get('LPA', None)
+        rpa = self.plannedFiducials.get('RPA', None)
+        if lpa is not None and rpa is not None:
+            center = (lpa + rpa) / 2
+        else:
+            logger.warning('Insufficient information for determining approximate header center')
+            # TODO: implement more general method of estimating center, e.g. more variety of LPA/RPA naming, name-agnostic averaging, etc.
+            center = None
+        return center
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
         d = dict()
@@ -175,7 +196,7 @@ class SubjectRegistration:
         if self._trackerToMRITransf is not None:
             d['trackerToMRITransf'] = self._trackerToMRITransf.tolist()
         if len(self._trackerToMRITransfHistory) > 0:
-            d['trackerToMRITransfHistory'] = [dict(time=key, trackerToMRITransf=val.tolist()) for key, val in self._trackerToMRITransfHistory.items()]
+            d['trackerToMRITransfHistory'] = [dict(time=key, trackerToMRITransf=val.tolist() if val is not None else None) for key, val in self._trackerToMRITransfHistory.items()]
 
         return d
 
