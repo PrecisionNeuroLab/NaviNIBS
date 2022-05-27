@@ -116,7 +116,7 @@ class ToolWidget:
         self._tool.usedFor = self._usedFor.currentText()
 
     def _onIsActiveEdited(self):
-        raise NotImplementedError()  # TODO
+        self._tool.isActive = self._isActive.isChecked()
 
     def _onRomFilepathEdited(self):
         self._tool.romFilepath = self._romFilepath.filepath

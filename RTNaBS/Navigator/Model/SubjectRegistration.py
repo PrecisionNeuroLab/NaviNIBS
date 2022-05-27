@@ -115,6 +115,14 @@ class SubjectRegistration:
         self.sigPlannedFiducialsChanged.emit()
 
     @property
+    def hasMinimumPlannedFiducials(self) -> bool:
+        numFiducialsSet = 0
+        for fid in self._plannedFiducials.values():
+            if fid is not None:
+                numFiducialsSet += 1
+        return numFiducialsSet >= 3
+
+    @property
     def sampledFiducials(self):
         return self._sampledFiducials  # note: result should not be modified, should instead call setter
 

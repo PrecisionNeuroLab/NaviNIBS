@@ -25,6 +25,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
+from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from RTNaBS.util import exceptionToStr
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class NavigatorGUI(RunnableAsApp):
 
         createViewPanel('Set head model', HeadModelPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
 
-        createViewPanel('Set fiducials', FiducialsPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
+        createViewPanel('Plan fiducials', FiducialsPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
 
         createViewPanel('Set transforms', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
         # TODO: set up transforms widget
@@ -90,15 +91,10 @@ class NavigatorGUI(RunnableAsApp):
         self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
         createViewPanel('Tools', ToolsPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
-        # TODO
 
         createViewPanel('Camera', CameraPanel(session=self._session), icon=qta.icon('mdi6.cctv'))
-        # TODO
 
-        createViewPanel('Register', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
-        # TODO
-
-
+        createViewPanel('Register', SubjectRegistrationPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
@@ -121,6 +117,8 @@ class NavigatorGUI(RunnableAsApp):
         self._updateEnabledToolbarBtns()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
         session.headModel.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
+        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._updateEnabledToolbarBtns)
+        self.session.tools.sigToolsChanged.connect(lambda _: self._updateEnabledToolbarBtns())
 
     def _onSessionClosed(self, prevSession: Session):
         logger.info('Closed session {}'.format(prevSession.filepath))
@@ -151,7 +149,11 @@ class NavigatorGUI(RunnableAsApp):
             if self._session.MRI.isSet:
                 activeKeys += ['Set head model']
                 if self._session.headModel.isSet:
-                    activeKeys += ['Set fiducials', 'Set transforms', 'Set targets']
+                    activeKeys += ['Plan fiducials', 'Set transforms', 'Set targets']
+
+                    if self._session.tools.subjectTracker is not None and self._session.tools.pointer is not None:
+                        if self._session.subjectRegistration.hasMinimumPlannedFiducials:
+                            activeKeys += ['Register']
 
         for key in activeKeys:
             self._toolbarBtnActions[key].setEnabled(True)
