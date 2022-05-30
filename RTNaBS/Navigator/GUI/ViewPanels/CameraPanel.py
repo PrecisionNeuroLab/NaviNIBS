@@ -39,6 +39,8 @@ class CameraPanel(MainViewPanel):
     In the future, can update to have a more device-agnostic base class that is subclassed for specific localization systems
     """
 
+    _cameraFOVSTLPath: str = None
+
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
 
@@ -50,6 +52,9 @@ class CameraPanel(MainViewPanel):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        if self._cameraFOVSTLPath is None:
+            self._cameraFOVSTLPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'data', 'tools', 'PolarisVegaFOV.stl')
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
@@ -78,6 +83,7 @@ class CameraPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
+        self._plotter.set_background('#FFFFFF')
         self._plotter.enable_depth_peeling(4)
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
@@ -105,6 +111,15 @@ class CameraPanel(MainViewPanel):
     def _onLatestPositionsChanged(self):
         if not self._hasBeenActivated:
             return
+
+        actorKey = 'cameraFOV'
+        if actorKey not in self._actors:
+            logger.debug('Loading cameraFOV mesh from {}'.format(self._cameraFOVSTLPath))
+            cameraFOVMesh = pv.read(self._cameraFOVSTLPath)
+            self._actors[actorKey] = self._plotter.add_mesh(mesh=cameraFOVMesh,
+                                                            color='#222222',
+                                                            opacity=0.2,
+                                                            name=actorKey)
 
         for key, tool in self.session.tools.items():
             if isinstance(tool, SubjectTracker):
