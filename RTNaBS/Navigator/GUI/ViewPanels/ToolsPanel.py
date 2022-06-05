@@ -17,6 +17,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.Signaler import Signal
@@ -189,21 +190,16 @@ class CoilToolWidget(ToolWidget):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coilStlFilepath = QFileSelectWidget(
-            browseMode='getOpenFilename',
-            filepath=self._tool.coilStlFilepath,
-            showRelativeTo=self._tool.filepathsRelTo,
-            extFilters='STL (*.stl)',
-            browseCaption='Choose 3D model for coil visualization'
-        )
-        self._coilStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onCoilStlFilepathEdited())
-        self._formLayout.insertRow(
-            self._formLayout.getWidgetPosition(self._stlFilepath)[0]+1,
-            QtWidgets.QLabel('Coil STL filepath'),
-            self._coilStlFilepath)
+        btn = QtWidgets.QPushButton('Calibrate coil...')
+        self._formLayout.addRow('', btn)
+        btn.clicked.connect(lambda _: self._calibrate())
 
-    def _onCoilStlFilepathEdited(self):
-        self._tool.coilStlFilepath = self._coilStlFilepath.filepath
+    def _calibrate(self):
+        CoilCalibrationWindow(
+            parent=self._wdgt,
+            toolKeyToCalibrate=self._tool.key,
+            session=self._session
+        ).show()
 
 
 @attrs.define
