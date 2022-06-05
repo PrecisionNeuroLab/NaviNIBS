@@ -32,15 +32,17 @@ class Tool:
     _usedFor: str  # e.g. 'subject', 'coil', 'pointer'
     _isActive: bool = True
     _romFilepath: tp.Optional[str] = None
-    _stlFilepath: tp.Optional[str] = None
+    _trackerStlFilepath: tp.Optional[str] = None
+    _toolStlFilepath: tp.Optional[str] = None
     _filepathsRelTo: str = '<session>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
-    _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning Polaris-reported position to actual device position (e.g. coil tracker to actual coil, or uncalibrated pointer to actual pointer)
-    _stlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual reported tracker orientation
+    _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
+    _trackerStlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tracker STL only; can be used to align STL with actual reported tracker orientation
 
     _installPath: tp.Optional[str] = None  # used for relative paths
     _sessionPath: tp.Optional[str] = None  # used for relative paths
 
     _trackerSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _toolSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
 
     _toolToTrackerTransfHistory: tp.Dict[str, tp.Optional[np.ndarray]] = attrs.field(factory=dict)
 
@@ -116,19 +118,35 @@ class Tool:
         self.sigToolChanged.emit(self.key)
 
     @property
-    def stlFilepath(self):
-        if self._stlFilepath is None:
+    def toolStlFilepath(self):
+        if self._toolStlFilepath is None:
             return None
         else:
-            return os.path.join(self.filepathsRelTo, self._stlFilepath)
+            return os.path.join(self.filepathsRelTo, self._toolStlFilepath)
 
-    @stlFilepath.setter
-    def stlFilepath(self, newFilepath: tp.Optional[str]):
-        if newFilepath == self.stlFilepath:
+    @toolStlFilepath.setter
+    def toolStlFilepath(self, newFilepath: tp.Optional[str]):
+        if newFilepath == self.toolStlFilepath:
             return
-        logger.info('Changing {} stlFilepath to {}'.format(self.key, newFilepath))
+        logger.info('Changing {} toolStlFilepath to {}'.format(self.key, newFilepath))
         self.sigToolAboutToChange.emit(self.key)
-        self._stlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
+        self._toolStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
+        self.sigToolChanged.emit(self.key)
+
+    @property
+    def trackerStlFilepath(self):
+        if self._trackerStlFilepath is None:
+            return None
+        else:
+            return os.path.join(self.filepathsRelTo, self._trackerStlFilepath)
+
+    @trackerStlFilepath.setter
+    def trackerStlFilepath(self, newFilepath: tp.Optional[str]):
+        if newFilepath == self.trackerStlFilepath:
+            return
+        logger.info('Changing {} trackerStlFilepath to {}'.format(self.key, newFilepath))
+        self.sigToolAboutToChange.emit(self.key)
+        self._trackerStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
         self.sigToolChanged.emit(self.key)
 
     @property
@@ -182,38 +200,45 @@ class Tool:
         self.sigToolChanged.emit(self.key)
 
     @property
-    def stlToTrackerTransf(self):
-        if self._stlToTrackerTransf is None:
+    def trackerStlToTrackerTransf(self):
+        if self._trackerStlToTrackerTransf is None:
             return np.eye(4)
         else:
-            return self._stlToTrackerTransf
+            return self._trackerStlToTrackerTransf
 
-    @stlToTrackerTransf.setter
-    def stlToTrackerTransf(self, newTransf: tp.Optional[np.ndarray]):
-        if array_equalish(self._stlToTrackerTransf, newTransf):
-            logger.debug('No change in stlToTrackerTransf, returning')
+    @trackerStlToTrackerTransf.setter
+    def trackerStlToTrackerTransf(self, newTransf: tp.Optional[np.ndarray]):
+        if array_equalish(self._trackerStlToTrackerTransf, newTransf):
+            logger.debug('No change in trackerStlToTrackerTransf, returning')
             return
 
         self.sigToolAboutToChange.emit(self.key)
-        logger.info('Set stlToTrackerTransf to {}'.format(newTransf))
-        self._stlToTrackerTransf = newTransf
+        logger.info('Set trackerStlToTrackerTransf to {}'.format(newTransf))
+        self._trackerStlToTrackerTransf = newTransf
         self.sigToolChanged.emit(self.key)
 
     @property
     def trackerSurf(self):
-        if self._stlFilepath is not None and self._trackerSurf is None:
-            logger.info('Loading tracker mesh from {}'.format(self.stlFilepath))
-            self._trackerSurf = pv.read(self.stlFilepath)
+        if self._trackerStlFilepath is not None and self._trackerSurf is None:
+            logger.info('Loading tracker mesh from {}'.format(self.trackerStlFilepath))
+            self._trackerSurf = pv.read(self.trackerStlFilepath)
         return self._trackerSurf
+
+    @property
+    def toolSurf(self):
+        if self._toolStlFilepath is not None and self._toolSurf is None:
+            logger.info('Loading tool mesh from {}'.format(self.toolStlFilepath))
+            self._toolSurf = pv.read(self.toolStlFilepath)
+        return self._toolSurf
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
         d = attrsAsDict(self, eqs=dict(
             toolToTrackerTransf=array_equalish,
-            stlToTrackerTransf=array_equalish,
+            trackerStlToTrackerTransf=array_equalish,
             toolToTrackerTransfHistory=lambda a, b: len(a) == len(b) \
                                                     and ((keyA == keyB and array_equalish(a[keyA], b[keyB])) for keyA, keyB in zip(a, b))))
 
-        for key in ('toolToTrackerTransf', 'stlToTrackerTransf'):
+        for key in ('toolToTrackerTransf', 'trackerStlToTrackerTransf'):
             if key in d:
                 d[key] = d[key].tolist()
 
@@ -229,7 +254,7 @@ class Tool:
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None):
-        for key in ('toolToTrackerTransf', 'stlToTrackerTransf'):
+        for key in ('toolToTrackerTransf', 'trackerStlToTrackerTransf'):
             if key in d:
                 d[key] = np.asarray(d[key])
 
@@ -263,9 +288,6 @@ class SubjectTracker(Tool):
 @attrs.define
 class CoilTool(Tool):
     _usedFor: str = 'coil'
-    _coilStlFilepath: tp.Optional[str] = None
-
-    _coilSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
 
     @Tool.toolToTrackerTransf.getter
     def toolToTrackerTransf(self):
@@ -274,30 +296,6 @@ class CoilTool(Tool):
         return None if no transform is set.
         """
         return self._toolToTrackerTransf
-
-    @property
-    def coilStlFilepath(self):
-        if self._coilStlFilepath is None:
-            return None
-        else:
-            return os.path.join(self.filepathsRelTo, self._coilStlFilepath)
-
-    @coilStlFilepath.setter
-    def coilStlFilepath(self, newFilepath: tp.Optional[str]):
-        if newFilepath == self.coilStlFilepath:
-            return
-        logger.info('Changing {} coilStlFilepath to {}'.format(self.key, newFilepath))
-        self.sigToolAboutToChange.emit(self.key)
-        self._coilSurf = None
-        self._coilStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
-        self.sigToolChanged.emit(self.key)
-
-    @property
-    def coilSurf(self):
-        if self._coilStlFilepath is not None and self._coilSurf is None:
-            logger.info('Loading coil mesh from {}'.format(self.coilStlFilepath))
-            self._coilSurf = pv.read(self.coilStlFilepath)
-        return self._coilSurf
 
 
 @attrs.define
@@ -399,6 +397,19 @@ class Tools:
                 else:
                     pointer = tool
         return pointer
+
+    @property
+    def calibrationPlate(self) -> tp.Optional[CalibrationPlate]:
+        calibrationPlate = None
+        for key, tool in self._tools.items():
+            if not tool.isActive:
+                continue
+            if isinstance(tool, CalibrationPlate):
+                if calibrationPlate is not None:
+                    raise ValueError('More than one calibration plate is active')
+                else:
+                    calibrationPlate = tool
+        return calibrationPlate
 
     def _getActiveToolKeys(self) -> tp.Dict[str, tp.Union[str, tp.List[str,...]]]:
         activeToolKeys = {}

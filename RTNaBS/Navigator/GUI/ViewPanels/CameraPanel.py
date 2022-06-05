@@ -140,7 +140,7 @@ class CameraPanel(MainViewPanel):
                 if actorKey == key:
                     if actorKey not in self._actors:
                         # initialize graphic
-                        if tool.stlFilepath is not None:
+                        if tool.toolStlFilepath is not None:
                             self._actors[actorKey] = self._plotter.add_mesh(mesh=tool.trackerSurf,
                                                    color='#2222FF',
                                                    opacity=0.8,
@@ -150,7 +150,7 @@ class CameraPanel(MainViewPanel):
                             continue
 
                     # apply transform to existing actor
-                    setActorUserTransform(self._actors[actorKey], self._positionsClient.getLatestTransf(key) @ tool.stlToTrackerTransf)
+                    setActorUserTransform(self._actors[actorKey], self._positionsClient.getLatestTransf(key) @ tool.trackerStlToTrackerTransf)
 
                 elif isinstance(tool, CoilTool) and actorKey == tool.key + '_coil':
                     if tool.coilStlFilepath is not None and tool.toolToTrackerTransf is not None:
