@@ -346,7 +346,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
                 setActorUserTransform(
                     self._actors[actorKey],
-                    self.session.subjectRegistration.trackerToMRITransf @ pointerToSubjectTrackerTransf @ self.session.tools.pointer.stlToTrackerTransf
+                    self.session.subjectRegistration.trackerToMRITransf @ pointerToSubjectTrackerTransf @ self.session.tools.pointer.trackerStlToTrackerTransf
                 )
 
             else:
@@ -360,7 +360,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             setActorUserTransform(
                 self._actors[actorKey],
-                self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.stlToTrackerTransf
+                self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.trackerStlToTrackerTransf
             )
 
         elif which == 'initPlannedFids':

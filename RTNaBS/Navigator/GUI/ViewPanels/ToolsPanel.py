@@ -17,6 +17,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import transformToString, stringToTransform
@@ -24,7 +25,6 @@ from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
-from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class ToolWidget:
     _tool: Tool
+    _session: Session  # only used for cross-tool references like coil calibration
 
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
@@ -40,9 +41,10 @@ class ToolWidget:
     _usedFor: QtWidgets.QComboBox = attrs.field(init=False)
     _isActive: QtWidgets.QCheckBox = attrs.field(init=False)
     _romFilepath: QFileSelectWidget = attrs.field(init=False)
-    _stlFilepath: QFileSelectWidget = attrs.field(init=False)
+    _trackerStlFilepath: QFileSelectWidget = attrs.field(init=False)
+    _toolStlFilepath: QFileSelectWidget = attrs.field(init=False)
     _toolToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
-    _stlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
+    _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self._wdgt = QtWidgets.QGroupBox('Selected tool: {}'.format(self._tool.key))
@@ -85,20 +87,30 @@ class ToolWidget:
         self._romFilepath.sigFilepathChanged.connect(lambda filepath: self._onRomFilepathEdited())
         formContainer.layout().addRow('ROM filepath', self._romFilepath)
 
-        self._stlFilepath = QFileSelectWidget(
+        self._trackerStlFilepath = QFileSelectWidget(
             browseMode='getOpenFilename',
-            filepath=self._tool.stlFilepath,
+            filepath=self._tool.trackerStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             extFilters='STL (*.stl)',
             browseCaption='Choose 3D model for tracker visualization'
         )
-        self._stlFilepath.sigFilepathChanged.connect(lambda filepath: self._onStlFilepathEdited())
-        formContainer.layout().addRow('STL filepath', self._stlFilepath)
+        self._trackerStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onTrackerStlFilepathEdited())
+        formContainer.layout().addRow('Tracker STL filepath', self._trackerStlFilepath)
 
-        self._stlToTrackerTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.stlToTrackerTransf))
-        self._stlToTrackerTransf.setValidator(OptionalTransformValidator())
-        self._stlToTrackerTransf.editingFinished.connect(self._onStlToTrackerTransfEdited)
-        formContainer.layout().addRow('STL to tracker transf', self._stlToTrackerTransf)
+        self._toolStlFilepath = QFileSelectWidget(
+            browseMode='getOpenFilename',
+            filepath=self._tool.toolStlFilepath,
+            showRelativeTo=self._tool.filepathsRelTo,
+            extFilters='STL (*.stl)',
+            browseCaption='Choose 3D model for tool visualization'
+        )
+        self._toolStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onToolStlFilepathEdited())
+        formContainer.layout().addRow('Tool STL filepath', self._toolStlFilepath)
+
+        self._trackerStlToTrackerTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.trackerStlToTrackerTransf))
+        self._trackerStlToTrackerTransf.setValidator(OptionalTransformValidator())
+        self._trackerStlToTrackerTransf.editingFinished.connect(self._onTrackerStlToTrackerTransfEdited)
+        formContainer.layout().addRow('Tracker STL to tracker transf', self._trackerStlToTrackerTransf)
 
         self._toolToTrackerTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.toolToTrackerTransf))
         self._toolToTrackerTransf.setValidator(OptionalTransformValidator())
@@ -121,16 +133,19 @@ class ToolWidget:
     def _onRomFilepathEdited(self):
         self._tool.romFilepath = self._romFilepath.filepath
 
-    def _onStlFilepathEdited(self):
-        self._tool.stlFilepath = self._stlFilepath.filepath
+    def _onTrackerStlFilepathEdited(self):
+        self._tool.trackerStlFilepath = self._trackerStlFilepath.filepath
 
-    def _onStlToTrackerTransfEdited(self):
-        newTransf = self._strToTransf(self._stlToTrackerTransf.text())
-        if self._transfToStr(newTransf) == self._transfToStr(self._tool.stlToTrackerTransf):
+    def _onToolStlFilepathEdited(self):
+        self._tool.toolStlFilepath = self._toolStlFilepath.filepath
+
+    def _onTrackerStlToTrackerTransfEdited(self):
+        newTransf = self._strToTransf(self._trackerStlToTrackerTransf.text())
+        if self._transfToStr(newTransf) == self._transfToStr(self._tool.trackerStlToTrackerTransf):
             # no change
             return
-        logger.info('User edited {} stlToTrackerTransf: {}'.format(self._tool.key, newTransf))
-        self._tool.stlToTrackerTransf = newTransf
+        logger.info('User edited {} trackerStlToTrackerTransf: {}'.format(self._tool.key, newTransf))
+        self._tool.trackerStlToTrackerTransf = newTransf
 
     def _onToolToTrackerTransfEdited(self):
         newTransf = self._strToTransf(self._toolToTrackerTransf.text())
@@ -145,8 +160,9 @@ class ToolWidget:
         self._usedFor.setCurrentIndex(self._usedFor.findText(self._tool.usedFor) if self._tool.usedFor is not None else -1)  # TODO: check for change in type that we can't handle without reinstantiating
         self._isActive.setChecked(self._tool.isActive)
         self._romFilepath.filepath = self._tool.romFilepath
-        self._stlFilepath.filepath = self._tool.stlFilepath
-        self._stlToTrackerTransf.setText(self._transfToStr(self._tool.stlToTrackerTransf))
+        self._trackerStlFilepath.filepath = self._tool.trackerStlFilepath
+        self._toolStlFilepath.filepath = self._tool.toolStlFilepath
+        self._trackerStlToTrackerTransf.setText(self._transfToStr(self._tool.trackerStlToTrackerTransf))
         self._toolToTrackerTransf.setText(self._transfToStr(self._tool.toolToTrackerTransf))
 
     @staticmethod
@@ -296,10 +312,13 @@ class ToolsPanel(MainViewPanel):
         if currentToolKey is None:
             return
 
+
         if isinstance(self.session.tools[currentToolKey], CoilTool):
-            self._toolWdgt = CoilToolWidget(tool=self.session.tools[currentToolKey])
+            ToolWidgetCls = CoilToolWidget
         else:
-            self._toolWdgt = ToolWidget(tool=self.session.tools[currentToolKey])
+            ToolWidgetCls = ToolWidget
+
+        self._toolWdgt = ToolWidgetCls(tool=self.session.tools[currentToolKey], session=self.session)
         self._wdgt.layout().addWidget(self._toolWdgt.wdgt)
 
     def _getTblCurrentToolKey(self) -> tp.Optional[str]:
