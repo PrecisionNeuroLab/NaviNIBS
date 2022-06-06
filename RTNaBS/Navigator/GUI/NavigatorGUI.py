@@ -26,6 +26,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
+from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
 from RTNaBS.util import exceptionToStr
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,10 @@ class NavigatorGUI(RunnableAsApp):
 
         createViewPanel('Register', SubjectRegistrationPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
 
+        self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
+
+        createViewPanel('Navigate', NavigatePanel(session=self._session), icon=qta.icon('mdi6.head-flash'))
+
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
         self._updateEnabledToolbarBtns()
@@ -155,11 +160,14 @@ class NavigatorGUI(RunnableAsApp):
                         if self._session.subjectRegistration.hasMinimumPlannedFiducials:
                             activeKeys += ['Register']
 
+                            if self._session.subjectRegistration.isRegistered:
+                                activeKeys += ['Navigate']
+
         for key in activeKeys:
             self._toolbarBtnActions[key].setEnabled(True)
 
         if self.activeViewKey not in activeKeys:
-            fallbackViews = ['Manage session', 'Set MRI', 'Set head model']
+            fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
             changeToView = ''
             while changeToView not in activeKeys:
                 changeToView = fallbackViews.pop()
