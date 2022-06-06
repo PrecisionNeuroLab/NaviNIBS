@@ -29,15 +29,24 @@ def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.n
         assert pts.shape[1] == 3
 
     if not isinstance(A2B, np.ndarray):
-        A2B_combined = np.eye(4)
-        for A2B_i in A2B:
-            A2B_combined = A2B_i @ A2B_combined
-        A2B = A2B_combined
+        A2B = concatenateTransforms(A2B)
 
     result = ptt.transform(A2B, ptt.vectors_to_points(pts))[:, 0:3]
     if didInsertAxis:
         result = result[0, :]
     return result
+
+
+def concatenateTransforms(A2B: tp.Iterable[np.ndarray]) -> np.ndarray:
+    """
+    Combine transforms in **reverse** order, using same ordering convention as `applyTransform`, such that
+    `applyTransform(concatenateTransforms([space1ToSpace2Transf, space2TransfToSpace3Transf]), pts)` correctly transforms from space1 to space3
+    as might be expected with `space2TransfToSpace3Transf @ space1ToSpace2Transf @ augmentedPts`
+    """
+    A2B_combined = np.eye(4)
+    for A2B_i in A2B:
+        A2B_combined = A2B_i @ A2B_combined
+    return A2B_combined
 
 
 def invertTransform(A2B: np.ndarray) -> np.ndarray:

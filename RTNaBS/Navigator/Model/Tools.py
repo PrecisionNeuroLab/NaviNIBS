@@ -193,10 +193,9 @@ class Tool:
         # TODO: do validation of newTransf
 
         self.sigToolAboutToChange.emit(self.key)
-        self._toolToTrackerTransfHistory[self._getTimestampStr()] = None if self._toolToTrackerTransf is None else self._toolToTrackerTransf.copy()
-
         logger.info('Set toolToTrackerTransf to {}'.format(newTransf))
         self._toolToTrackerTransf = newTransf
+        self._toolToTrackerTransfHistory[self._getTimestampStr()] = None if self._toolToTrackerTransf is None else self._toolToTrackerTransf.copy()
         self.sigToolChanged.emit(self.key)
 
     @property
@@ -243,7 +242,9 @@ class Tool:
                 d[key] = d[key].tolist()
 
         if 'toolToTrackerTransfHistory' in d:
-            d['toolToTrackerTransfHistory'] = [dict(time=key, toolToTrackerTransf=val.tolist()) for key, val in d['toolToTrackerTransfHistory']]
+            d['toolToTrackerTransfHistory'] = [dict(time=key,
+                                                    toolToTrackerTransf=val.tolist() if val is not None else None)
+                                               for key, val in d['toolToTrackerTransfHistory'].items()]
 
         for key in ('installPath', 'sessionPath'):
             d.pop(key, None)
@@ -283,6 +284,19 @@ class Tool:
 @attrs.define
 class SubjectTracker(Tool):
     _usedFor: str = 'subject'
+
+    @Tool.toolToTrackerTransf.getter
+    def toolToTrackerTransf(self):
+        """
+        Override parent class to assert that transf is identity, since there should never be a
+        different transform specified for the subject tracker.
+        """
+        assert self._toolToTrackerTransf is None
+        return np.eye(4)
+
+    @Tool.toolToTrackerTransf.setter
+    def toolToTrackerTransf(self, newTransf):
+        raise NotImplementedError()  # should never set this transf
 
 
 @attrs.define

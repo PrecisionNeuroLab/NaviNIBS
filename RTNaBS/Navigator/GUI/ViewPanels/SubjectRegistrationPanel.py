@@ -130,6 +130,7 @@ class SubjectRegistrationPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
+        self._plotter.set_background('#FFFFFF')
         self._plotter.enable_depth_peeling(4)
         self._wdgt.layout().addWidget(self._plotter.interactor)
         self._positionsClient = ToolPositionsClient()
@@ -308,46 +309,63 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             doShowPointer = self.session.subjectRegistration.trackerToMRITransf is not None \
                             and pointer is not None \
-                            and pointer.trackerSurf is not None \
+                            and (pointer.trackerSurf is not None or pointer.toolSurf is not None) \
                             and subjectTracker is not None
 
-            actorKey = 'pointer'
             if not doShowPointer:
-                if actorKey in self._actors:
-                    self._plotter.remove_actor(self._actors[actorKey])
-                    self._actors.pop(actorKey)
+                for toolOrTracker in ('tool', 'tracker'):
+                    actorKey = 'pointer' + '_' + toolOrTracker
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(self._actors[actorKey])
+                        self._actors.pop(actorKey)
                 return
 
             if which == 'initPointer':
-                self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.tools.pointer.trackerSurf,
-                                                                color='#999999',
-                                                                opacity=0.6,
-                                                                name=actorKey)
+                for toolOrTracker in ('tool', 'tracker'):
+                    actorKey = 'pointer' + '_' + toolOrTracker
+                    actorSurf = getattr(self.session.tools.pointer, toolOrTracker + 'Surf')
+                    if actorSurf is None:
+                        if actorKey in self._actors:
+                            self._plotter.remove_actor(self._actors[actorKey])
+                            self._actors.pop(actorKey)
+                        continue
+                    self._actors[actorKey] = self._plotter.add_mesh(mesh=actorSurf,
+                                                                    color='#999999',
+                                                                    opacity=0.6,
+                                                                    name=actorKey)
                 self._redraw(which='pointerPosition')
 
             elif which == 'pointerPosition':
-                if actorKey not in self._actors:
-                    self._redraw(which='initPointer')
-                    return
+                for toolOrTracker in ('tool', 'tracker'):
+                    actorKey = 'pointer' + '_' + toolOrTracker
 
-                pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.key, None)
-                subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.key, None)
+                    if actorKey not in self._actors:
+                        # assume this was because we don't have enough info to show
+                        continue
 
-                if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
-                    # don't have valid info for determining pointer position relative to head tracker
-                    if self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOff()
-                    return
+                    pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.key, None)
+                    subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.key, None)
 
-                if not self._actors[actorKey].GetVisibility():
-                    self._actors[actorKey].VisibilityOn()
+                    if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
+                        # don't have valid info for determining pointer position relative to head tracker
+                        if self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOff()
+                        continue
 
-                pointerToSubjectTrackerTransf = invertTransform(subjectTrackerToCameraTransf) @ pointerToCameraTransf
+                    if not self._actors[actorKey].GetVisibility():
+                        self._actors[actorKey].VisibilityOn()
 
-                setActorUserTransform(
-                    self._actors[actorKey],
-                    self.session.subjectRegistration.trackerToMRITransf @ pointerToSubjectTrackerTransf @ self.session.tools.pointer.trackerStlToTrackerTransf
-                )
+                    if toolOrTracker == 'tool':
+                        pointerToSubjectTrackerTransf = invertTransform(subjectTrackerToCameraTransf) @ pointerToCameraTransf @ pointer.toolToTrackerTransf
+                    elif toolOrTracker == 'tracker':
+                        pointerToSubjectTrackerTransf = invertTransform(subjectTrackerToCameraTransf) @ pointerToCameraTransf @ pointer.trackerStlToTrackerTransf
+                    else:
+                        raise NotImplementedError()
+
+                    setActorUserTransform(
+                        self._actors[actorKey],
+                        self.session.subjectRegistration.trackerToMRITransf @ pointerToSubjectTrackerTransf
+                    )
 
             else:
                 raise NotImplementedError()

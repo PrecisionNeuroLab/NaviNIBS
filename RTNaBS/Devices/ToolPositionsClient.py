@@ -9,6 +9,7 @@ import zmq.asyncio as azmq
 from RTNaBS.Devices import positionsServerHostname, positionsServerPort, TimestampedToolPosition
 from RTNaBS.util import ZMQAsyncioFix
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util import exceptionToStr
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ class ToolPositionsClient:
 
     sigLatestPositionsChanged: Signal = attrs.field(init=False, factory=Signal)
 
+    _pollTask: tp.Optional[asyncio.Task] = attrs.field(init=False)
+
     def __attrs_post_init__(self):
         ctx = azmq.Context()
         self._subSocket = ctx.socket(zmq.SUB)
@@ -36,11 +39,16 @@ class ToolPositionsClient:
         self._subSocket.connect('tcp://{}:{}'.format(self._serverHostname, self._serverPort))
         self._subSocket.setsockopt(zmq.SUBSCRIBE, b'')
 
-        asyncio.create_task(self._receiveLatestPositionsLoop())
+        self._pollTask = asyncio.create_task(self._receiveLatestPositionsLoop())
 
     @property
     def latestPositions(self):
         return self._latestPositions
+
+    def stopReceivingPositions(self):
+        if self._pollTask is not None:
+            self._pollTask.cancel()
+            self._pollTask = None
 
     def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
         tsPos = self.latestPositions.get(key, None)
@@ -64,7 +72,11 @@ class ToolPositionsClient:
                     self._latestPositions = {key: (TimestampedToolPosition.fromDict(val) if val is not None else None) for key, val in msg.items()}
                     hasPendingMessages = (await self._subSocket.poll(timeout=0.)) > 0
                 logger.debug('Signaling change in latest positions')
-                self.sigLatestPositionsChanged.emit()  # only emit for latest in series of updates to avoid falling behind
+                try:
+                    self.sigLatestPositionsChanged.emit()  # only emit for latest in series of updates to avoid falling behind
+                except Exception as e:
+                    logger.error('Exception during position update:\n {}'.format(exceptionToStr(e)))
+                    raise e
 
     @classmethod
     async def createAndRun_async(cls, *args, **kwargs):

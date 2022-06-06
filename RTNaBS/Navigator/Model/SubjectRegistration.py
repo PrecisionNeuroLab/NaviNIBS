@@ -158,6 +158,10 @@ class SubjectRegistration:
         self.sigTrackerToMRITransfChanged.emit()
 
     @property
+    def isRegistered(self):
+        return self.trackerToMRITransf is not None
+
+    @property
     def approxHeadCenter(self) -> tp.Optional[np.ndarray]:
         lpa = self.plannedFiducials.get('LPA', None)
         rpa = self.plannedFiducials.get('RPA', None)
