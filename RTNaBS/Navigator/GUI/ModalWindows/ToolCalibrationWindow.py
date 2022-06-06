@@ -6,7 +6,7 @@ import typing as tp
 
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool
-
+from RTNaBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,8 @@ class ToolCalibrationWindow:
 
     _wdgt: QtWidgets.QDialog = attrs.field(init=False)
 
+    sigFinished: Signal = attrs.field(init=False, factory=lambda: Signal((bool,)))  # includes False if calibration was cancelled, else True
+
     def __attrs_post_init__(self):
         self._positionsClient = ToolPositionsClient()
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
@@ -34,6 +36,12 @@ class ToolCalibrationWindow:
         self._wdgt.setWindowTitle('{} calibration'.format(self._toolKeyToCalibrate))
 
         self._wdgt.setWindowModality(QtGui.Qt.WindowModal)
+
+        self._wdgt.finished.connect(self._onDlgFinished)
+
+    def _onDlgFinished(self, result: int):
+        self._positionsClient.stopReceivingPositions()
+        self.sigFinished.emit(result == QtWidgets.QDialog.Accepted)
 
     @property
     def toolToCalibrate(self) -> Tool:

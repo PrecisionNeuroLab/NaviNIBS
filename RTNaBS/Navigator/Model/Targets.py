@@ -57,8 +57,8 @@ class Target:
         return self._angle if self._angle is not None else 0
 
     @property
-    def depthOffset(self):
-        return self._depthOffset if self._depthOffset is not None else 0
+    def depthOffset(self) -> float:
+        return self._depthOffset if self._depthOffset is not None else 0.
 
     @property
     def coilToMRITransf(self):

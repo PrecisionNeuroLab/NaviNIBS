@@ -308,7 +308,6 @@ class ToolsPanel(MainViewPanel):
         if currentToolKey is None:
             return
 
-
         if isinstance(self.session.tools[currentToolKey], CoilTool):
             ToolWidgetCls = CoilToolWidget
         else:

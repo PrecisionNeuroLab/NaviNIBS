@@ -122,12 +122,9 @@ class CameraPanel(MainViewPanel):
                                                             name=actorKey)
 
         for key, tool in self.session.tools.items():
+            actorKeysForTool = [key + '_tracker', key + '_tool']
             if isinstance(tool, SubjectTracker):
-                actorKeysForTool = [key, key + '_subject']
-            elif isinstance(tool, CoilTool):
-                actorKeysForTool = [key, key + '_coil']
-            else:
-                actorKeysForTool = [key]
+                actorKeysForTool.append(key + '_subject')
 
             if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
                 # no valid position available
@@ -137,39 +134,37 @@ class CameraPanel(MainViewPanel):
                 continue
 
             for actorKey in actorKeysForTool:
-                if actorKey == key:
-                    if actorKey not in self._actors:
-                        # initialize graphic
-                        if tool.toolStlFilepath is not None:
-                            self._actors[actorKey] = self._plotter.add_mesh(mesh=tool.trackerSurf,
-                                                   color='#2222FF',
-                                                   opacity=0.8,
-                                                   name=actorKey)
+                canShow = False
+                for toolOrTracker in ('tracker', 'tool'):
+                    if actorKey == key + '_' + toolOrTracker:
+                        if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
+                            if toolOrTracker == 'tool':
+                                toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf
+                            elif toolOrTracker == 'tracker':
+                                toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
+                            else:
+                                raise NotImplementedError()
+                            if toolOrTrackerStlToTrackerTransf is not None:
+                                canShow = True
                         else:
-                            pass  # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
-                            continue
+                            # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
+                            canShow = False
 
-                    # apply transform to existing actor
-                    setActorUserTransform(self._actors[actorKey], self._positionsClient.getLatestTransf(key) @ tool.trackerStlToTrackerTransf)
+                        if canShow:
+                            if actorKey not in self._actors:
+                                # initialize graphic
+                                self._actors[actorKey] = self._plotter.add_mesh(mesh=getattr(tool, toolOrTracker + 'Surf'),
+                                                       color='#2222FF',
+                                                       opacity=0.8,
+                                                       name=actorKey)
 
-                elif isinstance(tool, CoilTool) and actorKey == tool.key + '_coil':
-                    if tool.coilStlFilepath is not None and tool.toolToTrackerTransf is not None:
-                        if actorKey not in self._actors:
-                            self._actors[actorKey] = self._plotter.add_mesh(mesh=tool.coilSurf,
-                                                   color='#FF2222',
-                                                   opacity=0.8,
-                                                   name=actorKey)
+                            # apply transform to existing actor
+                            setActorUserTransform(self._actors[actorKey], self._positionsClient.getLatestTransf(
+                                key) @ toolOrTrackerStlToTrackerTransf)
 
-                        setActorUserTransform(self._actors[actorKey],
-                                              self._positionsClient.getLatestTransf(key) @ tool.toolToTrackerTransf)
-
-                    else:
-                        if actorKey in self._actors:
-                            self._actors[actorKey].VisibilityOff()
-                        continue
-                            
-                elif isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
+                if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
                     if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
+                        canShow = True
                         if actorKey not in self._actors:
                             self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
                                                                             color='#d9a5b2',
@@ -178,14 +173,10 @@ class CameraPanel(MainViewPanel):
 
                         setActorUserTransform(self._actors[actorKey],
                                               self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
-                    else:
-                        if actorKey in self._actors:
-                            self._actors[actorKey].VisibilityOff()
-                        continue
-                else:
-                    raise NotImplementedError()
 
-                if not self._actors[actorKey].GetVisibility():
-                    self._actors[actorKey].VisibilityOn()
-
+                if actorKey in self._actors:
+                    if canShow and not self._actors[actorKey].GetVisibility():
+                        self._actors[actorKey].VisibilityOn()
+                    elif not canShow and self._actors[actorKey].GetVisibility():
+                        self._actors[actorKey].VisibilityOff()
 
