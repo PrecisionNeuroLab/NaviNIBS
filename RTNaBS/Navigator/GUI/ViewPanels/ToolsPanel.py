@@ -11,6 +11,7 @@ import numpy as np
 import os
 import pathlib
 import pyvista as pv
+import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
@@ -20,8 +21,9 @@ from . import MainViewPanel
 from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
 from RTNaBS.util import makeStrUnique
+from RTNaBS.util.pyvista import setActorUserTransform
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import transformToString, stringToTransform
+from RTNaBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -45,7 +47,10 @@ class ToolWidget:
     _trackerStlFilepath: QFileSelectWidget = attrs.field(init=False)
     _toolStlFilepath: QFileSelectWidget = attrs.field(init=False)
     _toolToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
+    _toolStlToToolTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
+    _toolSpacePlotter: pvqt.QtInteractor = attrs.field(init=False)
+    _trackerSpacePlotter: pvqt.QtInteractor = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self._wdgt = QtWidgets.QGroupBox('Selected tool: {}'.format(self._tool.key))
@@ -108,6 +113,11 @@ class ToolWidget:
         self._toolStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onToolStlFilepathEdited())
         formContainer.layout().addRow('Tool STL filepath', self._toolStlFilepath)
 
+        self._toolStlToToolTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.toolStlToToolTransf))
+        self._toolStlToToolTransf.setValidator(OptionalTransformValidator())
+        self._toolStlToToolTransf.editingFinished.connect(self._onToolStlToToolTransfEdited)
+        formContainer.layout().addRow('Tool STL to tool transf', self._toolStlToToolTransf)
+
         self._trackerStlToTrackerTransf = QLineEditWithValidationFeedback(self._transfToStr(self._tool.trackerStlToTrackerTransf))
         self._trackerStlToTrackerTransf.setValidator(OptionalTransformValidator())
         self._trackerStlToTrackerTransf.editingFinished.connect(self._onTrackerStlToTrackerTransfEdited)
@@ -117,6 +127,70 @@ class ToolWidget:
         self._toolToTrackerTransf.setValidator(OptionalTransformValidator())
         self._toolToTrackerTransf.editingFinished.connect(self._onToolToTrackerTransfEdited)
         formContainer.layout().addRow('Tool to tracker transf', self._toolToTrackerTransf)
+
+        plotContainer = QtWidgets.QWidget()
+        plotContainer.setLayout(QtWidgets.QHBoxLayout())
+        self._wdgt.layout().addWidget(plotContainer)
+
+        self._toolSpacePlotter = pvqt.BackgroundPlotter(
+            show=False,
+            app=QtWidgets.QApplication.instance()
+        )
+        self._toolSpacePlotter.enable_depth_peeling(2)
+        plotterContainer = QtWidgets.QGroupBox('Tool-space')
+        plotterContainer.setLayout(QtWidgets.QVBoxLayout())
+        plotterContainer.layout().addWidget(self._toolSpacePlotter)
+        plotContainer.layout().addWidget(plotterContainer)
+
+        self._trackerSpacePlotter = pvqt.BackgroundPlotter(
+            show=False,
+            app=QtWidgets.QApplication.instance()
+        )
+        self._trackerSpacePlotter.enable_depth_peeling(2)
+        plotterContainer = QtWidgets.QGroupBox('Tracker-space')
+        plotterContainer.setLayout(QtWidgets.QVBoxLayout())
+        plotterContainer.layout().addWidget(self._trackerSpacePlotter)
+        plotContainer.layout().addWidget(plotterContainer)
+
+        if self._tool.toolSurf is not None:
+            actor = self._toolSpacePlotter.add_mesh(
+                mesh=self._tool.toolSurf,
+                color='#2222ff',
+                opacity=0.8,
+                name='Tool'
+            )
+            setActorUserTransform(actor, self._tool.toolStlToToolTransf)
+            self._toolSpacePlotter.show_grid()
+
+        if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
+            actor = self._trackerSpacePlotter.add_mesh(
+                mesh=self._tool.trackerSurf,
+                color='#22ff22',
+                opacity=0.8,
+                name='Tracker'
+            )
+            setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
+            self._trackerSpacePlotter.show_grid()
+
+            if self._tool.toolToTrackerTransf is not None:
+                actor = self._toolSpacePlotter.add_mesh(
+                    mesh=self._tool.trackerSurf,
+                    color='#22ff22',
+                    opacity=0.8,
+                    name='Tracker'
+                )
+                setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
+                self._toolSpacePlotter.show_grid()
+
+        if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
+            actor = self._trackerSpacePlotter.add_mesh(
+                mesh=self._tool.toolSurf,
+                color='#2222ff',
+                opacity=0.8,
+                name='Tool'
+            )
+            setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
+            self._trackerSpacePlotter.show_grid()
 
     @property
     def wdgt(self):
@@ -139,6 +213,14 @@ class ToolWidget:
 
     def _onToolStlFilepathEdited(self):
         self._tool.toolStlFilepath = self._toolStlFilepath.filepath
+
+    def _onToolStlToToolTransfEdited(self):
+        newTransf = self._strToTransf(self._toolStlToToolTransf.text())
+        if self._transfToStr(newTransf) == self._transfToStr(self._tool.toolStlToToolTransf):
+            # no change
+            return
+        logger.info('User edited {} toolStlToToolTransf: {}'.format(self._tool.key, newTransf))
+        self._tool.toolStlToToolTransf = newTransf
 
     def _onTrackerStlToTrackerTransfEdited(self):
         newTransf = self._strToTransf(self._trackerStlToTrackerTransf.text())
@@ -184,8 +266,6 @@ class ToolWidget:
 @attrs.define
 class CoilToolWidget(ToolWidget):
     _tool: CoilTool
-
-    _coilStlFilepath: QFileSelectWidget = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()

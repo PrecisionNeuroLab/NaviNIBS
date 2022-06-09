@@ -22,7 +22,7 @@ from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform
+from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.Navigator.Model.Session import Session
@@ -356,15 +356,24 @@ class SubjectRegistrationPanel(MainViewPanel):
                         self._actors[actorKey].VisibilityOn()
 
                     if toolOrTracker == 'tool':
-                        pointerToSubjectTrackerTransf = invertTransform(subjectTrackerToCameraTransf) @ pointerToCameraTransf @ pointer.toolToTrackerTransf
+                        pointerStlToSubjectTrackerTransf = concatenateTransforms([
+                            pointer.toolStlToToolTransf,
+                            pointer.toolToTrackerTransf,
+                            pointerToCameraTransf,
+                            invertTransform(subjectTrackerToCameraTransf)
+                        ])
                     elif toolOrTracker == 'tracker':
-                        pointerToSubjectTrackerTransf = invertTransform(subjectTrackerToCameraTransf) @ pointerToCameraTransf @ pointer.trackerStlToTrackerTransf
+                        pointerStlToSubjectTrackerTransf = concatenateTransforms([
+                            pointer.trackerStlToTrackerTransf,
+                            pointerToCameraTransf,
+                            invertTransform(subjectTrackerToCameraTransf)
+                        ])
                     else:
                         raise NotImplementedError()
 
                     setActorUserTransform(
                         self._actors[actorKey],
-                        self.session.subjectRegistration.trackerToMRITransf @ pointerToSubjectTrackerTransf
+                        self.session.subjectRegistration.trackerToMRITransf @ pointerStlToSubjectTrackerTransf
                     )
 
             else:
