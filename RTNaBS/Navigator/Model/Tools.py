@@ -36,6 +36,8 @@ class Tool:
     _toolStlFilepath: tp.Optional[str] = None
     _filepathsRelTo: str = '<session>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
     _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
+    _toolStlToToolTransf: tp.Optional[
+        np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual tool orientation
     _trackerStlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tracker STL only; can be used to align STL with actual reported tracker orientation
 
     _installPath: tp.Optional[str] = None  # used for relative paths
@@ -199,6 +201,24 @@ class Tool:
         self.sigToolChanged.emit(self.key)
 
     @property
+    def toolStlToToolTransf(self):
+        if self._toolStlToToolTransf is None:
+            return np.eye(4)
+        else:
+            return self._toolStlToToolTransf
+
+    @toolStlToToolTransf.setter
+    def toolStlToToolTransf(self, newTransf: tp.Optional[np.ndarray]):
+        if array_equalish(self._toolStlToToolTransf, newTransf):
+            logger.debug('No change in toolStlToToolTransf, returning')
+            return
+
+        self. sigToolAboutToChange.emit(self.key)
+        logger.info('Set toolStlToToolTransf to {}'.format(newTransf))
+        self._toolStlToToolTransf = newTransf
+        self.sigToolChanged.emit(self.key)
+
+    @property
     def trackerStlToTrackerTransf(self):
         if self._trackerStlToTrackerTransf is None:
             return np.eye(4)
@@ -233,11 +253,12 @@ class Tool:
     def asDict(self) -> tp.Dict[str, tp.Any]:
         d = attrsAsDict(self, eqs=dict(
             toolToTrackerTransf=array_equalish,
+            toolStlToToolTransf=array_equalish,
             trackerStlToTrackerTransf=array_equalish,
             toolToTrackerTransfHistory=lambda a, b: len(a) == len(b) \
                                                     and ((keyA == keyB and array_equalish(a[keyA], b[keyB])) for keyA, keyB in zip(a, b))))
 
-        for key in ('toolToTrackerTransf', 'trackerStlToTrackerTransf'):
+        for key in ('toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf'):
             if key in d:
                 d[key] = d[key].tolist()
 
@@ -255,7 +276,7 @@ class Tool:
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None):
-        for key in ('toolToTrackerTransf', 'trackerStlToTrackerTransf'):
+        for key in ('toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf'):
             if key in d:
                 d[key] = np.asarray(d[key])
 
@@ -507,8 +528,6 @@ class Tools:
     def _onToolUsedForChanged(self, key: str, fromUsedFor: str, toUsedFor: str):
 
         toolDict = self._tools[key].asDict()
-        if fromUsedFor == 'coil':
-            toolDict.pop('coilStlFilepath', None)
         tool = self._toolFromDict(toolDict, sessionPath=self._sessionPath)
         self.setTool(tool)
 
