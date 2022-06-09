@@ -373,7 +373,10 @@ class SubjectRegistrationPanel(MainViewPanel):
 
                     setActorUserTransform(
                         self._actors[actorKey],
-                        self.session.subjectRegistration.trackerToMRITransf @ pointerStlToSubjectTrackerTransf
+                        concatenateTransforms([
+                            pointerStlToSubjectTrackerTransf,
+                            self.session.subjectRegistration.trackerToMRITransf
+                        ])
                     )
 
             else:

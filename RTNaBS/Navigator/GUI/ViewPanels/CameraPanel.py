@@ -24,7 +24,7 @@ from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import invertTransform
+from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
@@ -159,7 +159,7 @@ class CameraPanel(MainViewPanel):
                     if actorKey == key + '_' + toolOrTracker:
                         if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
                             if toolOrTracker == 'tool':
-                                toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf
+                                toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
                             elif toolOrTracker == 'tracker':
                                 toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
                             else:
@@ -179,8 +179,11 @@ class CameraPanel(MainViewPanel):
                                                        name=actorKey)
 
                             # apply transform to existing actor
-                            setActorUserTransform(self._actors[actorKey], self._positionsClient.getLatestTransf(
-                                key) @ toolOrTrackerStlToTrackerTransf)
+                            setActorUserTransform(self._actors[actorKey],
+                                                  concatenateTransforms([
+                                                      toolOrTrackerStlToTrackerTransf,
+                                                      self._positionsClient.getLatestTransf(key)
+                                                  ]))
 
                 if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
                     if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
