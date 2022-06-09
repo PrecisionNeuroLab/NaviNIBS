@@ -56,10 +56,13 @@ def concatenateLineSegments(lineSegmentGroups: tp.Iterable[pv.PolyData]) -> pv.P
     poly = pv.PolyData()
     poly.points = np.vstack(group.points for group in lineSegmentGroups)
     cells = np.vstack(group.lines.reshape((-1, 3)) for group in lineSegmentGroups)
-    offset = 0
+    offset_points = 0
+    offset_lines = 0
     for iGroup, group in enumerate(lineSegmentGroups):
-        cells[offset:(offset+group.lines.reshape((-1, 3)).shape[0]), 1:] += offset
-        offset += group.points.shape[0]
+        lines_group = group.lines.reshape((-1, 3))
+        cells[offset_lines:(offset_lines+lines_group.shape[0]), 1:] += offset_points
+        offset_points += group.points.shape[0]
+        offset_lines += lines_group.shape[0]
 
     poly.lines = cells
     return poly
