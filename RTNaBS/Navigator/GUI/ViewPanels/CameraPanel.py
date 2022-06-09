@@ -94,6 +94,23 @@ class CameraPanel(MainViewPanel):
         super()._onPanelActivated()
         self._onLatestPositionsChanged()
 
+    def _onSessionSet(self):
+        super()._onSessionSet()
+        self._session.tools.sigToolsChanged.connect(self._onToolsChanged)
+
+    def _onToolsChanged(self, toolKeysChanged: tp.List[str]):
+        didRemove = False
+        for key, tool in self.session.tools.items():
+            actorKeysForTool = [key + '_tracker', key + '_tool']
+            for actorKey in actorKeysForTool:
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(self._actors[actorKey])
+                    self._actors.pop(actorKey)
+                    didRemove = True
+
+        if didRemove:
+            self._onLatestPositionsChanged()
+
     def _onStartStopServerClicked(self, checked: bool):
         if self._positionsServerProc is None:
             # start server
@@ -118,8 +135,11 @@ class CameraPanel(MainViewPanel):
             cameraFOVMesh = pv.read(self._cameraFOVSTLPath)
             self._actors[actorKey] = self._plotter.add_mesh(mesh=cameraFOVMesh,
                                                             color='#222222',
-                                                            opacity=0.2,
+                                                            opacity=0.1,
+                                                            show_edges=True,
                                                             name=actorKey)
+            setActorUserTransform(self._actors[actorKey], np.asarray(
+                [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]))
 
         for key, tool in self.session.tools.items():
             actorKeysForTool = [key + '_tracker', key + '_tool']
