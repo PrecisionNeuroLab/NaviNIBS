@@ -17,6 +17,7 @@ from typing import ClassVar
 
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish
+from RTNaBS.util.attrs import attrsAsDict
 
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,9 @@ class Target:
     _angle: tp.Optional[float] = None  # typical coil handle angle, in coil's horizontal plane
     _depthOffset: tp.Optional[float] = None  # offset beyond entryCoord, e.g. due to EEG electrode thickness, coil foam
     _coilToMRITransf: tp.Optional[np.ndarray] = None
+
+    _isVisible: bool = True
+    _color: str = '#0000FF'
 
     _cachedCoilToMRITransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)
 
@@ -70,22 +74,28 @@ class Target:
                 self._cachedCoilToMRITransf = 'todo'
             return self._cachedCoilToMRITransf
 
-    def asDict(self) -> tp.Dict[str, tp.Any]:
-        def convertOptionalNDArray(val: tp.Optional[np.ndarray]) -> tp.Optional[tp.List[tp.Any]]:
-            if val is None:
-                return None
-            else:
-                # noinspection PyTypeChecker
-                return val.tolist()
+    @property
+    def isVisible(self):
+        return self._isVisible
 
-        d = dict(
-            key=self._key,
-            targetCoord=convertOptionalNDArray(self._targetCoord),
-            entryCoord=convertOptionalNDArray(self._entryCoord),
-            angle=self._angle,
-            depthOffset=self._depthOffset,
-            coilToMRITransf=convertOptionalNDArray(self._coilToMRITransf)
-        )
+    @isVisible.setter
+    def isVisible(self, isVisible: bool):
+        if self._isVisible == isVisible:
+            return
+        self.sigTargetAboutToChange.emit(self._key)
+        self._isVisible = isVisible
+        self.sigTargetChanged.emit(self._key)
+
+    def asDict(self) -> tp.Dict[str, tp.Any]:
+
+        npFields = ('targetCoord', 'entryCoord', 'coilToMRITransf')
+
+        d = attrsAsDict(self, eqs={field: array_equalish for field in npFields})
+
+        for key in npFields:
+            if key in d and d[key] is not None:
+                d[key] = d[key].tolist()
+
         return d
 
     @classmethod
