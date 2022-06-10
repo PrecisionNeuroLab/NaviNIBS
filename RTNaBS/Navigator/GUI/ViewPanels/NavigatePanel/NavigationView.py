@@ -25,7 +25,7 @@ from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
+from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 
 Transform = np.ndarray
-
 
 
 @attrs.define
@@ -45,6 +44,9 @@ class NavigationView:
     _dock: Dock = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
 
+    _layers: tp.Dict[str, ViewLayer] = attrs.field(init=False, factory=dict)
+    _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict)
+
     def __attrs_post_init__(self):
         self._dock = Dock(name=self._key,
                           autoOrientation=False,
@@ -55,8 +57,19 @@ class NavigationView:
 
         # TODO: add context menu to be able to change view type with right click on title bar (?)
 
+    def addLayer(self, key: str, type: str, **kwargs):
+        raise NotImplementedError()  # should be implemented by subclass
+
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
-        pass
+        logger.debug('redraw {}'.format(which))
+
+        if which is None:
+            which = 'all'
+
+        if not isinstance(which, str):
+            for subWhich in which:
+                self._redraw(which=subWhich)
+            return
 
     @property
     def key(self):
@@ -78,7 +91,11 @@ class NavigationView:
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
-    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+    _plotInSpace: str = 'MRI'
+    _alignCameraTo: tp.Optional[str] = None  # None to use default camera perspective; 'target' to align camera space to target space, etc.
+
+    _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
+    _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -92,30 +109,329 @@ class SinglePlotterNavigationView(NavigationView):
         self._plotter.set_background('#FFFFFF')
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
+        self._layerLibrary = dict(
+            TargetingTargetCrosshairs=TargetingTargetCrosshairsLayer,
+            TargetingCoilCrosshairs=TargetingCoilCrosshairsLayer
+        )
+
+        self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
+        self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
+
+        self._redraw('all')
+
+    def _onCurrentTargetChanged(self):
+        if self._alignCameraTo == 'target':
+            self._alignCamera()
+
+    def _onCurrentCoilPositionChanged(self):
+        if self._alignCameraTo == 'coil':
+            self._alignCamera()
+
+    def _alignCamera(self):
+        class NoValidCameraPoseAvailable(Exception):
+            pass
+
+        try:
+            cameraPts = np.asarray([[0, 0, 0], [0, 0, 100], [0, 1, 0]])  # focal point, position, and up respectively
+            match self._alignCameraTo:
+                case None:
+                    pass
+
+                case 'target':
+                    if self._plotInSpace == 'MRI':
+                        if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
+                            cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf, cameraPts)
+                        else:
+                            raise NoValidCameraPoseAvailable()
+                    else:
+                        raise NotImplementedError()
+
+                case 'coil':
+                    if self._plotInSpace == 'MRI':
+                        if self._coordinator.currentCoilToMRITransform is not None:
+                            cameraPts = applyTransform(self._coordinator.currentCoilToMRITransform, cameraPts)
+                        else:
+                            raise NoValidCameraPoseAvailable()
+                    else:
+                        raise NotImplementedError()
+
+                case _:
+                    raise NotImplementedError()
+
+        except NoValidCameraPoseAvailable:
+            logger.debug('No camera pose available')
+            return  # TODO: change display to indicate view is out-of-date / invalid
+
+        self._plotter.camera.focal_point = cameraPts[0, :]
+        self._plotter.camera.position = cameraPts[1, :]
+        self._plotter.camera.up = cameraPts[2, :]
+        self._plotter.camera.reset_clipping_range()
+
+    def addLayer(self, type: str, key: str, **kwargs):
+        cls = self._layerLibrary[type]
+        assert key not in self._layers
+        self._layers[key] = cls(key=key, **kwargs,
+                                coordinator=self._coordinator,
+                                plotter=self._plotter,
+                                plotInSpace=self._plotInSpace)
+
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
+
+        if not isinstance(which, str):
+            # assume parent call above triggered appropriate redraws
+            return
+
+        if which == 'all':
+            which = ['layers', 'camera']
+            self._redraw(which=which)
+            return
+
+        if which == 'camera':
+            self._alignCamera()
+
+        elif which == 'layers':
+            for layer in self._layers.values():
+                layer._redraw(which=which)
+
+        else:
+            raise NotImplementedError
+
+
+@attrs.define
+class ViewLayer:
+    _key: str
+    _type: ClassVar[str]
+    _coordinator: TargetingCoordinator
+
+    def __attrs_post_init__(self):
+        pass
+
+
+@attrs.define
+class PlotViewLayer(ViewLayer):
+    _plotter: pvqt.QtInteractor  # note this this one plotter may be shared between multiple ViewLayers
+    _plotInSpace: str = 'MRI'
+
+    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+        self._redraw('all')
+
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+
+        #logger.debug('redraw {}'.format(which))
+
+        if which is None:
+            which = 'all'
+
+        if not isinstance(which, str):
+            for subWhich in which:
+                self._redraw(which=subWhich)
+            return
+
+    def _getActorKey(self, subKey: str) -> str:
+        return self._key + '_' + subKey  # make actor keys unique across multiple layers in the same plotter
+
+
+@attrs.define
+class TargetingCrosshairsLayer(PlotViewLayer):
+    _type: ClassVar[str]
+
+    _targetOrCoil: str = 'target'
+
+    _color: str = '#0000ff'
+    _opacity: float = 0.5
+    _radius: float = 5.
+    _offsetRadius: float = 10.
+    _lineWidth: float = 2.
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='initCrosshair'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePositions', 'crosshairVisibility']))
+
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+        super()._redraw(which=which)
+
+        if not isinstance(which, str):
+            # assume parent call above triggered appropriate redraws
+            return
+
+        if which == 'all':
+            which = ['initCrosshair']
+            self._redraw(which=which)
+            return
+
+        elif which == 'clearCrosshair':
+            actorKey = self._getActorKey('crosshair')
+            if actorKey in self._actors:
+                actor = self._actors.pop(actorKey)
+                self._plotter.remove_actor(actor)
+
+        elif which == 'crosshairVisibility':
+            actorKey = self._getActorKey('crosshair')
+            if actorKey in self._actors:
+                actor = self._actors[actorKey]
+
+                doShow = self._canShow()
+
+                if actor.GetVisibility() != doShow:
+                    actor.SetVisibility(doShow)
+
+        elif which == 'initCrosshair':
+            actorKey = self._getActorKey('crosshair')
+
+            target = self._coordinator.currentTarget
+            if target is None:
+                if self._targetOrCoil == 'target':
+                    # no active target, cannot plot
+                    self._redraw(which='clearCrosshair')
+                    return
+                elif self._targetOrCoil == 'coil':
+                    # use an estimated zOffset until we have a target
+                    zOffset = 10.
+                else:
+                    raise NotImplementedError()
+            else:
+                # distance from bottom of coil to target (presumably in brain)
+                zOffset = np.linalg.norm(target.targetCoord - target.entryCoord) + target.depthOffset
+
+            if self._targetOrCoil == 'coil':
+                zOffset *= -1
+
+            lines = self._getCrosshairLineSegments(radius=self._radius)
+
+            offsetLines = self._getCrosshairLineSegments(radius=self._offsetRadius, zOffset=zOffset)
+
+            depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
+
+            self._actors[actorKey] = addLineSegments(self._plotter,
+                                                     concatenateLineSegments([lines, offsetLines, depthLine]),
+                                                     name=actorKey,
+                                                     color=self._color,
+                                                     width=self._lineWidth,
+                                                     opacity=self._opacity)
+
+            self._redraw(which=['updatePositions', 'crosshairVisibility'])
+
+        elif which == 'updatePositions':
+            if not self._canShow():
+                return
+
+            actorKey = self._getActorKey('crosshair')
+            if actorKey not in self._actors:
+                self._redraw(which='initCrosshair')
+                return
+
+            actor = self._actors[actorKey]
+
+            if self._plotInSpace != 'MRI':
+                raise NotImplementedError()  # TODO: add necessary transforms for plotting in other spaces below
+
+            if self._targetOrCoil == 'target':
+                currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
+                setActorUserTransform(actor, currentTargetToMRITransform)
+
+            elif self._targetOrCoil == 'coil':
+                currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+                setActorUserTransform(actor, currentCoilToMRITransform)
+
+            else:
+                raise NotImplementedError()
+
+        else:
+            raise NotImplementedError('Unexpected redraw which: {}'.format(which))
+
+    def _canShow(self) -> bool:
+        canShow = True
+        hasTarget = self._coordinator.currentTarget
+        hasCoil = self._coordinator.currentCoilToMRITransform is not None
+
+        if self._plotInSpace != 'MRI':
+            raise NotImplementedError()  # TODO: check that we have necessary info to convert to other coordinate spaces
+
+        if self._targetOrCoil == 'target':
+            if not hasTarget:
+                canShow = False
+        elif self._targetOrCoil == 'coil':
+            if not hasCoil:
+                canShow = False
+        else:
+            raise NotImplementedError()
+        return canShow
+
+    @classmethod
+    def _getCircleLines(cls, radius: float, numPts: int = 300) -> pv.PolyData:
+        points = np.zeros((numPts, 3))
+        theta = np.linspace(0, 2 * np.pi, numPts)
+        points[:, 0] = radius * np.cos(theta)
+        points[:, 1] = radius * np.sin(theta)
+        return pv.utilities.lines_from_points(points)
+
+    @classmethod
+    def _getCrosshairLineSegments(cls,
+                                  radius: float,
+                                  numPtsInCircle: int = 300,
+                                  zOffset: float = 0.,
+                                  ) -> pv.PolyData:
+        circle = cls._getCircleLines(radius=radius, numPts=numPtsInCircle)
+        relNotchLength = 0.2
+        # TODO: check signs and directions
+        topNotch = pv.utilities.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1 - relNotchLength), 0]]))
+        botNotch = pv.utilities.lines_from_points(
+            np.asarray([[0, -radius * (1 + relNotchLength), 0], [0, -radius * (1 - relNotchLength), 0]]))
+        leftNotch = pv.utilities.lines_from_points(
+            np.asarray([[-radius, 0, 0], [-radius * (1 - relNotchLength), 0, 0]]))
+        rightNotch = pv.utilities.lines_from_points(np.asarray([[radius, 0, 0], [radius * (1 - relNotchLength), 0, 0]]))
+
+        lines = concatenateLineSegments([circle, botNotch, topNotch, leftNotch, rightNotch])
+
+        lines.points += np.asarray([[0, 0, zOffset]])
+
+        return lines
+
+
+@attrs.define
+class TargetingTargetCrosshairsLayer(TargetingCrosshairsLayer):
+    _type: ClassVar[str] = 'TargetingTargetCrosshairs'
+    _targetOrCoil: str = 'target'
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+
+@attrs.define
+class TargetingCoilCrosshairsLayer(TargetingCrosshairsLayer):
+    _type: ClassVar[str] = 'TargetingCoilCrosshairs'
+    _targetOrCoil: str = 'coil'
+
+    _color: str = '#00ff00'
+    _radius: float = 10.
+    _offsetRadius: float = 5.
+    _lineWidth: float = 4.
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
 
 
 @attrs.define
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
-    _viewRelativeTo: str = 'target'  # 'target' or 'coil'; to which to align camera view
-
-    _targetColor: str = '#0000FF'
-    _targetOpacity: float = 0.5
-    _targetRadius: float = 5.
-    _targetOffsetRadius: float = 10.
-    _targetLineWidth: float = 2.
-
-    _coilColor: str = '#00FF00F'
-    _coilOpacity: float = 0.5
-    _coilRadius: float = 10.
-    _coilOffsetRadius: float = 5.
-    _coilLineWidth: float = 4.
+    _alignCameraTo: str = 'target'
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+        self.addLayer(type='TargetingTargetCrosshairs', key='Target')
+        self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
+
+
+class _deprecated_todelete:
+
+    def __attrs_post_init__(self):
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='initTarget'))
         self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which='updatePositions'))
 
@@ -138,9 +454,10 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             return
 
         elif which == 'initCamera':
+            self._plotter.camera.up = np.asarray([0, 1, 0])
             self._plotter.camera.focal_point = np.asarray([0, 0, 0])
-            self._plotter.camera.position = np.asarray([0, 0, 2000])
-            self._plotter.camera.clipping_range = [10, 3000]
+            self._plotter.camera.position = np.asarray([0, 0, 100])
+            self._plotter.camera.clipping_range = [1, 1000]
 
         elif which == 'initTarget':
 
@@ -168,7 +485,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                                                      opacity=self._targetOpacity)
 
             self._redraw(which='initCoil')  # coil z offset is dependent on target, so must also be updated
-            self._redraw(which='updatePositions')
+            self._redraw(which=['initCamera', 'updatePositions'])
 
         elif which == 'initCoil':
 
@@ -195,7 +512,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                                                      width=self._coilLineWidth,
                                                      opacity=self._coilOpacity)
 
-            self._redraw(which='updatePositions')
+            self._redraw(which=['initCamera', 'updatePositions'])
 
         elif which == 'updatePositions':
 
@@ -210,7 +527,13 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                 self._redraw(which='initCoil')
                 return
 
-            currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+            if True:
+                currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+                currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
+            else:
+                # TODO: debug, delete
+                currentCoilToMRITransform = np.eye(4)
+                currentTargetToMRITransform = np.eye(4)
 
             if self._viewRelativeTo == 'coil':
                 viewNotRelativeTo = 'target'
@@ -230,42 +553,43 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             if self._viewRelativeTo == 'coil':
                 setActorUserTransform(self._actors['coilCrosshair'], np.eye(4))
                 setActorUserTransform(self._actors['targetCrosshair'],
-                                      invertTransform(currentCoilToMRITransform) @ self._coordinator.currentTarget.coilToMRITransf)
+                                      invertTransform(currentCoilToMRITransform) @ currentTargetToMRITransform)
             elif self._viewRelativeTo == 'target':
                 setActorUserTransform(self._actors['targetCrosshair'], np.eye(4))
                 setActorUserTransform(self._actors['coilCrosshair'],
-                                      invertTransform(self._coordinator.currentTarget.coilToMRITransf) @ currentCoilToMRITransform)
+                                      invertTransform(currentTargetToMRITransform) @ currentCoilToMRITransform)
             else:
                 raise NotImplementedError()
 
-            self._plotter.show()
-            self._plotter.render()
+            if False:
+                # TODO: debug, delete
+                self._plotter.reset_camera()
+            elif True:
+                # TODO: debug, delete
+                self._plotter.reset_camera_clipping_range()
+
+            #self._plotter.show()
+            #self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected which: {}'.format(which))
 
-    @classmethod
-    def _getCircleLines(cls, radius: float, numPts: int = 300) -> pv.PolyData:
-        points = np.zeros((numPts, 3))
-        theta = np.linspace(0, 2*np.pi, numPts)
-        points[:, 0] = radius * np.cos(theta)
-        points[:, 1] = radius * np.sin(theta)
-        return pv.utilities.lines_from_points(points)
 
-    @classmethod
-    def _getCrosshairLineSegments(cls,
-                                  radius: float,
-                                  numPtsInCircle: int = 300,
-                                  zOffset: float = 0.,
-                                  ) -> pv.PolyData:
-        circle = cls._getCircleLines(radius=radius, numPts=numPtsInCircle)
-        relNotchLength = 0.2
-        topNotch = pv.utilities.lines_from_points(np.asarray([[0, radius, 0], [0, radius*(1-relNotchLength), 0]]))
-        botNotch = pv.utilities.lines_from_points(np.asarray([[0, radius*(1+relNotchLength), 0], [0, radius * (1-relNotchLength), 0]]))
-        leftNotch = pv.utilities.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1-relNotchLength), 0]]))
-        rightNotch = pv.utilities.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1-relNotchLength), 0]]))
 
-        lines = concatenateLineSegments([circle, topNotch, botNotch, leftNotch, rightNotch])
-        lines.points += np.asarray([[0, 0, zOffset]])
+@attrs.define
+class TargetingOverMeshSurfacesView(SinglePlotterNavigationView):
+    _type: ClassVar[str] = 'TargetingOverMeshSurfaces'
+    _viewRelativeTo: str = 'perspective'
 
-        return lines
+    # TODO
+
+
+@attrs.define
+class TargetingSliceView(SinglePlotterNavigationView):
+    _type: ClassVar[str] = 'TargetingSlice'
+    _viewRelativeTo: str = 'coil'
+    _normal: tp.Union[str, np.ndarray] = 'x'  # axis in space defined by self.viewRelativeTo
+
+    _backgroundColor: str = '#000000'
+
+    # TODO

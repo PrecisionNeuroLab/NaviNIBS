@@ -45,6 +45,7 @@ class TargetingCoordinator:
 
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentCoilPositionChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigCurrentSubjectPositionChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
@@ -57,6 +58,11 @@ class TargetingCoordinator:
     def _onLatestPositionsChanged(self):
         self._currentCoilToMRITransform = None  # clear any previously cached value
         self.sigCurrentCoilPositionChanged.emit()
+        self.sigCurrentSubjectPositionChanged.emit()
+
+    @property
+    def session(self):
+        return self._session
 
     @property
     def currentTargetKey(self):
