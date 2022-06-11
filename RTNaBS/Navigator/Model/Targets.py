@@ -34,7 +34,7 @@ class Target:
     _entryCoord: tp.Optional[np.ndarray] = None
     _angle: tp.Optional[float] = None  # typical coil handle angle, in coil's horizontal plane
     _depthOffset: tp.Optional[float] = None  # offset beyond entryCoord, e.g. due to EEG electrode thickness, coil foam
-    _coilToMRITransf: tp.Optional[np.ndarray] = None
+    _coilToMRITransf: tp.Optional[np.ndarray] = None  # uses convention when -y axis is along handle of typical coil and -z axis is pointing down into the head
 
     _isVisible: bool = True
     _color: str = '#0000FF'
