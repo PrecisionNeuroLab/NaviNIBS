@@ -107,11 +107,13 @@ class SinglePlotterNavigationView(NavigationView):
             app=QtWidgets.QApplication.instance()
         )
         self._plotter.set_background('#FFFFFF')
+        self._plotter.enable_depth_peeling(10)
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
         self._layerLibrary = dict(
             TargetingTargetCrosshairs=TargetingTargetCrosshairsLayer,
-            TargetingCoilCrosshairs=TargetingCoilCrosshairsLayer
+            TargetingCoilCrosshairs=TargetingCoilCrosshairsLayer,
+            MeshSurface=MeshSurfaceLayer
         )
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
@@ -236,6 +238,57 @@ class PlotViewLayer(ViewLayer):
 
 
 @attrs.define
+class MeshSurfaceLayer(PlotViewLayer):
+    _type: ClassVar[str] = 'MeshSurface'
+    _color: str = '#d9a5b2'
+    _opacity: float = 0.7
+    _surfKey: str = 'gmSurf'
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+        super()._redraw(which=which)
+
+        if not isinstance(which, str):
+            # assume parent call above triggered appropriate redraws
+            return
+
+        if which == 'all':
+            which = ['initSurf']
+            self._redraw(which=which)
+            return
+
+        if which == 'initSurf':
+            mesh = getattr(self._coordinator.session.headModel, self._surfKey)
+
+            actorKey = self._getActorKey('surf')
+
+            self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
+                                                            color=self._color,
+                                                            opacity=self._opacity,
+                                                            specular=0.5,
+                                                            diffuse=0.5,
+                                                            ambient=0.5,
+                                                            smooth_shading=True,
+                                                            split_sharp_edges=True,
+                                                            name=actorKey)
+
+            self._redraw('updatePosition')
+
+        elif which == 'updatePosition':
+            if self._plotInSpace == 'MRI':
+                if False:
+                    actorKey = self._getActorKey('surf')
+                    transf = np.eye(4)
+                    setActorUserTransform(self._actors[actorKey], transf)
+                else:
+                    pass  # assume since plotInSpace is always MRI (for now) that we don't need to update anything
+        else:
+            raise NotImplementedError
+
+
+@attrs.define
 class TargetingCrosshairsLayer(PlotViewLayer):
     _type: ClassVar[str]
 
@@ -243,9 +296,9 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
     _color: str = '#0000ff'
     _opacity: float = 0.5
-    _radius: float = 5.
-    _offsetRadius: float = 10.
-    _lineWidth: float = 2.
+    _radius: float = 10.
+    _offsetRadius: float = 5.
+    _lineWidth: float = 4.
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -292,15 +345,12 @@ class TargetingCrosshairsLayer(PlotViewLayer):
                     return
                 elif self._targetOrCoil == 'coil':
                     # use an estimated zOffset until we have a target
-                    zOffset = 10.
+                    zOffset = -10.
                 else:
                     raise NotImplementedError()
             else:
                 # distance from bottom of coil to target (presumably in brain)
-                zOffset = np.linalg.norm(target.targetCoord - target.entryCoord) + target.depthOffset
-
-            if self._targetOrCoil == 'coil':
-                zOffset *= -1
+                zOffset = -1 * np.linalg.norm(target.targetCoord - target.entryCoord) + target.depthOffset
 
             lines = self._getCrosshairLineSegments(radius=self._radius)
 
@@ -411,7 +461,7 @@ class TargetingCoilCrosshairsLayer(TargetingCrosshairsLayer):
     _color: str = '#00ff00'
     _radius: float = 10.
     _offsetRadius: float = 5.
-    _lineWidth: float = 4.
+    _lineWidth: float = 8.
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -427,153 +477,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         self.addLayer(type='TargetingTargetCrosshairs', key='Target')
         self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
-
-
-class _deprecated_todelete:
-
-    def __attrs_post_init__(self):
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='initTarget'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which='updatePositions'))
-
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
-        super()._redraw(which=which)
-
-        logger.debug('redraw {}'.format(which))
-
-        if which is None:
-            which = 'all'
-
-        if not isinstance(which, str):
-            for subWhich in which:
-                self._redraw(which=subWhich)
-            return
-
-        if which == 'all':
-            which = ['initCamera', 'initTarget', 'initCoil']
-            self._redraw(which=which)
-            return
-
-        elif which == 'initCamera':
-            self._plotter.camera.up = np.asarray([0, 1, 0])
-            self._plotter.camera.focal_point = np.asarray([0, 0, 0])
-            self._plotter.camera.position = np.asarray([0, 0, 100])
-            self._plotter.camera.clipping_range = [1, 1000]
-
-        elif which == 'initTarget':
-
-            actorKey = 'targetCrosshair'
-
-            target = self._coordinator.currentTarget
-            if target is None:
-                return
-
-            targetZOffset = np.linalg.norm(target.targetCoord - target.entryCoord) + target.depthOffset
-
-            targetLines = self._getCrosshairLineSegments(radius=self._targetRadius,
-                                                         zOffset=0)
-
-            targetOffsetLines = self._getCrosshairLineSegments(radius=self._targetOffsetRadius,
-                                                               zOffset=targetZOffset)
-
-            targetDepthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, targetZOffset]]))
-
-            self._actors[actorKey] = addLineSegments(self._plotter,
-                                                     concatenateLineSegments([targetLines, targetDepthLine, targetOffsetLines]),
-                                                     name=actorKey,
-                                                     color=self._targetColor,
-                                                     width=self._targetLineWidth,
-                                                     opacity=self._targetOpacity)
-
-            self._redraw(which='initCoil')  # coil z offset is dependent on target, so must also be updated
-            self._redraw(which=['initCamera', 'updatePositions'])
-
-        elif which == 'initCoil':
-
-            target = self._coordinator.currentTarget
-            if target is None:
-                return
-
-            targetZOffset = np.linalg.norm(target.targetCoord - target.entryCoord) + target.depthOffset
-
-            actorKey = 'coilCrosshair'
-            coilLines = self._getCrosshairLineSegments(radius=self._coilRadius,
-                                                       zOffset=0)
-
-            coilOffsetLines = self._getCrosshairLineSegments(radius=self._coilOffsetRadius,
-                                                               zOffset=-targetZOffset)
-
-            coilDepthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, -targetZOffset]]))
-
-            self._actors[actorKey] = addLineSegments(self._plotter,
-                                                     concatenateLineSegments(
-                                                         [coilLines, coilOffsetLines, coilDepthLine]),
-                                                     name=actorKey,
-                                                     color=self._coilColor,
-                                                     width=self._coilLineWidth,
-                                                     opacity=self._coilOpacity)
-
-            self._redraw(which=['initCamera', 'updatePositions'])
-
-        elif which == 'updatePositions':
-
-            if self._coordinator.currentTarget is None:
-                return
-
-            if 'targetCrosshair' not in self._actors:
-                self._redraw(which='initTarget')
-                return
-
-            if 'coilCrosshair' not in self._actors:
-                self._redraw(which='initCoil')
-                return
-
-            if True:
-                currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
-                currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
-            else:
-                # TODO: debug, delete
-                currentCoilToMRITransform = np.eye(4)
-                currentTargetToMRITransform = np.eye(4)
-
-            if self._viewRelativeTo == 'coil':
-                viewNotRelativeTo = 'target'
-            elif self._viewRelativeTo == 'target':
-                viewNotRelativeTo = 'coil'
-            else:
-                raise NotImplementedError()
-
-            if currentCoilToMRITransform is None:
-                # no valid position available
-                self._actors[viewNotRelativeTo + 'Crosshair'].VisibilityOff()
-                return
-
-            for coilOrTarget in ('coil', 'target'):
-                self._actors[coilOrTarget + 'Crosshair'].VisibilityOn()
-
-            if self._viewRelativeTo == 'coil':
-                setActorUserTransform(self._actors['coilCrosshair'], np.eye(4))
-                setActorUserTransform(self._actors['targetCrosshair'],
-                                      invertTransform(currentCoilToMRITransform) @ currentTargetToMRITransform)
-            elif self._viewRelativeTo == 'target':
-                setActorUserTransform(self._actors['targetCrosshair'], np.eye(4))
-                setActorUserTransform(self._actors['coilCrosshair'],
-                                      invertTransform(currentTargetToMRITransform) @ currentCoilToMRITransform)
-            else:
-                raise NotImplementedError()
-
-            if False:
-                # TODO: debug, delete
-                self._plotter.reset_camera()
-            elif True:
-                # TODO: debug, delete
-                self._plotter.reset_camera_clipping_range()
-
-            #self._plotter.show()
-            #self._plotter.render()
-
-        else:
-            raise NotImplementedError('Unexpected which: {}'.format(which))
-
+        self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
 
 
 @attrs.define
