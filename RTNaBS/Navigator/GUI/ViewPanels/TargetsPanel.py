@@ -84,14 +84,14 @@ class VisualizedTarget:
                                                            name=self._target.key + 'line1',
                                                            )
 
-            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 10, 0], [0, 0, 0]]))
+            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -10, 0], [0, 0, 0]]))
             self._actors['line2'] = self._plotter.add_lines(pts_line2,
                                                             color=self._color,
                                                             width=thinWidth,
                                                             label=self._target.key,
                                                             name=self._target.key + 'line2',
                                                             )
-            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 50]]))
+            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
             self._actors['line3'] = self._plotter.add_lines(pts_line3,
                                                             color=self._color,
                                                             width=thinWidth,
@@ -122,14 +122,14 @@ class VisualizedTarget:
                                                              name=self._target.key + wing,
                                                              )
 
-            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, coilHandleLength, 0], [0, 0, 0]]))
+            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
             self._actors['line2'] = self._plotter.add_lines(pts_line2,
                                                             color=self._color,
                                                             width=thinWidth,
                                                             label=self._target.key,
                                                             name=self._target.key + 'line2',
                                                             )
-            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 50]]))
+            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
             self._actors['line3'] = self._plotter.add_lines(pts_line3,
                                                             color=self._color,
                                                             width=thinWidth,
@@ -268,7 +268,6 @@ class TargetsPanel(MainViewPanel):
     def _gotoTarget(self, targetKey: str):
         # change slice camera views to align with selected target
         self._views['3D'].sliceTransform = self.session.targets[targetKey].coilToMRITransf \
-                                           @ composeTransform(ptr.active_matrix_from_angle(0, np.pi)) \
                                            @ composeTransform(self._getRotMatForCoilAxis(axis='3D'))
 
         if True:
