@@ -59,7 +59,10 @@ class TargetingPointLayer(PlotViewLayer):
             case 'coil':
                 match orientation:
                     case 'target':
-                        coilCoord = self._coordinator.currentTarget.entryCoordPlusDepthOffset
+                        if self._coordinator.currentTarget is None:
+                            coilCoord = None
+                        else:
+                            coilCoord = self._coordinator.currentTarget.entryCoordPlusDepthOffset
                     case 'coil':
                         transf = self._coordinator.currentCoilToMRITransform
                         if transf is None:
@@ -76,7 +79,10 @@ class TargetingPointLayer(PlotViewLayer):
             case 'target':
                 match orientation:
                     case 'target':
-                        targetCoord = self._coordinator.currentTarget.targetCoord
+                        if self._coordinator.currentTarget is None:
+                            targetCoord = None
+                        else:
+                            targetCoord = self._coordinator.currentTarget.targetCoord
                     case 'coil':
                         transf = self._coordinator.currentCoilToMRITransform
                         if transf is None:
