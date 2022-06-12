@@ -17,6 +17,7 @@ from .TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
+from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 
 
@@ -101,11 +102,13 @@ class SinglePlotterNavigationView(NavigationView):
         self._plotter.enable_depth_peeling(10)
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
-        self._layerLibrary = dict(
-            TargetingTargetCrosshairs=TargetingTargetCrosshairsLayer,
-            TargetingCoilCrosshairs=TargetingCoilCrosshairsLayer,
-            MeshSurface=MeshSurfaceLayer
-        )
+        self._layerLibrary = {}
+        for cls in (TargetingTargetCrosshairsLayer,
+                    TargetingCoilCrosshairsLayer,
+                    TargetingTargetPointsLayer,
+                    TargetingCoilPointsLayer,
+                    MeshSurfaceLayer):
+            self._layerLibrary[cls.type] = cls
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
@@ -185,7 +188,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         elif which == 'layers':
             for layer in self._layers.values():
-                layer._redraw(which=which)
+                layer._redraw()
 
         else:
             raise NotImplementedError
@@ -203,6 +206,8 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         self.addLayer(type='TargetingTargetCrosshairs', key='Target')
         self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
+        self.addLayer(type='TargetingTargetPoints', key='TargetPoints')
+        self.addLayer(type='TargetingCoilPoints', key='CoilPoints')
         self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
 
 
