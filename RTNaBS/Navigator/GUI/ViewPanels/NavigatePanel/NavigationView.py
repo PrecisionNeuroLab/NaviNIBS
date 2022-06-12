@@ -160,7 +160,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._plotter.camera.focal_point = cameraPts[0, :]
         self._plotter.camera.position = cameraPts[1, :]
-        self._plotter.camera.up = cameraPts[2, :]
+        self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
         self._plotter.camera.reset_clipping_range()
 
     def addLayer(self, type: str, key: str, **kwargs):
