@@ -37,14 +37,14 @@ class TargetingPointLayer(PlotViewLayer):
 
     _orientation: str  # 'target' or 'coil'
     _depth: tp.Union[str, ProjectionSpecification]
-    # if orientation=='coil', can be one of ['coil', 'skin', 'gm', 'target']; if orientation=='target', can be ['coil', 'skin', 'gm', 'target']
-    # Otherwise can be ProjectionSpecification instance to choose depth based on projecting to another orientation
+    """
+    if orientation=='coil', can be one of ['coil', 'skin', 'gm', 'target']; if orientation=='target', can be ['coil', 'skin', 'gm', 'target']
+    Otherwise can be ProjectionSpecification instance to choose depth based on projecting to another orientation
+    """
 
     _color: str = '#0000ff'
-    _opacity = 0.5
-    _radius = 5.
-
-
+    _opacity: float = 0.5
+    _radius: float = 5.
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -88,9 +88,13 @@ class TargetingPointLayer(PlotViewLayer):
                         if transf is None:
                             targetCoord = None
                         else:
-                            targetCoord = applyTransform(transf, np.asarray([0, 0, -np.linalg.norm(
-                                self._coordinator.currentTarget.entryCoordPlusDepthOffset - self._coordinator.currentTarget.targetCoord)
-                                                                             ]))
+                            if self._coordinator.currentTarget is None:
+                                targetCoord = None
+                            else:
+                                targetCoord = applyTransform(
+                                    transf, np.asarray([0, 0, -np.linalg.norm(
+                                        self._coordinator.currentTarget.entryCoordPlusDepthOffset \
+                                        - self._coordinator.currentTarget.targetCoord)]))
                     case _:
                         raise NotImplementedError
                 return targetCoord
@@ -157,8 +161,8 @@ class TargetingCoilPointsLayer(PlotLayersGroup):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
-        self.addLayer(TargetingPointLayer, 'coilCoilPoint', color='#00ff00', orientation='coil', depth='coil')
-        self.addLayer(TargetingPointLayer, 'coilTargetPoint', color='#00ff00', orientation='coil', depth='target')
+        self.addLayer(TargetingPointLayer, 'coilCoilPoint', color='#00ff00', orientation='coil', depth='coil', radius=8)
+        self.addLayer(TargetingPointLayer, 'coilTargetPoint', color='#00ff00', orientation='coil', depth='target', radius=8)
         if False:  # TODO: debug, enable by default
             self.addLayer(TargetingPointLayer, 'coilProjectedTargetPoint', color='#00ff00', orientation='coil',
                           depth=ProjectionSpecification(toOrientation='target', toDepth='target', toShape='sphere'))
