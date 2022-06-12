@@ -19,9 +19,6 @@ logger = logging.getLogger(__name__)
 Transform = np.ndarray
 
 
-
-
-
 @attrs.define
 class TargetingCrosshairsLayer(PlotViewLayer):
     _type: ClassVar[str]
@@ -84,7 +81,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
                     raise NotImplementedError()
             else:
                 # distance from bottom of coil to target (presumably in brain)
-                zOffset = -1 * np.linalg.norm(target.targetCoord - target.entryCoord) + target.depthOffset
+                zOffset = -1 * np.linalg.norm(target.entryCoordPlusDepthOffset - target.targetCoord)
 
             lines = self._getCrosshairLineSegments(radius=self._radius)
 

@@ -65,6 +65,20 @@ class Target:
         return self._depthOffset if self._depthOffset is not None else 0.
 
     @property
+    def entryCoordPlusDepthOffset(self) -> tp.Optional[np.ndarray]:
+        if self._entryCoord is None or self._targetCoord is None:
+            return None
+        if self._depthOffset is None or self._depthOffset == 0:
+            return self._entryCoord
+
+        entryVec = self._entryCoord - self._targetCoord
+        entryVec /= np.linalg.norm(entryVec)
+
+        offsetVec = entryVec * self._depthOffset
+
+        return self._entryCoord + offsetVec
+
+    @property
     def coilToMRITransf(self):
         if self._coilToMRITransf is not None:
             return self._coilToMRITransf
