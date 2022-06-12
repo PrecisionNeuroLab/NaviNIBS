@@ -19,6 +19,7 @@ import typing as tp
 
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
+from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import setActorUserTransform
@@ -284,6 +285,7 @@ class CoilToolWidget(ToolWidget):
 
 @attrs.define
 class ToolsPanel(MainViewPanel):
+    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _tblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _tblToolKeys: tp.List[str] = attrs.field(init=False, factory=list)
     _tblActiveToolKeys: tp.List[str] = attrs.field(init=False, factory=list)
@@ -296,11 +298,18 @@ class ToolsPanel(MainViewPanel):
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
+        sidebar = QtWidgets.QWidget()
+        sidebar.setLayout(QtWidgets.QVBoxLayout())
+        self._wdgt.layout().addWidget(sidebar)
+        self._wdgt.layout().setAlignment(sidebar, QtCore.Qt.AlignLeft)
+        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.MinimumExpanding)
+
+        self._trackingStatusWdgt = TrackingStatusWidget(session=self.session, hideInactiveTools=False)
+        sidebar.layout().addWidget(self._trackingStatusWdgt.wdgt)
+
         container = QtWidgets.QGroupBox('Tools')
         container.setLayout(QtWidgets.QVBoxLayout())
-        self._wdgt.layout().addWidget(container)
-        self._wdgt.layout().setAlignment(container, QtCore.Qt.AlignLeft)
-        container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.MinimumExpanding)
+        sidebar.layout().addWidget(container)
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
@@ -331,6 +340,7 @@ class ToolsPanel(MainViewPanel):
     def _onSessionSet(self):
         super()._onSessionSet()
         self.session.tools.sigToolsChanged.connect(self._onToolsChanged)
+        self._trackingStatusWdgt.session = self.session
         self._onToolsChanged()
 
     def _onTblCurrentCellChanged(self, currentRow: int, currentCol: int, previousRow: int, previousCol: int):

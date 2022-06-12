@@ -20,12 +20,14 @@ from . import MainViewPanel
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.Navigator.Model.Session import Session
+from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.Navigator.Model.Session import Session
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 class SubjectRegistrationPanel(MainViewPanel):
     _surfKey: str = 'skinSurf'
 
+    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _fidTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _headPtsTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _sampleFiducialBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -54,6 +57,10 @@ class SubjectRegistrationPanel(MainViewPanel):
         sidebar.setLayout(QtWidgets.QVBoxLayout())
         sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
         self._wdgt.layout().addWidget(sidebar)
+
+        self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
+                                                        hideToolTypes=[CoilTool, CalibrationPlate])
+        sidebar.layout().addWidget(self._trackingStatusWdgt.wdgt)
 
         fiducialsBox = QtWidgets.QGroupBox('Fiducials')
         fiducialsBox.setLayout(QtWidgets.QVBoxLayout())
@@ -150,6 +157,8 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._redraw(which='initHeadPts'))
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
             'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
+
+        self._trackingStatusWdgt.session = self.session
 
     def _currentFidTblFidKey(self) -> tp.Optional[str]:
         if self._fidTblWdgt.currentItem() is None:
