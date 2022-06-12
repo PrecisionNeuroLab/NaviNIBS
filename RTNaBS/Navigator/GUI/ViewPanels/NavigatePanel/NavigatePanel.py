@@ -25,7 +25,9 @@ from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
-from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target
+from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.Navigator.Model.Session import Session, Target
+from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
@@ -40,6 +42,7 @@ Transform = np.ndarray
 
 @attrs.define
 class NavigatePanel(MainViewPanel):
+    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _samplesTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -60,6 +63,10 @@ class NavigatePanel(MainViewPanel):
         sidebar.setLayout(QtWidgets.QVBoxLayout())
         sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
         self._wdgt.layout().addWidget(sidebar)
+
+        self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
+                                                        hideToolTypes=[CalibrationPlate, Pointer])
+        sidebar.layout().addWidget(self._trackingStatusWdgt.wdgt)
 
         targetsBox = QtWidgets.QGroupBox('Targets')
         targetsBox.setLayout(QtWidgets.QVBoxLayout())
@@ -104,6 +111,7 @@ class NavigatePanel(MainViewPanel):
     def _initializePanel(self):
         assert not self._hasInitialized
         self._hasInitialized = True
+        self._trackingStatusWdgt.session = self.session
         self._coordinator = TargetingCoordinator(session=self._session,
                                                  currentTargetKey=self._targetsTreeWdgt.currentTargetKey)
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))

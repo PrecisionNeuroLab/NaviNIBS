@@ -22,6 +22,7 @@ from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
+from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
@@ -41,6 +42,7 @@ class CameraPanel(MainViewPanel):
 
     _cameraFOVSTLPath: str = None
 
+    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
 
@@ -58,9 +60,16 @@ class CameraPanel(MainViewPanel):
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
+        sidebar = QtWidgets.QWidget()
+        sidebar.setLayout(QtWidgets.QVBoxLayout())
+        self._wdgt.layout().addWidget(sidebar)
+
+        self._trackingStatusWdgt = TrackingStatusWidget(session=self._session)
+        sidebar.layout().addWidget(self._trackingStatusWdgt.wdgt)
+
         container = QtWidgets.QGroupBox('Camera connection')
         container.setLayout(QtWidgets.QVBoxLayout())
-        self._wdgt.layout().addWidget(container)
+        sidebar.layout().addWidget(container)
 
         # TODO: add GUI controls for configuring, launching, stopping Plus Server
         # for now, assume plus server is launched separately with appropriate tool configs
@@ -97,6 +106,7 @@ class CameraPanel(MainViewPanel):
     def _onSessionSet(self):
         super()._onSessionSet()
         self._session.tools.sigToolsChanged.connect(self._onToolsChanged)
+        self._trackingStatusWdgt.session = self.session
 
     def _onToolsChanged(self, toolKeysChanged: tp.List[str]):
         didRemove = False

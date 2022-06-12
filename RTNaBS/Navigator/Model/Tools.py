@@ -350,9 +350,11 @@ class Tools:
     _sessionPath: tp.Optional[str] = None  # used for relative paths
 
     sigToolsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal(
-        (tp.List[str],)))  # includes list of keys of tools about to change
+        (tp.List[str],)))
+    """" includes list of keys of tools about to change """
     sigToolsChanged: Signal = attrs.field(init=False, factory=lambda: Signal(
-        (tp.List[str],)))  # includes list of keys of changed tools
+        (tp.List[str],)))
+    """ includes list of keys of changed tools """
 
     def __attrs_post_init__(self):
         for key, tool in self._tools.items():
