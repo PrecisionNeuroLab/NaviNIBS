@@ -71,7 +71,7 @@ class Session:
         self.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
-        self.targets.sigTargetsChanged.connect(lambda targetKeys: self._dirtyKeys.add('targets'))
+        self.targets.sigTargetsChanged.connect(lambda targetKeys, attribKeys: self._dirtyKeys.add('targets'))
         self.tools.sigToolsChanged.connect(lambda toolKeys: self._dirtyKeys.add('tools'))
 
         # TODO

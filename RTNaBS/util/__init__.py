@@ -47,5 +47,12 @@ def makeStrUnique(baseStr: str, existingStrs: tp.List[str], delimiter: str = '_'
     return uniqueStr
 
 
+class classproperty:
+    """
+    Adapted from https://stackoverflow.com/a/13624858
+    """
+    def __init__(self, fget):
+        self.fget = fget
 
-
+    def __get__(self, owner_self, owner_cls):
+        return self.fget(owner_cls)

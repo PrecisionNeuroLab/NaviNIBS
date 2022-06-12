@@ -24,6 +24,7 @@ from .NavigationView import NavigationView, TargetingCrosshairsView
 from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
+from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
@@ -37,12 +38,12 @@ logger = logging.getLogger(__name__)
 Transform = np.ndarray
 
 
-
-
 @attrs.define
 class NavigatePanel(MainViewPanel):
-    _targetsTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
+    _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _samplesTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
+    _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: tp.Dict[str, NavigationView] = attrs.field(init=False, factory=dict)
     _viewsDock: DockArea = attrs.field(init=False)
 
@@ -64,7 +65,25 @@ class NavigatePanel(MainViewPanel):
         targetsBox.setLayout(QtWidgets.QVBoxLayout())
         sidebar.layout().addWidget(targetsBox)
 
-        self._targetsTblWdgt = QtWidgets.QTableWidget()
+        self._targetsTreeWdgt = TargetsTreeWidget(
+            session=self.session
+        )
+        self._targetsTreeWdgt.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
+        sidebar.layout().addWidget(self._targetsTreeWdgt.wdgt)
+
+        currentErrorBox = QtWidgets.QGroupBox('Current error')
+        currentErrorBox.setLayout(QtWidgets.QVBoxLayout())
+        sidebar.layout().addWidget(currentErrorBox)
+        # TODO: create widgets in currentErrorBox providing feedback on current coil placement relative to active target
+
+        samplesBox = QtWidgets.QGroupBox('Samples')
+        samplesBox.setLayout(QtWidgets.QVBoxLayout())
+        sidebar.layout().addWidget(samplesBox)
+
+
+
+        self._samplesTblWdgt = QtWidgets.QTableWidget(0, 3)
+        self._samplesTblWdgt.setHorizontalHeaderLabels(['Sample', 'Target', 'Error'])
 
         self._viewsDock = DockArea()
         self._wdgt.layout().addWidget(self._viewsDock)
@@ -85,8 +104,20 @@ class NavigatePanel(MainViewPanel):
     def _initializePanel(self):
         assert not self._hasInitialized
         self._hasInitialized = True
-        self._coordinator = TargetingCoordinator(session=self._session)
+        self._coordinator = TargetingCoordinator(session=self._session,
+                                                 currentTargetKey=self._targetsTreeWdgt.currentTargetKey)
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))
+        self._targetsTreeWdgt.session = self._session
         self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
+
+
+    def _onCurrentTargetChanged(self, newTargetKey: str):
+        """
+        Called when targetTreeWdgt selection or coordinator currentTarget changes, NOT when attributes of currently selected target change
+        """
+        if self._hasInitialized:
+            self._coordinator.currentTargetKey = newTargetKey
+            self._targetsTreeWdgt.currentTargetKey = newTargetKey
 
     def _initializeDefaultViews(self):
         if len(self._views) > 0:

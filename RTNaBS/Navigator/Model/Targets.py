@@ -41,8 +41,16 @@ class Target:
 
     _cachedCoilToMRITransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)
 
-    sigTargetAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # includes key
-    sigTargetChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # includes key
+    sigTargetAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str, tp.Optional[tp.List[str]])))
+    """
+    This signal includes the key of the target, and optionally a list of keys of attributes about to change;
+    if second arg is None, all attributes should be assumed to be about to change.
+    """
+    sigTargetChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str, tp.Optional[tp.List[str]])))
+    """
+    This signal includes the key of the target, and optionally a list of keys of changed attributes;  
+    if second arg is None, all attributes should be assumed to have changed.
+    """
 
     @property
     def key(self):
@@ -96,9 +104,9 @@ class Target:
     def isVisible(self, isVisible: bool):
         if self._isVisible == isVisible:
             return
-        self.sigTargetAboutToChange.emit(self._key)
+        self.sigTargetAboutToChange.emit(self._key, ['isVisible'])
         self._isVisible = isVisible
-        self.sigTargetChanged.emit(self._key)
+        self.sigTargetChanged.emit(self._key, ['isVisible'])
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
 
@@ -132,8 +140,17 @@ class Target:
 class Targets:
     _targets: tp.Dict[str, Target] = attrs.field(factory=dict)
 
-    sigTargetsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))  # includes list of keys of targets about to change
-    sigTargetsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))  # includes list of keys of changed targets
+    sigTargetsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))  # includes list of keys of targets about to change
+    """
+    This signal includes list of keys of keys of targets about to change, and optionally a list of keys of attributes about to change;  
+    if second arg is None, all attributes should be assumed to be about to change.
+    """
+    sigTargetsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))
+    """
+    This signal includes list of keys of keys of changed targets, and optionally a list of keys of changed attributes;  
+    if second arg is None, all attributes should be assumed to have changed.
+    """
+
 
     def __attrs_post_init__(self):
         for key, target in self._targets.items():
@@ -149,7 +166,7 @@ class Targets:
         raise NotImplementedError()  # TODO
 
     def setTarget(self, target: Target):
-        self.sigTargetsAboutToChange.emit([target.key])
+        self.sigTargetsAboutToChange.emit([target.key], None)
         if target.key in self._targets:
             self._targets[target.key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
             self._targets[target.key].sigTargetChanged.disconnect(self._onTargetChanged)
@@ -158,14 +175,14 @@ class Targets:
         target.sigTargetAboutToChange.connect(self._onTargetAboutToChange)
         target.sigTargetChanged.connect(self._onTargetChanged)
 
-        self.sigTargetsChanged.emit([target.key])
+        self.sigTargetsChanged.emit([target.key], None)
 
     def setTargets(self, targets: tp.List[Target]):
         # assume all keys are changing, though we could do comparisons to find subset changed
         oldKeys = list(self.targets.keys())
         newKeys = [target.key for target in targets]
         combinedKeys = list(set(oldKeys) | set(newKeys))
-        self.sigTargetsAboutToChange.emit(combinedKeys)
+        self.sigTargetsAboutToChange.emit(combinedKeys, None)
         for key in oldKeys:
             self._targets[key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
             self._targets[key].sigTargetChanged.disconnect(self._onTargetChanged)
@@ -173,13 +190,13 @@ class Targets:
         for key, target in self._targets.items():
             self._targets[key].sigTargetAboutToChange.connect(self._onTargetAboutToChange)
             self._targets[key].sigTargetChanged.connect(self._onTargetChanged)
-        self.sigTargetsChanged.emit(combinedKeys)
+        self.sigTargetsChanged.emit(combinedKeys, None)
 
-    def _onTargetAboutToChange(self, key: str):
-        self.sigTargetsAboutToChange.emit([key])
+    def _onTargetAboutToChange(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
+        self.sigTargetsAboutToChange.emit([key], attribKeys)
 
-    def _onTargetChanged(self, key: str):
-        self.sigTargetsChanged.emit([key])
+    def _onTargetChanged(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
+        self.sigTargetsChanged.emit([key], attribKeys)
 
     def __getitem__(self, key):
         return self._targets[key]
@@ -205,13 +222,13 @@ class Targets:
 
     def merge(self, otherTargets: Targets):
 
-        self.sigTargetsAboutToChange.emit(list(otherTargets.keys()))
+        self.sigTargetsAboutToChange.emit(list(otherTargets.keys()), None)
 
         with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
             for target in otherTargets.values():
                 self.setTarget(target)
 
-        self.sigTargetsChanged.emit(list(otherTargets.keys()))
+        self.sigTargetsChanged.emit(list(otherTargets.keys()), None)
 
     @property
     def targets(self):

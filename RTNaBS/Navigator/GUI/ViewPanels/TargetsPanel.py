@@ -19,6 +19,7 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -41,7 +42,7 @@ class VisualizedTarget:
     _style: str
     _color: str = '#2222FF'
     _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict)
-    _visible: bool = True
+    _visible: bool = True  # track this separately from self._target.isVisible to allow temporarily overriding
 
     def __attrs_post_init__(self):
         self.plot()
@@ -147,13 +148,16 @@ class VisualizedTarget:
         else:
             raise NotImplementedError()
 
+        if not self.visible:
+            for actor in self._actors.values():
+                actor.VisibilityOff()
+
 
 @attrs.define
 class TargetsPanel(MainViewPanel):
-    _treeWdgt: QtWidgets.QTreeWidget = attrs.field(init=False)
+    _treeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
-    _treeItems: tp.Dict[str, QtWidgets.QTreeWidgetItem] = attrs.field(init=False, factory=dict)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -191,9 +195,10 @@ class TargetsPanel(MainViewPanel):
         btn.clicked.connect(self._onGotoBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 1)
 
-        self._treeWdgt = QtWidgets.QTreeWidget()
-        container.layout().addWidget(self._treeWdgt)
-        self._treeWdgt.setHeaderLabels(['Target', 'Info'])
+        self._treeWdgt = TargetsTreeWidget(
+            session=self._session
+        )
+        container.layout().addWidget(self._treeWdgt.wdgt)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -211,6 +216,8 @@ class TargetsPanel(MainViewPanel):
             self._views[key].sigSliceTransformChanged.connect(lambda key=key: self._onSliceTransformChanged(sourceKey=key))
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
+
+        self._treeWdgt.sigCurrentTargetChanged.connect(self._gotoTarget)  # go to target immediately whenever selection changes
 
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
@@ -245,25 +252,14 @@ class TargetsPanel(MainViewPanel):
     def _onSessionSet(self):
         super()._onSessionSet()
         self.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
+        self._treeWdgt.session = self.session
 
         if self._hasBeenActivated:
             for key, view in self._views.items():
                 view.session = self.session
 
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
-        def getRootItem(treeItem: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:
-            if treeItem.parent() is None:
-                return treeItem
-            else:
-                return getRootItem(treeItem.parent())
-
-        curItem = self._treeWdgt.currentItem()
-        if curItem is not None:
-            return getRootItem(curItem).text(0)
-        elif len(self.session.targets) > 0:
-            return list(self.session.targets.values())[0].key
-        else:
-            return None
+        return self._treeWdgt.currentTargetKey
 
     def _gotoTarget(self, targetKey: str):
         # change slice camera views to align with selected target
@@ -279,57 +275,47 @@ class TargetsPanel(MainViewPanel):
                                                                  np.asarray([0, 100, 0])) - self._views[
                                                       '3D'].plotter.camera.position
 
-    def _onTargetVisibleBtnClicked(self, key: str):
-        for viewKey in self._views:
-            self._targetActors[viewKey + key].visible = not self._targetActors[viewKey + key].visible
-        btn = self._treeWdgt.itemWidget(self._treeItems[key], 1)
-        assert isinstance(btn, QtWidgets.QPushButton)
-        if self._targetActors['3D' + key].visible:
-            btn.setIcon(qta.icon('mdi6.eye'))
-        else:
-            btn.setIcon(qta.icon('mdi6.eye-off-outline'))
+    def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
+        if not self._hasBeenActivated:
+            return
 
-    def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None):
         logger.debug('Targets changed. Updating tree view and plots')
 
-        # update tree view
-        # TODO: do incremental tree updates rather than entirely clearing and rebuilding
-        prevSelectedItem = self._treeWdgt.currentItem()
-        self._treeWdgt.clear()
-        self._treeItems = {}
-        for iT, (key, target) in enumerate(self.session.targets.items()):
-            targetItem = QtWidgets.QTreeWidgetItem([key, ''])
-            self._treeItems[key] = targetItem
-            for field in ('targetCoord', 'entryCoord', 'angle', 'depthOffset', 'coilToMRITransf'):
-                with np.printoptions(precision=2):
-                    fieldItem = QtWidgets.QTreeWidgetItem(targetItem, [field, '{}'.format(getattr(target, field))])
-        self._treeWdgt.insertTopLevelItems(0, list(self._treeItems.values()))
-        for iT, (key, target) in enumerate(self.session.targets.items()):
-            btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.eye'), text='')
-            btn.setFlat(True)
-            btn.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
-            self._treeWdgt.setItemWidget(self._treeItems[key], 1, btn)
-            btn.clicked.connect(lambda checked=False, key=key: self._onTargetVisibleBtnClicked(key=key))
+        if changedTargetAttrs == ['isVisible']:
+            # only visibility changed
 
-        if self._hasBeenActivated:
-            # update views
-            for viewKey, view in self._views.items():
-                if changedTargetKeys is None:
-                    changedTargetKeys = self.session.targets.keys()
+            if changedTargetKeys is None:
+                changedTargetKeys = self.session.targets.keys()
 
-                for key in changedTargetKeys:
-                    target = self.session.targets[key]
-                    if viewKey == '3D':
-                        style = 'coilLines'
-                    else:
-                        style = 'lines'
+            for targetKey in changedTargetKeys:
+                target = self._session.targets[targetKey]
+                for viewKey in self._views:
+                    actorKey = viewKey + targetKey
+                    if actorKey in self._targetActors:
+                        self._targetActors[actorKey].visible = target.isVisible
 
-                    self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
-                                                                                plotter=view.plotter,
-                                                                                style=style)
+        else:
+            # assume anything/everything changed, clear target and start over
+            if self._hasBeenActivated:
+                # update views
+                for viewKey, view in self._views.items():
+                    if changedTargetKeys is None:
+                        changedTargetKeys = self.session.targets.keys()
 
-            if len(self.session.targets) > 0:
-                self._gotoTarget(self._getCurrentTargetKey())
+                    for key in changedTargetKeys:
+                        target = self.session.targets[key]
+                        if viewKey == '3D':
+                            style = 'coilLines'
+                        else:
+                            style = 'lines'
+
+                        self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
+                                                                                    plotter=view.plotter,
+                                                                                    style=style,
+                                                                                    visible=target.isVisible)
+
+                if len(self.session.targets) > 0:
+                    self._gotoTarget(self._getCurrentTargetKey())
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
