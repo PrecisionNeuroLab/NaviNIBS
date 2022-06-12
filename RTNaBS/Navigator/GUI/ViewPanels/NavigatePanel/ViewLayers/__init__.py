@@ -11,6 +11,7 @@ import typing as tp
 from typing import ClassVar
 
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import TargetingCoordinator
+from RTNaBS.util import classproperty
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 
 
@@ -28,6 +29,10 @@ class ViewLayer:
 
     def __attrs_post_init__(self):
         pass
+
+    @classproperty
+    def type(cls):
+        return cls._type
 
 
 @attrs.define

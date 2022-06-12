@@ -66,10 +66,6 @@ class TargetingCoordinator:
 
     @property
     def currentTargetKey(self):
-        if True:
-            # TODO: debug, delete!
-            return list(self._session.targets.keys())[0]
-
         return self._currentTargetKey
 
     @currentTargetKey.setter
