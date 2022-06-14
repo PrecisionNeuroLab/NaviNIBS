@@ -177,6 +177,8 @@ class NavigatePanel(MainViewPanel):
             raise NotImplementedError()  # TODO: clear any previous views from dock and self._views
 
         self.addView(key='Crosshairs', viewType='TargetingCrosshairs')
+        self.addView(key='Crosshairs-X', viewType='TargetingCrosshairs-X')
+        self.addView(key='Crosshairs-Y', viewType='TargetingCrosshairs-Y')
 
         # TODO: set up other default views
 
@@ -185,6 +187,13 @@ class NavigatePanel(MainViewPanel):
         match viewType:
             case 'TargetingCrosshairs':
                 View = TargetingCrosshairsView
+            case 'TargetingCrosshairs-X':
+                View = TargetingCrosshairsView
+                kwargs.setdefault('alignCameraTo', 'target-X')
+            case 'TargetingCrosshairs-Y':
+                View = TargetingCrosshairsView
+                kwargs.setdefault('alignCameraTo', 'target-Y')
+
             case _:
                 raise NotImplementedError('Unexpected viewType: {}'.format(viewType))
 
