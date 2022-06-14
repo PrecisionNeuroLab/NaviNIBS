@@ -8,6 +8,7 @@ import numpy as np
 import pyvista as pv
 import pyvistaqt as pvqt
 from pyqtgraph.dockarea import DockArea, Dock
+import pytransform3d.rotations as ptr
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
@@ -19,7 +20,7 @@ from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
+from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform, composeTransform
 
 
 logger = logging.getLogger(__name__)
@@ -122,12 +123,34 @@ class SinglePlotterNavigationView(NavigationView):
         self._redraw('all')
 
     def _onCurrentTargetChanged(self):
-        if self._alignCameraTo == 'target':
+        if self._alignCameraTo.startswith('target'):
             self._alignCamera()
 
     def _onCurrentCoilPositionChanged(self):
-        if self._alignCameraTo == 'coil':
+        if self._alignCameraTo.startswith('coil'):
             self._alignCamera()
+
+    @staticmethod
+    def _getExtraRotationForToAlignCamera(rotSuffix: str) -> np.ndarray:
+        # TODO: double check angles and signs
+        match rotSuffix:
+            case '':
+                extraRot = np.eye(3)
+            case 'X':
+                extraRot = ptr.active_matrix_from_intrinsic_euler_yzy([np.pi / 2, np.pi/2, 0])
+            case '-X':
+                extraRot = ptr.active_matrix_from_intrinsic_euler_yzy([-np.pi / 2, -np.pi/2, 0])
+            case 'Y':
+                extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([-np.pi / 2, 0, np.pi])
+            case '-Y':
+                extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi / 2, 0, 0])
+            case 'Z':
+                extraRot = np.eye(3)
+            case '-Z':
+                extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi, 0, 0])
+            case _:
+                raise NotImplementedError
+        return extraRot
 
     def _alignCamera(self):
         class NoValidCameraPoseAvailable(Exception):
@@ -135,30 +158,35 @@ class SinglePlotterNavigationView(NavigationView):
 
         try:
             cameraPts = np.asarray([[0, 0, 0], [0, 0, 100], [0, 1, 0]])  # focal point, position, and up respectively
-            match self._alignCameraTo:
-                case None:
-                    pass
+            if self._alignCameraTo is None:
+                pass
 
-                case 'target':
-                    if self._plotInSpace == 'MRI':
-                        if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
-                            cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf, cameraPts)
-                        else:
-                            raise NoValidCameraPoseAvailable()
+            elif self._alignCameraTo.startswith('target'):
+                extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('target'):])
+                extraTransf = composeTransform(extraRot)
+
+                if self._plotInSpace == 'MRI':
+                    if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
+                        cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf @ extraTransf, cameraPts)
                     else:
-                        raise NotImplementedError()
-
-                case 'coil':
-                    if self._plotInSpace == 'MRI':
-                        if self._coordinator.currentCoilToMRITransform is not None:
-                            cameraPts = applyTransform(self._coordinator.currentCoilToMRITransform, cameraPts)
-                        else:
-                            raise NoValidCameraPoseAvailable()
-                    else:
-                        raise NotImplementedError()
-
-                case _:
+                        raise NoValidCameraPoseAvailable()
+                else:
                     raise NotImplementedError()
+
+            elif self._alignCameraTo.startswith('coil'):
+                extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('coil'):])
+                extraTransf = composeTransform(extraRot)
+
+                if self._plotInSpace == 'MRI':
+                    if self._coordinator.currentCoilToMRITransform is not None:
+                        cameraPts = applyTransform(self._coordinator.currentCoilToMRITransform @ extraTransf, cameraPts)
+                    else:
+                        raise NoValidCameraPoseAvailable()
+                else:
+                    raise NotImplementedError()
+
+            else:
+                 raise NotImplementedError()
 
         except NoValidCameraPoseAvailable:
             logger.debug('No camera pose available')
