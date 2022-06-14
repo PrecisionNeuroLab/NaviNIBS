@@ -18,6 +18,7 @@ from typing import ClassVar
 from RTNaBS.Navigator.Model.MRI import MRI
 from RTNaBS.Navigator.Model.HeadModel import HeadModel
 from RTNaBS.Navigator.Model.Targets import Targets, Target
+from RTNaBS.Navigator.Model.Samples import Samples, Sample
 from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
 from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
 from RTNaBS.util.Signaler import Signal
@@ -43,6 +44,7 @@ class Session:
     MNIRegistration: tp.Optional[MNIRegistration] = None
     _targets: Targets = attrs.field(factory=Targets)
     _tools: Tools = attrs.field(default=None)
+    _samples: Samples = attrs.field(factory=Samples)
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)
     _compressedFileIsDirty: bool = True
@@ -72,6 +74,7 @@ class Session:
         self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
         self.targets.sigTargetsChanged.connect(lambda targetKeys, attribKeys: self._dirtyKeys.add('targets'))
+        self.samples.sigSamplesChanged.connect(lambda sampleTimestamps, attribKeys: self._dirtyKeys.add('samples'))
         self.tools.sigToolsChanged.connect(lambda toolKeys: self._dirtyKeys.add('tools'))
 
         # TODO
@@ -122,6 +125,10 @@ class Session:
     @property
     def targets(self):
         return self._targets
+
+    @property
+    def samples(self):
+        return self._samples
 
     @property
     def tools(self):
@@ -190,6 +197,11 @@ class Session:
             logger.debug('Writing targets info')
             config['targets'] = self.targets.asList()
             keysToSave.remove('targets')
+
+        if 'samples' in keysToSave:
+            logger.debug('Writing samples info')
+            config['samples'] = self.samples.asList()
+            keysToSave.remove('samples')
 
         if 'tools' in keysToSave:
             logger.debug('Writing tools info')
@@ -288,6 +300,9 @@ class Session:
 
         if 'targets' in config:
             kwargs['targets'] = Targets.fromList(config['targets'])
+
+        if 'samples' in config:
+            kwargs['samples'] = Samples.fromList(config['samples'])
 
         if 'tools' in config:
             kwargs['tools'] = Tools.fromList(config['tools'], sessionPath=otherPathsRelTo)
