@@ -3,8 +3,9 @@ from __future__ import annotations
 import attrs
 import datetime
 import logging
-import numpy as np
+import numfpy as np
 import pandas as pd
+from pprint import pformat
 import typing as tp
 
 from RTNaBS.util.Signaler import Signal
@@ -61,7 +62,7 @@ class Sample:
         return self._timestamp
 
     @property
-    def coilToMriTransf(self):
+    def coilToMRITransf(self):
         return self._coilToMRITransf
 
     @property
@@ -79,6 +80,9 @@ class Sample:
     @property
     def color(self):
         return self._color
+
+    def __str__(self):
+        return pformat(self.asDict())
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
         npFields = ('coilToMRITransf',)
@@ -165,6 +169,45 @@ class Samples:
             self._samples[key].sigTargetChanged.connect(self._onTargetChanged)
         self.sigTargetsChanged.emit(combinedKeys, None)
 
+    def getUniqueSampleKey(self,
+                           baseStr: str = 'Sample ',
+                           startAtIndex: tp.Optional[int] = None,
+                           timestamp: tp.Optional[Timestamp] = None) -> str:
+        """
+        Get a key not already used by any current samples, presumably to use for a new sample.
+
+        If a timestamp is specified, will format the key using the timestamp. Otherwise will be based on
+        an index and length of samples.
+        """
+
+        if timestamp is None:
+            if startAtIndex is None:
+                index = len(self.samples)
+            else:
+                index = startAtIndex
+            while True:
+                key = f'{baseStr}{index}'
+                if key not in self._samples:
+                    return key
+                index += 1
+        else:
+            removeNChars = [7, 3, 0]
+            iAttempt = 0
+            while iAttempt < len(removeNChars):
+                key = baseStr + timestamp.strftime('%y.%m.%d %H:%M.%S.%f')
+                if removeNChars[iAttempt] > 0:
+                    key = key[:-removeNChars[iAttempt]]
+                if key.endswith('.'):
+                    key = key[:-1]
+                if key not in self._samples:
+                    return key
+                iAttempt += 1
+
+            if startAtIndex is None:
+                startAtIndex = 2
+            return self.getUniqueSampleKey(baseStr=key, startAtIndex=startAtIndex)
+
+
     def _onSampleAboutToChange(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
         self.sigSamplesAboutToChange.emit([key], attribKeys)
 
@@ -209,3 +252,6 @@ class Samples:
 
         return cls(samples=samples)
 
+
+def getSampleTimestampNow() -> Timestamp:
+    return pd.Timestamp.now()
