@@ -29,6 +29,7 @@ from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.Model.Session import Session, Target
 from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
+from RTNaBS.Navigator.Model.Samples import Samples, Sample, getSampleTimestampNow
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
@@ -152,7 +153,21 @@ class NavigatePanel(MainViewPanel):
             self._samplesTreeWdgt.currentSampleKey = newSampleKey
 
     def _onSampleBtnClicked(self, _):
-        raise NotImplementedError  # TODO
+        timestamp = getSampleTimestampNow()
+        sampleKey = self.session.samples.getUniqueSampleKey(timestamp=timestamp)
+        coilToMRITransf = self._coordinator.currentCoilToMRITransform  # may be None if missing a tracker, etc.
+
+        sample = Sample(
+            key=sampleKey,
+            timestamp=timestamp,
+            coilToMRITransf=coilToMRITransf,
+            targetKey=self._coordinator.currentTargetKey,
+            coilKey=self._coordinator.activeCoilKey
+        )
+
+        self.session.samples.addSample(sample)
+
+        logger.info(f'Manually recorded a sample: {sample}')
 
     def _onSampleToTargetBtnClicked(self, _):
         raise NotImplementedError  # TODO
