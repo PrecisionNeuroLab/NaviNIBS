@@ -18,6 +18,7 @@ from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
+from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 
 
@@ -111,6 +112,7 @@ class SinglePlotterNavigationView(NavigationView):
                     TargetingCoilCrosshairsLayer,
                     TargetingTargetPointsLayer,
                     TargetingCoilPointsLayer,
+                    TargetingErrorLineLayer,
                     MeshSurfaceLayer):
             self._layerLibrary[cls.type] = cls
 
@@ -212,6 +214,8 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
         self.addLayer(type='TargetingTargetPoints', key='TargetPoints')
         self.addLayer(type='TargetingCoilPoints', key='CoilPoints')
+        self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target')
+        self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil')
         self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
 
 

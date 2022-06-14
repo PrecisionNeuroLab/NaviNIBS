@@ -11,6 +11,7 @@ from typing import ClassVar
 
 from . import PlotViewLayer
 from .PlotLayersGroup import PlotLayersGroup
+from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.TargetingCoordinator import ProjectionSpecification
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Transforms import applyTransform, concatenateTransforms, invertTransform, composeTransform
 
@@ -19,16 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 Transform = np.ndarray
-
-
-@attrs.define(frozen=True)
-class ProjectionSpecification:
-    """
-    Specifiers to describe projection of an orientation down the depth axis to a target plane (or sphere)
-    """
-    _toOrientation: str  # 'target' or 'coil'
-    _toDepth: str  # if toOrientation=='coil', can be one of ['coil', 'skin', 'gm']; if toOrientation=='target', can be ['coil', 'skin', 'gm', 'target']
-    _toShape: str  # 'sphere' or 'plane'
 
 
 @attrs.define(kw_only=True)
@@ -53,53 +44,7 @@ class TargetingPointLayer(PlotViewLayer):
         self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePosition']))
 
     def _getCoord(self, orientation: str, depth: tp.Union[str, ProjectionSpecification]) -> tp.Optional[np.ndarray]:
-        match depth:
-            case ProjectionSpecification():
-                raise NotImplementedError  # TODO
-            case 'coil':
-                match orientation:
-                    case 'target':
-                        if self._coordinator.currentTarget is None:
-                            coilCoord = None
-                        else:
-                            coilCoord = self._coordinator.currentTarget.entryCoordPlusDepthOffset
-                    case 'coil':
-                        transf = self._coordinator.currentCoilToMRITransform
-                        if transf is None:
-                            coilCoord = None
-                        else:
-                            coilCoord = applyTransform(transf, np.asarray([0, 0, 0]))
-                    case _:
-                        raise NotImplementedError
-                return coilCoord
-            case 'skin':
-                raise NotImplementedError  # TODO
-            case 'gm':
-                raise NotImplementedError  # TODO
-            case 'target':
-                match orientation:
-                    case 'target':
-                        if self._coordinator.currentTarget is None:
-                            targetCoord = None
-                        else:
-                            targetCoord = self._coordinator.currentTarget.targetCoord
-                    case 'coil':
-                        transf = self._coordinator.currentCoilToMRITransform
-                        if transf is None:
-                            targetCoord = None
-                        else:
-                            if self._coordinator.currentTarget is None:
-                                targetCoord = None
-                            else:
-                                targetCoord = applyTransform(
-                                    transf, np.asarray([0, 0, -np.linalg.norm(
-                                        self._coordinator.currentTarget.entryCoordPlusDepthOffset \
-                                        - self._coordinator.currentTarget.targetCoord)]))
-                    case _:
-                        raise NotImplementedError
-                return targetCoord
-            case _:
-                raise NotImplementedError
+        return self._coordinator.getTargetingCoord(orientation=orientation, depth=depth)
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)

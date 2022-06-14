@@ -24,7 +24,7 @@ from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
+from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
@@ -32,6 +32,16 @@ logger = logging.getLogger(__name__)
 
 
 Transform = np.ndarray
+
+
+@attrs.define(frozen=True)
+class ProjectionSpecification:
+    """
+    Specifiers to describe projection of an orientation down the depth axis to a target plane (or sphere)
+    """
+    _toOrientation: str  # 'target' or 'coil'
+    _toDepth: str  # if toOrientation=='coil', can be one of ['coil', 'skin', 'gm']; if toOrientation=='target', can be ['coil', 'skin', 'gm', 'target']
+    _toShape: str  # 'sphere' or 'plane'
 
 
 @attrs.define
@@ -149,3 +159,60 @@ class TargetingCoordinator:
             self._currentCoilToMRITransform = coilToMRITransform
 
         return self._currentCoilToMRITransform
+
+    def getTargetingCoord(self, orientation: str, depth: tp.Union[str, ProjectionSpecification]) -> tp.Optional[np.ndarray]:
+        """
+        Convenience function for getting a specific coordinate related to targeting orientations.
+
+        Abstracts some of the math needed for things like projecting the current coil orientation down the depth axis
+        to plane of target.
+
+        May return None if we are currently missing pose information for a tracker, etc.
+        """
+        match depth:
+            case ProjectionSpecification():
+                raise NotImplementedError  # TODO
+            case 'coil':
+                match orientation:
+                    case 'target':
+                        if self.currentTarget is None:
+                            coilCoord = None
+                        else:
+                            coilCoord = self.currentTarget.entryCoordPlusDepthOffset
+                    case 'coil':
+                        transf = self.currentCoilToMRITransform
+                        if transf is None:
+                            coilCoord = None
+                        else:
+                            coilCoord = applyTransform(transf, np.asarray([0, 0, 0]))
+                    case _:
+                        raise NotImplementedError
+                return coilCoord
+            case 'skin':
+                raise NotImplementedError  # TODO
+            case 'gm':
+                raise NotImplementedError  # TODO
+            case 'target':
+                match orientation:
+                    case 'target':
+                        if self.currentTarget is None:
+                            targetCoord = None
+                        else:
+                            targetCoord = self.currentTarget.targetCoord
+                    case 'coil':
+                        transf = self.currentCoilToMRITransform
+                        if transf is None:
+                            targetCoord = None
+                        else:
+                            if self.currentTarget is None:
+                                targetCoord = None
+                            else:
+                                targetCoord = applyTransform(
+                                    transf, np.asarray([0, 0, -np.linalg.norm(
+                                        self.currentTarget.entryCoordPlusDepthOffset \
+                                        - self.currentTarget.targetCoord)]))
+                    case _:
+                        raise NotImplementedError
+                return targetCoord
+            case _:
+                raise NotImplementedError
