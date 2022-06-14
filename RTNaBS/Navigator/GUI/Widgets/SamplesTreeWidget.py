@@ -112,7 +112,7 @@ class SamplesTreeWidget:
             for iT, (key, sample) in enumerate(self.session.samples.items()):
                 sampleItem = QtWidgets.QTreeWidgetItem([key, ''])
                 self._treeItems[key] = sampleItem
-                for field in ('sampleCoord', 'entryCoord', 'angle', 'depthOffset', 'coilToMRITransf'):
+                for field in ('timestamp', 'targetKey', 'coilKey', 'coilToMRITransf'):
                     with np.printoptions(precision=2):
                         fieldItem = QtWidgets.QTreeWidgetItem(sampleItem, [field, '{}'.format(getattr(sample, field))])
             self._treeWdgt.insertTopLevelItems(0, list(self._treeItems.values()))
