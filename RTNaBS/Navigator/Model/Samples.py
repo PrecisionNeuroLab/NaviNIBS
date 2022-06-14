@@ -3,7 +3,7 @@ from __future__ import annotations
 import attrs
 import datetime
 import logging
-import numfpy as np
+import numpy as np
 import pandas as pd
 from pprint import pformat
 import typing as tp
