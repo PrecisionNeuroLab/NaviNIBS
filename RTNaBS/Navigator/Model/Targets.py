@@ -23,7 +23,7 @@ from RTNaBS.util.attrs import attrsAsDict
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
+@attrs.define
 class Target:
     """
     Can specify (targetCoord, entryCoord, angle, [depthOffset]) to autogenerate coilToMRITransf,
@@ -136,21 +136,20 @@ class Target:
         return cls(**d)
 
 
-@attrs.define()
+@attrs.define
 class Targets:
     _targets: tp.Dict[str, Target] = attrs.field(factory=dict)
 
-    sigTargetsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))  # includes list of keys of targets about to change
+    sigTargetsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))
     """
-    This signal includes list of keys of keys of targets about to change, and optionally a list of keys of attributes about to change;  
+    This signal includes list of keys of targets about to change, and optionally a list of keys of attributes about to change;  
     if second arg is None, all attributes should be assumed to be about to change.
     """
     sigTargetsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))
     """
-    This signal includes list of keys of keys of changed targets, and optionally a list of keys of changed attributes;  
+    This signal includes list of keys of changed targets, and optionally a list of keys of changed attributes;  
     if second arg is None, all attributes should be assumed to have changed.
     """
-
 
     def __attrs_post_init__(self):
         for key, target in self._targets.items():

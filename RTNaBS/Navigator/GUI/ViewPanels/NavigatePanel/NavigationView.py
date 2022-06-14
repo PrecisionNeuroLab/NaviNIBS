@@ -84,7 +84,11 @@ class NavigationView:
 class SinglePlotterNavigationView(NavigationView):
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
-    _alignCameraTo: tp.Optional[str] = None  # None to use default camera perspective; 'target' to align camera space to target space, etc.
+    _alignCameraTo: tp.Optional[str] = None
+    """
+    None to use default camera perspective; 'target' to align camera space to target space, etc.
+    Can also specify 'target-Y' to look at from along typical coil handle axis, or 'TargetX' to look at from other direction
+    """
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)

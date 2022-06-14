@@ -24,6 +24,7 @@ from .NavigationView import NavigationView, TargetingCrosshairsView
 from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
+from RTNaBS.Navigator.GUI.Widgets.SamplesTreeWidget import SamplesTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.Model.Session import Session, Target
@@ -44,7 +45,7 @@ Transform = np.ndarray
 class NavigatePanel(MainViewPanel):
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
-    _samplesTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
+    _samplesTreeWdgt: SamplesTreeWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: tp.Dict[str, NavigationView] = attrs.field(init=False, factory=dict)
@@ -76,7 +77,7 @@ class NavigatePanel(MainViewPanel):
             session=self.session
         )
         self._targetsTreeWdgt.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
-        sidebar.layout().addWidget(self._targetsTreeWdgt.wdgt)
+        targetsBox.layout().addWidget(self._targetsTreeWdgt.wdgt)
 
         currentErrorBox = QtWidgets.QGroupBox('Current error')
         currentErrorBox.setLayout(QtWidgets.QVBoxLayout())
@@ -87,10 +88,23 @@ class NavigatePanel(MainViewPanel):
         samplesBox.setLayout(QtWidgets.QVBoxLayout())
         sidebar.layout().addWidget(samplesBox)
 
+        btn = QtWidgets.QPushButton('Add a sample')
+        btn.clicked.connect(self._onSampleBtnClicked)
+        samplesBox.layout().addWidget(btn)
+        self._sampleBtn = btn
+        # TODO: change color to warning indicator when coil or tracker are not visible
 
+        btn = QtWidgets.QPushButton('Convert sample to target')
+        btn.clicked.connect(self._onSampleToTargetBtnClicked)
+        samplesBox.layout().addWidget(btn)
+        self._sampleToTargetBtn = btn
+        # TODO: only enable when one or more samples are selected
 
-        self._samplesTblWdgt = QtWidgets.QTableWidget(0, 3)
-        self._samplesTblWdgt.setHorizontalHeaderLabels(['Sample', 'Target', 'Error'])
+        self._samplesTreeWdgt = SamplesTreeWidget(
+            session=self.session
+        )
+        self._samplesTreeWdgt.sigCurrentSampleChanged.connect(self._onCurrentSampleChanged)
+        samplesBox.layout().addWidget(self._samplesTreeWdgt.wdgt)
 
         self._viewsDock = DockArea()
         self._wdgt.layout().addWidget(self._viewsDock)
@@ -113,11 +127,13 @@ class NavigatePanel(MainViewPanel):
         self._hasInitialized = True
         self._trackingStatusWdgt.session = self.session
         self._coordinator = TargetingCoordinator(session=self._session,
-                                                 currentTargetKey=self._targetsTreeWdgt.currentTargetKey)
+                                                 currentTargetKey=self._targetsTreeWdgt.currentTargetKey,
+                                                 currentSampleKey=self._samplesTreeWdgt.currentSampleKey)
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))
+        self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
         self._targetsTreeWdgt.session = self._session
+        self._samplesTreeWdgt.session = self._session
         self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
-
 
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """
@@ -126,6 +142,20 @@ class NavigatePanel(MainViewPanel):
         if self._hasInitialized:
             self._coordinator.currentTargetKey = newTargetKey
             self._targetsTreeWdgt.currentTargetKey = newTargetKey
+
+    def _onCurrentSampleChanged(self, newSampleKey: str):
+        """
+        Called when sampleTreeWdgt selection or coordinator currentSample changes, NOT when attributes of currently selected sample change
+        """
+        if self._hasInitialized:
+            self._coordinator.currentSampleKey = newSampleKey
+            self._samplesTreeWdgt.currentSampleKey = newSampleKey
+
+    def _onSampleBtnClicked(self, _):
+        raise NotImplementedError  # TODO
+
+    def _onSampleToTargetBtnClicked(self, _):
+        raise NotImplementedError  # TODO
 
     def _initializeDefaultViews(self):
         if len(self._views) > 0:

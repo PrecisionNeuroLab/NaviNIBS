@@ -21,7 +21,7 @@ from typing import ClassVar
 
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
-from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target
+from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
@@ -38,22 +38,29 @@ Transform = np.ndarray
 class TargetingCoordinator:
     _session: Session
     _currentTargetKey: tp.Optional[str] = None
+    _currentSampleKey: tp.Optional[str] = None
     _positionsClient: ToolPositionsClient = attrs.field(factory=ToolPositionsClient)
     _activeCoilKey: tp.Optional[str] = None
 
     _currentCoilToMRITransform: tp.Optional[Transform] = attrs.field(init=False, default=None)  # relative to head tracker
 
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigCurrentSampleChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentCoilPositionChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentSubjectPositionChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._session.tools[self.activeCoilKey].sigToolChanged.connect(lambda _: self.sigCurrentCoilPositionChanged.emit())
+        self._session.targets.sigTargetsChanged.connect(self._onSessionTargetsChanged)
 
-    def _onSessionTargetsChanged(self, targetKeysChanged: tp.List[str]):
+    def _onSessionTargetsChanged(self, targetKeysChanged: tp.List[str], targetAttribsChanged: tp.Optional[tp.List[str]]):
         if self._currentTargetKey is not None and self._currentTargetKey in targetKeysChanged:
             self.sigCurrentTargetChanged.emit()
+
+    def _onSessionSamplesChanged(self, sampleKeysChanged: tp.List[str], sampleAttribsChanged: tp.Optional[tp.List[str]]):
+        if self._currentSampleKey is not None and self._currentSampleKey in sampleKeysChanged:
+            self.sigCurrentSampleChanged.emit()
 
     def _onLatestPositionsChanged(self):
         self._currentCoilToMRITransform = None  # clear any previously cached value
@@ -79,6 +86,24 @@ class TargetingCoordinator:
     def currentTarget(self) -> tp.Optional[Target]:
         if self.currentTargetKey is not None:
             return self._session.targets[self.currentTargetKey]
+        else:
+            return None
+
+    @property
+    def currentSampleKey(self):
+        return self._currentSampleKey
+
+    @currentSampleKey.setter
+    def currentSampleKey(self, newKey: tp.Optional[str]):
+        if self._currentSampleKey == newKey:
+            return
+        self._currentSampleKey = newKey
+        self.sigCurrentSampleChanged.emit()
+
+    @property
+    def currentSample(self) -> tp.Optional[Sample]:
+        if self.currentSampleKey is not None:
+            return self._session.samples[self.currentSampleKey]
         else:
             return None
 
