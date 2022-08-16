@@ -15,6 +15,8 @@ import shutil
 import typing as tp
 
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
+from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
@@ -29,10 +31,11 @@ from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegi
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
 from RTNaBS.util import exceptionToStr
 
+
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
+@attrs.define
 class NavigatorGUI(RunnableAsApp):
     _appName: str = 'RTNaBS Navigator GUI'
 
@@ -41,7 +44,10 @@ class NavigatorGUI(RunnableAsApp):
 
     _session: tp.Optional[Session] = None
 
-    _mainViewStackedWdgt: QtWidgets.QStackedWidget = attrs.field(init=False)
+    _Win: tp.Callable[..., MainWindowWithDocksAndCloseSignal] = attrs.field(init=False)
+    _win: MainWindowWithDocksAndCloseSignal = attrs.field(init=False)
+
+    _mainViewPanelDockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
     _toolbarWdgt: QtWidgets.QToolBar = attrs.field(init=False)
     _toolbarBtnActions: tp.Dict[str, QtWidgets.QAction] = attrs.field(init=False, factory=dict)
@@ -49,28 +55,24 @@ class NavigatorGUI(RunnableAsApp):
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
+        self._Win = lambda: MainWindowWithDocksAndCloseSignal(self._appName, options=dw.MainWindowOptions(hasCentralFrame=True))  # use our own main window instead of RunnableApp's for supporting docking
+
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
             self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='RTNaBS', appauthor=False), 'InProgressSessions')
 
-        rootWdgt = QtWidgets.QWidget()
-        rootWdgt.setLayout(QtWidgets.QVBoxLayout())
-        self._win.setCentralWidget(rootWdgt)
-
-        self._toolbarWdgt = QtWidgets.QToolBar()
-        self._toolbarWdgt.setToolButtonStyle(QtCore.Qt.ToolButtonTextUnderIcon)
-        rootWdgt.layout().addWidget(self._toolbarWdgt)
-
-        self._mainViewStackedWdgt = QtWidgets.QStackedWidget()
-        rootWdgt.layout().addWidget(self._mainViewStackedWdgt)
-
         def createViewPanel(key: str, panel: MainViewPanel, icon: tp.Optional[QtGui.QIcon]=None):
+            dockWidget = dw.DockWidget(key)
+            dockWidget.setWidget(panel.wdgt)
+            dockWidget.setIcon(icon)
+            self._mainViewPanelDockWidgets[key] = dockWidget
+            self._win.addDockWidgetAsTab(dockWidget)
             self._mainViewPanels[key] = panel
-            self._mainViewStackedWdgt.addWidget(panel.wdgt)
-            self._toolbarBtnActions[key] = self._toolbarWdgt.addAction(key) if icon is None else self._toolbarWdgt.addAction(icon, key)
-            self._toolbarBtnActions[key].setCheckable(True)
-            self._toolbarBtnActions[key].triggered.connect(lambda checked=False, key=key: self._activateView(viewKey=key))
+
+            #self._toolbarBtnActions[key] = self._toolbarWdgt.addAction(key) if icon is None else self._toolbarWdgt.addAction(icon, key)
+            #self._toolbarBtnActions[key].setCheckable(True)
+            #self._toolbarBtnActions[key].triggered.connect(lambda checked=False, key=key: self._activateView(viewKey=key))
 
         panel = ManageSessionPanel(session=self._session,
                                    inProgressBaseDir=self._inProgressBaseDir)
@@ -89,7 +91,7 @@ class NavigatorGUI(RunnableAsApp):
 
         createViewPanel('Set targets', TargetsPanel(session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
 
-        self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
+        #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
         createViewPanel('Tools', ToolsPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
 
@@ -97,7 +99,7 @@ class NavigatorGUI(RunnableAsApp):
 
         createViewPanel('Register', SubjectRegistrationPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
 
-        self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
+        #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
         createViewPanel('Navigate', NavigatePanel(session=self._session), icon=qta.icon('mdi6.head-flash'))
 
@@ -138,7 +140,13 @@ class NavigatorGUI(RunnableAsApp):
 
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
-        self._mainViewPanels['Manage session'].loadSession(sesFilepath=filepath)
+        logger.info(f'Loading session from {filepath}')
+        try:
+            self._mainViewPanels['Manage session'].loadSession(sesFilepath=filepath)
+        except Exception as e:
+            logger.error(exceptionToStr(e))
+            raise e
+        logger.debug('Done loading session')
 
     def _updateEnabledToolbarBtns(self):
 
@@ -163,8 +171,8 @@ class NavigatorGUI(RunnableAsApp):
                             if self._session.subjectRegistration.isRegistered:
                                 activeKeys += ['Navigate']
 
-        for key in activeKeys:
-            self._toolbarBtnActions[key].setEnabled(True)
+        #for key in activeKeys:
+        #    self._toolbarBtnActions[key].setEnabled(True)
 
         if self.activeViewKey not in activeKeys:
             fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
@@ -175,12 +183,14 @@ class NavigatorGUI(RunnableAsApp):
 
     @property
     def activeViewKey(self) -> str:
+        return list(self._mainViewPanels.keys())[0]
         viewWdgt = self._mainViewStackedWdgt.currentWidget()
         viewKeys = [key for key, val in self._mainViewPanels.items() if val.wdgt is viewWdgt]
         assert len(viewKeys) == 1
         return viewKeys[0]
 
     def _activateView(self, viewKey: str):
+        return  # TODO: debug, delete
         toolbarAction = self._toolbarBtnActions[viewKey]
         toolbarBtn = self._toolbarWdgt.widgetForAction(toolbarAction)
 

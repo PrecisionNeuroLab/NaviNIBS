@@ -19,7 +19,11 @@ class RunnableAsApp:
     _appLogEveryNLoops: tp.Optional[int] = None
 
     _app: QtGui.QGuiApplication = attr.ib(init=False)
-    _win: QMainWindowWithCloseSignal = attr.ib(init=False)
+    _Win: tp.Callable[..., QMainWindowWithCloseSignal] = attr.ib(default=QMainWindowWithCloseSignal)
+    """
+    Can specify Win to point to a different MainWindow class (e.g. for docking support)
+    """
+    _win: QMainWindowWithCloseSignal = attr.ib(init=False, default=None)
     _appWasClosed: bool = attr.ib(init=False, default=False)
 
     def __attrs_post_init__(self):
@@ -30,7 +34,7 @@ class RunnableAsApp:
 
             logger.debug('Initializing GUI window')
             self._app = pg.mkQApp(self._appName)
-            self._win = QMainWindowWithCloseSignal()
+            self._win = self._Win()
             self._win.setWindowTitle(self._appName)
             self._win.sigAboutToClose.connect(self._onAppAboutToQuit)
 
