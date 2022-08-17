@@ -15,6 +15,8 @@ import typing as tp
 
 from . import MainViewPanel
 from RTNaBS.util import exceptionToStr
+from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -25,12 +27,16 @@ logger = logging.getLogger(__name__)
 @attrs.define()
 class ManageSessionPanel(MainViewPanel):
 
+    _wdgt: MainWindowWithDocksAndCloseSignal = attrs.field(init=False)
+
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveAsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _fileGroup: QtWidgets.QGroupBox = attrs.field(init=False)
-    _infoGroup: QtWidgets.QGroupBox = attrs.field(init=False)
+    _fileDW: dw.DockWidget = attrs.field(init=False)
+    _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
+    _infoDW: dw.DockWidget = attrs.field(init=False)
+    _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
 
     sigLoadedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
@@ -39,12 +45,25 @@ class ManageSessionPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._wdgt.setLayout(QtWidgets.QHBoxLayout())
+        self._wdgt = MainWindowWithDocksAndCloseSignal(
+            uniqueName=self._key,
+            options=dw.MainWindowOptions()
+        )
+        self._wdgt.setAffinities([self._key])
 
-        container = QtWidgets.QGroupBox('File')
-        self._wdgt.layout().addWidget(container)
+        title = 'File'
+        cdw = dw.DockWidget(
+            uniqueName=self._key + title,
+            title=title,
+            affinities=[self._key])
+        # self._wdgt.addDockWidgetAsTab(cdw, location=dw.DockWidgetLocation.OnLeft)
+        self._fileDW = cdw
+        container = QtWidgets.QWidget()
+        self._fileContainer = container
         container.setLayout(QtWidgets.QVBoxLayout())
-        self._fileGroup = container
+        container.setMaximumWidth(300)
+        cdw.setWidget(container)
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
         btn.clicked.connect(lambda checked: self._createNewSession())
@@ -83,10 +102,17 @@ class ManageSessionPanel(MainViewPanel):
 
         container.layout().addStretch()
 
-        container = QtWidgets.QGroupBox('Info')
-        self._wdgt.layout().addWidget(container)
+        title = 'Info'
+        cdw = dw.DockWidget(
+            uniqueName=self._key + title,
+            title=title,
+            affinities=[self._key])
+        self._wdgt.addDockWidget(cdw, location=dw.DockWidgetLocation.OnRight)
+        self._infoDW = cdw
+        container = QtWidgets.QWidget()
+        self._infoContainer = container
+        cdw.setWidget(container)
         container.setLayout(QtWidgets.QFormLayout())
-        self._infoGroup = container
 
         wdgt = QtWidgets.QLineEdit()
         wdgt.textEdited.connect(lambda text, key='subjectID': self._onInfoTextEdited(key, text))
@@ -111,7 +137,7 @@ class ManageSessionPanel(MainViewPanel):
         return os.path.join(self._inProgressBaseDir, 'RTNaBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
-        for wdgt in (self._saveBtn, self._saveAsBtn, self._closeBtn, self._infoGroup):
+        for wdgt in (self._saveBtn, self._saveAsBtn, self._closeBtn, self._infoContainer):
             wdgt.setEnabled(self.session is not None)
 
     def _saveSession(self):
