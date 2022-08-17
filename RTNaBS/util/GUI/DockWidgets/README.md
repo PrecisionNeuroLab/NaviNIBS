@@ -12,9 +12,14 @@
   - Open VS Native Tools Command Prompt; run commands below from within this.
   - Launch cmake-gui from VS Native Tools prompt
   - Install Qt
-    - Make sure pyside6 version matches Qt version (e.g. 6.2.4) 
+    - Make sure pyside6 version matches Qt version (e.g. 6.2.4)
+  - Configure
   - Set environment variable `CMAKE_PREFIX_PATH=C:\Qt\6.3.1\msvc2019_64`
-  - Enable KDDDockWidgets_PYTHON_BINDINGS
+  - Enable KDDDockWidgetscm_PYTHON_BINDINGS
+  - Enable KDDockWidgetsQt6
   - Generate
-    
+- (From within VS Native Tools Command Prompt):
+  - cd to build dir
+  - run `ninja`
+  - run `ninja install`
 

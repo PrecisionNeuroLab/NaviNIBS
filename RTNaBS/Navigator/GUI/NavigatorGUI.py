@@ -62,10 +62,16 @@ class NavigatorGUI(RunnableAsApp):
         if self._inProgressBaseDir is None:
             self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='RTNaBS', appauthor=False), 'InProgressSessions')
 
-        def createViewPanel(key: str, panel: MainViewPanel, icon: tp.Optional[QtGui.QIcon]=None):
+        self._win.setAffinities(['MainViewPanel'])
+
+        def createViewPanel(panel: MainViewPanel, icon: tp.Optional[QtGui.QIcon]=None):
+            # contain view panel in another MainWindow to support nested docking of sub-panes
+            key = panel.key
             dockWidget = dw.DockWidget(key)
+            dockWidget.setAffinities(['MainViewPanel'])
             dockWidget.setWidget(panel.wdgt)
             dockWidget.setIcon(icon)
+
             self._mainViewPanelDockWidgets[key] = dockWidget
             self._win.addDockWidgetAsTab(dockWidget)
             self._mainViewPanels[key] = panel
@@ -74,34 +80,34 @@ class NavigatorGUI(RunnableAsApp):
             #self._toolbarBtnActions[key].setCheckable(True)
             #self._toolbarBtnActions[key].triggered.connect(lambda checked=False, key=key: self._activateView(viewKey=key))
 
-        panel = ManageSessionPanel(session=self._session,
+        panel = ManageSessionPanel(key='Manage session', session=self._session,
                                    inProgressBaseDir=self._inProgressBaseDir)
-        createViewPanel('Manage session', panel, icon=qta.icon('mdi6.form-select'))
+        createViewPanel(panel, icon=qta.icon('mdi6.form-select'))
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
-        createViewPanel('Set MRI', MRIPanel(session=self._session), icon=qta.icon('mdi6.image'))
+        createViewPanel(MRIPanel(key='Set MRI', session=self._session), icon=qta.icon('mdi6.image'))
 
-        createViewPanel('Set head model', HeadModelPanel(session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
+        createViewPanel(HeadModelPanel(key='Set head model', session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
 
-        createViewPanel('Plan fiducials', FiducialsPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
+        createViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
 
-        createViewPanel('Set transforms', MainViewPanel(session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
+        createViewPanel(MainViewPanel(key='Set transforms', session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
         # TODO: set up transforms widget
 
-        createViewPanel('Set targets', TargetsPanel(session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
+        createViewPanel(TargetsPanel(key='Set targets', session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        createViewPanel('Tools', ToolsPanel(session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
+        createViewPanel(ToolsPanel(key='Tools', session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
 
-        createViewPanel('Camera', CameraPanel(session=self._session), icon=qta.icon('mdi6.cctv'))
+        createViewPanel(CameraPanel(key='Camera', session=self._session), icon=qta.icon('mdi6.cctv'))
 
-        createViewPanel('Register', SubjectRegistrationPanel(session=self._session), icon=qta.icon('mdi6.head-snowflake'))
+        createViewPanel(SubjectRegistrationPanel(key='Register', session=self._session), icon=qta.icon('mdi6.head-snowflake'))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        createViewPanel('Navigate', NavigatePanel(session=self._session), icon=qta.icon('mdi6.head-flash'))
+        createViewPanel(NavigatePanel(key='Navigate', session=self._session), icon=qta.icon('mdi6.head-flash'))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...

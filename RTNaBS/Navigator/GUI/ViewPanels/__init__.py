@@ -6,6 +6,8 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from RTNaBS.Navigator.Model.Session import Session
+from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
 from RTNaBS.util.Signaler import Signal
 
 
@@ -14,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class MainViewPanel:
+    _key: str
     _session: tp.Optional[Session] = None
+
     _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
 
     _hasBeenActivated: bool = attrs.field(init=False, default=False)
@@ -26,6 +30,10 @@ class MainViewPanel:
     def __attrs_post_init__(self):
         self.sigPanelActivated.connect(self._onPanelActivated)
         self.sigPanelDeactivated.connect(self._onPanelDeactivated)
+
+    @property
+    def key(self):
+        return self._key
 
     @property
     def wdgt(self):
