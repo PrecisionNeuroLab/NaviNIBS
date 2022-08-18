@@ -54,9 +54,9 @@ class ManageSessionPanel(MainViewPanel):
         title = 'File'
         cdw = dw.DockWidget(
             uniqueName=self._key + title,
+            options=dw.DockWidgetOptions(notClosable=True),
             title=title,
             affinities=[self._key])
-        # self._wdgt.addDockWidgetAsTab(cdw, location=dw.DockWidgetLocation.OnLeft)
         self._fileDW = cdw
         container = QtWidgets.QWidget()
         self._fileContainer = container
@@ -105,6 +105,7 @@ class ManageSessionPanel(MainViewPanel):
         title = 'Info'
         cdw = dw.DockWidget(
             uniqueName=self._key + title,
+            options=dw.DockWidgetOptions(notClosable=True),
             title=title,
             affinities=[self._key])
         self._wdgt.addDockWidget(cdw, location=dw.DockWidgetLocation.OnRight)
