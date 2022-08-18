@@ -47,10 +47,7 @@ class NavigatorGUI(RunnableAsApp):
     _Win: tp.Callable[..., MainWindowWithDocksAndCloseSignal] = attrs.field(init=False)
     _win: MainWindowWithDocksAndCloseSignal = attrs.field(init=False)
 
-    _mainViewPanelDockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
-    _toolbarWdgt: QtWidgets.QToolBar = attrs.field(init=False)
-    _toolbarBtnActions: tp.Dict[str, QtWidgets.QAction] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
@@ -62,56 +59,44 @@ class NavigatorGUI(RunnableAsApp):
         if self._inProgressBaseDir is None:
             self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='RTNaBS', appauthor=False), 'InProgressSessions')
 
-        self._win.setAffinities(['MainViewPanel'])
+        self._win.setAffinities(['MainViewPanel'])  # only allow main view panels to dock in this window
 
-        def createViewPanel(panel: MainViewPanel, icon: tp.Optional[QtGui.QIcon]=None):
-            # contain view panel in another MainWindow to support nested docking of sub-panes
-            key = panel.key
-            dockWidget = dw.DockWidget(key)
-            dockWidget.setAffinities(['MainViewPanel'])
-            dockWidget.setWidget(panel.wdgt)
-            dockWidget.setIcon(icon)
+        def addViewPanel(panel: MainViewPanel) -> MainViewPanel:
+            self._win.addDockWidgetAsTab(panel.dockWdgt)
+            self._mainViewPanels[panel.key] = panel
+            return panel
 
-            self._mainViewPanelDockWidgets[key] = dockWidget
-            self._win.addDockWidgetAsTab(dockWidget)
-            self._mainViewPanels[key] = panel
-
-            #self._toolbarBtnActions[key] = self._toolbarWdgt.addAction(key) if icon is None else self._toolbarWdgt.addAction(icon, key)
-            #self._toolbarBtnActions[key].setCheckable(True)
-            #self._toolbarBtnActions[key].triggered.connect(lambda checked=False, key=key: self._activateView(viewKey=key))
-
-        panel = ManageSessionPanel(key='Manage session', session=self._session,
-                                   inProgressBaseDir=self._inProgressBaseDir)
-        createViewPanel(panel, icon=qta.icon('mdi6.form-select'))
+        panel = addViewPanel(ManageSessionPanel(key='Manage session', session=self._session,
+                                   inProgressBaseDir=self._inProgressBaseDir))
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
-        createViewPanel(MRIPanel(key='Set MRI', session=self._session), icon=qta.icon('mdi6.image'))
+        addViewPanel(MRIPanel(key='Set MRI', session=self._session))
 
-        createViewPanel(HeadModelPanel(key='Set head model', session=self._session), icon=qta.icon('mdi6.head-cog-outline'))
+        addViewPanel(HeadModelPanel(key='Set head model', session=self._session))
 
-        createViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session), icon=qta.icon('mdi6.head-snowflake-outline'))
+        addViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session))
 
-        createViewPanel(MainViewPanel(key='Set transforms', session=self._session), icon=qta.icon('mdi6.head-sync-outline'))
+        addViewPanel(MainViewPanel(key='Set transforms', session=self._session, icon=qta.icon('mdi6.head-sync-outline')))
         # TODO: set up transforms widget
 
-        createViewPanel(TargetsPanel(key='Set targets', session=self._session), icon=qta.icon('mdi6.head-flash-outline'))
+        addViewPanel(TargetsPanel(key='Set targets', session=self._session))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        createViewPanel(ToolsPanel(key='Tools', session=self._session), icon=qta.icon('mdi6.hammer-screwdriver'))
+        addViewPanel(ToolsPanel(key='Tools', session=self._session))
 
-        createViewPanel(CameraPanel(key='Camera', session=self._session), icon=qta.icon('mdi6.cctv'))
+        addViewPanel(CameraPanel(key='Camera', session=self._session))
 
-        createViewPanel(SubjectRegistrationPanel(key='Register', session=self._session), icon=qta.icon('mdi6.head-snowflake'))
+        addViewPanel(SubjectRegistrationPanel(key='Register', session=self._session))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        createViewPanel(NavigatePanel(key='Navigate', session=self._session), icon=qta.icon('mdi6.head-flash'))
+        addViewPanel(NavigatePanel(key='Navigate', session=self._session))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
-        self._updateEnabledToolbarBtns()
+        self._updateEnabledPanels()
         self._activateView('Manage session')
 
         if self._sesFilepath is not None:
@@ -127,18 +112,18 @@ class NavigatorGUI(RunnableAsApp):
         self._session = session
         for pane in self._mainViewPanels.values():
             pane.session = session
-        self._updateEnabledToolbarBtns()
-        session.MRI.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
-        session.headModel.sigFilepathChanged.connect(self._updateEnabledToolbarBtns)
-        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._updateEnabledToolbarBtns)
-        self.session.tools.sigToolsChanged.connect(lambda _: self._updateEnabledToolbarBtns())
+        self._updateEnabledPanels()
+        session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
+        session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
+        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._updateEnabledPanels)
+        self.session.tools.sigToolsChanged.connect(lambda _: self._updateEnabledPanels())
 
     def _onSessionClosed(self, prevSession: Session):
         logger.info('Closed session {}'.format(prevSession.filepath))
         self._session = None
         for pane in self._mainViewPanels.values():
             pane.session = None
-        self._updateEnabledToolbarBtns()
+        self._updateEnabledPanels()
 
     @property
     def session(self):
@@ -154,38 +139,18 @@ class NavigatorGUI(RunnableAsApp):
             raise e
         logger.debug('Done loading session')
 
-    def _updateEnabledToolbarBtns(self):
+    def _updateEnabledPanels(self):
 
-        for btn in self._toolbarBtnActions.values():
-            btn.setEnabled(False)
+        for key, panel in self._mainViewPanels.items():
+            if panel.canBeEnabled():
+                if panel.isVisible:
+                    if not panel.hasInitialized and not panel.isInitializing:
+                        panel.finishInitialization()
+            else:
+                panel.wdgt.setEnabled(False)
 
-        activeKeys = []
-
-        activeKeys.append('Manage session')
-
-        if self._session is not None:
-            activeKeys += ['Set MRI', 'Camera', 'Tools']
-            if self._session.MRI.isSet:
-                activeKeys += ['Set head model']
-                if self._session.headModel.isSet:
-                    activeKeys += ['Plan fiducials', 'Set transforms', 'Set targets']
-
-                    if self._session.tools.subjectTracker is not None and self._session.tools.pointer is not None:
-                        if self._session.subjectRegistration.hasMinimumPlannedFiducials:
-                            activeKeys += ['Register']
-
-                            if self._session.subjectRegistration.isRegistered:
-                                activeKeys += ['Navigate']
-
-        #for key in activeKeys:
-        #    self._toolbarBtnActions[key].setEnabled(True)
-
-        if self.activeViewKey not in activeKeys:
-            fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
-            changeToView = ''
-            while changeToView not in activeKeys:
-                changeToView = fallbackViews.pop()
-            self._activateView(changeToView)
+        # TODO: if we just disabled the only active view, change to a useful fallback view
+        fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
 
     @property
     def activeViewKey(self) -> str:
@@ -210,9 +175,9 @@ class NavigatorGUI(RunnableAsApp):
         logger.info('Switched to view "{}"'.format(viewKey))
 
         prevPanel = self._mainViewPanels[prevViewKey]
-        prevPanel.sigPanelDeactivated.emit()
+        prevPanel.sigPanelHidden.emit()
 
-        panel.sigPanelActivated.emit()
+        panel.sigPanelShown.emit()
 
 
 if __name__ == '__main__':

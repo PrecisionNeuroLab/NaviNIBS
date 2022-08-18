@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class SubjectRegistrationPanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake'))
     _surfKey: str = 'skinSurf'
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
@@ -143,8 +144,13 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._positionsClient = ToolPositionsClient()
         self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which=['pointerPosition', 'sampleBtns']))
 
-    def _onPanelActivated(self):
-        super()._onPanelActivated()
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
+            and self.session.tools.subjectTracker is not None and self.session.tools.pointer is not None \
+            and self.session.subjectRegistration.hasMinimumPlannedFiducials
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
         self._redraw(which='all')
 
     def _onSessionSet(self):
@@ -258,7 +264,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
-        if not self._isActivated:
+        if not self.isVisible:
             return
 
         logger.debug('redraw {}'.format(which))

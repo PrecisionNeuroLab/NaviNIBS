@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class MRIPanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.image'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, MRI3DView]] = attrs.field(init=False, factory=dict)
 
@@ -61,10 +62,13 @@ class MRIPanel(MainViewPanel):
 
             containerLayout.addWidget(self._views[key].wdgt, iRow, iCol)
 
-    def _onPanelActivated(self):
+    def canBeEnabled(self) -> bool:
+        return self.session is not None
+
+    def _finishInitialization(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
 
-        super()._onPanelActivated()
+        super()._finishInitialization()
 
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
@@ -83,7 +87,7 @@ class MRIPanel(MainViewPanel):
         self.session.sigInfoChanged.connect(self._updateRelativeToPath)
         self.session.MRI.sigFilepathChanged.connect(self._updateFilepath)
 
-        if self._hasBeenActivated:
+        if self._hasInitialized:
             for key, view in self._views.items():
                 view.session = self.session
 

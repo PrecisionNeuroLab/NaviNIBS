@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class FiducialsPanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake-outline'))
     _tblWdgt: QTableWidgetDragRows = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _surfKey: str = 'skinSurf'
@@ -90,10 +91,13 @@ class FiducialsPanel(MainViewPanel):
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
 
-    def _onPanelActivated(self):
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
+
+    def _finishInitialization(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
 
-        super()._onPanelActivated()
+        super()._finishInitialization()
 
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
@@ -112,7 +116,7 @@ class FiducialsPanel(MainViewPanel):
         self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._onPlannedFiducialsChanged)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
-        if self._hasBeenActivated:
+        if self._hasInitialized:
             for key, view in self._views.items():
                 view.session = self.session
 
@@ -165,7 +169,7 @@ class FiducialsPanel(MainViewPanel):
             if coord is not None:
                 coords[iFid, :] = coord
 
-        if self._hasBeenActivated:
+        if self._hasInitialized:
             for viewKey, view in self._views.items():
                 if viewKey == '3D':
                     self._fiducialActors[viewKey] = view.plotter.add_point_labels(

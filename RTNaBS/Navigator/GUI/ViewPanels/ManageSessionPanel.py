@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 class ManageSessionPanel(MainViewPanel):
 
     _wdgt: MainWindowWithDocksAndCloseSignal = attrs.field(init=False)
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.form-select'))
 
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -43,13 +44,13 @@ class ManageSessionPanel(MainViewPanel):
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
 
     def __attrs_post_init__(self):
-        super().__attrs_post_init__()
-
         self._wdgt = MainWindowWithDocksAndCloseSignal(
             uniqueName=self._key,
             options=dw.MainWindowOptions()
         )
         self._wdgt.setAffinities([self._key])
+
+        super().__attrs_post_init__()
 
         title = 'File'
         cdw = dw.DockWidget(

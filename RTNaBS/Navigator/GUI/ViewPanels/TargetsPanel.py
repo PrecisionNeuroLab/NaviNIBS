@@ -155,6 +155,7 @@ class VisualizedTarget:
 
 @attrs.define
 class TargetsPanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
     _treeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
@@ -219,6 +220,9 @@ class TargetsPanel(MainViewPanel):
 
         self._treeWdgt.sigCurrentTargetChanged.connect(self._gotoTarget)  # go to target immediately whenever selection changes
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
+
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
         if axis == 'x':
@@ -230,10 +234,10 @@ class TargetsPanel(MainViewPanel):
         else:
             raise NotImplementedError()
 
-    def _onPanelActivated(self):
+    def _finishInitialization(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
 
-        super()._onPanelActivated()
+        super()._finishInitialization()
 
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
@@ -254,7 +258,7 @@ class TargetsPanel(MainViewPanel):
         self.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
         self._treeWdgt.session = self.session
 
-        if self._hasBeenActivated:
+        if self._hasInitialized:
             for key, view in self._views.items():
                 view.session = self.session
 
@@ -276,7 +280,7 @@ class TargetsPanel(MainViewPanel):
                                                       '3D'].plotter.camera.position
 
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
-        if not self._hasBeenActivated:
+        if not self._hasInitialized:
             return
 
         logger.debug('Targets changed. Updating tree view and plots')
@@ -296,7 +300,7 @@ class TargetsPanel(MainViewPanel):
 
         else:
             # assume anything/everything changed, clear target and start over
-            if self._hasBeenActivated:
+            if self._hasInitialized:
                 # update views
                 for viewKey, view in self._views.items():
                     if changedTargetKeys is None:
