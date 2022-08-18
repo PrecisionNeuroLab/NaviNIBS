@@ -16,7 +16,7 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.util import exceptionToStr
 from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
+from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 @attrs.define()
 class ManageSessionPanel(MainViewPanel):
 
-    _wdgt: MainWindowWithDocksAndCloseSignal = attrs.field(init=False)
+    _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.form-select'))
 
     _inProgressBaseDir: tp.Optional[str] = None
@@ -44,10 +44,7 @@ class ManageSessionPanel(MainViewPanel):
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
 
     def __attrs_post_init__(self):
-        self._wdgt = MainWindowWithDocksAndCloseSignal(
-            uniqueName=self._key,
-            options=dw.MainWindowOptions()
-        )
+        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
         self._wdgt.setAffinities([self._key])
 
         super().__attrs_post_init__()
@@ -62,7 +59,7 @@ class ManageSessionPanel(MainViewPanel):
         container = QtWidgets.QWidget()
         self._fileContainer = container
         container.setLayout(QtWidgets.QVBoxLayout())
-        container.setMaximumWidth(300)
+        container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
         cdw.setWidget(container)
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
@@ -72,6 +69,10 @@ class ManageSessionPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-open'), text='Load session')
         btn.clicked.connect(lambda checked: self.loadSession())
+        container.layout().addWidget(btn)
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-plus-outline'), text='Augment session')
+        btn.clicked.connect(lambda checked: self.augmentSession())
         container.layout().addWidget(btn)
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
@@ -219,6 +220,9 @@ class ManageSessionPanel(MainViewPanel):
         except Exception as e:
             logger.error('Problem handling loaded session:\n{}'.format(exceptionToStr(e)))
             raise e
+
+    def augmentSession(self, sesFilepath: tp.Optional[str] = None):
+        raise NotImplementedError  # TODO
 
     def _recoverSession(self, sesDataDir: tp.Optional[str] = None):
         self._tryVerifyThenCloseSession()

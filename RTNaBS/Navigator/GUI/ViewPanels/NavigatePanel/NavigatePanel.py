@@ -30,6 +30,8 @@ from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidg
 from RTNaBS.Navigator.Model.Session import Session, Target
 from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
 from RTNaBS.Navigator.Model.Samples import Samples, Sample, getSampleTimestampNow
+from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
@@ -44,61 +46,85 @@ Transform = np.ndarray
 
 @attrs.define
 class NavigatePanel(MainViewPanel):
+    _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
+    _dockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _samplesTreeWdgt: SamplesTreeWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: tp.Dict[str, NavigationView] = attrs.field(init=False, factory=dict)
-    _viewsDock: DockArea = attrs.field(init=False)
 
     _coordinator: TargetingCoordinator = attrs.field(init=False)
 
     _hasInitialized: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
+        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
+        self._wdgt.setAffinities([self._key])
+
         super().__attrs_post_init__()
 
-        self._wdgt.setLayout(QtWidgets.QHBoxLayout())
+        def createDockWidget(title: str,
+                             widget: tp.Optional[QtWidgets.QWidget] = None,
+                             layout: tp.Optional[QtWidgets.QLayout] = None):
+            cdw = dw.DockWidget(
+                uniqueName=self._key + title,
+                options=dw.DockWidgetOptions(notClosable=True),
+                title=title,
+                affinities=[self._key]
+            )
+            if widget is None:
+                widget = QtWidgets.QWidget()
+            if layout is not None:
+                widget.setLayout(layout)
+            widget.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
+            cdw.setWidget(widget)
+            cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
+            self._dockWidgets[title] = cdw
+            return cdw, widget
 
-        sidebar = QtWidgets.QWidget()
-        sidebar.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
-        self._wdgt.layout().addWidget(sidebar)
-
+        cdw, container = createDockWidget(
+            title='Tools tracking status',
+        )
         self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
+                                                        wdgt=container,
                                                         hideToolTypes=[CalibrationPlate, Pointer])
-        sidebar.layout().addWidget(self._trackingStatusWdgt.wdgt)
-
-        targetsBox = QtWidgets.QGroupBox('Targets')
-        targetsBox.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.layout().addWidget(targetsBox)
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
         self._targetsTreeWdgt = TargetsTreeWidget(
             session=self.session
         )
         self._targetsTreeWdgt.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
-        targetsBox.layout().addWidget(self._targetsTreeWdgt.wdgt)
+        cdw, container = createDockWidget(
+            title='Targets',
+            widget=self._targetsTreeWdgt.wdgt
+        )
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
-        currentErrorBox = QtWidgets.QGroupBox('Current error')
-        currentErrorBox.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.layout().addWidget(currentErrorBox)
+        cdw, container = createDockWidget(
+            title='Current error',
+            layout=QtWidgets.QVBoxLayout(),
+        )
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+
         # TODO: create widgets in currentErrorBox providing feedback on current coil placement relative to active target
 
-        samplesBox = QtWidgets.QGroupBox('Samples')
-        samplesBox.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.layout().addWidget(samplesBox)
+        cdw, container = createDockWidget(
+            title='Samples',
+            layout=QtWidgets.QVBoxLayout())
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
         btn = QtWidgets.QPushButton('Add a sample')
         btn.clicked.connect(self._onSampleBtnClicked)
-        samplesBox.layout().addWidget(btn)
+        container.layout().addWidget(btn)
         self._sampleBtn = btn
         # TODO: change color to warning indicator when coil or tracker are not visible
 
         btn = QtWidgets.QPushButton('Convert sample to target')
         btn.clicked.connect(self._onSampleToTargetBtnClicked)
-        samplesBox.layout().addWidget(btn)
+        container.layout().addWidget(btn)
         self._sampleToTargetBtn = btn
         # TODO: only enable when one or more samples are selected
 
@@ -106,10 +132,7 @@ class NavigatePanel(MainViewPanel):
             session=self.session
         )
         self._samplesTreeWdgt.sigCurrentSampleChanged.connect(self._onCurrentSampleChanged)
-        samplesBox.layout().addWidget(self._samplesTreeWdgt.wdgt)
-
-        self._viewsDock = DockArea()
-        self._wdgt.layout().addWidget(self._viewsDock)
+        container.layout().addWidget(self._samplesTreeWdgt.wdgt)
 
     def canBeEnabled(self) -> bool:
         return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
@@ -206,9 +229,9 @@ class NavigatePanel(MainViewPanel):
         # TODO: maybe add optional code here to generate unique key using input as a base key
         assert key not in self._views
 
-        view = View(key=key, coordinator=self._coordinator, **kwargs)
+        view: NavigationView = View(key=key, dockKeyPrefix=self._key, coordinator=self._coordinator, **kwargs)
 
         assert view.key not in self._views
         self._views[view.key] = view
-        self._viewsDock.addDock(view.dock)
+        self._wdgt.addDockWidget(view.dock, location=dw.DockWidgetLocation.OnRight)
 
