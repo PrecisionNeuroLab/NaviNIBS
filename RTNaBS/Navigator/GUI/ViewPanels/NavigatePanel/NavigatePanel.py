@@ -44,6 +44,7 @@ Transform = np.ndarray
 
 @attrs.define
 class NavigatePanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _samplesTreeWdgt: SamplesTreeWidget = attrs.field(init=False)
@@ -110,8 +111,13 @@ class NavigatePanel(MainViewPanel):
         self._viewsDock = DockArea()
         self._wdgt.layout().addWidget(self._viewsDock)
 
-    def _onPanelActivated(self):
-        super()._onPanelActivated()
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
+               and self.session.tools.subjectTracker is not None \
+               and self.session.subjectRegistration.isRegistered
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
         if not self._hasInitialized:
             self._initializePanel()
 

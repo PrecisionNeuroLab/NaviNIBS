@@ -285,6 +285,7 @@ class CoilToolWidget(ToolWidget):
 
 @attrs.define
 class ToolsPanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.hammer-screwdriver'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _tblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
     _tblToolKeys: tp.List[str] = attrs.field(init=False, factory=list)
@@ -333,8 +334,11 @@ class ToolsPanel(MainViewPanel):
         self._tblWdgt.currentCellChanged.connect(self._onTblCurrentCellChanged)
         container.layout().addWidget(self._tblWdgt)
 
-    def _onPanelActivated(self):
-        super()._onPanelActivated()
+    def canBeEnabled(self) -> bool:
+        return self.session is not None
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
         self._onToolsChanged()
 
     def _onSessionSet(self):

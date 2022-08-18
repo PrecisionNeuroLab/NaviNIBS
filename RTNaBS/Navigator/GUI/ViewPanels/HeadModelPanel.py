@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class HeadModelPanel(MainViewPanel):
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-cog-outline'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
@@ -67,10 +68,13 @@ class HeadModelPanel(MainViewPanel):
 
             containerLayout.addWidget(self._views[key].wdgt, iRow, iCol)
 
-    def _onPanelActivated(self):
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet
+
+    def _finishInitialization(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)
 
-        super()._onPanelActivated()
+        super()._finishInitialization()
 
         for key, view in self._views.items():
             if view.session is None and self.session is not None:
@@ -90,7 +94,7 @@ class HeadModelPanel(MainViewPanel):
         self.session.headModel.sigFilepathChanged.connect(self._updateFilepath)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
-        if self._hasBeenActivated:
+        if self._hasInitialized:
             for key, view in self._views.items():
                 view.session = self.session
 

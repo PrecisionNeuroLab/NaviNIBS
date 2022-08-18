@@ -40,6 +40,8 @@ class CameraPanel(MainViewPanel):
     In the future, can update to have a more device-agnostic base class that is subclassed for specific localization systems
     """
 
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
+
     _cameraFOVSTLPath: str = None
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
@@ -99,8 +101,11 @@ class CameraPanel(MainViewPanel):
 
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
-    def _onPanelActivated(self):
-        super()._onPanelActivated()
+    def canBeEnabled(self) -> bool:
+        return self.session is not None
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
         self._onLatestPositionsChanged()
 
     def _onSessionSet(self):
@@ -136,7 +141,7 @@ class CameraPanel(MainViewPanel):
             self._btn_startStopServer.setText('Start server')
 
     def _onLatestPositionsChanged(self):
-        if not self._hasBeenActivated:
+        if not self._hasInitialized:
             return
 
         actorKey = 'cameraFOV'
