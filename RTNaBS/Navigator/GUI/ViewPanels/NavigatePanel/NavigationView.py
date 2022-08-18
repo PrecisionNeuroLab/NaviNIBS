@@ -7,7 +7,6 @@ import logging
 import numpy as np
 import pyvista as pv
 import pyvistaqt as pvqt
-from pyqtgraph.dockarea import DockArea, Dock
 import pytransform3d.rotations as ptr
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
@@ -20,8 +19,9 @@ from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform, composeTransform
 
+from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform, composeTransform
+import RTNaBS.util.GUI.DockWidgets as dw
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +35,19 @@ class NavigationView:
     _type: ClassVar[str]
     _coordinator: TargetingCoordinator
 
-    _dock: Dock = attrs.field(init=False)
+    _dockKeyPrefix: str = ''
+
+    _dock: dw.DockWidget = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
 
     _layers: tp.Dict[str, ViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
-        self._dock = Dock(name=self._key,
-                          autoOrientation=False,
-                          closable=True)
+        self._dock = dw.DockWidget(uniqueName=self._dockKeyPrefix + self._key, affinities=[self._dockKeyPrefix])
 
         self._wdgt = QtWidgets.QWidget()
-        self._dock.addWidget(self._wdgt)
+        self._dock.setWidget(self._wdgt)
 
         # TODO: add context menu to be able to change view type with right click on title bar (?)
 

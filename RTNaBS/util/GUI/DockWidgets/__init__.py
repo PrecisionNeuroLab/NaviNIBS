@@ -5,7 +5,6 @@ from PyKDDockWidgetsQt6 import KDDockWidgets
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
-
 logger = logging.getLogger(__name__)
 
 
