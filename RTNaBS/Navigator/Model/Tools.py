@@ -18,6 +18,7 @@ from typing import ClassVar
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.attrs import attrsAsDict
+from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort
 
 
 logger = logging.getLogger(__name__)
@@ -344,8 +345,46 @@ class CalibrationPlate(Tool):
 
 
 @attrs.define
+class ToolPositionsServerInfo:
+    _hostname: str = positionsServerHostname
+    _pubPort: int = positionsServerPubPort
+    _cmdPort: int = positionsServerCmdPort
+    _type: tp.Optional[str] = None
+
+    sigInfoChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))
+
+    @property
+    def hostname(self):
+        return self._hostname
+
+    @property
+    def pubPort(self):
+        return self._pubPort
+
+    @property
+    def cmdPort(self):
+        return self._cmdPort
+
+    @property
+    def type(self):
+        return self._type
+
+    @type.setter
+    def type(self, newType: tp.Optional[str]):
+        if newType == self._type:
+            return
+        self._type = newType
+        self.sigInfoChanged.emit(['type'])
+
+    def asDict(self) -> tp.Dict[str, tp.Any]:
+        return attrsAsDict(self)
+
+
+@attrs.define
 class Tools:
     _tools: tp.Dict[str, Tool] = attrs.field(factory=dict)
+
+    _positionsServerInfo: ToolPositionsServerInfo = attrs.field(factory=ToolPositionsServerInfo)
 
     _sessionPath: tp.Optional[str] = None  # used for relative paths
 
@@ -355,6 +394,8 @@ class Tools:
     sigToolsChanged: Signal = attrs.field(init=False, factory=lambda: Signal(
         (tp.List[str],)))
     """ includes list of keys of changed tools """
+    sigPositionsServerInfoChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))
+    """ includes list of keys of changed info attributes """
 
     def __attrs_post_init__(self):
         for key, tool in self._tools.items():
@@ -363,6 +404,7 @@ class Tools:
             tool.sigKeyChanged.connect(self._onToolKeyChanged)
             tool.sigUsedForChanged.connect(self._onToolUsedForChanged)
             tool.sigToolChanged.connect(self._onToolChanged)
+        self._positionsServerInfo.sigInfoChanged.connect(self.sigPositionsServerInfoChanged.emit)
 
     def addTool(self, tool: Tool):
         assert tool.key not in self._tools
@@ -448,6 +490,10 @@ class Tools:
                     calibrationPlate = tool
         return calibrationPlate
 
+    @property
+    def positionsServerInfo(self):
+        return self._positionsServerInfo
+
     def _getActiveToolKeys(self) -> tp.Dict[str, tp.Union[str, tp.List[str,...]]]:
         activeToolKeys = {}
         for key, tool in self._tools.items():
@@ -516,16 +562,29 @@ class Tools:
         self.sigToolsAboutToChange.emit()
 
     def asList(self) -> tp.List[tp.Dict[str, tp.Any]]:
-        return [tool.asDict() for tool in self._tools.values()]
+        toolList = [tool.asDict() for tool in self._tools.values()]
+        serverInfo = self._positionsServerInfo.asDict()
+        serverInfo['key'] = 'ToolPositionsServer'
+        toolList.append(serverInfo)
+        return toolList
 
     @classmethod
     def fromList(cls, toolList: tp.List[tp.Dict[str, tp.Any]], sessionPath: tp.Optional[str] = None) -> Tools:
 
         tools = {}
+        serverInfo = None
         for toolDict in toolList:
-            tools[toolDict['key']] = cls._toolFromDict(toolDict, sessionPath=sessionPath)
+            key = toolDict['key']
+            if key == 'ToolPositionsServer':
+                # this is not actually a tool dict, it is connection info for ToolPositionsServer
+                serverInfo = ToolPositionsServerInfo(**{key: val for key, val in toolDict.items() if key != 'key'})
+            else:
+                tools[key] = cls._toolFromDict(toolDict, sessionPath=sessionPath)
 
-        return cls(tools=tools, sessionPath=sessionPath)
+        if serverInfo is None:
+            serverInfo = ToolPositionsServerInfo()
+
+        return cls(tools=tools, sessionPath=sessionPath, positionsServerInfo=serverInfo)
 
     def _onToolUsedForChanged(self, key: str, fromUsedFor: str, toUsedFor: str):
 

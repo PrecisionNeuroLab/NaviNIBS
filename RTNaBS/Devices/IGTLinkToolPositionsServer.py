@@ -3,6 +3,8 @@ import attrs
 import logging
 import numpy as np
 import pyigtl
+import typing as tp
+from typing import ClassVar
 
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer, TimestampedToolPosition
 
@@ -19,6 +21,8 @@ class IGTLinkToolPositionsServer(ToolPositionsServer):
     It actually acts as a client connecting to a running Plus Server that is itself streaming tool positions.
     But this provides other clients a connection-agnostic async interface for receiving updates.
     """
+
+    _type: ClassVar[str] = 'IGTLink'
 
     _igtlHostname: str = '127.0.0.1'
     _igtlPort: int = 18944

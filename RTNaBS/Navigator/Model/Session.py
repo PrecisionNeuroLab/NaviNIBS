@@ -76,6 +76,7 @@ class Session:
         self.targets.sigTargetsChanged.connect(lambda targetKeys, attribKeys: self._dirtyKeys.add('targets'))
         self.samples.sigSamplesChanged.connect(lambda sampleTimestamps, attribKeys: self._dirtyKeys.add('samples'))
         self.tools.sigToolsChanged.connect(lambda toolKeys: self._dirtyKeys.add('tools'))
+        self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self._dirtyKeys.add('tools'))
 
         # TODO
 
