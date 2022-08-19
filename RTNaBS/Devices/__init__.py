@@ -3,8 +3,8 @@ import numpy as np
 import typing as tp
 
 positionsServerHostname = '127.0.0.1'
-positionsServerPort = 18950
-
+positionsServerPubPort = 18950
+positionsServerCmdPort = 18951
 
 @attrs.define
 class TimestampedToolPosition:

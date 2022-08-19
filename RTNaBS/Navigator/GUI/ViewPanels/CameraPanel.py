@@ -26,6 +26,8 @@ from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidg
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
+from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
@@ -48,7 +50,9 @@ class CameraPanel(MainViewPanel):
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
 
-    _btn_startStopServer: QtWidgets.QPushButton = attrs.field(init=False)
+    _serverTypeComboBox: QtWidgets.QComboBox = attrs.field(init=False)
+    _serverAddressEdit: QtWidgets.QLineEdit = attrs.field(init=False)
+    _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
@@ -64,6 +68,7 @@ class CameraPanel(MainViewPanel):
 
         sidebar = QtWidgets.QWidget()
         sidebar.setLayout(QtWidgets.QVBoxLayout())
+        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
         self._wdgt.layout().addWidget(sidebar)
 
         self._trackingStatusWdgt = TrackingStatusWidget(session=self._session)
@@ -77,18 +82,27 @@ class CameraPanel(MainViewPanel):
         # for now, assume plus server is launched separately with appropriate tool configs
 
         subContainer = QtWidgets.QGroupBox('Tool positions server')
-        subContainer.setLayout(QtWidgets.QVBoxLayout())
+        formLayout = QtWidgets.QFormLayout()
+        subContainer.setLayout(formLayout)
         container.layout().addWidget(subContainer)
+
+        self._serverTypeComboBox = QtWidgets.QComboBox()
+        self._serverTypeComboBox.addItems(['IGTLink', 'Simulated'])
+        formLayout.addRow('Server type', self._serverTypeComboBox)
+
+        self._serverAddressEdit = QtWidgets.QLineEdit()
+        formLayout.addRow('Server addr', self._serverAddressEdit)
 
         btn = QtWidgets.QPushButton('Start server')
         btn.clicked.connect(self._onStartStopServerClicked)
         subContainer.layout().addWidget(btn)
-        self._btn_startStopServer = btn
+        self._serverStartStopBtn = btn
 
         container.layout().addStretch()
 
         self._positionsClient = ToolPositionsClient()
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
 
         self._plotter = pvqt.BackgroundPlotter(
             show=False,
@@ -107,11 +121,19 @@ class CameraPanel(MainViewPanel):
     def _finishInitialization(self):
         super()._finishInitialization()
         self._onLatestPositionsChanged()
+        self._onClientIsConnectedChanged()
 
     def _onSessionSet(self):
         super()._onSessionSet()
         self._session.tools.sigToolsChanged.connect(self._onToolsChanged)
         self._trackingStatusWdgt.session = self.session
+
+        info = self.session.tools.positionsServerInfo
+        if info.type is None:
+            self._serverTypeComboBox.setCurrentIndex(-1)
+        else:
+            self._serverTypeComboBox.setCurrentText(info.type)
+        self._serverAddressEdit.setText(f'{info.hostname}:{info.pubPort},{info.cmdPort}')
 
     def _onToolsChanged(self, toolKeysChanged: tp.List[str]):
         didRemove = False
@@ -132,16 +154,31 @@ class CameraPanel(MainViewPanel):
             logger.info('Starting Positions server process')
             self._positionsServerProc = mp.Process(target=IGTLinkToolPositionsServer.createAndRun)
             self._positionsServerProc.start()
-            self._btn_startStopServer.setText('Stop server')
+            self._serverStartStopBtn.setText('Stop server')
         else:
             # stop server
             logger.info('Stopping Positions server process')
             self._positionsServerProc.kill()
             self._positionsServerProc = None
-            self._btn_startStopServer.setText('Start server')
+            self._serverStartStopBtn.setText('Start server')
+
+    def _onClientIsConnectedChanged(self):
+        if not self._hasInitialized and not self.isInitializing:
+            return
+
+        if self._positionsClient.isConnected:
+            self._serverStartStopBtn.setText('Stop server')
+
+            serverType = self._positionsClient.getServerType()
+
+            # TODO: maybe pop up a warning dialog here if old type does not match new server type,
+            #  since this will overwrite setting in session file
+            self.session.tools.positionsServerInfo.type = serverType
+        else:
+            self._serverStartStopBtn.setText('Start server')
 
     def _onLatestPositionsChanged(self):
-        if not self._hasInitialized:
+        if not self._hasInitialized and not self.isInitializing:
             return
 
         actorKey = 'cameraFOV'

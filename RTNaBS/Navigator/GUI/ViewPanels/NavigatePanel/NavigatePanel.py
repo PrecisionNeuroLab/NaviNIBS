@@ -23,7 +23,6 @@ from .. import MainViewPanel
 from .NavigationView import NavigationView, TargetingCrosshairsView
 from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.GUI.Widgets.SamplesTreeWidget import SamplesTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget

@@ -26,6 +26,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
+from RTNaBS.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
@@ -93,6 +94,10 @@ class NavigatorGUI(RunnableAsApp):
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
         addViewPanel(NavigatePanel(key='Navigate', session=self._session))
+
+
+        # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
+        addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...

@@ -20,7 +20,6 @@ import typing as tp
 from typing import ClassVar
 
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
