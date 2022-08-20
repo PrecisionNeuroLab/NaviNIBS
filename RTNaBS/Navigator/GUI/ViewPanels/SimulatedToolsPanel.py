@@ -11,6 +11,7 @@ import numpy as np
 import os
 import pathlib
 import pyvista as pv
+import pyvista._vtk as vtk
 import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
@@ -26,6 +27,7 @@ from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsCl
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
+from RTNaBS.util.pyvista.PlotInteraction import pickActor, interactivelyMoveActor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI import DockWidgets as dw
@@ -44,9 +46,6 @@ class SimulatedToolsPanel(MainViewPanel):
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _plotter: pvqt.QtInteractor = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
-
-    _lastMeshPicked: tp.Optional[pv.PolyData] = attrs.field(init=False, default=None)
-    _meshPickComplete: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _positionsClient: SimulatedToolPositionsClient = attrs.field(init=False)
 
@@ -204,23 +203,17 @@ class SimulatedToolsPanel(MainViewPanel):
         for key, tool in self.session.tools.items():
             self._positionsClient.setNewPosition(key=key, transf=np.eye(4))
 
-    def _onMeshPicked(self, mesh: pv.PolyData):
-        self._lastMeshPicked = mesh
-        self._meshPickComplete.set()
-
     async def selectAndMoveTool(self):
-        # start by enabling mesh picking
-        self._lastMeshPicked = None
-        self._meshPickComplete.clear()
-        self._plotter.enable_mesh_picking(callback=self._onMeshPicked,
-                                          show=True,
-                                          show_message='Left click on mesh to move',
-                                          style='wireframe',
-                                          left_clicking=True)
-        await self._meshPickComplete.wait()
+        # start by picking mesh to move
+        pickedActor = await pickActor(self._plotter,
+                                      show=True,
+                                      show_message='Left click on mesh to move',
+                                      style='wireframe',
+                                      left_clicking=True)
 
-        assert self._lastMeshPicked is not None
-        raise NotImplementedError  # TODO: continue here
+        await interactivelyMoveActor(plotter=self._plotter, actor=pickedActor)
+
+        #raise NotImplementedError  # TODO: continue here
 
 
     def selectToolToMove(self):
