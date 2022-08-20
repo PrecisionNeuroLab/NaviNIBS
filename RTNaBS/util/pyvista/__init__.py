@@ -11,6 +11,10 @@ def setActorUserTransform(actor: Actor, transf: np.ndarray):
     actor.SetUserTransform(t)
 
 
+def getActorUserTransform(actor: Actor) -> np.ndarray:
+    return pv.array_from_vtkmatrix(actor.GetUserTransform().GetMatrix())
+
+
 def addLineSegments(plotter: pv.BasePlotter, lines: pv.PolyData,
                     color='w', opacity=1., width=5,
                     reset_camera: bool = False,
