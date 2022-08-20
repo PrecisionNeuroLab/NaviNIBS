@@ -22,7 +22,8 @@ class SimulatedToolPositionsServer(ToolPositionsServer):
 
     async def run(self):
         while True:
-            await asyncio.sleep(10.)
+            self._publishPending.set()  # publish occasionally even if no updates to send updates to new listeners
+            await asyncio.sleep(1.)
 
     async def setNewPosition(self, key: str, transf: tp.Optional[tp.Union[list[list[float, ...], ...], np.ndarray]]):
         if isinstance(transf, list):
