@@ -87,6 +87,9 @@ class NavigatorGUI(RunnableAsApp):
 
         addViewPanel(ToolsPanel(key='Tools', session=self._session))
 
+        # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
+        addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
+
         addViewPanel(CameraPanel(key='Camera', session=self._session))
 
         addViewPanel(SubjectRegistrationPanel(key='Register', session=self._session))
@@ -96,8 +99,7 @@ class NavigatorGUI(RunnableAsApp):
         addViewPanel(NavigatePanel(key='Navigate', session=self._session))
 
 
-        # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
-        addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
+
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...

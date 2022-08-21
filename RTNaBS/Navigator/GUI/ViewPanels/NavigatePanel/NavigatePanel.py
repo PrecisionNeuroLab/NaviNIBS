@@ -78,7 +78,7 @@ class NavigatePanel(MainViewPanel):
                 widget = QtWidgets.QWidget()
             if layout is not None:
                 widget.setLayout(layout)
-            widget.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
+            widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.MinimumExpanding)
             cdw.setWidget(widget)
             cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
             self._dockWidgets[title] = cdw
