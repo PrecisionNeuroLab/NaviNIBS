@@ -21,6 +21,7 @@ from RTNaBS.Navigator.Model.Targets import Targets, Target
 from RTNaBS.Navigator.Model.Samples import Samples, Sample
 from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
 from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
+from RTNaBS.Navigator.Model.Addons import Addons, Addon
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish
 
@@ -45,6 +46,7 @@ class Session:
     _targets: Targets = attrs.field(factory=Targets)
     _tools: Tools = attrs.field(default=None)
     _samples: Samples = attrs.field(factory=Samples)
+    _addons: Addons = attrs.field(factory=Addons)
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)
     _compressedFileIsDirty: bool = True
@@ -77,6 +79,7 @@ class Session:
         self.samples.sigSamplesChanged.connect(lambda sampleTimestamps, attribKeys: self._dirtyKeys.add('samples'))
         self.tools.sigToolsChanged.connect(lambda toolKeys: self._dirtyKeys.add('tools'))
         self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self._dirtyKeys.add('tools'))
+        self.addons.sigAddonsChanged.connect(lambda addonKeys, attribKeys: self._dirtyKeys.add('addons'))
 
         # TODO
 
@@ -134,6 +137,10 @@ class Session:
     @property
     def tools(self):
         return self._tools
+
+    @property
+    def addons(self):
+        return self._addons
 
     @property
     def compressedFileIsDirty(self):
@@ -208,6 +215,13 @@ class Session:
             logger.debug('Writing tools info')
             config['tools'] = self.tools.asList()
             keysToSave.remove('tools')
+
+        # TODO: loop through any addons to give them a chance to save to config as needed
+
+        if 'addons' in keysToSave:
+            logger.debug('Writing addons info')
+            config['addons'] = self.addons.asList()
+            keysToSave.remove('addons')
 
         # TODO: save other fields
         assert len(keysToSave) == 0
@@ -307,6 +321,11 @@ class Session:
 
         if 'tools' in config:
             kwargs['tools'] = Tools.fromList(config['tools'], sessionPath=otherPathsRelTo)
+
+        if 'addons' in config:
+            kwargs['addons'] = Addons.fromList(config['addons'])
+
+        # TODO: loop through any addons to give them a chance to load from unpacked dir as needed
 
         # TODO: load other available fields
 
