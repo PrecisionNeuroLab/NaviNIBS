@@ -49,6 +49,8 @@ class NavigationView:
         self._wdgt = QtWidgets.QWidget()
         self._dock.setWidget(self._wdgt)
 
+        self._wdgt.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+
         # TODO: add context menu to be able to change view type with right click on title bar (?)
 
     def addLayer(self, key: str, type: str, **kwargs):
