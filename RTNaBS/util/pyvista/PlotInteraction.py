@@ -149,59 +149,54 @@ async def pickActor(plotter: pv.Plotter,
     return pickedActor
 
 
-async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor):
+async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor, onNewTransf: tp.Callable[[_vtk.vtkTransform], None]):
     from vtkmodules.vtkInteractionWidgets import (
-        vtkFixedSizeHandleRepresentation3D,
-        vtkBoxRepresentation,
-        vtkAngleRepresentation3D,
-        vtkPointHandleRepresentation3D,
         vtkBoxWidget2,
-        vtkHandleWidget,
-        vtkAngleWidget,
-        vtkAffineWidget
     )
 
-    actorBounds = np.asarray(actor.GetBounds()).reshape([3, 2])
-    actorOrigin = Transforms.applyTransform(getActorUserTransform(actor), np.zeros((3,)))
-
-
+    wdgt = vtkBoxWidget2()
+    wdgt.CreateDefaultRepresentation()
+    wdgt.SetInteractor(plotter.iren.interactor)
+    wdgt.SetCurrentRenderer(plotter.renderer)
+    wdgt.SetScalingEnabled(False)
+    wdgt.SetMoveFacesEnabled(False)
+    handleRep = wdgt.GetRepresentation()
+    handleRep.SetPlaceFactor(1.)
     if True:
-        wdgt = vtkBoxWidget2()
-        wdgt.CreateDefaultRepresentation()
-        wdgt.SetInteractor(plotter.iren.interactor)
-        wdgt.SetCurrentRenderer(plotter.renderer)
-        wdgt.SetScalingEnabled(False)
-        handleRep = wdgt.GetRepresentation()
-        handleRep.PlaceWidget(actor.GetBounds())
-        handleRep.SetTransform(actor.GetUserTransform())
-        handleRep.SetOutlineFaceWires(True)
-        handleRep.SetSnapToAxes(True)  # TODO: debug, delete
-        wdgt.On()
-
-    elif True:
-        wdgt = _vtk.vtkBoxWidget()
-        wdgt.SetInteractor(plotter.iren.interactor)
-        wdgt.SetCurrentRenderer(plotter.renderer)
-        wdgt.SetRotationEnabled(True)
-        wdgt.SetTranslationEnabled(True)
-        wdgt.SetScalingEnabled(False)
-        wdgt.PlaceWidget(actor.GetBounds())
-        wdgt.SetTransform(actor.GetUserTransform())
-        wdgt.On()
+        # temporarily reset transform to get bounds of actor in local space
+        # TODO: do this with some other bounding box calculation rather than resetting transform
+        actorTransf = actor.GetUserTransform()
+        actor.SetUserTransform(_vtk.vtkTransform())
+        localActorBounds = actor.GetBounds()
+        actor.SetUserTransform(actorTransf)
+        handleRep.PlaceWidget(localActorBounds)
+        handleRep.SetTransform(actorTransf)
     else:
-        handleWdgt = vtkHandleWidget()
-        handleWdgt.SetInteractor(plotter.iren.interactor)
-        handleWdgt.CreateDefaultRepresentation()
-        handleWdgt.SetCurrentRenderer(plotter.renderer)
-        handleRep: vtkPointHandleRepresentation3D = handleWdgt.GetHandleRepresentation()
-        handleRep.SetWorldPosition(actorOrigin)
-        handleRep.SetHandleSize(np.mean(actorBounds[:, 1] - actorBounds[:, 0]))
-        handleWdgt.On()
+        handleRep.PlaceWidget(actor.GetBounds())
+    #handleRep.SetOutlineFaceWires(True)
+    handleRep.SetSnapToAxes(True)  # TODO: debug, delete
+    wdgt.On()
+
+    newTransfPending = asyncio.Event()
+    newestTransf: tp.Optional[_vtk.vtkTransform] = None
+
+    async def publishNewPosition():
+        while True:
+            await newTransfPending.wait()
+            newTransfPending.clear()
+            assert newestTransf is not None
+            onNewTransf(newestTransf)
+            await asyncio.sleep(0.1)  # don't publish updates more frequently than this
+
+    publishTask = asyncio.create_task(publishNewPosition())
 
     def interactionCallback(obj, event_type):
+        nonlocal newestTransf
         transform = _vtk.vtkTransform()
         handleRep.GetTransform(transform)
         actor.SetUserTransform(transform)  # TODO: debug, delete
+        newestTransf = transform
+        newTransfPending.set()
 
     # evtIDStr = _vtk.vtkCommand.GetStringFromEventId(_vtk.vtkCommand.GetEventIdFromString('InteractionEvent'))
     # logger.debug(f'evtIDStr: {evtIDStr}')
@@ -212,5 +207,7 @@ async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor):
         while True:
             await asyncio.sleep(1.)
 
+    publishTask.cancel()
+    # TODO: other clean-up
 
 

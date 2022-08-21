@@ -211,7 +211,29 @@ class SimulatedToolsPanel(MainViewPanel):
                                       style='wireframe',
                                       left_clicking=True)
 
-        await interactivelyMoveActor(plotter=self._plotter, actor=pickedActor)
+        pickedKey = [actorKey for actorKey, actor in self._actors.items() if actor is pickedActor][0]
+        if pickedKey.endswith('_tracker'):
+            pickedTool = self.session.tools[pickedKey[:-len('_tracker')]]
+        elif pickedKey.endswith('_tool'):
+            pickedTool = self.session.tools[pickedKey[:-len('_tool')]]
+        else:
+            raise NotImplementedError
+        logger.info(f'Picked actor {pickedKey} ({pickedTool.key}) to move')
+
+        # move
+        def onNewTransf(transf: vtk.vtkTransform):
+            prevTransf = pickedActor.GetUserTransform()
+
+            # back out any tool-specific transforms and send updated transf to simulated tool position server
+            transf = pv.array_from_vtkmatrix(transf.GetMatrix())
+            if pickedKey.endswith('_tool'):
+                # transf = trackerToWorldTransf @ toolToTrackerTransf @ toolStlToToolTransf
+                newTrackerToWorldTransf = transf @ invertTransform(pickedTool.toolToTrackerTransf @ pickedTool.toolStlToToolTransf)
+                self._positionsClient.setNewPosition(key=pickedTool.key, transf=newTrackerToWorldTransf)
+            else:
+                raise NotImplementedError(f'Support for moving {pickedKey} not yet implemented')
+
+        await interactivelyMoveActor(plotter=self._plotter, actor=pickedActor, onNewTransf=onNewTransf)
 
         #raise NotImplementedError  # TODO: continue here
 
