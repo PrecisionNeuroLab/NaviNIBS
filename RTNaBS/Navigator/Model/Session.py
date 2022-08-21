@@ -23,6 +23,7 @@ from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
 from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
 from RTNaBS.Navigator.Model.Addons import Addons, Addon
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.json import jsonPrettyDumps
 from RTNaBS.util.numpy import array_equalish
 
 
@@ -153,6 +154,21 @@ class Session:
         else:
             return self._unpackedSessionDir
 
+    @unpackedSessionDir.setter
+    def unpackedSessionDir(self, newUnpackedSessionDir: str):
+        if newUnpackedSessionDir == self.unpackedSessionDir:
+            # no change
+            return
+
+        # rather than just changing directory and resaving, copy contents of entire previous directory
+        #  (to make sure we bring any dependencies like session-specific images with us)
+        logger.info('Copying contents of previous session dir to new location')
+        shutil.copytree(self.unpackedSessionDir, newUnpackedSessionDir, dirs_exist_ok=True)
+        # note that any existing files in new folder that don't also exist in old folder will remain in place (not be deleted)
+        logger.debug('Done copying')
+
+        self._unpackedSessionDir = newUnpackedSessionDir
+
     def saveToUnpackedDir(self, saveDirtyOnly: bool = True):
 
         keysToSave = self._dirtyKeys.copy()
@@ -227,13 +243,21 @@ class Session:
         assert len(keysToSave) == 0
 
         with open(configPath, 'w') as f:
-            json.dump(config, f)
+            if False:
+                json.dump(config, f)
+            else:
+                f.write(jsonPrettyDumps(config))
             logger.debug('Wrote updated session config')
 
         self._dirtyKeys.clear()
 
     def saveToFile(self):
         self.saveToUnpackedDir()
+        if self._filepath == self._unpackedSessionDir:
+            # original session file was already an unpacked dir, don't need to compress now
+            logger.info('Saving to unpacked session dir only, skipping save of compressed session file.')
+            return
+
         if not self._compressedFileIsDirty:
             logger.warning('Nothing to save')
             return
