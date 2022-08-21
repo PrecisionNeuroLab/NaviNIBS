@@ -32,7 +32,8 @@ class ManageSessionPanel(MainViewPanel):
 
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _saveAsBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _saveToDirBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _fileDW: dw.DockWidget = attrs.field(init=False)
     _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
@@ -90,10 +91,15 @@ class ManageSessionPanel(MainViewPanel):
         container.layout().addWidget(btn)
         self._saveBtn = btn
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit'), text='Save session as...')
-        btn.clicked.connect(lambda checked: self._saveSessionAs())
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit-outline'), text='Save session to dir...')
+        btn.clicked.connect(lambda checked: self._saveSessionToDir())
         container.layout().addWidget(btn)
-        self._saveAsBtn = btn
+        self._saveToDirBtn = btn
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit'), text='Save session to file...')
+        btn.clicked.connect(lambda checked: self._saveSessionToFile())
+        container.layout().addWidget(btn)
+        self._saveToFileBtn = btn
 
         container.layout().addSpacing(10)
 
@@ -140,24 +146,38 @@ class ManageSessionPanel(MainViewPanel):
         return os.path.join(self._inProgressBaseDir, 'RTNaBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
-        for wdgt in (self._saveBtn, self._saveAsBtn, self._closeBtn, self._infoContainer):
+        for wdgt in (self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer):
             wdgt.setEnabled(self.session is not None)
 
     def _saveSession(self):
         self.session.saveToFile()
 
-    def _saveSessionAs(self, sesFilepath: tp.Optional[str] = None):
+    def _saveSessionToFile(self, sesFilepath: tp.Optional[str] = None):
         if sesFilepath is None:
             prevFilepath = self.session.filepath
             sesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
-                                                                   'Save session file',
+                                                                   'Save session to file',
                                                                    prevFilepath,
                                                                    'Session file (*.rtnabs)')
             if len(sesFilepath) == 0:
-                logger.info('Browse save session cancelled')
+                logger.info('Browse save session file cancelled')
                 return
         logger.info('New session filepath: {}'.format(sesFilepath))
         self.session.filepath = sesFilepath
+        self._saveSession()
+
+    def _saveSessionToDir(self, sesFilepath: tp.Optional[str] = None):
+        if sesFilepath is None:
+            prevFilepath = self.session.filepath
+            sesFilepath = QtWidgets.QFileDialog.getExistingDirectory(self._wdgt,
+                                                                   'Save session to dir',
+                                                                   prevFilepath)
+            if len(sesFilepath) == 0:
+                logger.info('Browse save session dir cancelled')
+                return
+        logger.info('New session filepath: {}'.format(sesFilepath))
+        self.session.filepath = sesFilepath
+        self.session.unpackedSessionDir = sesFilepath  # this will trigger copy to new destination
         self._saveSession()
 
     def _closeSession(self):
@@ -209,7 +229,12 @@ class ManageSessionPanel(MainViewPanel):
         logger.info('Load session filepath: {}'.format(sesFilepath))
 
         try:
-            session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+            if os.path.isdir(sesFilepath):
+                # treat as already-unpacked session dir
+                session = Session.loadFromUnpackedDir(unpackedSessionDir=sesFilepath, filepath=sesFilepath)
+            else:
+                # treat as compressed file
+                session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
         except Exception as e:
             logger.warning('Problem loading session from {}:\n{}'.format(sesFilepath, exceptionToStr(e)))
             return
