@@ -29,6 +29,7 @@ from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class CameraPanel(MainViewPanel):
     _serverAddressEdit: QtWidgets.QLineEdit = attrs.field(init=False)
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
-    _plotter: pvqt.QtInteractor = attrs.field(init=False)
+    _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
     _ignoredKeys: tp.List[str] = attrs.field(init=False, factory=list)
 
@@ -104,7 +105,7 @@ class CameraPanel(MainViewPanel):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
 
-        self._plotter = pvqt.BackgroundPlotter(
+        self._plotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )

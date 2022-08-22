@@ -28,6 +28,7 @@ from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     _sampleFiducialBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _alignToFiducialsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _plotter: pvqt.QtInteractor = attrs.field(init=False)
+    _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
 
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
@@ -134,7 +135,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         sidebar.layout().addStretch()
 
-        self._plotter = pvqt.BackgroundPlotter(
+        self._plotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )

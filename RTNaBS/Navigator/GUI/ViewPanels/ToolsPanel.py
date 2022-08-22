@@ -29,7 +29,7 @@ from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
-
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ class ToolWidget:
     _toolToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _toolStlToToolTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
-    _toolSpacePlotter: pvqt.QtInteractor = attrs.field(init=False)
-    _trackerSpacePlotter: pvqt.QtInteractor = attrs.field(init=False)
+    _toolSpacePlotter: BackgroundPlotter = attrs.field(init=False)
+    _trackerSpacePlotter: BackgroundPlotter = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         self._wdgt = QtWidgets.QGroupBox('Selected tool: {}'.format(self._tool.key))
@@ -133,7 +133,7 @@ class ToolWidget:
         plotContainer.setLayout(QtWidgets.QHBoxLayout())
         self._wdgt.layout().addWidget(plotContainer)
 
-        self._toolSpacePlotter = pvqt.BackgroundPlotter(
+        self._toolSpacePlotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )
@@ -143,7 +143,7 @@ class ToolWidget:
         plotterContainer.layout().addWidget(self._toolSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        self._trackerSpacePlotter = pvqt.BackgroundPlotter(
+        self._trackerSpacePlotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )

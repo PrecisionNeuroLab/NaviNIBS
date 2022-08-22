@@ -10,7 +10,7 @@ from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import composeTransform, applyTransform
-
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class MRISliceView:
 
     _slicePlotMethod: str = 'cameraClippedVolume'
 
-    _plotter: pvqt.QtInteractor = attrs.field(init=False)
+    _plotter: BackgroundPlotter = attrs.field(init=False)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
 
@@ -40,7 +40,7 @@ class MRISliceView:
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 
-        self._plotter = pvqt.BackgroundPlotter(
+        self._plotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )
