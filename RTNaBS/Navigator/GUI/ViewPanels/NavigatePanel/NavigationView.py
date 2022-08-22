@@ -16,6 +16,7 @@ from typing import ClassVar
 from .TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
+from .ViewLayers.SampleOrientationsLayer import SampleOrientationsLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
@@ -111,12 +112,15 @@ class SinglePlotterNavigationView(NavigationView):
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
         self._layerLibrary = {}
-        for cls in (TargetingTargetCrosshairsLayer,
+        for cls in (
+                    MeshSurfaceLayer,
+                    SampleOrientationsLayer,
+                    TargetingTargetCrosshairsLayer,
                     TargetingCoilCrosshairsLayer,
                     TargetingTargetPointsLayer,
                     TargetingCoilPointsLayer,
                     TargetingErrorLineLayer,
-                    MeshSurfaceLayer):
+                    ):
             self._layerLibrary[cls.type] = cls
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
@@ -230,8 +234,6 @@ class SinglePlotterNavigationView(NavigationView):
             raise NotImplementedError
 
 
-
-
 @attrs.define
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
@@ -242,6 +244,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         self.addLayer(type='TargetingTargetCrosshairs', key='Target')
         self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
+        self.addLayer(type='SampleOrientations', key='Samples')
         self.addLayer(type='TargetingTargetPoints', key='TargetPoints')
         self.addLayer(type='TargetingCoilPoints', key='CoilPoints')
         self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target')
