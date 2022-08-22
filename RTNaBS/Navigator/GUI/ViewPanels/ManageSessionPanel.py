@@ -30,6 +30,8 @@ class ManageSessionPanel(MainViewPanel):
     _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.form-select'))
 
+    _autosavePeriod: float = 60  # in sec
+
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -40,6 +42,7 @@ class ManageSessionPanel(MainViewPanel):
     _infoDW: dw.DockWidget = attrs.field(init=False)
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
+    _autosaveTask: asyncio.Task = attrs.field(init=False)
 
     sigLoadedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
@@ -87,7 +90,7 @@ class ManageSessionPanel(MainViewPanel):
         container.layout().addSpacing(10)
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save session')
-        btn.clicked.connect(lambda checked: self._saveSession())
+        btn.clicked.connect(self._onSaveSessionBtnClicked)
         container.layout().addWidget(btn)
         self._saveBtn = btn
 
@@ -136,6 +139,8 @@ class ManageSessionPanel(MainViewPanel):
 
         self._updateEnabledWdgts()
 
+        self._autosaveTask = asyncio.create_task(self._autosaveOccasionally())
+
     def _onSessionSet(self):
         self._updateEnabledWdgts()
         if self.session is not None:
@@ -149,8 +154,12 @@ class ManageSessionPanel(MainViewPanel):
         for wdgt in (self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer):
             wdgt.setEnabled(self.session is not None)
 
-    def _saveSession(self):
-        self.session.saveToFile()
+    def _onSaveSessionBtnClicked(self, checked: bool):
+        # if 'alt' modifier is pressed during click, then force save all (ignoring dirty flags)
+        if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier:
+            self.session.saveToFile(updateDirtyOnly=False)
+        else:
+            self.session.saveToFile()
 
     def _saveSessionToFile(self, sesFilepath: tp.Optional[str] = None):
         if sesFilepath is None:
@@ -164,7 +173,7 @@ class ManageSessionPanel(MainViewPanel):
                 return
         logger.info('New session filepath: {}'.format(sesFilepath))
         self.session.filepath = sesFilepath
-        self._saveSession()
+        self.session.saveToFile()
 
     def _saveSessionToDir(self, sesFilepath: tp.Optional[str] = None):
         if sesFilepath is None:
@@ -178,7 +187,7 @@ class ManageSessionPanel(MainViewPanel):
         logger.info('New session filepath: {}'.format(sesFilepath))
         self.session.filepath = sesFilepath
         self.session.unpackedSessionDir = sesFilepath  # this will trigger copy to new destination
-        self._saveSession()
+        self.session.saveToFile()
 
     def _closeSession(self):
         closedSession = self.session
@@ -309,3 +318,10 @@ class ManageSessionPanel(MainViewPanel):
             setattr(self.session, key, text)
         else:
             logger.warning('Ignoring edited value of {} since session is closed.'.format(key))
+
+    async def _autosaveOccasionally(self):
+        while True:
+            await asyncio.sleep(self._autosavePeriod)
+            logger.debug('Trying to autosave')
+            self.session.saveToUnpackedDir(asAutosave=True)
+            logger.debug('Done trying to autosave')

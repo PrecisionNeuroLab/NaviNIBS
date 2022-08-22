@@ -49,10 +49,12 @@ class Session:
     _samples: Samples = attrs.field(factory=Samples)
     _addons: Addons = attrs.field(factory=Addons)
 
-    _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)
+    _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)  # session info parts that have changed since last save
+    _dirtyKeys_autosave: tp.Set[str] = attrs.field(init=False, factory=set)  # session info parts that have changed since last autosave
     _compressedFileIsDirty: bool = True
 
-    _sessionConfigFilename: ClassVar[str] = 'SessionConfig.json'
+    _sessionConfigFilename: ClassVar[str] = 'SessionConfig'
+    _lastAutosaveFilenamePrefix: tp.Optional[str] = None
     _latestConfigFormatVersion: ClassVar[str] = '0.0.1'
     _unpackedSessionDir: tp.Optional[tp.Union[tempfile.TemporaryDirectory, str]] = attrs.field(default=None)
 
@@ -69,18 +71,18 @@ class Session:
         if self._tools is None:
             self._tools = Tools(sessionPath=os.path.dirname(self._filepath))
 
-        self.sigInfoChanged.connect(lambda: self._dirtyKeys.add('info'))
-        self.MRI.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('MRI'))
-        self.headModel.sigFilepathChanged.connect(lambda: self._dirtyKeys.add('headModel'))
-        self.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
-        self.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
-        self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
-        self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._dirtyKeys.add('subjectRegistration'))
-        self.targets.sigTargetsChanged.connect(lambda targetKeys, attribKeys: self._dirtyKeys.add('targets'))
-        self.samples.sigSamplesChanged.connect(lambda sampleTimestamps, attribKeys: self._dirtyKeys.add('samples'))
-        self.tools.sigToolsChanged.connect(lambda toolKeys: self._dirtyKeys.add('tools'))
-        self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self._dirtyKeys.add('tools'))
-        self.addons.sigAddonsChanged.connect(lambda addonKeys, attribKeys: self._dirtyKeys.add('addons'))
+        self.sigInfoChanged.connect(lambda: self.flagKeyAsDirty('info'))
+        self.MRI.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('MRI'))
+        self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
+        self.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
+        self.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
+        self.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
+        self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
+        self.targets.sigTargetsChanged.connect(lambda targetKeys, attribKeys: self.flagKeyAsDirty('targets'))
+        self.samples.sigSamplesChanged.connect(lambda sampleTimestamps, attribKeys: self.flagKeyAsDirty('samples'))
+        self.tools.sigToolsChanged.connect(lambda toolKeys: self.flagKeyAsDirty('tools'))
+        self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self.flagKeyAsDirty('tools'))
+        self.addons.sigAddonsChanged.connect(lambda addonKeys, attribKeys: self.flagKeyAsDirty('addons'))
 
         # TODO
 
@@ -169,75 +171,113 @@ class Session:
 
         self._unpackedSessionDir = newUnpackedSessionDir
 
-    def saveToUnpackedDir(self, saveDirtyOnly: bool = True):
+    def flagKeyAsDirty(self, key: str):
+        self._dirtyKeys.add(key)
+        self._dirtyKeys_autosave.add(key)
 
-        keysToSave = self._dirtyKeys.copy()
+    def saveToUnpackedDir(self, saveDirtyOnly: bool = True, asAutosave: bool = False):
 
-        if not saveDirtyOnly:
-            keysToSave.update(['info'])
+        if asAutosave:
+            keysToSave = self._dirtyKeys_autosave.copy()
+            self._dirtyKeys_autosave.clear()
+            autosaveFilenamePrefix = 'autosaved-' + datetime.today().strftime('%y%m%d%H%M%S.%f') + '_'
+        else:
+            keysToSave = self._dirtyKeys.copy()
+            self._dirtyKeys.clear()
+            self._dirtyKeys_autosave.clear()
+            self._lastAutosaveFilenamePrefix = None
+            autosaveFilenamePrefix = ''
 
-        if len(keysToSave) == 0:
+        if saveDirtyOnly and len(keysToSave) == 0:
             logger.debug('Nothing to save')
             return
 
         self._compressedFileIsDirty = True
 
-        configPath = os.path.join(self.unpackedSessionDir, self._sessionConfigFilename)
-        if os.path.exists(configPath):
-            with open(configPath, 'r') as f:
+        if asAutosave:
+            configPath = os.path.join(self.unpackedSessionDir, autosaveFilenamePrefix + self._sessionConfigFilename + '.json')
+            if self._lastAutosaveFilenamePrefix is not None:
+                prevConfigPath = os.path.join(self.unpackedSessionDir, self._lastAutosaveFilenamePrefix + self._sessionConfigFilename + '.json')
+            else:
+                prevConfigPath = os.path.join(self.unpackedSessionDir, self._sessionConfigFilename + '.json')
+            self._lastAutosaveFilenamePrefix = autosaveFilenamePrefix
+        else:
+            configPath = os.path.join(self.unpackedSessionDir, self._sessionConfigFilename + '.json')
+            prevConfigPath = configPath
+
+        if os.path.exists(prevConfigPath):
+            with open(prevConfigPath, 'r') as f:
                 config = json.load(f)
             assert config['formatVersion'] == self._latestConfigFormatVersion
         else:
             config = dict(formatVersion=self._latestConfigFormatVersion)
 
-        if 'info' in keysToSave:
+        if 'info' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing session info')
             infoFields = ('filepath', 'subjectID', 'sessionID')
             for field in infoFields:
                 config[field] = getattr(self, field)
-            keysToSave.remove('info')
+            keysToSave.discard('info')
 
         otherPathsRelTo = os.path.dirname(self.filepath)
 
-        if 'MRI' in keysToSave:
+        if 'MRI' in keysToSave or not saveDirtyOnly:
             # save MRI path relative to location of compressed file
             logger.debug('Writing MRI info')
-            config['MRI'] = self.MRI.asDict(filepathRelTo=otherPathsRelTo)
-            keysToSave.remove('MRI')
+            configFilename_MRI =  autosaveFilenamePrefix + self._sessionConfigFilename + '_MRI' + '.json'
+            config['MRI'] = configFilename_MRI
+            with open(os.path.join(self.unpackedSessionDir, configFilename_MRI), 'w') as f:
+                f.write(jsonPrettyDumps(self.MRI.asDict(filepathRelTo=otherPathsRelTo)))
+            keysToSave.discard('MRI')
 
-        if 'headModel' in keysToSave:
+        if 'headModel' in keysToSave or not saveDirtyOnly:
             # save head model path relative to location of compressed file
             logger.debug('Writing headModel info')
-            config['headModel'] = self.headModel.asDict(filepathRelTo=otherPathsRelTo)
-            keysToSave.remove('headModel')
+            configFilename_headModel = autosaveFilenamePrefix + self._sessionConfigFilename + '_HeadModel' + '.json'
+            config['headModel'] = configFilename_headModel
+            with open(os.path.join(self.unpackedSessionDir, configFilename_headModel), 'w') as f:
+                f.write(jsonPrettyDumps(self.headModel.asDict(filepathRelTo=otherPathsRelTo)))
+            keysToSave.discard('headModel')
 
-        if 'subjectRegistration' in keysToSave:
+        if 'subjectRegistration' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing subjectRegistration info')
-            config['subjectRegistration'] = self.subjectRegistration.asDict()
+            configFilename_subjectReg = autosaveFilenamePrefix + self._sessionConfigFilename + '_SubjectRegistration' + '.json'
+            config['subjectRegistration'] = configFilename_subjectReg
+            with open(os.path.join(self.unpackedSessionDir, configFilename_subjectReg), 'w') as f:
+                f.write(jsonPrettyDumps(self.subjectRegistration.asDict()))
             # TODO: save contents of potentially larger *History fields to separate file(s)
-            keysToSave.remove('subjectRegistration')
+            keysToSave.discard('subjectRegistration')
 
-        if 'targets' in keysToSave:
+        if 'targets' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing targets info')
-            config['targets'] = self.targets.asList()
-            keysToSave.remove('targets')
+            configFilename_targets = autosaveFilenamePrefix + self._sessionConfigFilename + '_Targets' + '.json'
+            config['targets'] = configFilename_targets
+            with open(os.path.join(self.unpackedSessionDir, configFilename_targets), 'w') as f:
+                f.write(jsonPrettyDumps(self.targets.asList()))
+            keysToSave.discard('targets')
 
-        if 'samples' in keysToSave:
+        if 'samples' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing samples info')
-            config['samples'] = self.samples.asList()
-            keysToSave.remove('samples')
+            configFilename_samples = autosaveFilenamePrefix + self._sessionConfigFilename + '_Samples' + '.json'
+            config['samples'] = configFilename_samples
+            with open(os.path.join(self.unpackedSessionDir, configFilename_samples), 'w') as f:
+                f.write(jsonPrettyDumps(self.samples.asList()))
+            keysToSave.discard('samples')
 
-        if 'tools' in keysToSave:
+        if 'tools' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing tools info')
-            config['tools'] = self.tools.asList()
-            keysToSave.remove('tools')
+            configFilename_tools = autosaveFilenamePrefix + self._sessionConfigFilename + '_Tools' + '.json'
+            config['tools'] = configFilename_tools
+            with open(os.path.join(self.unpackedSessionDir, configFilename_tools), 'w') as f:
+                f.write(jsonPrettyDumps(self.tools.asList()))
+            keysToSave.discard('tools')
 
         # TODO: loop through any addons to give them a chance to save to config as needed
 
-        if 'addons' in keysToSave:
+        if 'addons' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing addons info')
             config['addons'] = self.addons.asList()
-            keysToSave.remove('addons')
+            keysToSave.discard('addons')
 
         # TODO: save other fields
         assert len(keysToSave) == 0
@@ -249,10 +289,8 @@ class Session:
                 f.write(jsonPrettyDumps(config))
             logger.debug('Wrote updated session config')
 
-        self._dirtyKeys.clear()
-
-    def saveToFile(self):
-        self.saveToUnpackedDir()
+    def saveToFile(self, updateDirtyOnly: bool = True):
+        self.saveToUnpackedDir(saveDirtyOnly=updateDirtyOnly)
         if self._filepath == self._unpackedSessionDir:
             # original session file was already an unpacked dir, don't need to compress now
             logger.info('Saving to unpacked session dir only, skipping save of compressed session file.')
@@ -315,7 +353,7 @@ class Session:
 
     @classmethod
     def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None, **kwargs):
-        configPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename)
+        configPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename + '.json')
         with open(configPath, 'r') as f:
             config = json.load(f)
         # TODO: validate against schema
@@ -329,22 +367,34 @@ class Session:
         otherPathsRelTo = os.path.dirname(kwargs['filepath'])
 
         if 'MRI' in config:
-            kwargs['MRI'] = MRI.fromDict(config['MRI'], filepathRelTo=otherPathsRelTo)
+            configFilename_MRI = config['MRI']
+            with open(os.path.join(unpackedSessionDir, configFilename_MRI), 'r') as f:
+                kwargs['MRI'] = MRI.fromDict(json.load(f), filepathRelTo=otherPathsRelTo)
 
         if 'headModel' in config:
-            kwargs['headModel'] = HeadModel.fromDict(config['headModel'], filepathRelTo=otherPathsRelTo)
+            configFilename_headModel = config['headModel']
+            with open(os.path.join(unpackedSessionDir, configFilename_headModel), 'r') as f:
+                kwargs['headModel'] = HeadModel.fromDict(json.load(f), filepathRelTo=otherPathsRelTo)
 
         if 'subjectRegistration' in config:
-            kwargs['subjectRegistration'] = SubjectRegistration.fromDict(config['subjectRegistration'])
+            configFilename_subjectReg = config['subjectRegistration']
+            with open(os.path.join(unpackedSessionDir, configFilename_subjectReg), 'r') as f:
+                kwargs['subjectRegistration'] = SubjectRegistration.fromDict(json.load(f))
 
         if 'targets' in config:
-            kwargs['targets'] = Targets.fromList(config['targets'])
+            configFilename_targets = config['targets']
+            with open(os.path.join(unpackedSessionDir, configFilename_targets), 'r') as f:
+                kwargs['targets'] = Targets.fromList(json.load(f))
 
         if 'samples' in config:
-            kwargs['samples'] = Samples.fromList(config['samples'])
+            configFilename_samples = config['samples']
+            with open(os.path.join(unpackedSessionDir, configFilename_samples), 'r') as f:
+                kwargs['samples'] = Samples.fromList(json.load(f))
 
         if 'tools' in config:
-            kwargs['tools'] = Tools.fromList(config['tools'], sessionPath=otherPathsRelTo)
+            configFilename_tools = config['tools']
+            with open(os.path.join(unpackedSessionDir, configFilename_tools), 'r') as f:
+                kwargs['tools'] = Tools.fromList(json.load(f), sessionPath=otherPathsRelTo)
 
         if 'addons' in config:
             kwargs['addons'] = Addons.fromList(config['addons'])
