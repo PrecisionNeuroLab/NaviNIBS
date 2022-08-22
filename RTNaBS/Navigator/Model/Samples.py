@@ -39,6 +39,7 @@ class Sample:
     """
 
     _isVisible: bool = True
+    _isSelected: bool = False
     _color: tp.Optional[str] = None
 
     sigSampleAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str, tp.Optional[tp.List[str]])))
@@ -76,6 +77,26 @@ class Sample:
     @property
     def isVisible(self):
         return self._isVisible
+
+    @isVisible.setter
+    def isVisible(self, isVisible: bool):
+        if self._isVisible == isVisible:
+            return
+        self.sigSampleAboutToChange.emit(self.key, ['isVisible'])
+        self._isVisible = isVisible
+        self.sigSampleChanged.emit(self.key, ['isVisible'])
+
+    @property
+    def isSelected(self):
+        return self._isSelected
+
+    @isSelected.setter
+    def isSelected(self, isSelected: bool):
+        if self._isSelected == isSelected:
+            return
+        self.sigSampleAboutToChange.emit(self.key, ['isSelected'])
+        self._isSelected = isSelected
+        self.sigSampleChanged.emit(self.key, ['isSelected'])
 
     @property
     def color(self):
@@ -207,12 +228,31 @@ class Samples:
                 startAtIndex = 2
             return self.getUniqueSampleKey(baseStr=key, startAtIndex=startAtIndex)
 
-
     def _onSampleAboutToChange(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
         self.sigSamplesAboutToChange.emit([key], attribKeys)
 
     def _onSampleChanged(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
         self.sigSamplesChanged.emit([key], attribKeys)
+
+    def setWhichSamplesVisible(self, visibleKeys: tp.List[str]):
+        changingKeys = [key for key, sample in self.samples.items() if sample.isVisible != (key in visibleKeys)]
+        if len(changingKeys) == 0:
+            return
+        self.sigSamplesAboutToChange.emit(changingKeys, ['isVisible'])
+        with self.sigSamplesAboutToChange.blocked(), self.sigSamplesChanged.blocked():
+            for key in changingKeys:
+                self.samples[key].isVisible = key in visibleKeys
+        self.sigSamplesChanged.emit(changingKeys, ['isVisible'])
+
+    def setWhichSamplesSelected(self, selectedKeys: tp.List[str]):
+        changingKeys = [key for key, sample in self.samples.items() if sample.isSelected != (key in selectedKeys)]
+        if len(changingKeys) == 0:
+            return
+        self.sigSamplesAboutToChange.emit(changingKeys, ['isSelected'])
+        with self.sigSamplesAboutToChange.blocked(), self.sigSamplesChanged.blocked():
+            for key in changingKeys:
+                self.samples[key].isSelected = key in selectedKeys
+        self.sigSamplesChanged.emit(changingKeys, ['isSelected'])
 
     def __getitem__(self, key: str) -> Sample:
         return self._samples[key]

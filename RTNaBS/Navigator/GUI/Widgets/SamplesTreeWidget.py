@@ -27,12 +27,20 @@ class SamplesTreeWidget:
 
     Note: this is emitted when the selection changes (i.e. a different sample is selected), NOT when a property of the
     currently selected sample changes.
+    
+    Note: this is Qt's "current" item. If multiple samples are selected, the "current" sample will just be the last sample
+    added to the selection
     """
+
+    _updateInProgress: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
         self._treeWdgt = QtWidgets.QTreeWidget()
         self._treeWdgt.setHeaderLabels(['Sample', 'Info'])
+        self._treeWdgt.setSelectionBehavior(self._treeWdgt.SelectRows)  # TODO: decide whether we want this set or not
+        self._treeWdgt.setSelectionMode(self._treeWdgt.ExtendedSelection)
         self._treeWdgt.currentItemChanged.connect(self._onTreeCurrentItemChanged)
+        self._treeWdgt.itemSelectionChanged.connect(self._onTreeItemSelectionChanged)
 
     @property
     def session(self):
@@ -54,15 +62,9 @@ class SamplesTreeWidget:
 
     @property
     def currentSampleKey(self) -> tp.Optional[str]:
-        def getRootItem(treeItem: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:
-            if treeItem.parent() is None:
-                return treeItem
-            else:
-                return getRootItem(treeItem.parent())
-
         curItem = self._treeWdgt.currentItem()
         if curItem is not None:
-            return getRootItem(curItem).text(0)
+            return _getRootItem(curItem).text(0)
         elif self.session is None:
             return None
         elif len(self.session.samples) > 0:
@@ -78,6 +80,13 @@ class SamplesTreeWidget:
         item = self._treeItems[sampleKey]
         self._treeWdgt.setCurrentItem(item)
 
+    @property
+    def selectedSampleKeys(self) -> tp.List[str]:
+        selItems = self._treeWdgt.selectedItems()
+        selKeys = [_getRootItem(item).text(0) for item in selItems]
+        selKeys = list(dict.fromkeys(selKeys))  # remove duplicates, keep order stable
+        return selKeys
+
     def _onSampleVisibleBtnClicked(self, key: str):
         sample = self._session.samples[key]
         sample.isVisible = not sample.isVisible
@@ -86,11 +95,11 @@ class SamplesTreeWidget:
                           changedSampleAttrs: tp.Optional[tp.List[str]] = None):
         logger.debug('Samples changed. Updating tree view')
 
+        if changedSampleKeys is None:
+            changedSampleKeys = self.session.samples.keys()
+
         if changedSampleAttrs == ['isVisible']:
             # only visibility changed
-
-            if changedSampleKeys is None:
-                changedSampleKeys = self.session.samples.keys()
 
             for sampleKey in changedSampleKeys:
                 btn = self._treeWdgt.itemWidget(self._treeItems[sampleKey], 1)
@@ -101,11 +110,30 @@ class SamplesTreeWidget:
                 else:
                     btn.setIcon(qta.icon('mdi6.eye-off-outline'))
 
+        elif changedSampleAttrs == ['isSelected']:
+            # only selection changed
+            logger.debug('Updating samples selection')
+            selection = QtCore.QItemSelection()
+            selection.merge(self._treeWdgt.selectionModel().selection(), QtCore.QItemSelectionModel.Select)
+
+            for key in changedSampleKeys:
+                sample = self.session.samples[key]
+                sampleIndex = self._treeWdgt.indexFromItem(self._treeItems[key])
+                if sample.isSelected:
+                    cmd = QtCore.QItemSelectionModel.Select
+                else:
+                    cmd = QtCore.QItemSelectionModel.Deselect
+                selection.merge(QtCore.QItemSelection(sampleIndex, sampleIndex), cmd)
+
+            self._treeWdgt.selectionModel().select(selection, QtCore.QItemSelectionModel.Select)
+
         else:
             # assume anything/everything changed, clear sample and start over
 
             # update tree view
             # TODO: do incremental tree updates rather than entirely clearing and rebuilding
+            assert not self._updateInProgress
+            self._updateInProgress = True
             prevSelectedItem = self._treeWdgt.currentItem()
             self._treeWdgt.clear()
             self._treeItems = {}
@@ -126,6 +154,21 @@ class SamplesTreeWidget:
                 btn.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
                 self._treeWdgt.setItemWidget(self._treeItems[key], 1, btn)
                 btn.clicked.connect(lambda checked=False, key=key: self._onSampleVisibleBtnClicked(key=key))
+            self._updateInProgress = False
+
+            self._onSamplesChanged(None, changedSampleAttrs=['isSelected'])
 
     def _onTreeCurrentItemChanged(self, current: QtWidgets.QTreeWidgetItem, previous: QtWidgets.QTreeWidgetItem):
         self.sigCurrentSampleChanged.emit(self.currentSampleKey)
+
+    def _onTreeItemSelectionChanged(self):
+        if self._updateInProgress:
+            return  # assume selection will be updated as needed after update
+        logger.debug('Samples selection changed')
+        self.session.samples.setWhichSamplesSelected(self.selectedSampleKeys)
+
+def _getRootItem(treeItem: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:
+    if treeItem.parent() is None:
+        return treeItem
+    else:
+        return _getRootItem(treeItem.parent())
