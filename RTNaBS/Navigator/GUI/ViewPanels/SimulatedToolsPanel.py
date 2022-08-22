@@ -33,6 +33,7 @@ from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class SimulatedToolsPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.progress-wrench'))
     _dockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
-    _plotter: pvqt.QtInteractor = attrs.field(init=False)
+    _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
 
     _positionsClient: SimulatedToolPositionsClient = attrs.field(init=False)
@@ -102,7 +103,7 @@ class SimulatedToolsPanel(MainViewPanel):
 
         container.layout().addStretch()
 
-        self._plotter = pvqt.BackgroundPlotter(
+        self._plotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance())
         self._plotter.set_background('#FFFFFF')

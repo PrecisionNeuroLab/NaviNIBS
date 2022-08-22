@@ -23,6 +23,7 @@ from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform, composeTransform
 import RTNaBS.util.GUI.DockWidgets as dw
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class NavigationView:
 
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
-    _plotter: pvqt.QtInteractor = attrs.field(init=False)
+    _plotter: BackgroundPlotter = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
     """
@@ -103,7 +104,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
-        self._plotter = pvqt.BackgroundPlotter(
+        self._plotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )

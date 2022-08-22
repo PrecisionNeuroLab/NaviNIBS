@@ -13,6 +13,7 @@ from typing import ClassVar
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import TargetingCoordinator
 from RTNaBS.util import classproperty
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ class ViewLayer:
 
 @attrs.define
 class PlotViewLayer(ViewLayer):
-    _plotter: pvqt.QtInteractor  # note this this one plotter may be shared between multiple ViewLayers
+    _plotter: BackgroundPlotter  # note this this one plotter may be shared between multiple ViewLayers
     _plotInSpace: str = 'MRI'
 
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
