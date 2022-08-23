@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-class BackgroundPlotter(pvqt.BackgroundPlotter):
+class BackgroundPlotter(pvqt.plotting.BackgroundPlotter):
     """
     Same as inherited pvqt.BackgroundPlotter, but batches multiple render calls together with an async coroutine
     """
