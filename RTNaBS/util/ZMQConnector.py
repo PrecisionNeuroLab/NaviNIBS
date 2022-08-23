@@ -1,12 +1,13 @@
-import logging
-import typing as tp
 import attr
 import asyncio
+import json
+import logging
+from math import ceil
+import socket
+import typing as tp
+import unittest
 import zmq
 import zmq.asyncio as azmq
-import unittest
-import json
-from math import ceil
 
 from . import exceptionToStr
 from . import ZMQAsyncioFix
@@ -72,7 +73,12 @@ class ZMQConnectorServer:
 
         msgType = req[0]
 
-        encodeResponse = lambda resp: [json.dumps(resp).encode('utf-8')]
+        def encodeResponse(resp: tp.Any) -> bytes:
+            try:
+                return [json.dumps(resp).encode('utf-8')]
+            except TypeError as e:
+                logger.error(f'Problem serializing request response: {resp}')
+                raise e
 
         logger.debug("Processing request of type %s" % msgType)
         try:
@@ -581,6 +587,37 @@ class ZMQConnectorClient:
                 self._connect()
 
         raise TimeoutError()
+
+
+def checkIfPortAvailable(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        logger.debug('Created test socket on port %d' % (port,))  # TODO: debug, delete
+        s.settimeout(0.01)
+        return s.connect_ex(('localhost', port)) != 0
+
+
+usedPorts = set()
+
+def getNewPort(minAssignedPort: int = 5000) -> int:
+    global usedPorts
+    port = minAssignedPort
+
+    # Note: this only checks that localhost can bind to the port. If wanting to get a port
+    #  for a remote machine (i.e. not localhost) to bind to, this does not ensure availability.
+    logger.debug('Checking to make sure port is available')
+    while True:
+        if port in usedPorts or not checkIfPortAvailable(port):
+            # mark port as in use so we don't keep trying it in the future
+            logger.debug('Port %d is already in use. Skipping.' % (port,))
+            usedPorts.add(port)
+            port += 1
+            continue
+        else:
+            # found available port
+            logger.debug('Found available port: %d' % (port,))
+            # assume it will be used
+            usedPorts.add(port)
+            return port
 
 
 class Test_ZMQConnector(unittest.TestCase):

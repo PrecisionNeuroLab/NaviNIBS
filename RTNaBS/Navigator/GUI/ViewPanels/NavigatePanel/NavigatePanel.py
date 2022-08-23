@@ -10,6 +10,8 @@ import multiprocessing as mp
 import numpy as np
 import os
 import pathlib
+
+import pandas as pd
 import pyvista as pv
 import pyvistaqt as pvqt
 from pyqtgraph.dockarea import DockArea, Dock
@@ -28,6 +30,7 @@ from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.Model.Session import Session, Target
 from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
+from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Samples, Sample, getSampleTimestampNow
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
@@ -56,6 +59,7 @@ class NavigatePanel(MainViewPanel):
     _views: tp.Dict[str, NavigationView] = attrs.field(init=False, factory=dict)
 
     _coordinator: TargetingCoordinator = attrs.field(init=False)
+    _triggerReceiver: TriggerReceiver = attrs.field(init=False)
 
     _hasInitialized: bool = attrs.field(init=False, default=False)
 
@@ -133,6 +137,9 @@ class NavigatePanel(MainViewPanel):
         self._samplesTreeWdgt.sigCurrentSampleChanged.connect(self._onCurrentSampleChanged)
         container.layout().addWidget(self._samplesTreeWdgt.wdgt)
 
+        self._triggerReceiver = TriggerReceiver(key=self._key)
+        self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
+
     def canBeEnabled(self) -> bool:
         return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
                and self.session.tools.subjectTracker is not None \
@@ -164,6 +171,9 @@ class NavigatePanel(MainViewPanel):
         self._samplesTreeWdgt.session = self._session
         self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
 
+        self.session.triggerSources.triggerRouter.registerReceiver(self._triggerReceiver)
+
+
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """
         Called when targetTreeWdgt selection or coordinator currentTarget changes, NOT when attributes of currently selected target change
@@ -171,6 +181,15 @@ class NavigatePanel(MainViewPanel):
         if self._hasInitialized:
             self._coordinator.currentTargetKey = newTargetKey
             self._targetsTreeWdgt.currentTargetKey = newTargetKey
+
+    def _onPanelShown(self):
+        super()._onPanelShown()
+        self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
+
+    def _onPanelHidden(self):
+        super()._onPanelHidden()
+        if self._hasInitialized:
+            self.session.triggerSources.triggerRouter.unsubscribeFromTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
 
     def _onCurrentSampleChanged(self, newSampleKey: str):
         """
@@ -181,9 +200,19 @@ class NavigatePanel(MainViewPanel):
             self._samplesTreeWdgt.currentSampleKey = newSampleKey
 
     def _onSampleBtnClicked(self, _):
-        timestamp = getSampleTimestampNow()
+        self._recordSample(timestamp=pd.Timestamp.now())
+
+    def _onReceivedTrigger(self, triggerEvt: TriggerEvent):
+        self._recordSample(timestamp=triggerEvt.time)
+
+    def _recordSample(self, timestamp: tp.Optional[pd.Timestamp]):
         sampleKey = self.session.samples.getUniqueSampleKey(timestamp=timestamp)
         coilToMRITransf = self._coordinator.currentCoilToMRITransform  # may be None if missing a tracker, etc.
+
+        if abs(timestamp - pd.Timestamp.now()).total_seconds() > 10:
+            # We are getting "old" triggers or lagging for other reasons. Mark orientation as invalid
+            logger.warning('Requested sample time is far from current time. Unable to get up-to-date orientation information')
+            coilToMRITransf = None
 
         sample = Sample(
             key=sampleKey,

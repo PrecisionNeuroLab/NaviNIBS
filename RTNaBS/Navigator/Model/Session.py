@@ -21,6 +21,7 @@ from RTNaBS.Navigator.Model.Targets import Targets, Target
 from RTNaBS.Navigator.Model.Samples import Samples, Sample
 from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
 from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
+from RTNaBS.Navigator.Model.Triggering import TriggerSources
 from RTNaBS.Navigator.Model.Addons import Addons, Addon
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.json import jsonPrettyDumps
@@ -47,6 +48,7 @@ class Session:
     _targets: Targets = attrs.field(factory=Targets)
     _tools: Tools = attrs.field(default=None)
     _samples: Samples = attrs.field(factory=Samples)
+    _triggerSources: TriggerSources = attrs.field(factory=TriggerSources)
     _addons: Addons = attrs.field(factory=Addons)
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)  # session info parts that have changed since last save
@@ -82,6 +84,7 @@ class Session:
         self.samples.sigSamplesChanged.connect(lambda sampleTimestamps, attribKeys: self.flagKeyAsDirty('samples'))
         self.tools.sigToolsChanged.connect(lambda toolKeys: self.flagKeyAsDirty('tools'))
         self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self.flagKeyAsDirty('tools'))
+        self.triggerSources.sigTriggerSettingChanged.connect(lambda sourceKey: self.flagKeyAsDirty('triggerSources'))
         self.addons.sigAddonsChanged.connect(lambda addonKeys, attribKeys: self.flagKeyAsDirty('addons'))
 
         # TODO
@@ -140,6 +143,10 @@ class Session:
     @property
     def tools(self):
         return self._tools
+
+    @property
+    def triggerSources(self):
+        return self._triggerSources
 
     @property
     def addons(self):
@@ -272,6 +279,11 @@ class Session:
                 f.write(jsonPrettyDumps(self.tools.asList()))
             keysToSave.discard('tools')
 
+        if 'triggerSources' in keysToSave or not saveDirtyOnly:
+            logger.debug('Writing triggerSources info')
+            config['triggerSources'] = self.triggerSources.asDict()
+            keysToSave.discard('triggerSources')
+
         # TODO: loop through any addons to give them a chance to save to config as needed
 
         if 'addons' in keysToSave or not saveDirtyOnly:
@@ -395,6 +407,9 @@ class Session:
             configFilename_tools = config['tools']
             with open(os.path.join(unpackedSessionDir, configFilename_tools), 'r') as f:
                 kwargs['tools'] = Tools.fromList(json.load(f), sessionPath=otherPathsRelTo)
+
+        if 'triggerSources' in config:
+            kwargs['triggerSources'] = TriggerSources.fromDict(config['triggerSources'])
 
         if 'addons' in config:
             kwargs['addons'] = Addons.fromList(config['addons'])
