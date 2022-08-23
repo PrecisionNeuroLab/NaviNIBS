@@ -27,6 +27,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+from RTNaBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettingsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
@@ -90,6 +91,8 @@ class NavigatorGUI(RunnableAsApp):
         # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
         addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
+        addViewPanel(TriggerSettingsPanel(key='Trigger settings', session=self._session))
+
         addViewPanel(CameraPanel(key='Camera', session=self._session))
 
         addViewPanel(SubjectRegistrationPanel(key='Register', session=self._session))
@@ -99,12 +102,10 @@ class NavigatorGUI(RunnableAsApp):
         addViewPanel(NavigatePanel(key='Navigate', session=self._session))
 
 
-
-
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
         self._updateEnabledPanels()
-        self._activateView('Manage session')
+        self._activateView('Navigate')  # TODO: debug, delete
 
         if self._sesFilepath is not None:
             asyncio.create_task(self._loadAfterSetup(filepath=self._sesFilepath))
@@ -168,23 +169,10 @@ class NavigatorGUI(RunnableAsApp):
         return viewKeys[0]
 
     def _activateView(self, viewKey: str):
-        return  # TODO: debug, delete
-        toolbarAction = self._toolbarBtnActions[viewKey]
-        toolbarBtn = self._toolbarWdgt.widgetForAction(toolbarAction)
 
-        prevViewKey = self.activeViewKey
-        self._toolbarBtnActions[prevViewKey].setChecked(False)
-        self._toolbarBtnActions[viewKey].setChecked(True)
-
-        panel = self._mainViewPanels[viewKey]
-        self._mainViewStackedWdgt.setCurrentWidget(panel.wdgt)
+        self._mainViewPanels[viewKey].dockWdgt.raise_()
 
         logger.info('Switched to view "{}"'.format(viewKey))
-
-        prevPanel = self._mainViewPanels[prevViewKey]
-        prevPanel.sigPanelHidden.emit()
-
-        panel.sigPanelShown.emit()
 
 
 if __name__ == '__main__':

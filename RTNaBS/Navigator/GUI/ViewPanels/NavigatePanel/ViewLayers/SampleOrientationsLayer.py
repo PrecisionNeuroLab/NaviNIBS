@@ -98,6 +98,7 @@ class SampleOrientationsLayer(PlotViewLayer):
         Whether sample should be visible (rendered). Could be because it is marked as always visible, or because it is currently selected.
         """
         return key in self._coordinator.session.samples and \
+                self._coordinator.session.samples[key].coilToMRITransf is not None and \
                (self._coordinator.session.samples[key].isVisible or
                 self._coordinator.session.samples[key].isSelected)
 
