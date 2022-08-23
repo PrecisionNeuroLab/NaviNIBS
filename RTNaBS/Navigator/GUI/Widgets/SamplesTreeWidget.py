@@ -112,7 +112,7 @@ class SamplesTreeWidget:
 
         elif changedSampleAttrs == ['isSelected']:
             # only selection changed
-            logger.debug('Updating samples selection')
+            logger.debug(f'Updating samples selection for keys {changedSampleKeys}')
             selection = QtCore.QItemSelection()
             selection.merge(self._treeWdgt.selectionModel().selection(), QtCore.QItemSelectionModel.Select)
 
@@ -164,7 +164,7 @@ class SamplesTreeWidget:
     def _onTreeItemSelectionChanged(self):
         if self._updateInProgress:
             return  # assume selection will be updated as needed after update
-        logger.debug('Samples selection changed')
+        logger.debug(f'Samples selection changed: {self.selectedSampleKeys}')
         self.session.samples.setWhichSamplesSelected(self.selectedSampleKeys)
 
 def _getRootItem(treeItem: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:

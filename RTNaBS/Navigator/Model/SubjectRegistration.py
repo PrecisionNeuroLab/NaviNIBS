@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import shutil
-
 import attrs
 from datetime import datetime
 import nibabel as nib
@@ -11,6 +9,7 @@ import numpy as np
 import os
 import pandas as pd
 import pyvista as pv
+import shutil
 import tempfile
 import typing as tp
 from typing import ClassVar

@@ -99,6 +99,9 @@ class DockWidget(KDDockWidgets.DockWidget):
         if title is not None:
             self.setTitle(title)
 
+    def raise_(self):
+        super().raise_()
+
     def setAffinities(self, affinities: tp.List[str]):
         """
          * @brief Sets the affinity names. Dock widgets can only dock into dock widgets of the same affinity.
