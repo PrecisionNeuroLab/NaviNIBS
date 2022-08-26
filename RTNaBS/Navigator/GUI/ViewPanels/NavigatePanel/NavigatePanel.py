@@ -300,7 +300,8 @@ class NavigatePanel(MainViewPanel):
         logger.info(f'Manually recorded a sample: {sample}')
 
     def _onSampleToTargetBtnClicked(self, _):
-        raise NotImplementedError  # TODO
+        newTarget = self._coordinator.createTargetFromCurrentSample(doAddToSession=True)
+        self._targetsTreeWdgt.currentTargetKey = newTarget.key
 
     def _initializeDefaultViews(self):
         if len(self._views) > 0:

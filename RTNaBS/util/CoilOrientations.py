@@ -165,20 +165,11 @@ class PoseMetricCalculator:
         skinSurf = self._session.headModel.skinSurf
         if skinSurf is None:
             return np.nan
-        assert isinstance(skinSurf, pv.PolyData)
 
         target = self._session.targets[self._sample.targetKey]
 
-        coilOrigin_MRI = applyTransform(target.coilToMRITransf, np.zeros((3,)))
-
-        # TODO: maybe use find_closest_cell(..., return_closest_point=True)  to find more precise closest location
-
-        closestPtIndex = skinSurf.find_closest_point(coilOrigin_MRI)
-        closestPt = skinSurf.points[closestPtIndex, :]
-
-        dist = np.linalg.norm(closestPt - coilOrigin_MRI)
-
-        return dist
+        return self._getCoilToSurfDist(coilToMRITransf=target.coilToMRITransf,
+                                       surf=skinSurf)
 
     getTargetCoilToScalpDist.cacheKey = 'targetCoilToScalpDist'
 
@@ -192,24 +183,63 @@ class PoseMetricCalculator:
         gmSurf = self._session.headModel.gmSurf
         if gmSurf is None:
             return np.nan
-        assert isinstance(gmSurf, pv.PolyData)
 
         target = self._session.targets[self._sample.targetKey]
 
-        coilOrigin_MRI = applyTransform(target.coilToMRITransf, np.zeros((3,)))
+        return self._getCoilToSurfDist(coilToMRITransf=target.coilToMRITransf,
+                                       surf=gmSurf)
+
+    getTargetCoilToCortexDist.cacheKey = 'targetCoilToCortexDist'
+
+    def getSampleCoilToScalpDist(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(self.getSampleCoilToScalpDist)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        skinSurf = self._session.headModel.skinSurf
+        if skinSurf is None:
+            return np.nan
+
+        return self._getCoilToSurfDist(coilToMRITransf=self._sample.coilToMRITransf,
+                                       surf=skinSurf)
+
+    getSampleCoilToScalpDist.cacheKey = 'sampleCoilToScalpDist'
+
+    def getSampleCoilToCortexDist(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(self.getSampleCoilToCortexDist)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        gmSurf = self._session.headModel.gmSurf
+        if gmSurf is None:
+            return np.nan
+
+        return self._getCoilToSurfDist(coilToMRITransf=self._sample.coilToMRITransf,
+                                       surf=gmSurf)
+
+    getSampleCoilToCortexDist.cacheKey = 'sampleCoilToCortexDist'
+
+    def _getCoilToSurfDist(self, coilToMRITransf: np.ndarray, surf: pv.PolyData) -> float:
+        coilOrigin_MRI = applyTransform(coilToMRITransf, np.zeros((3,)))
 
         # TODO: maybe use additional constraint to find distance within a small range along coil depth axis
         # (e.g. a small sphere sliding down along the depth axis until reaching cortex)
         # Currently, this may find a closest point at a very oblique angle from coil center if coil is tilted
 
-        closestPtIndex = gmSurf.find_closest_point(coilOrigin_MRI)
-        closestPt = gmSurf.points[closestPtIndex, :]
+        closestPtIndex = surf.find_closest_point(coilOrigin_MRI)
+        closestPt = surf.points[closestPtIndex, :]
 
-        dist = np.linalg.norm(closestPt - coilOrigin_MRI)
-
-        return dist
-
-    getTargetCoilToCortexDist.cacheKey = 'targetCoilToCortexDist'
+        if False:
+            # unsigned distance
+            return np.linalg.norm(closestPt - coilOrigin_MRI)
+        else:
+            # signed distance, where coil -Z axis pointing down to surface is positive offset
+            closestPt_coilSpace = applyTransform(invertTransform(coilToMRITransf), closestPt)
+            return -1*closestPt_coilSpace[2]
 
     def getTargetErrorInBrain(self, doUseCache: bool = True) -> float:
         """

@@ -195,6 +195,51 @@ class TargetingCoordinator:
         self._currentPoseMetrics.sample.timestamp = pd.Timestamp.now()
         self._currentPoseMetrics.sample.coilToMRITransf = self.currentCoilToMRITransform
 
+    def createTargetFromCurrentSample(self, doAddToSession: bool = True) -> Target:
+        logger.info('Creating target from current sample')
+        currentSample = self.currentSample
+        if currentSample is None:
+            raise ValueError('No sample currently set')
+        return self._createTargetFromSample(sample=currentSample, doAddToSession=doAddToSession)
+
+    def createTargetFromCurrentPose(self, doAddToSession: bool = True) -> Target:
+        logger.info('Creating target from current pose')
+        sample = attrs.evolve(self._currentPoseMetrics.sample,
+                              _key='Pose ' + self._currentPoseMetrics.sample.timestamp.strftime('%y.m.%d %H:%M:%S.%f'))
+        return self._createTargetFromSample(sample=sample, doAddToSession=doAddToSession)
+
+    def _createTargetFromSample(self, sample: Sample, doAddToSession) -> Target:
+        baseKey = sample.key
+        targetKey = baseKey
+        counter = 1
+        while targetKey in self._session.targets:
+            counter += 1
+            targetKey = f'{baseKey} ({counter})'
+
+
+        calculator = PoseMetricCalculator(sample=sample, session=self.session)
+
+        coilToScalpDist = calculator.getSampleCoilToScalpDist()
+        coilToBrainDist = calculator.getSampleCoilToCortexDist()
+        handleAngle = calculator.getAngleFromMidline()
+
+        targetCoord = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToBrainDist]))
+        entryCoord = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToScalpDist]))
+
+        target = Target(
+            key=targetKey,
+            targetCoord=targetCoord,
+            entryCoord=entryCoord,
+            angle=handleAngle,
+            depthOffset=coilToScalpDist,
+            coilToMRITransf=sample.coilToMRITransf
+        )
+
+        if doAddToSession:
+            self.session.targets.addTarget(target)
+
+        return target
+
     def getTargetingCoord(self, orientation: str, depth: tp.Union[str, ProjectionSpecification]) -> tp.Optional[np.ndarray]:
         """
         Convenience function for getting a specific coordinate related to targeting orientations.
