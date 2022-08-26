@@ -27,6 +27,7 @@ class MainViewPanel:
     _hasInitialized: bool = attrs.field(init=False, default=False)
     _isInitializing: bool = attrs.field(init=False, default=False)  # True while in the middle of finishing initializing
 
+    _isShown: bool = attrs.field(init=False, default=False)
     sigPanelShown: Signal = attrs.field(init=False, factory=Signal)
     sigPanelHidden: Signal = attrs.field(init=False, factory=Signal)
 
@@ -84,11 +85,13 @@ class MainViewPanel:
 
     def _onPanelShown(self):
         logger.info(f'Panel {self.key} shown')
+        self._isShown = True
         if not self._hasInitialized and self.canBeEnabled():
             self.finishInitialization()
 
     def _onPanelHidden(self):
         logger.info(f'Panel {self.key} hidden')
+        self._isShown = False
 
     def canBeEnabled(self) -> bool:
         return True  # can be implemented by subclass to indicate when panel is missing critical information and can't yet show anything useful
