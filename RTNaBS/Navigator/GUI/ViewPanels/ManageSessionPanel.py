@@ -127,6 +127,11 @@ class ManageSessionPanel(MainViewPanel):
         container.setLayout(QtWidgets.QFormLayout())
 
         wdgt = QtWidgets.QLineEdit()
+        wdgt.setReadOnly(True)
+        self._infoWdgts['filepath'] = wdgt
+        container.layout().addRow('Session filepath', wdgt)
+
+        wdgt = QtWidgets.QLineEdit()
         wdgt.textEdited.connect(lambda text, key='subjectID': self._onInfoTextEdited(key, text))
         self._infoWdgts['subjectID'] = wdgt
         container.layout().addRow('Subject ID', wdgt)
@@ -303,10 +308,10 @@ class ManageSessionPanel(MainViewPanel):
 
     def _onSessionInfoChanged(self):
         if self.session is None:
-            for key in ('subjectID', 'sessionID'):
+            for key in ('filepath', 'subjectID', 'sessionID'):
                 self._infoWdgts[key].setText('')
         else:
-            for key in ('subjectID', 'sessionID'):
+            for key in ('filepath', 'subjectID', 'sessionID'):
                 val = getattr(self.session, key)
                 self._infoWdgts[key].setText('' if val is None else val)
 
