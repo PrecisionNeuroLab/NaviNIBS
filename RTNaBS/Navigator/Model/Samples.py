@@ -146,7 +146,7 @@ class Sample:
             if key in d and d[key] is not None:
                 d[key] = d[key].tolist()
 
-        d['timestamp'] = d['timestamp'].isoformat()
+        d['timestamp'] = d['timestamp'].isoformat(timespec='microseconds')  # default may include nanoseconds, which can break when calling with fromisoformat on later import
 
         return d
 
@@ -247,7 +247,7 @@ class Samples:
             removeNChars = [7, 3, 0]
             iAttempt = 0
             while iAttempt < len(removeNChars):
-                key = baseStr + timestamp.strftime('%y.%m.%d %H:%M.%S.%f')
+                key = baseStr + timestamp.strftime('%y.%m.%d %H:%M:%S.%f')
                 if removeNChars[iAttempt] > 0:
                     key = key[:-removeNChars[iAttempt]]
                 if key.endswith('.'):
