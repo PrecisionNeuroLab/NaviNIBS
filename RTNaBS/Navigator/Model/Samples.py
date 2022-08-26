@@ -62,17 +62,49 @@ class Sample:
     def timestamp(self):
         return self._timestamp
 
+    @timestamp.setter
+    def timestamp(self, newTimestamp: Timestamp):
+        if self._timestamp == newTimestamp:
+            return
+        self.sigSampleAboutToChange.emit(self.key, ['timestamp'])
+        self._timestamp = newTimestamp
+        self.sigSampleChanged.emit(self.key, ['timestamp'])
+
     @property
     def coilToMRITransf(self):
         return self._coilToMRITransf
+
+    @coilToMRITransf.setter
+    def coilToMRITransf(self, newTransf: tp.Optional[np.ndarray]):
+        if array_equalish(self._coilToMRITransf, newTransf):
+            return
+        self.sigSampleAboutToChange.emit(self.key, ['coilToMRITransf'])
+        self._coilToMRITransf = newTransf
+        self.sigSampleChanged.emit(self.key, ['coilToMRITransf'])
 
     @property
     def targetKey(self):
         return self._targetKey
 
+    @targetKey.setter
+    def targetKey(self, newKey: tp.Optional[str]):
+        if self._targetKey == newKey:
+            return
+        self.sigSampleAboutToChange.emit(self.key, ['targetKey'])
+        self._targetKey = newKey
+        self.sigSampleChanged.emit(self.key, ['targetKey'])
+
     @property
     def coilKey(self):
         return self._coilKey
+
+    @coilKey.setter
+    def coilKey(self, newKey: tp.Optional[str]):
+        if self._coilKey == newKey:
+            return
+        self.sigSampleAboutToChange.emit(self.key, ['coilKey'])
+        self._coilKey = newKey
+        self.sigSampleChanged.emit(self.key, ['coilKey'])
 
     @property
     def isVisible(self):

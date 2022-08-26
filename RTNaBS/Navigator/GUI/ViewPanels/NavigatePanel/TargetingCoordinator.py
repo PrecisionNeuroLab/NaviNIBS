@@ -10,6 +10,8 @@ import multiprocessing as mp
 import numpy as np
 import os
 import pathlib
+
+import pandas as pd
 import pyvista as pv
 import pyvistaqt as pvqt
 from pyqtgraph.dockarea import DockArea, Dock
@@ -21,6 +23,7 @@ from typing import ClassVar
 
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
+from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
@@ -52,6 +55,8 @@ class TargetingCoordinator:
     _activeCoilKey: tp.Optional[str] = None
 
     _currentCoilToMRITransform: tp.Optional[Transform] = attrs.field(init=False, default=None)  # relative to head tracker
+    _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False)
+    _currentSamplePoseMetrics: PoseMetricCalculator = attrs.field(init=False)
 
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentSampleChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -63,8 +68,25 @@ class TargetingCoordinator:
         self._session.tools[self.activeCoilKey].sigToolChanged.connect(lambda _: self.sigCurrentCoilPositionChanged.emit())
         self._session.targets.sigTargetsChanged.connect(self._onSessionTargetsChanged)
 
+        self._currentPoseMetrics = PoseMetricCalculator(
+            session=self._session,
+            sample=Sample(
+                key='CurrentPose',
+                timestamp=pd.Timestamp.now()
+            ),
+        )
+        self.sigCurrentTargetChanged.connect(lambda: setattr(self._currentPoseMetrics.sample, 'targetKey', self.currentTargetKey))
+        self.sigCurrentCoilPositionChanged.connect(self._updateCurrentPoseMetricsSample)
+        # TODO: connect signal so that change in activeCoilKey is reflected in currentPoseMetrics.sample.coilKey
+
+        self._currentSamplePoseMetrics = PoseMetricCalculator(
+            session=self._session,
+            sample=self._session.samples[self._currentSampleKey] if self._currentSampleKey is not None else None
+        )
+
     def _onSessionTargetsChanged(self, targetKeysChanged: tp.List[str], targetAttribsChanged: tp.Optional[tp.List[str]]):
         if self._currentTargetKey is not None and self._currentTargetKey in targetKeysChanged:
+            logger.debug('Current target changed')
             self.sigCurrentTargetChanged.emit()
 
     def _onSessionSamplesChanged(self, sampleKeysChanged: tp.List[str], sampleAttribsChanged: tp.Optional[tp.List[str]]):
@@ -89,6 +111,7 @@ class TargetingCoordinator:
         if self._currentTargetKey == newKey:
             return
         self._currentTargetKey = newKey
+        logger.debug(f'Current target key changed to {newKey}')
         self.sigCurrentTargetChanged.emit()
 
     @property
@@ -107,6 +130,7 @@ class TargetingCoordinator:
         if self._currentSampleKey == newKey:
             return
         self._currentSampleKey = newKey
+        self._currentSamplePoseMetrics.sample = self.currentSample
         self.sigCurrentSampleChanged.emit()
 
     @property
@@ -115,6 +139,14 @@ class TargetingCoordinator:
             return self._session.samples[self.currentSampleKey]
         else:
             return None
+
+    @property
+    def currentPoseMetrics(self) -> PoseMetricCalculator:
+        return self._currentPoseMetrics
+
+    @property
+    def currentSamplePoseMetrics(self) -> PoseMetricCalculator:
+        return self._currentSamplePoseMetrics
 
     @property
     def activeCoilKey(self):
@@ -158,6 +190,10 @@ class TargetingCoordinator:
             self._currentCoilToMRITransform = coilToMRITransform
 
         return self._currentCoilToMRITransform
+
+    def _updateCurrentPoseMetricsSample(self):
+        self._currentPoseMetrics.sample.timestamp = pd.Timestamp.now()
+        self._currentPoseMetrics.sample.coilToMRITransf = self.currentCoilToMRITransform
 
     def getTargetingCoord(self, orientation: str, depth: tp.Union[str, ProjectionSpecification]) -> tp.Optional[np.ndarray]:
         """

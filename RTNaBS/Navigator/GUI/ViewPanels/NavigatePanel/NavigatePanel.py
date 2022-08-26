@@ -32,6 +32,7 @@ from RTNaBS.Navigator.Model.Session import Session, Target
 from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
 from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Samples, Sample, getSampleTimestampNow
+from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
@@ -47,16 +48,66 @@ Transform = np.ndarray
 
 
 @attrs.define
+class _PoseMetricGroup:
+    """
+    Grouped information for displaying pose metrics in a widget.
+
+    Set up to allow initial specification of title, container, and calculator key str, then finish initialization when calculator is set later.
+
+    """
+    _title: str
+    _container: QtWidgets.QWidget
+    _calculator: tp.Union[str, PoseMetricCalculator] = None
+    _indicators: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
+    _hasInitialized: bool = attrs.field(init=False, default=False)
+
+    def __attrs_post_init__(self):
+        pass
+
+    @property
+    def calculator(self):
+        return self._calculator
+
+    @calculator.setter
+    def calculator(self, calculator: PoseMetricCalculator):
+        assert not self._hasInitialized
+        assert isinstance(calculator, PoseMetricCalculator)
+        self._calculator = calculator
+
+        self._container.setLayout(QtWidgets.QFormLayout())
+
+        for poseMetric in self._calculator.supportedMetrics:
+            wdgt = QtWidgets.QLabel(f"NaN{poseMetric.units}")
+            self._container.layout().addRow(poseMetric.label, wdgt)
+            self._indicators[poseMetric.label] = wdgt
+
+        self._calculator.sigCacheReset.connect(self._update)
+
+        self._hasInitialized = True
+
+        self._update()
+
+    def _update(self):
+        logger.debug(f'Updating pose metric indicators for {self._title}')
+        for poseMetric in self._calculator.supportedMetrics:
+            wdgt = self._indicators[poseMetric.label]
+            val = poseMetric.getter()
+            wdgt.setText(f"{val:.1f}{poseMetric.units}")
+        logger.debug(f'Done updating pose metric indicators for {self._title}')
+
+
+@attrs.define
 class NavigatePanel(MainViewPanel):
     _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
-    _dockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
+    _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
+    _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
     _samplesTreeWdgt: SamplesTreeWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _views: tp.Dict[str, NavigationView] = attrs.field(init=False, factory=dict)
+    _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
 
     _coordinator: TargetingCoordinator = attrs.field(init=False)
     _triggerReceiver: TriggerReceiver = attrs.field(init=False)
@@ -82,7 +133,7 @@ class NavigatePanel(MainViewPanel):
                 widget = QtWidgets.QWidget()
             if layout is not None:
                 widget.setLayout(layout)
-            widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.MinimumExpanding)
+            widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
             cdw.setWidget(widget)
             cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
             self._dockWidgets[title] = cdw
@@ -106,13 +157,25 @@ class NavigatePanel(MainViewPanel):
         )
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
-        cdw, container = createDockWidget(
-            title='Current error',
-            layout=QtWidgets.QVBoxLayout(),
-        )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        poseGroupDicts = [
+            dict(title='Current pose metrics', calculatorKey='currentPoseMetrics'),
+            dict(title='Selected sample metrics', calculatorKey='currentSamplePoseMetrics')
+        ]
 
-        # TODO: create widgets in currentErrorBox providing feedback on current coil placement relative to active target
+        for poseGroupDict in poseGroupDicts:
+            cdw, container = createDockWidget(
+                title=poseGroupDict['title'],
+            )
+
+            poseGroup = _PoseMetricGroup(
+                title=poseGroupDict['title'],
+                container=container,
+                calculator=poseGroupDict['calculatorKey']
+            )
+
+            self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+
+            self._poseMetricGroups.append(poseGroup)
 
         cdw, container = createDockWidget(
             title='Samples',
@@ -169,22 +232,32 @@ class NavigatePanel(MainViewPanel):
         self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
         self._targetsTreeWdgt.session = self._session
         self._samplesTreeWdgt.session = self._session
+
+        # now that coordinator is available, finish initializing pose metric groups
+        for poseGroup in self._poseMetricGroups:
+            assert isinstance(poseGroup.calculator, str)
+            poseGroup.calculator = getattr(self._coordinator, poseGroup.calculator)
+
         self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
 
+        # register that we want to receive sample triggers when visible
         self.session.triggerSources.triggerRouter.registerReceiver(self._triggerReceiver)
-
+        if self._isShown:
+            self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
 
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """
         Called when targetTreeWdgt selection or coordinator currentTarget changes, NOT when attributes of currently selected target change
         """
         if self._hasInitialized:
+            logger.debug(f'Current target key changed to {newTargetKey}')
             self._coordinator.currentTargetKey = newTargetKey
             self._targetsTreeWdgt.currentTargetKey = newTargetKey
 
     def _onPanelShown(self):
         super()._onPanelShown()
-        self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
+        if self.session is not None:
+            self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
 
     def _onPanelHidden(self):
         super()._onPanelHidden()

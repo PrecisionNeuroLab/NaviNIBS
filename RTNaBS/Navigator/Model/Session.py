@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class MNIRegistration:
-    pass
+    sigTransformChanged: Signal = attrs.field(init=False, factory=Signal)
+    # TODO
 
 
 @attrs.define

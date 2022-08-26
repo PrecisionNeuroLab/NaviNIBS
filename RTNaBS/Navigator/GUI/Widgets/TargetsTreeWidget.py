@@ -74,7 +74,7 @@ class TargetsTreeWidget:
     def currentTargetKey(self, targetKey: str):
         if self.currentTargetKey == targetKey:
             return
-
+        logger.debug(f'Current target key changed to {targetKey}')
         item = self._treeItems[targetKey]
         self._treeWdgt.setCurrentItem(item)
 

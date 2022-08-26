@@ -126,6 +126,7 @@ class SamplesTreeWidget:
                 selection.merge(QtCore.QItemSelection(sampleIndex, sampleIndex), cmd)
 
             self._treeWdgt.selectionModel().select(selection, QtCore.QItemSelectionModel.Select)
+            logger.debug('Done updating samples selection')
 
         else:
             # assume anything/everything changed, clear sample and start over
