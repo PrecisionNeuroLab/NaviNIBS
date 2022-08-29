@@ -211,8 +211,11 @@ class SimulatedToolsPanel(MainViewPanel):
                                       show_message='Left click on mesh to move',
                                       style='wireframe',
                                       left_clicking=True)
-
-        pickedKey = [actorKey for actorKey, actor in self._actors.items() if actor is pickedActor][0]
+        try:
+            pickedKey = [actorKey for actorKey, actor in self._actors.items() if actor is pickedActor][0]
+        except IndexError as e:
+            logger.warning('Unrecognized actor picked. Cancelling select and move')
+            return
         if pickedKey.endswith('_tracker'):
             pickedTool = self.session.tools[pickedKey[:-len('_tracker')]]
         elif pickedKey.endswith('_tool'):
@@ -236,7 +239,7 @@ class SimulatedToolsPanel(MainViewPanel):
 
         await interactivelyMoveActor(plotter=self._plotter, actor=pickedActor, onNewTransf=onNewTransf)
 
-        #raise NotImplementedError  # TODO: continue here
+        # TODO: cleanup here
 
 
     def selectToolToMove(self):
