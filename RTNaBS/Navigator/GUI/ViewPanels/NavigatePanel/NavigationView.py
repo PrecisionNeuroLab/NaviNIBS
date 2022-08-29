@@ -164,7 +164,7 @@ class SinglePlotterNavigationView(NavigationView):
             pass
 
         try:
-            cameraPts = np.asarray([[0, 0, 0], [0, 0, 100], [0, 1, 0]])  # focal point, position, and up respectively
+            cameraPts = np.asarray([[0, 0, 0], [0, 0, 200], [0, 1, 0]])  # focal point, position, and up respectively
             if self._alignCameraTo is None:
                 pass
 
@@ -238,7 +238,8 @@ class SinglePlotterNavigationView(NavigationView):
 @attrs.define
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
-    _alignCameraTo: str = 'target'
+    _alignCameraTo: str = 'coil'
+    _doShowSkinSurf: bool = False
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -251,6 +252,9 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target')
         self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil')
         self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
+        if self._doShowSkinSurf:
+            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSurf',
+                          color='#c9c5c2', opacity=0.4)
 
 
 @attrs.define

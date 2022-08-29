@@ -188,11 +188,13 @@ class NavigatePanel(MainViewPanel):
         self._sampleBtn = btn
         # TODO: change color to warning indicator when coil or tracker are not visible
 
-        btn = QtWidgets.QPushButton('Convert sample to target')
+        btn = QtWidgets.QPushButton('Create target from sample')
         btn.clicked.connect(self._onSampleToTargetBtnClicked)
         container.layout().addWidget(btn)
         self._sampleToTargetBtn = btn
         # TODO: only enable when one or more samples are selected
+
+        # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
 
         self._samplesTreeWdgt = SamplesTreeWidget(
             session=self.session
@@ -320,10 +322,12 @@ class NavigatePanel(MainViewPanel):
                 View = TargetingCrosshairsView
             case 'TargetingCrosshairs-X':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'target-X')
+                kwargs.setdefault('alignCameraTo', 'coil-X')
+                kwargs.setdefault('doShowSkinSurf', True)
             case 'TargetingCrosshairs-Y':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'target-Y')
+                kwargs.setdefault('alignCameraTo', 'coil-Y')
+                kwargs.setdefault('doShowSkinSurf', True)
 
             case _:
                 raise NotImplementedError('Unexpected viewType: {}'.format(viewType))
