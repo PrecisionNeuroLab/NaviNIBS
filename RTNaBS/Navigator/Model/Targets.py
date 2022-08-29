@@ -37,6 +37,7 @@ class Target:
     _coilToMRITransf: tp.Optional[np.ndarray] = None  # uses convention when -y axis is along handle of typical coil and -z axis is pointing down into the head; origin is bottom face center of coil
 
     _isVisible: bool = True
+    _isSelected: bool = False
     _color: str = '#0000FF'
 
     _cachedCoilToMRITransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)
@@ -107,6 +108,18 @@ class Target:
         self.sigTargetAboutToChange.emit(self._key, ['isVisible'])
         self._isVisible = isVisible
         self.sigTargetChanged.emit(self._key, ['isVisible'])
+
+    @property
+    def isSelected(self):
+        return self._isSelected
+
+    @isSelected.setter
+    def isSelected(self, isSelected: bool):
+        if self._isSelected == isSelected:
+            return
+        self.sigTargetAboutToChange.emit(self.key, ['isSelected'])
+        self._isSelected = isSelected
+        self.sigTargetChanged.emit(self.key, ['isSelected'])
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
 
@@ -196,6 +209,26 @@ class Targets:
 
     def _onTargetChanged(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
         self.sigTargetsChanged.emit([key], attribKeys)
+
+    def setWhichTargetsVisible(self, visibleKeys: tp.List[str]):
+        changingKeys = [key for key, target in self.targets.items() if target.isVisible != (key in visibleKeys)]
+        if len(changingKeys) == 0:
+            return
+        self.sigTargetsAboutToChange.emit(changingKeys, ['isVisible'])
+        with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
+            for key in changingKeys:
+                self.targets[key].isVisible = key in visibleKeys
+        self.sigTargetsChanged.emit(changingKeys, ['isVisible'])
+
+    def setWhichTargetsSelected(self, selectedKeys: tp.List[str]):
+        changingKeys = [key for key, target in self.targets.items() if target.isSelected != (key in selectedKeys)]
+        if len(changingKeys) == 0:
+            return
+        self.sigTargetsAboutToChange.emit(changingKeys, ['isSelected'])
+        with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
+            for key in changingKeys:
+                self.targets[key].isSelected = key in selectedKeys
+        self.sigTargetsChanged.emit(changingKeys, ['isSelected'])
 
     def __getitem__(self, key):
         return self._targets[key]
