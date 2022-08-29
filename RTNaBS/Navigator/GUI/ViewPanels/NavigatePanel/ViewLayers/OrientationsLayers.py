@@ -10,7 +10,8 @@ import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
-from RTNaBS.Navigator.Model.Samples import Sample
+from RTNaBS.Navigator.Model.Samples import Sample, Samples
+from RTNaBS.Navigator.Model.Targets import Target, Targets
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 
 
@@ -21,12 +22,12 @@ Transform = np.ndarray
 
 
 @attrs.define
-class VisualizedSampleOrientation:
+class VisualizedOrientation:
     """
     Note: this doesn't connect to any change signals from underlying sample, instead assuming that caller will
     re-instantiate for any changes as needed
     """
-    _sample: Sample
+    _orientation: tp.Unio[Sample, Target]
     _plotter: pv.Plotter
     _colorDepthIndicator: str
     _colorHandleIndicator: str
@@ -67,7 +68,7 @@ class VisualizedSampleOrientation:
                 raise NotImplementedError(f'Unexpected style: {self._style}')
 
         for actor in self._actors.values():
-            setActorUserTransform(actor, self._sample.coilToMRITransf)
+            setActorUserTransform(actor, self._orientation.coilToMRITransf)
 
     @property
     def actors(self):
@@ -75,9 +76,8 @@ class VisualizedSampleOrientation:
 
 
 @attrs.define
-class SampleOrientationsLayer(PlotViewLayer):
-    _type: ClassVar[str] = 'SampleOrientations'
-
+class OrientationsLayer(PlotViewLayer):
+    _type: ClassVar[str] = 'Orientations'
     _colorDepthIndicator: str = '#ba55d3'
     _colorHandleIndicator: str = '#9370db'
     _colorDepthIndicatorSelected: str = '#8b008b'
@@ -86,23 +86,22 @@ class SampleOrientationsLayer(PlotViewLayer):
     _lineWidth: float = 3.
     _style: str = 'lines'
 
-    _visualizedOrientations: tp.Dict[str, VisualizedSampleOrientation] = attrs.field(init=False, factory=dict)
+    _visualizedOrientations: tp.Dict[str, VisualizedOrientation] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.session.samples.sigSamplesChanged.connect(self._onSamplesChanged)
-
-    def _sampleIsVisible(self, key: str) -> bool:
+    def _orientationIsVisible(self, key: str) -> bool:
         """
-        Whether sample should be visible (rendered). Could be because it is marked as always visible, or because it is currently selected.
+        Whether sample or target should be visible (rendered). Could be because it is marked as always visible, or because it is currently selected.
         """
-        return key in self._coordinator.session.samples and \
-                self._coordinator.session.samples[key].coilToMRITransf is not None and \
-               (self._coordinator.session.samples[key].isVisible or
-                self._coordinator.session.samples[key].isSelected)
+        raise NotImplementedError  # should be implemented by subclass
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None, changedSampleKeys: tp.Optional[tp.List[str]] = None):
+    @property
+    def orientations(self) -> tp.Union[Samples, Targets]:
+        raise NotImplementedError  # should be implemented by subclass
+
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None, changedOrientationKeys: tp.Optional[tp.List[str]] = None):
         super()._redraw(which=which)
 
         if not isinstance(which, str):
@@ -110,22 +109,22 @@ class SampleOrientationsLayer(PlotViewLayer):
             return
 
         if which == 'all':
-            which = ['samples']
-            self._redraw(which=which, changedSampleKeys=changedSampleKeys)
+            which = ['orientations']
+            self._redraw(which=which, changedOrientationKeys=changedOrientationKeys)
 
-        elif which == 'samples':
-            if changedSampleKeys is None:
-                changedSampleKeys = list(set(self._visualizedOrientations.keys()) | set(self._coordinator.session.samples.keys()))
+        elif which == 'orientations':
+            if changedOrientationKeys is None:
+                changedOrientationKeys = list(set(self._visualizedOrientations.keys()) | set(self.orientations.keys()))
 
-            for key in changedSampleKeys:
+            for key in changedOrientationKeys:
                 if key in self._visualizedOrientations:
                     for actorKey in self._visualizedOrientations.pop(key).actors:
                         self._plotter.remove_actor(self._actors.pop(actorKey))
 
-                if self._sampleIsVisible(key):
-                    isSelected = self._coordinator.session.samples[key].isSelected
-                    self._visualizedOrientations[key] = VisualizedSampleOrientation(
-                        sample=self._coordinator.session.samples[key],
+                if self._orientationIsVisible(key):
+                    isSelected = self.orientations[key].isSelected
+                    self._visualizedOrientations[key] = VisualizedOrientation(
+                        orientation=self.orientations[key],
                         plotter=self._plotter,
                         colorHandleIndicator=self._colorHandleIndicatorSelected if isSelected else self._colorHandleIndicator,
                         colorDepthIndicator=self._colorDepthIndicatorSelected if isSelected else self._colorDepthIndicator,
@@ -137,6 +136,58 @@ class SampleOrientationsLayer(PlotViewLayer):
                     for actorKey, actor in self._visualizedOrientations[key].actors.items():
                         self._actors[actorKey] = actor
 
-    def _onSamplesChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
-        self._redraw(which='samples', changedSampleKeys=changedKeys)
+@attrs.define
+class SampleOrientationsLayer(OrientationsLayer):
+    _type: ClassVar[str] = 'SampleOrientations'
 
+    _colorDepthIndicator: str = '#ba55d3'
+    _colorHandleIndicator: str = '#9370db'
+    _colorDepthIndicatorSelected: str = '#8b008b'
+    _colorHandleIndicatorSelected: str = '#4b0082'
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._coordinator.session.samples.sigSamplesChanged.connect(self._onSamplesChanged)
+
+    @OrientationsLayer.orientations.getter
+    def orientations(self) -> Samples:
+        return self._coordinator.session.samples
+
+    def _orientationIsVisible(self, key: str) -> bool:
+        return key in self._coordinator.session.samples and \
+                self._coordinator.session.samples[key].coilToMRITransf is not None and \
+               (self._coordinator.session.samples[key].isVisible or
+                self._coordinator.session.samples[key].isSelected)
+
+    def _onSamplesChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
+        self._redraw(which='orientations', changedOrientationKeys=changedKeys)
+
+
+@attrs.define
+class TargetOrientationsLayer(OrientationsLayer):
+    _type: ClassVar[str] = 'TargetOrientations'
+
+    _colorDepthIndicator: str = '#2a25e3'
+    _colorHandleIndicator: str = '#2320eb'
+    _colorDepthIndicatorSelected: str = '#2b20ab'
+    _colorHandleIndicatorSelected: str = '#2b20a2'
+    _lineWidth: float = 4.5
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._coordinator.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
+
+    @OrientationsLayer.orientations.getter
+    def orientations(self) -> Targets:
+        return self._coordinator.session.targets
+
+    def _orientationIsVisible(self, key: str) -> bool:
+        return key in self._coordinator.session.targets and \
+               self._coordinator.session.targets[key].coilToMRITransf is not None and \
+               (self._coordinator.session.targets[key].isVisible or
+                self._coordinator.session.targets[key].isSelected)
+
+    def _onTargetsChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
+        self._redraw(which='orientations', changedOrientationKeys=changedKeys)

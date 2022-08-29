@@ -16,7 +16,7 @@ from typing import ClassVar
 from .TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
-from .ViewLayers.SampleOrientationsLayer import SampleOrientationsLayer
+from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
@@ -116,6 +116,7 @@ class SinglePlotterNavigationView(NavigationView):
         for cls in (
                     MeshSurfaceLayer,
                     SampleOrientationsLayer,
+                    TargetOrientationsLayer,
                     TargetingTargetCrosshairsLayer,
                     TargetingCoilCrosshairsLayer,
                     TargetingTargetPointsLayer,
@@ -247,6 +248,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         self.addLayer(type='TargetingTargetCrosshairs', key='Target')
         self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
         self.addLayer(type='SampleOrientations', key='Samples')
+        self.addLayer(type='TargetOrientations', key='Targets')
         self.addLayer(type='TargetingTargetPoints', key='TargetPoints')
         self.addLayer(type='TargetingCoilPoints', key='CoilPoints')
         self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target')

@@ -168,6 +168,7 @@ class SamplesTreeWidget:
         logger.debug(f'Samples selection changed: {self.selectedSampleKeys}')
         self.session.samples.setWhichSamplesSelected(self.selectedSampleKeys)
 
+
 def _getRootItem(treeItem: QtWidgets.QTreeWidgetItem) -> QtWidgets.QTreeWidgetItem:
     if treeItem.parent() is None:
         return treeItem
