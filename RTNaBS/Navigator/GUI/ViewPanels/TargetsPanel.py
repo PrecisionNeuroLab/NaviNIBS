@@ -280,7 +280,7 @@ class TargetsPanel(MainViewPanel):
                                                       '3D'].plotter.camera.position
 
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
-        if not self._hasInitialized:
+        if not self._hasInitialized and not self._isInitializing:
             return
 
         logger.debug('Targets changed. Updating tree view and plots')
@@ -300,7 +300,7 @@ class TargetsPanel(MainViewPanel):
 
         else:
             # assume anything/everything changed, clear target and start over
-            if self._hasInitialized:
+            if self._hasInitialized or self._isInitializing:
                 # update views
                 for viewKey, view in self._views.items():
                     if changedTargetKeys is None:
