@@ -22,7 +22,7 @@ import typing as tp
 from typing import ClassVar
 
 from .. import MainViewPanel
-from .NavigationView import NavigationView, TargetingCrosshairsView
+from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
 from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.GUI.Widgets.SamplesTreeWidget import SamplesTreeWidget
@@ -261,10 +261,18 @@ class NavigatePanel(MainViewPanel):
         if self.session is not None:
             self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
 
+        for view in self._views.values():
+            if isinstance(view, SinglePlotterNavigationView):
+                view.plotter.resumeRendering()
+
     def _onPanelHidden(self):
         super()._onPanelHidden()
         if self._hasInitialized:
             self.session.triggerSources.triggerRouter.unsubscribeFromTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
+
+            for view in self._views.values():
+                if isinstance(view, SinglePlotterNavigationView):
+                    view.plotter.pauseRendering()
 
     def _onCurrentSampleChanged(self, newSampleKey: str):
         """
@@ -322,11 +330,11 @@ class NavigatePanel(MainViewPanel):
                 View = TargetingCrosshairsView
             case 'TargetingCrosshairs-X':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'coil-X')
+                kwargs.setdefault('alignCameraTo', 'target-X')
                 kwargs.setdefault('doShowSkinSurf', True)
             case 'TargetingCrosshairs-Y':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'coil-Y')
+                kwargs.setdefault('alignCameraTo', 'target-Y')
                 kwargs.setdefault('doShowSkinSurf', True)
 
             case _:
