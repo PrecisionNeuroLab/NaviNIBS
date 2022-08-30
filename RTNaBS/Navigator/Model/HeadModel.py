@@ -36,7 +36,7 @@ class HeadModel:
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigDataChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # emits key `which` indicating what changed, e.g. which='gmSurf'
+    sigDataChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[str],)))  # emits key `which` indicating what changed, e.g. which='gmSurf'; if None all should be assumed to have changed
 
     def __attrs_post_init__(self):
         self.sigFilepathChanged.connect(self._onFilepathChanged)
@@ -97,7 +97,7 @@ class HeadModel:
     def _onFilepathChanged(self):
         with self.sigDataChanged.blocked():
             self.clearCache('all')
-        self.sigDataChanged.emit()
+        self.sigDataChanged.emit(None)
 
     @property
     def filepath(self):
@@ -153,7 +153,7 @@ class HeadModel:
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any], filepathRelTo: str) -> HeadModel:
         # TODO: validate against schema
-        if 'filepath' in d:
+        if d.get('filepath', None) is not None:
             d['filepath'] = os.path.join(filepathRelTo, d['filepath'])
             cls.validateFilepath(d['filepath'])
         return cls(**d)
