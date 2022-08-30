@@ -45,6 +45,12 @@ class MeshSurfaceLayer(PlotViewLayer):
 
             actorKey = self._getActorKey('surf')
 
+            if True:
+                # try reducing complexity of mesh
+                logger.info('Simplifying mesh')
+                mesh = mesh.decimate(target_reduction=0.9)
+                logger.debug('Done simplifying mesh')
+
             self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                             color=self._color,
                                                             opacity=self._opacity,
