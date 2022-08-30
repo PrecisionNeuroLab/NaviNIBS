@@ -21,6 +21,7 @@ from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.Navigator.GUI.Widgets.HeadPointsTableWidget import HeadPointsTableWidget
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
@@ -41,7 +42,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _fidTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
-    _headPtsTblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
+    _headPtsTblWdgt: HeadPointsTableWidget = attrs.field(init=False)
     _sampleFiducialBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _alignToFiducialsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -119,10 +120,9 @@ class SubjectRegistrationPanel(MainViewPanel):
         btnContainer.layout().addWidget(btn, 0, 1)
         # TODO: change this to "clear head points" when multiple selected
 
-        self._headPtsTblWdgt = QtWidgets.QTableWidget(0, 2)
-        self._headPtsTblWdgt.setHorizontalHeaderLabels(['Head pt #', 'Dist from surf'])
-        self._headPtsTblWdgt.cellDoubleClicked.connect(self._onHeadPtsTblCellDoubleClicked)
-        headPtsBox.layout().addWidget(self._headPtsTblWdgt)
+        self._headPtsTblWdgt = HeadPointsTableWidget()
+        self._headPtsTblWdgt.sigSelectedPointsChanged.connect(self._onSelectedHeadPointsChanged)
+        headPtsBox.layout().addWidget(self._headPtsTblWdgt.wdgt)
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
@@ -161,11 +161,13 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.headModel.sigDataChanged.connect(lambda which: self._redraw(which='initSurf'))
         self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._redraw(which='initPlannedFids'))
         self.session.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._redraw(which='initSampledFids'))
-        self.session.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda: self._redraw(which='initHeadPts'))
+        self.session.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda *args: self._redraw(which='initHeadPts'))
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
             'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
 
         self._trackingStatusWdgt.session = self.session
+
+        self._headPtsTblWdgt.session = self.session
 
     def _currentFidTblFidKey(self) -> tp.Optional[str]:
         if self._fidTblWdgt.currentItem() is None:
@@ -173,9 +175,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         currentRow = self._fidTblWdgt.currentRow()
         return self._fidTblWdgt.item(currentRow, 0).text()
 
-    def _onSampleFidBtnClicked(self):
-        fidKey = self._currentFidTblFidKey()
-
+    def _getPointerCoordRelToSubTracker(self) -> tp.Optional[np.ndarray]:
         # TODO: spin-wait update positionsClient.latestPositions to make sure we have the most up to date position
 
         pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.key, None)
@@ -183,14 +183,25 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
             logger.warning('Tried to sample, but do not have valid positions. Returning.')
-            return
+            return None
 
-        logger.info('Sampled fiducial:\npointer: {}\ntracker: {}'.format(pointerToCameraTransf, subjectTrackerToCameraTransf))
+        #logger.info('Sampled fiducial:\npointer: {}\ntracker: {}'.format(pointerToCameraTransf, subjectTrackerToCameraTransf))
 
         pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.toolToTrackerTransf,
                                                        pointerToCameraTransf,
                                                        invertTransform(subjectTrackerToCameraTransf)
-                                                      ], np.zeros((3,)))
+                                                       ], np.zeros((3,)))
+
+        return pointerCoord_relToSubTracker
+
+    def _onSampleFidBtnClicked(self):
+        fidKey = self._currentFidTblFidKey()
+
+        pointerCoord_relToSubTracker = self._getPointerCoordRelToSubTracker()
+        if pointerCoord_relToSubTracker is None:
+            return
+
+        logger.info(f'Sampled fiducial relative to tracker: {pointerCoord_relToSubTracker}')
 
         self.session.subjectRegistration.setFiducial(whichSet='sampled', whichFiducial=fidKey, coord=pointerCoord_relToSubTracker)
 
@@ -252,13 +263,20 @@ class SubjectRegistrationPanel(MainViewPanel):
         subReg.trackerToMRITransf = estimateAligningTransform(sampledPts_subSpace, plannedPts_mriSpace)
 
     def _onSampleHeadPtsBtnClicked(self):
-        raise NotImplementedError()  # TODO
+
+        pointerCoord_relToSubTracker = self._getPointerCoordRelToSubTracker()
+        if pointerCoord_relToSubTracker is None:
+            return
+
+        logger.info(f'Sampled head pt relative to tracker: {pointerCoord_relToSubTracker}')
+
+        self.session.subjectRegistration.addSampledHeadPoint(pointerCoord_relToSubTracker)
 
     def _onClearHeadPtsBtnClicked(self):
         raise NotImplementedError()  # TODO
 
-    def _onHeadPtsTblCellDoubleClicked(self):
-        raise NotImplementedError()  # TODO
+    def _onSelectedHeadPointsChanged(self, selectedIndices: list[int]):
+        pass  #  TODO: trigger redraw to visualize selected points differently than non-selected
 
     def _onAlignToHeadPtsBtnClicked(self):
         raise NotImplementedError()  # TODO
@@ -316,8 +334,10 @@ class SubjectRegistrationPanel(MainViewPanel):
                 if self._fidTblWdgt.currentItem() is not None:
                     allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.key, subjectTracker.key))
 
-            self._sampleFiducialBtn.setEnabled(allowSampling)
-            self._sampleHeadPtsBtn.setEnabled(allowSampling)
+            if self._sampleFiducialBtn.isEnabled() != allowSampling:
+                self._sampleFiducialBtn.setEnabled(allowSampling)
+            if self._sampleHeadPtsBtn.isEnabled() != allowSampling:
+                self._sampleHeadPtsBtn.setEnabled(allowSampling)
 
         elif which in ('initPointer', 'pointerPosition'):
             pointer = self.session.tools.pointer
@@ -480,7 +500,7 @@ class SubjectRegistrationPanel(MainViewPanel):
             actorKey = 'headPts'
 
             doShowHeadPts = self.session.subjectRegistration.sampledHeadPoints is not None \
-                            and len(self.session.subjectRegistration.sampledHeadPoints.shape[0]) > 0 \
+                            and len(self.session.subjectRegistration.sampledHeadPoints) > 0 \
                             and self.session.subjectRegistration.trackerToMRITransf is not None
 
             if not doShowHeadPts:
@@ -490,7 +510,7 @@ class SubjectRegistrationPanel(MainViewPanel):
                     self._actors.pop(actorKey)
                 return
 
-            coords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, self.session.subjectRegistration.sampledHeadPoints)
+            coords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, np.asarray(self.session.subjectRegistration.sampledHeadPoints))
 
             self._actors[actorKey] = self._plotter.add_points(
                 name=actorKey,
