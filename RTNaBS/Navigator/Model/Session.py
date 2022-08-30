@@ -339,8 +339,12 @@ class Session:
                 with open(filepath, 'r') as f:
                     d = json.load(f)
                 # TODO: validate against schema
-                assert 'targets' in d, 'Targets to import/merge should be in json with "targets" as a field in a root-level dict'
-                newTargets = Targets.fromList(d['targets'])
+                if isinstance(d, dict):
+                    assert 'targets' in d, 'Targets to import/merge should be in json with "targets" as a field in a root-level dict'
+                    newTargets = Targets.fromList(d['targets'])
+                else:
+                    assert isinstance(d, list)
+                    newTargets = Targets.fromList(d)
                 self.targets.merge(newTargets)
             else:
                 raise NotImplementedError()
