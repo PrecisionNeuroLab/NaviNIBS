@@ -74,12 +74,14 @@ class TriggerSourceSettingsWidget(tp.Generic[TS]):
 class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSource]):
     _title: str = 'LSL trigger settings'
     _triggerSourceKey: str = 'LSLTriggerSource'
+    _minInterTriggerPeriod: float = 0.2  # ignore repeated triggers within this time
 
     _streamSelector: LSLStreamSelector = attrs.field(init=False)
     _inlet: tp.Optional[lsl.StreamInlet] = attrs.field(init=False, default=None)
     _inletConnectedEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _pollPeriod: float = 0.05
     _pollTask: asyncio.Task = attrs.field(init=False)
+    _lastTriggerTime: tp.Optional[pd.Timestamp] = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -155,7 +157,11 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                     time=pd.Timestamp.now() + pd.Timedelta(seconds=(evtTime - lsl.local_clock())),  # convert from lsl time to pandas timestamp
                     metadata=dict(originalType=evtDat)
                 )
+                if self._lastTriggerTime is not None and (triggerEvt.time - self._lastTriggerTime).total_seconds() < self._minInterTriggerPeriod:
+                    logger.debug('Ignoring trigger that occured too quickly after previous')
+                    continue
                 self.triggerSource.trigger(triggerEvt)
+                self._lastTriggerTime = triggerEvt.time
 
     def _getRelevantEvents(self, evtTimes: list[float], evtData: np.ndarray) -> tuple[list[float], list[np.ndarray], np.ndarray]:
         if self.triggerSource.triggerEvents is not None and len(self.triggerSource.triggerEvents) > 0:
