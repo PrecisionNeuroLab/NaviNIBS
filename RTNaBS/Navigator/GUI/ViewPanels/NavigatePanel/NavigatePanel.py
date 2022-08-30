@@ -334,11 +334,11 @@ class NavigatePanel(MainViewPanel):
                 View = TargetingCrosshairsView
             case 'TargetingCrosshairs-X':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'target-X')
+                kwargs.setdefault('alignCameraTo', 'coil-X')
                 kwargs.setdefault('doShowSkinSurf', True)
             case 'TargetingCrosshairs-Y':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'target-Y')
+                kwargs.setdefault('alignCameraTo', 'coil-Y')
                 kwargs.setdefault('doShowSkinSurf', True)
 
             case _:
