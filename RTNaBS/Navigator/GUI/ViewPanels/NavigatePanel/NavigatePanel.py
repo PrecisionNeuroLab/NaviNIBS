@@ -194,6 +194,10 @@ class NavigatePanel(MainViewPanel):
         self._sampleToTargetBtn = btn
         # TODO: only enable when one or more samples are selected
 
+        btn = QtWidgets.QPushButton('Hide all samples')
+        btn.clicked.connect(lambda *args: self.session.samples.setWhichSamplesVisible([]))
+        container.layout().addWidget(btn)
+
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
 
         self._samplesTreeWdgt = SamplesTreeWidget(
