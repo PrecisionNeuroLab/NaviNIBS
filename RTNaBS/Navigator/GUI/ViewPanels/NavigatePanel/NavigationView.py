@@ -130,6 +130,10 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._redraw('all')
 
+    @property
+    def plotter(self):
+        return self._plotter
+
     def _onCurrentTargetChanged(self):
         if self._alignCameraTo.startswith('target'):
             self._alignCamera()
@@ -239,7 +243,7 @@ class SinglePlotterNavigationView(NavigationView):
 @attrs.define
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
-    _alignCameraTo: str = 'coil'
+    _alignCameraTo: str = 'target'
     _doShowSkinSurf: bool = False
 
     def __attrs_post_init__(self):
@@ -253,9 +257,9 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         self.addLayer(type='TargetingCoilPoints', key='CoilPoints')
         self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target')
         self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil')
-        self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
+        self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSimpleSurf')
         if self._doShowSkinSurf:
-            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSurf',
+            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSimpleSurf',
                           color='#c9c5c2', opacity=0.4)
 
 

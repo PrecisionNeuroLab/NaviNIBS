@@ -33,6 +33,8 @@ class HeadModel:
 
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _skinSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _gmSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -65,6 +67,19 @@ class HeadModel:
 
             setattr(self, '_' + which, mesh)
 
+        elif which in ('skinSimpleSurf', 'gmSimpleSurf'):
+            if which == 'gmSimpleSurf':
+                mesh = self.gmSurf
+            elif which == 'skinSimpleSurf':
+                mesh = self.skinSurf
+            else:
+                raise NotImplementedError
+
+            logger.info(f'Simplifying mesh for {which}')
+            mesh = mesh.decimate(0.8)
+            logger.debug('Done simplifying mesh')
+            setattr(self, '_' + which, mesh)
+
         elif which == 'eegPositions':
             csvPath = os.path.join(m2mDir, 'eeg_positions', 'EEG10-10_UI_Jurak_2007.csv')
             columnLabels = ('type', 'x', 'y', 'z', 'label')
@@ -80,12 +95,12 @@ class HeadModel:
     def clearCache(self, which: str):
 
         if which == 'all':
-            allKeys = ('skinSurf', 'gmSurf', 'eegPositions')  # TODO: add more keys here once implemented
+            allKeys = ('skinSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf', 'eegPositions')  # TODO: add more keys here once implemented
             for w in allKeys:
                 self.clearCache(which=w)
             return
 
-        if which in ('skinSurf', 'gmSurf', 'eegPositions'):
+        if which in ('skinSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf', 'eegPositions'):
             if getattr(self, '_' + which) is None:
                 return
             setattr(self, '_' + which, None)
@@ -130,10 +145,28 @@ class HeadModel:
         return self._gmSurf
 
     @property
+    def gmSimpleSurf(self):
+        """
+        Simplified version of gmSurf mesh, for faster plotting.
+        """
+        if self.isSet and self._gmSimpleSurf is None:
+            self.loadCache(which='gmSimpleSurf')
+        return self._gmSimpleSurf
+
+    @property
     def skinSurf(self):
         if self.isSet and self._skinSurf is None:
             self.loadCache(which='skinSurf')
         return self._skinSurf
+
+    @property
+    def skinSimpleSurf(self):
+        """
+        Simplified version of skinSurf mesh, for faster plotting.
+        """
+        if self.isSet and self._skinSimpleSurf is None:
+            self.loadCache(which='skinSimpleSurf')
+        return self._skinSimpleSurf
 
     @property
     def eegPositions(self):

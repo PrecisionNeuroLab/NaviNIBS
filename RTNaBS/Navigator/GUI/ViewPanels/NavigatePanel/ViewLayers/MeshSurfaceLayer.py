@@ -23,7 +23,7 @@ class MeshSurfaceLayer(PlotViewLayer):
     _type: ClassVar[str] = 'MeshSurface'
     _color: str = '#d9a5b2'
     _opacity: float = 0.7
-    _surfKey: str = 'gmSurf'
+    _surfKey: str = 'gmSimpleSurf'
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -44,12 +44,6 @@ class MeshSurfaceLayer(PlotViewLayer):
             mesh = getattr(self._coordinator.session.headModel, self._surfKey)
 
             actorKey = self._getActorKey('surf')
-
-            if True:
-                # try reducing complexity of mesh
-                logger.info('Simplifying mesh')
-                mesh = mesh.decimate(target_reduction=0.9)
-                logger.debug('Done simplifying mesh')
 
             self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                             color=self._color,
