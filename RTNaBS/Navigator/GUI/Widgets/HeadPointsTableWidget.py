@@ -58,6 +58,7 @@ class HeadPointsTableWidget:
             raise NotImplementedError()  # TODO: disconnect from previous signals
         self._session = newSes
         self._session.subjectRegistration.sigSampledHeadPointsChanged.connect(self._onHeadPointsChanged)
+        self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(self._onHeadPointsChanged)
         self._onHeadPointsChanged()
 
     @property

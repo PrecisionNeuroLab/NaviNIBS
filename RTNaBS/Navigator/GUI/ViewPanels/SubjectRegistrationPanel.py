@@ -279,7 +279,16 @@ class SubjectRegistrationPanel(MainViewPanel):
         pass  #  TODO: trigger redraw to visualize selected points differently than non-selected
 
     def _onAlignToHeadPtsBtnClicked(self):
-        raise NotImplementedError()  # TODO
+        sampledHeadPts_trackerSpace = np.asarray(self.session.subjectRegistration.sampledHeadPoints)
+        sampledHeadPts_MRISpace = applyTransform(self.session.subjectRegistration.trackerToMRITransf, sampledHeadPts_trackerSpace)
+
+        meshHeadPts_MRISpace = self.session.headModel.skinSurf.points
+
+        extraTransf = estimateAligningTransform(sampledHeadPts_MRISpace, meshHeadPts_MRISpace, method='ICP')
+
+        logger.info(f'Extra transf from refinining head points: {extraTransf}')
+
+        self.session.subjectRegistration.trackerToMRITransf = concatenateTransforms([self.session.subjectRegistration.trackerToMRITransf, extraTransf])
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
