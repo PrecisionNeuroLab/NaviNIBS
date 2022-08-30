@@ -48,6 +48,7 @@ class ToolPositionsClient:
         ctx = azmq.Context()
         self._subSocket = ctx.socket(zmq.SUB)
         logger.debug('Connecting {}:{}'.format(self._serverHostname, self._serverPubPort))
+        self._subSocket.setsockopt(zmq.CONFLATE, 1)
         self._subSocket.connect('tcp://{}:{}'.format(self._serverHostname, self._serverPubPort))
         self._subSocket.setsockopt(zmq.SUBSCRIBE, b'')
 
@@ -87,15 +88,17 @@ class ToolPositionsClient:
             socks = dict(await poller.poll())
             if self._subSocket in socks:
                 hasPendingMessages = True
+                msg = None
                 while hasPendingMessages:
                     msg = await self._subSocket.recv_json()
-                    logger.debug('Received published message: {}'.format(msg))
+                    logger.debug('Received published message')
+                    #hasPendingMessages = (await self._subSocket.poll(timeout=0.)) > 0
+                    hasPendingMessages = False
 
-                    self._timeLastHeardFromServer = time.time()
-                    self._updateIsConnected()
+                self._timeLastHeardFromServer = time.time()
+                self._updateIsConnected()
 
-                    self._latestPositions = {key: (TimestampedToolPosition.fromDict(val) if val is not None else None) for key, val in msg.items()}
-                    hasPendingMessages = (await self._subSocket.poll(timeout=0.)) > 0
+                self._latestPositions = {key: (TimestampedToolPosition.fromDict(val) if val is not None else None) for key, val in msg.items()}
                 logger.debug('Signaling change in latest positions')
                 try:
                     self.sigLatestPositionsChanged.emit()  # only emit for latest in series of updates to avoid falling behind

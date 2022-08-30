@@ -58,6 +58,7 @@ class ToolPositionsServer:
     async def _publishLatestPositionsLoop(self):
         while True:
             await self._publishPending.wait()
+            await asyncio.sleep(0.1)  # rate limit
             async with self._publishingLatestLock:
                 logger.debug('Publishing latest positions')
                 self._pubSocket.send_json({key: (val.asDict() if val is not None else None) for key, val in self._latestPositions.items()})
