@@ -197,7 +197,7 @@ class FiducialsPanel(MainViewPanel):
                     )
 
     def _onHeadModelUpdated(self, whatChanged: str):
-        if whatChanged != self._surfKey:
+        if whatChanged is not None and whatChanged != self._surfKey:
             return
         # individual view handles re-rendering on update, so don't need to do anything here
         pass
