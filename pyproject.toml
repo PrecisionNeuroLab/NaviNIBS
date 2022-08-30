@@ -14,7 +14,7 @@ PySide6 = "6.2.4"
 pyqtgraph = "^0.12.4"
 pyvista = "^0.34.0"
 vtk = [
-    { markers = "sys_platform == 'darwin'", file = "data/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_universal2.whl"},
+    #{ markers = "sys_platform == 'darwin'", file = "data/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_universal2.whl"},
     { markers = "sys_platform == 'darwin'", url = "https://wheels.pyvista.org/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_x86_64.whl#sha256=5f464ebecb114ab57a042708d1ffb1069531034d9f715da2c1d8bde53054dee7"},
     { markers = "sys_platform == 'win32'", url = "https://wheels.pyvista.org/vtk-9.1.0.dev0-cp310-cp310-win_amd64.whl#sha256=cede5251ba3c22f4255af18bb360d64b4fba5c285a4224c2fd3a08f3a5f3ba15"}
 ]
