@@ -74,15 +74,17 @@ def stringToTransform(inputStr: str) -> np.ndarray:
 
 def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd') -> np.ndarray:
     """
-    Estimate a transform that aligns one set of points onto another, assuming row-wise matching of points between sets.
+    Estimate a transform that aligns one set of points onto another.
+
+    Some methods assume row-wise matching of points between sets.
     
-    Implemented (for now) using SVD-based Kabsch algorithm. For details, see:
+    For details of the kabsch-svd method, see:
      - https://stackoverflow.com/questions/60877274/optimal-rotation-in-3d-with-kabsch-algorithm
      - https://zpl.fi/aligning-point-patterns-with-kabsch-umeyama-algorithm/
      - http://nghiaho.com/?page_id=671
     
     :param ptsA: Nx3 ndarray of points 
-    :param ptsB: Nx3 ndarray of points
+    :param ptsB: Mx3 ndarray of points
     :param method: method to use for estimating transform. Default is 'kabsch-svd''
     :return: A2B, 4x4 transform aligning ptsA to ptsB 
     """
@@ -124,8 +126,18 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
 
             return transf
 
+        case 'ICP':
+            import simpleicp
+
+            pc_fix = simpleicp.PointCloud(ptsB, columns=('x', 'y', 'z'))
+            pc_mov = simpleicp.PointCloud(ptsA, columns=('x', 'y', 'z'))
+            icp = simpleicp.SimpleICP()
+            icp.add_point_clouds(pc_fix, pc_mov)
+            H, X_mov_transformed, rigid_body_transformation_params = icp.run()
+
+            return H
+
         case _:
             raise NotImplementedError()
-
 
 
