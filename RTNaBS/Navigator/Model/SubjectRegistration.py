@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 FiducialCoord = np.ndarray
 FiducialSet = tp.Dict[str, tp.Optional[FiducialCoord]]
 Transform = np.ndarray
+HeadPoint = np.ndarray
+HeadPoints = list[HeadPoint]
 
 
 @attrs.define()
@@ -31,7 +33,7 @@ class SubjectRegistration:
 
     _plannedFiducials: FiducialSet = attrs.field(factory=dict)  # in MRI space
     _sampledFiducials: FiducialSet = attrs.field(factory=dict)  # in head tracker space
-    _sampledHeadPoints: tp.Optional[list[np.ndarray]] = attrs.field(default=None)  # in head tracker space
+    _sampledHeadPoints: tp.Optional[HeadPoints] = attrs.field(default=None)  # in head tracker space
     _trackerToMRITransf: tp.Optional[Transform] = None
 
     _plannedFiducialsHistory: tp.Dict[str, FiducialSet] = attrs.field(factory=dict)
@@ -143,7 +145,7 @@ class SubjectRegistration:
         return self._sampledHeadPoints
 
     @sampledHeadPoints.setter
-    def sampledHeadPoints(self, newHeadPts: tp.Optional[list[np.ndarray]]):
+    def sampledHeadPoints(self, newHeadPts: tp.Optional[HeadPoints]):
         self.sigSampledHeadPointsAboutToChange.emit(None)
         if newHeadPts is not None:
             assert isinstance(newHeadPts, list)
@@ -236,7 +238,7 @@ class SubjectRegistration:
                     fiducials[key] = np.asarray(fiducials[key])
             return fiducials
 
-        def convertHeadpoints(headPts: tp.List[tp.List[float, float, float]]) -> tp.List[np.ndarray]:
+        def convertHeadpoints(headPts: tp.List[tp.List[float, float, float]]) -> HeadPoints:
             return [np.asarray(headPt) for headPt in headPts]
 
         def convertTransf(transf: tp.List[tp.List[float, float, float]]) -> np.ndarray:

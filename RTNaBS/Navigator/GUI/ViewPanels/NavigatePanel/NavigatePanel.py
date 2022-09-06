@@ -25,7 +25,8 @@ from .. import MainViewPanel
 from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
 from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.GUI.Widgets.SamplesTreeWidget import SamplesTreeWidget
+#from RTNaBS.Navigator.GUI.Widgets.SamplesTreeWidget import SamplesTreeWidget
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
 from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.Model.Session import Session, Target
@@ -104,7 +105,7 @@ class NavigatePanel(MainViewPanel):
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
     _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
-    _samplesTreeWdgt: SamplesTreeWidget = attrs.field(init=False)
+    _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
@@ -200,11 +201,15 @@ class NavigatePanel(MainViewPanel):
 
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
 
-        self._samplesTreeWdgt = SamplesTreeWidget(
-            session=self.session
-        )
-        self._samplesTreeWdgt.sigCurrentSampleChanged.connect(self._onCurrentSampleChanged)
-        container.layout().addWidget(self._samplesTreeWdgt.wdgt)
+        self._samplesTableWdgt = SamplesTableWidget()
+        self._samplesTableWdgt.sigCurrentItemChanged.connect(self._onCurrentSampleChanged)
+        container.layout().addWidget(self._samplesTableWdgt.wdgt)
+
+        # self._samplesTreeWdgt = SamplesTreeWidget(
+        #     session=self.session
+        # )
+        # self._samplesTreeWdgt.sigCurrentSampleChanged.connect(self._onCurrentSampleChanged)
+        # container.layout().addWidget(self._samplesTreeWdgt.wdgt)
 
         self._triggerReceiver = TriggerReceiver(key=self._key)
         self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
@@ -232,12 +237,11 @@ class NavigatePanel(MainViewPanel):
         self._hasInitialized = True
         self._trackingStatusWdgt.session = self.session
         self._coordinator = TargetingCoordinator(session=self._session,
-                                                 currentTargetKey=self._targetsTreeWdgt.currentTargetKey,
-                                                 currentSampleKey=self._samplesTreeWdgt.currentSampleKey)
+                                                 currentTargetKey=self._targetsTreeWdgt.currentTargetKey)
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))
         self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
         self._targetsTreeWdgt.session = self._session
-        self._samplesTreeWdgt.session = self._session
+        self._samplesTableWdgt.session = self._session
 
         # now that coordinator is available, finish initializing pose metric groups
         for poseGroup in self._poseMetricGroups:
@@ -284,7 +288,7 @@ class NavigatePanel(MainViewPanel):
         """
         if self._hasInitialized:
             self._coordinator.currentSampleKey = newSampleKey
-            self._samplesTreeWdgt.currentSampleKey = newSampleKey
+            #self._samplesTableWdgt.currentSampleKey = newSampleKey  # TODO: uncomment
 
     def _onSampleBtnClicked(self, _):
         self._recordSample(timestamp=pd.Timestamp.now())
