@@ -83,6 +83,10 @@ class Sample:
         self.sigSampleChanged.emit(self.key, ['coilToMRITransf'])
 
     @property
+    def hasTransf(self):
+        return self._coilToMRITransf is not None
+
+    @property
     def targetKey(self):
         return self._targetKey
 
@@ -212,15 +216,15 @@ class Samples:
         oldKeys = list(self.samples.keys())
         newKeys = [sample.key for sample in samples]
         combinedKeys = list(set(oldKeys) | set(newKeys))
-        self.sigTargetsAboutToChange.emit(combinedKeys, None)
+        self.sigSamplesAboutToChange.emit(combinedKeys, None)
         for key in oldKeys:
-            self._samples[key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
-            self._samples[key].sigTargetChanged.disconnect(self._onTargetChanged)
+            self._samples[key].sigSampleAboutToChange.disconnect(self._onSampleAboutToChange)
+            self._samples[key].sigSampleChanged.disconnect(self._onSampleChanged)
         self._samples = {sample.key: sample for sample in samples}
         for key, sample in self._samples.items():
-            self._samples[key].sigTargetAboutToChange.connect(self._onTargetAboutToChange)
-            self._samples[key].sigTargetChanged.connect(self._onTargetChanged)
-        self.sigTargetsChanged.emit(combinedKeys, None)
+            self._samples[key].sigSampleAboutToChange.connect(self._onSampleAboutToChange)
+            self._samples[key].sigSampleChanged.connect(self._onSampleChanged)
+        self.sigSamplesChanged.emit(combinedKeys, None)
 
     def getUniqueSampleKey(self,
                            baseStr: str = 'Sample ',
@@ -266,7 +270,7 @@ class Samples:
     def _onSampleChanged(self, key: str, attribKeys: tp.Optional[tp.List[str]]):
         self.sigSamplesChanged.emit([key], attribKeys)
 
-    def setWhichSamplesVisible(self, visibleKeys: tp.List[str]):
+    def setWhichSamplesVisible(self, visibleKeys: list[str]):
         changingKeys = [key for key, sample in self.samples.items() if sample.isVisible != (key in visibleKeys)]
         if len(changingKeys) == 0:
             return
