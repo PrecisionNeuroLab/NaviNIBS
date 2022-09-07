@@ -5,9 +5,10 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI, SamplesTableModel
+from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI, SamplesTableModel, TargetsTableModel
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
+from RTNaBS.Navigator.Model.Targets import Target, Targets
 from RTNaBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
@@ -50,10 +51,11 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
         if self._session is newSes:
             return
         if self._session is not None:
-            raise NotImplementedError()  # TODO: notify table view of model change, disconnect from previous signals
+            raise NotImplementedError  # TODO: notify table view of model change, disconnect from previous signals
         assert self._model is None
         self._session = newSes
         self._model = self._Model(self._session)
+        self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)
         self._tableView.selectionModel().selectionChanged.connect(self._onTableSelectionChanged)
@@ -63,6 +65,13 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
     def currentCollectionItemKey(self) -> K:
         curRow = self._tableView.currentIndex().row()
         return self._model.getCollectionItemKeyFromIndex(curRow)
+
+    @currentCollectionItemKey.setter
+    def currentCollectionItemKey(self, key: K):
+        if key == self.currentCollectionItemKey:
+            return
+        index = self._model.getIndexFromCollectionItemKey(key)
+        self._tableView.setCurrentIndex(self._model.index(index, 0))
 
     @property
     def currentCollectionItem(self) -> CI:
@@ -80,14 +89,38 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
         logger.debug('Current item changed')
         self.sigCurrentItemChanged.emit(self.currentCollectionItemKey)
 
-    def _onTableSelectionChanged(self):
+    def _onTableSelectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection):
         logger.debug('Current selection changed')
-        pass  # TODO
+        self._model.setWhichItemsSelected(self.selectedCollectionItemKeys)
+
+    def _onModelSelectionChanged(self, changedKeys: list[K]):
+        logger.debug(f'Updating selection for keys {changedKeys}')
+        selection = QtCore.QItemSelection()
+        selection.merge(self._tableView.selectionModel().selection(), QtCore.QItemSelectionModel.Select)
+
+        for key in changedKeys:
+            index = self._model.index(self._model.getIndexFromCollectionItemKey(key), 0)
+            if self._model.getCollectionItemIsSelected(key):
+                cmd = QtCore.QItemSelectionModel.Select
+            else:
+                cmd = QtCore.QItemSelectionModel.Deselect
+            selection.merge(QtCore.QItemSelection(index, index), cmd)
+
+        self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.Select)
+        logger.debug('Done updating selection')
 
 
 @attrs.define
 class SamplesTableWidget(CollectionTableWidget[str, Sample, Samples, SamplesTableModel]):
     _Model: tp.Callable[[Session], SamplesTableModel] = SamplesTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+
+@attrs.define
+class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTableModel]):
+    _Model: tp.Callable[[Session], TargetsTableModel] = TargetsTableModel
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()

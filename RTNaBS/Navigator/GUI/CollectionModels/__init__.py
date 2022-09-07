@@ -8,6 +8,7 @@ from RTNaBS.Navigator.Model import Session
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
 from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
+from RTNaBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)
@@ -26,14 +27,21 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     _derivedColumns: list[str] = attrs.field(factory=list)
     _boolColumns: list[str] = attrs.field(factory=list)
     _editableColumns: list[str] = attrs.field(factory=list)
-    _columnLabels: dict[str, str]  = attrs.field(factory=dict)  # mapping from column key to nice label; if a key is not included, will be used directly as a label
+    _columnLabels: dict[str, str] = attrs.field(factory=dict)  # mapping from column key to nice label; if a key is not included, will be used directly as a label
+    _isSelectedAttr: tp.Optional[str] = None  # key of attr in collection indicating selection status; if None, selection state will not be synced to model; partially reliant on connected CollectionTableWidget to implement
 
     _collection: tp.Union[Sequence[CI], Mapping[K, CI]] = attrs.field(init=False)
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
 
+    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[str],)))
+
     def __attrs_post_init__(self):
         QtCore.QAbstractTableModel.__init__(self)
+
+    @property
+    def collectionIsDict(self):
+        return hasattr(self._collection, 'keys')
 
     def rowCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
         return len(self._collection)
@@ -131,14 +139,14 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
         return self._collection[self.getCollectionItemKeyFromIndex(index)]
 
     def getCollectionItemKeyFromIndex(self, index: int) -> K:
-        if hasattr(self._collection, 'keys'):
+        if self.collectionIsDict:
             key = list(self._collection.keys())[index]
             return key
         else:
             return index
 
     def getIndexFromCollectionItemKey(self, key: K) -> tp.Optional[int]:
-        if hasattr(self._collection, 'keys'):
+        if self.collectionIsDict:
             try:
                 index = list(self._collection.keys()).index(key)
             except ValueError:
@@ -149,6 +157,16 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             else:
                 index = None
         return index
+
+    def setWhichItemsSelected(self, selectedKeys: list[K]):
+        """
+        To be called by CollectionTableWidget to update model tracking of selection state.
+        Does not directly change actual view selection state.
+        """
+        if self._isSelectedAttr is None:
+           pass  # ignore
+        else:
+            raise NotImplementedError  # should be implemented by subclass
 
     def _inferCollectionChangeType(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]]) -> str:
 
@@ -220,10 +238,13 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
         logger.info(f'Signaling completion of {self._pendingChangeType} change')
 
+        doUpdateSelection = False
+
         match self._pendingChangeType:
             case 'full':
                 # TODO: update persistent indices with `changePersistentIndex` as required (?) by Qt model interface
                 self.layoutChanged.emit()
+                doUpdateSelection = True
 
             case 'insertRows':
                 self.endInsertRows()
@@ -237,23 +258,41 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                 # TODO: also only emit for certain columns if attrKeys specified
                 self.dataChanged.emit(self.createIndex(minIndex, 0), self.createIndex(maxIndex, len(self._columns)))
 
+                doUpdateSelection = True
+
             case _:
                 raise NotImplementedError
 
         self._pendingChangeType = None
+
+        if doUpdateSelection:
+            if self._isSelectedAttr is not None and (attrKeys is None or self._isSelectedAttr in attrKeys):
+                keysToEmit = keys
+                if keysToEmit is None:
+                    if self.collectionIsDict:
+                        keysToEmit = list(self._collection.keys())
+                    else:
+                        keysToEmit = list(range(len(self._collection)))
+                self.sigSelectionChanged.emit(keysToEmit)
+
+    def getCollectionItemIsSelected(self, key: K) -> bool:
+        if not self._isSelectedAttr:
+            raise NotImplementedError
+
+        return getattr(self._collection[key], self._isSelectedAttr)
 
 
 # TODO: move these to separate files
 @attrs.define(slots=False)
 class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
     _collection: Samples = attrs.field(init=False)
+    _isSelectedAttr: str = 'isSelected'
 
     def __attrs_post_init__(self):
         self._collection = self._session.samples
+
         self._boolColumns.extend(['isVisible', 'hasTransf'])
         self._editableColumns.extend(['isVisible'])
-
-        super().__attrs_post_init__()
 
         self._columns = [
             'key',
@@ -274,3 +313,44 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
 
         self._collection.sigSamplesAboutToChange.connect(self._onCollectionAboutToChange)
         self._collection.sigSamplesChanged.connect(self._onCollectionChanged)
+
+        super().__attrs_post_init__()
+
+    def setWhichItemsSelected(self, selectedKeys: list[K]):
+        if self._pendingChangeType is not None:
+            return  # ignore pending changes, assume will be handled later
+        self._collection.setWhichSamplesSelected(selectedKeys)
+
+
+@attrs.define(slots=False)
+class TargetsTableModel(CollectionTableModel[str, Targets, Target]):
+    _collection: Targets = attrs.field(init=False)
+    _isSelectedAttr: str = 'isSelected'
+
+    def __attrs_post_init__(self):
+        self._collection = self._session.targets
+
+        self._boolColumns.extend(['isVisible'])
+        self._editableColumns.extend(['isVisible'])
+
+        self._columns = [
+            'key',
+            'isVisible'
+            # TODO: add color
+            # TODO: add angle, depthOffset, target coord, entry coord as optional but hidden by default
+        ]
+        self._attrColumns = self._columns.copy()
+        self._columnLabels = dict(
+            key='Key',
+            isVisible='Visibility',
+        )
+
+        self._collection.sigTargetsAboutToChange.connect(self._onCollectionAboutToChange)
+        self._collection.sigTargetsChanged.connect(self._onCollectionChanged)
+
+        super().__attrs_post_init__()
+
+    def setWhichItemsSelected(self, selectedKeys: list[K]):
+        if self._pendingChangeType is not None:
+            return  # ignore pending changes, assume will be handled later
+        self._collection.setWhichTargetsSelected(selectedKeys)

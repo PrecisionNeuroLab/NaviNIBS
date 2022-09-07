@@ -25,9 +25,8 @@ from .. import MainViewPanel
 from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
 from .TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-#from RTNaBS.Navigator.GUI.Widgets.SamplesTreeWidget import SamplesTreeWidget
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
-from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.Model.Session import Session, Target
 from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
@@ -103,7 +102,7 @@ class NavigatePanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
     _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
-    _targetsTreeWdgt: TargetsTreeWidget = attrs.field(init=False)
+    _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False)
     _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
     _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -148,13 +147,12 @@ class NavigatePanel(MainViewPanel):
                                                         hideToolTypes=[CalibrationPlate, Pointer])
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
-        self._targetsTreeWdgt = TargetsTreeWidget(
-            session=self.session
-        )
-        self._targetsTreeWdgt.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
+        self._targetsTableWdgt = TargetsTableWidget()
+        self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
+        container.layout().addWidget(self._targetsTableWdgt.wdgt)
         cdw, container = createDockWidget(
             title='Targets',
-            widget=self._targetsTreeWdgt.wdgt
+            widget=self._targetsTableWdgt.wdgt
         )
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
@@ -205,12 +203,6 @@ class NavigatePanel(MainViewPanel):
         self._samplesTableWdgt.sigCurrentItemChanged.connect(self._onCurrentSampleChanged)
         container.layout().addWidget(self._samplesTableWdgt.wdgt)
 
-        # self._samplesTreeWdgt = SamplesTreeWidget(
-        #     session=self.session
-        # )
-        # self._samplesTreeWdgt.sigCurrentSampleChanged.connect(self._onCurrentSampleChanged)
-        # container.layout().addWidget(self._samplesTreeWdgt.wdgt)
-
         self._triggerReceiver = TriggerReceiver(key=self._key)
         self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
 
@@ -236,11 +228,10 @@ class NavigatePanel(MainViewPanel):
         assert not self._hasInitialized
         self._hasInitialized = True
         self._trackingStatusWdgt.session = self.session
-        self._coordinator = TargetingCoordinator(session=self._session,
-                                                 currentTargetKey=self._targetsTreeWdgt.currentTargetKey)
+        self._coordinator = TargetingCoordinator(session=self._session)
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))
         self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
-        self._targetsTreeWdgt.session = self._session
+        self._targetsTableWdgt.session = self._session
         self._samplesTableWdgt.session = self._session
 
         # now that coordinator is available, finish initializing pose metric groups
@@ -262,7 +253,7 @@ class NavigatePanel(MainViewPanel):
         if self._hasInitialized:
             logger.debug(f'Current target key changed to {newTargetKey}')
             self._coordinator.currentTargetKey = newTargetKey
-            self._targetsTreeWdgt.currentTargetKey = newTargetKey
+            self._targetsTableWdgt.currentCollectionItemKey = newTargetKey
 
     def _onPanelShown(self):
         super()._onPanelShown()
@@ -319,7 +310,7 @@ class NavigatePanel(MainViewPanel):
 
     def _onSampleToTargetBtnClicked(self, _):
         newTarget = self._coordinator.createTargetFromCurrentSample(doAddToSession=True)
-        self._targetsTreeWdgt.currentTargetKey = newTarget.key
+        self._targetsTableWdgt.currentCollectionItemKey = newTarget.key
 
     def _initializeDefaultViews(self):
         if len(self._views) > 0:
