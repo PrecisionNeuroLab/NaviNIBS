@@ -28,6 +28,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     _boolColumns: list[str] = attrs.field(factory=list)
     _editableColumns: list[str] = attrs.field(factory=list)
     _columnLabels: dict[str, str] = attrs.field(factory=dict)  # mapping from column key to nice label; if a key is not included, will be used directly as a label
+    _editableColumnValidators: dict[str, tp.Callable[[tp.Any, tp.Any], bool]] = attrs.field(factory=dict)  # mapping from column key to validator function which returns True if passed (prevVal, newVal) is valid
     _isSelectedAttr: tp.Optional[str] = None  # key of attr in collection indicating selection status; if None, selection state will not be synced to model; partially reliant on connected CollectionTableWidget to implement
 
     _collection: tp.Union[Sequence[CI], Mapping[K, CI]] = attrs.field(init=False)
@@ -61,6 +62,8 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
         return flags
 
     def headerData(self, section: int, orientation: QtCore.Qt.Orientation, role: int=...) -> tp.Any:
+
+        #logger.debug(f'{__name__} Getting headerData section {section} orientation {orientation} role {role}')
 
         match orientation:
             case QtCore.Qt.Horizontal:
@@ -120,7 +123,18 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
         match role:
             case QtCore.Qt.EditRole:
-                return False   # TODO: handle edits
+                if colKey not in self._boolColumns:
+                    logger.info(f'Editing column {colKey} to value {value}')
+                    if colKey in self._editableColumnValidators:
+                        oldValue = self.data(index, role)
+                        isValid = self._editableColumnValidators[colKey](oldValue, value)
+                        if not isValid:
+                            logger.warning('Attempted to set invalid value, rejecting change.')
+                            return False
+                    setattr(self.getCollectionItemFromIndex(index.row()), colKey, value)
+                    return True
+                else:
+                    return False
             case QtCore.Qt.CheckStateRole:
                 if colKey in self._boolColumns:
                     if colKey in self._attrColumns:
@@ -206,10 +220,12 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
         :param attrKeys: optional keys of attributes about to change; if None, all attributes are assumed to be about to change
         """
 
-        assert self._pendingChangeType is None
+        if self._pendingChangeType:
+            logger.error(f'Previous change still pending: {self._pendingChangeType}')
+            raise RuntimeError
         self._pendingChangeType = self._inferCollectionChangeType(keys=keys, attrKeys=attrKeys)
 
-        logger.info(f'Signaling start of {self._pendingChangeType} change')
+        logger.debug(f'Signaling start of {self._pendingChangeType} change for keys {keys}, attrKeys {attrKeys}')
 
         match self._pendingChangeType:
             case 'full':
@@ -236,7 +252,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
         assert self._pendingChangeType is not None
 
-        logger.info(f'Signaling completion of {self._pendingChangeType} change')
+        logger.debug(f'Signaling completion of {self._pendingChangeType} change for keys {keys}, attrKeys {attrKeys}')
 
         doUpdateSelection = False
 
@@ -256,7 +272,8 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                 maxIndex = max(indices)
 
                 # TODO: also only emit for certain columns if attrKeys specified
-                self.dataChanged.emit(self.createIndex(minIndex, 0), self.createIndex(maxIndex, len(self._columns)))
+                logger.debug(f'minIndex {minIndex}; maxIndex {maxIndex}, numColumns {len(self._columns)}')
+                self.dataChanged.emit(self.index(minIndex, 0), self.index(maxIndex, len(self._columns)))
 
                 doUpdateSelection = True
 
@@ -273,6 +290,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                         keysToEmit = list(self._collection.keys())
                     else:
                         keysToEmit = list(range(len(self._collection)))
+                logger.debug(f'Keys with selection changing: {keysToEmit}')
                 self.sigSelectionChanged.emit(keysToEmit)
 
     def getCollectionItemIsSelected(self, key: K) -> bool:
@@ -331,7 +349,7 @@ class TargetsTableModel(CollectionTableModel[str, Targets, Target]):
         self._collection = self._session.targets
 
         self._boolColumns.extend(['isVisible'])
-        self._editableColumns.extend(['isVisible'])
+        self._editableColumns.extend(['isVisible', 'key'])
 
         self._columns = [
             'key',
@@ -345,6 +363,10 @@ class TargetsTableModel(CollectionTableModel[str, Targets, Target]):
             isVisible='Visibility',
         )
 
+        self._editableColumnValidators = dict(
+            key=lambda oldKey, newKey: len(newKey) > 0 and (oldKey == newKey or newKey not in self._session.targets),  # don't allow setting one target to key of another target
+        )
+
         self._collection.sigTargetsAboutToChange.connect(self._onCollectionAboutToChange)
         self._collection.sigTargetsChanged.connect(self._onCollectionChanged)
 
@@ -353,4 +375,5 @@ class TargetsTableModel(CollectionTableModel[str, Targets, Target]):
     def setWhichItemsSelected(self, selectedKeys: list[K]):
         if self._pendingChangeType is not None:
             return  # ignore pending changes, assume will be handled later
+        logger.debug(f'setWhichItemsSelected: {selectedKeys}')
         self._collection.setWhichTargetsSelected(selectedKeys)

@@ -87,6 +87,7 @@ class Session:
         self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self.flagKeyAsDirty('tools'))
         self.triggerSources.sigTriggerSettingChanged.connect(lambda sourceKey: self.flagKeyAsDirty('triggerSources'))
         self.addons.sigAddonsChanged.connect(lambda addonKeys, attribKeys: self.flagKeyAsDirty('addons'))
+        self.targets.sigTargetKeyChanged.connect(self._onTargetKeyChanged)
 
         # TODO
 
@@ -301,6 +302,13 @@ class Session:
             else:
                 f.write(jsonPrettyDumps(config))
             logger.debug('Wrote updated session config')
+
+    def _onTargetKeyChanged(self, fromKey: str, toKey: str):
+        # update any referenced target IDs in samples to use the new key
+        for sampleKey, sample in self.samples.items():
+            if sample.targetKey == fromKey:
+                logger.debug(f'Updating associated targetKey for {sampleKey} from {fromKey} to {toKey}')
+                sample.targetKey = toKey
 
     def saveToFile(self, updateDirtyOnly: bool = True):
         self.saveToUnpackedDir(saveDirtyOnly=updateDirtyOnly)

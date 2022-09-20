@@ -99,15 +99,18 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
         selection.merge(self._tableView.selectionModel().selection(), QtCore.QItemSelectionModel.Select)
 
         for key in changedKeys:
-            index = self._model.index(self._model.getIndexFromCollectionItemKey(key), 0)
+            row = self._model.getIndexFromCollectionItemKey(key)
+            if row is None:
+                # item no longer in collection
+                continue
+            index = self._model.index(row, 0)
             if self._model.getCollectionItemIsSelected(key):
                 cmd = QtCore.QItemSelectionModel.Select
             else:
                 cmd = QtCore.QItemSelectionModel.Deselect
             selection.merge(QtCore.QItemSelection(index, index), cmd)
 
-        self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.Select)
-        logger.debug('Done updating selection')
+        self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.SelectCurrent)
 
 
 @attrs.define

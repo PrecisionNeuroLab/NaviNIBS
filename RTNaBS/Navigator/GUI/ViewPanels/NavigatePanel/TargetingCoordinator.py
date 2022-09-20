@@ -67,6 +67,7 @@ class TargetingCoordinator:
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._session.tools[self.activeCoilKey].sigToolChanged.connect(lambda _: self.sigCurrentCoilPositionChanged.emit())
         self._session.targets.sigTargetsChanged.connect(self._onSessionTargetsChanged)
+        self._session.targets.sigTargetKeyAboutToChange.connect(self._onSessionTargetKeyAboutToChange)
 
         self._currentPoseMetrics = PoseMetricCalculator(
             session=self._session,
@@ -190,6 +191,11 @@ class TargetingCoordinator:
             self._currentCoilToMRITransform = coilToMRITransform
 
         return self._currentCoilToMRITransform
+
+    def _onSessionTargetKeyAboutToChange(self, fromKey: str, toKey: str):
+        if self._currentTargetKey == fromKey:
+            self._currentTargetKey = toKey
+            # other changes will be handled when sigTargetsChanged is emitted later
 
     def _updateCurrentPoseMetricsSample(self):
         self._currentPoseMetrics.sample.timestamp = pd.Timestamp.now()
