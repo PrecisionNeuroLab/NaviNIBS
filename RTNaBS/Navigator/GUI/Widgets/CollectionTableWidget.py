@@ -59,6 +59,7 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)
         self._tableView.selectionModel().selectionChanged.connect(self._onTableSelectionChanged)
+        self._model.rowsInserted.connect(self._onTableRowsInserted)
         self._tableView.resizeColumnsToContents()
 
     @property
@@ -92,6 +93,10 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
     def _onTableSelectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection):
         logger.debug('Current selection changed')
         self._model.setWhichItemsSelected(self.selectedCollectionItemKeys)
+
+    def _onTableRowsInserted(self, parent: QtCore.QModelIndex, first: int, last: int):
+        # scroll to end of new rows automatically
+        self._tableView.scrollTo(self._model.index(last, 0))
 
     def _onModelSelectionChanged(self, changedKeys: list[K]):
         logger.debug(f'Updating selection for keys {changedKeys}')
