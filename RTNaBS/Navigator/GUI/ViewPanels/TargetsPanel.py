@@ -19,7 +19,7 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
-from RTNaBS.Navigator.GUI.Widgets.TargetsTreeWidget import TargetsTreeWidget
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -156,7 +156,7 @@ class VisualizedTarget:
 @attrs.define
 class TargetsPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
-    _treeWdgt: TargetsTreeWidget = attrs.field(init=False)
+    _tableWdgt: TargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
 
@@ -196,10 +196,9 @@ class TargetsPanel(MainViewPanel):
         btn.clicked.connect(self._onGotoBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 1)
 
-        self._treeWdgt = TargetsTreeWidget(
-            session=self._session
-        )
-        container.layout().addWidget(self._treeWdgt.wdgt)
+        self._tableWdgt = TargetsTableWidget()
+        self._tableWdgt.sigCurrentItemChanged.connect(self._gotoTarget)  # go to target immediately whenever selection changes
+        container.layout().addWidget(self._tableWdgt.wdgt)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -217,8 +216,6 @@ class TargetsPanel(MainViewPanel):
             self._views[key].sigSliceTransformChanged.connect(lambda key=key: self._onSliceTransformChanged(sourceKey=key))
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
-
-        self._treeWdgt.sigCurrentTargetChanged.connect(self._gotoTarget)  # go to target immediately whenever selection changes
 
     def canBeEnabled(self) -> bool:
         return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
@@ -256,14 +253,14 @@ class TargetsPanel(MainViewPanel):
     def _onSessionSet(self):
         super()._onSessionSet()
         self.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
-        self._treeWdgt.session = self.session
+        self._tableWdgt.session = self.session
 
         if self._hasInitialized:
             for key, view in self._views.items():
                 view.session = self.session
 
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
-        return self._treeWdgt.currentTargetKey
+        return self._tableWdgt.currentCollectionItemKey
 
     def _gotoTarget(self, targetKey: str):
         # change slice camera views to align with selected target
@@ -306,17 +303,23 @@ class TargetsPanel(MainViewPanel):
                     if changedTargetKeys is None:
                         changedTargetKeys = self.session.targets.keys()
 
-                    for key in changedTargetKeys:
-                        target = self.session.targets[key]
-                        if viewKey == '3D':
-                            style = 'coilLines'
-                        else:
-                            style = 'lines'
+                    if viewKey == '3D':
+                        style = 'coilLines'
+                    else:
+                        style = 'lines'
 
-                        self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
-                                                                                    plotter=view.plotter,
-                                                                                    style=style,
-                                                                                    visible=target.isVisible)
+                    for key in changedTargetKeys:
+                        try:
+                            target = self.session.targets[key]
+                        except KeyError as e:
+                            # previous key no longer in targets
+                            if viewKey + key in self._targetActors:
+                                view.plotter.remove_actor(self._targetActors.pop(viewKey + key))
+                        else:
+                            self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
+                                                                                        plotter=view.plotter,
+                                                                                        style=style,
+                                                                                        visible=target.isVisible)
 
                 if len(self.session.targets) > 0:
                     self._gotoTarget(self._getCurrentTargetKey())
