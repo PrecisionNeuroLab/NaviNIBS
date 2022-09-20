@@ -61,7 +61,10 @@ class Session:
     _latestConfigFormatVersion: ClassVar[str] = '0.0.1'
     _unpackedSessionDir: tp.Optional[tp.Union[tempfile.TemporaryDirectory, str]] = attrs.field(default=None)
 
-    sigInfoChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigInfoChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[list[str]])))
+    """
+    Includes list of keys in info that were changed. If list is None, subscribers should assume that all info changed.
+    """
 
     def __attrs_post_init__(self):
         if self._unpackedSessionDir is None:
@@ -74,7 +77,7 @@ class Session:
         if self._tools is None:
             self._tools = Tools(sessionPath=os.path.dirname(self._filepath))
 
-        self.sigInfoChanged.connect(lambda: self.flagKeyAsDirty('info'))
+        self.sigInfoChanged.connect(lambda _: self.flagKeyAsDirty('info'))
         self.MRI.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
         self.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
@@ -99,7 +102,7 @@ class Session:
     def subjectID(self, newVal: str):
         if newVal != self._subjectID:
             self._subjectID = newVal
-            self.sigInfoChanged.emit()
+            self.sigInfoChanged.emit(['subjectID'])
 
     @property
     def sessionID(self):
@@ -109,7 +112,7 @@ class Session:
     def sessionID(self, newVal: str):
         if newVal != self._sessionID:
             self._sessionID = newVal
-            self.sigInfoChanged.emit()
+            self.sigInfoChanged.emit(['sessionID'])
 
     @property
     def filepath(self):
@@ -119,7 +122,7 @@ class Session:
     def filepath(self, newVal: str):
         if newVal != self._filepath:
             self._filepath = newVal
-            self.sigInfoChanged.emit()
+            self.sigInfoChanged.emit(['filepath'])
             self.tools.sessionPath = os.path.dirname(self._filepath)
 
     @property
