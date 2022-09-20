@@ -306,12 +306,17 @@ class ManageSessionPanel(MainViewPanel):
 
         self.loadSession(sesFilepath=toSesFilepath)
 
-    def _onSessionInfoChanged(self):
+    def _onSessionInfoChanged(self, whatChanged: tp.Optional[list[str]] = None):
+        allRelevantKeys = ('filepath', 'subjectID', 'sessionID')
+        if whatChanged is None:
+            whatChanged = allRelevantKeys
+        else:
+            whatChanged = tuple(key for key in whatChanged if key in allRelevantKeys)
         if self.session is None:
-            for key in ('filepath', 'subjectID', 'sessionID'):
+            for key in whatChanged:
                 self._infoWdgts[key].setText('')
         else:
-            for key in ('filepath', 'subjectID', 'sessionID'):
+            for key in whatChanged:
                 val = getattr(self.session, key)
                 self._infoWdgts[key].setText('' if val is None else val)
 

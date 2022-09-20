@@ -88,6 +88,7 @@ class ToolWidget:
             browseMode='getOpenFilename',
             filepath=self._tool.romFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
+            showRelativePrefix=self._tool.filepathsRelToKey,
             extFilters='ROM (*.rom)',
             browseCaption='Choose tracker definition file',
         )
@@ -98,6 +99,7 @@ class ToolWidget:
             browseMode='getOpenFilename',
             filepath=self._tool.trackerStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
+            showRelativePrefix=self._tool.filepathsRelToKey,
             extFilters='STL (*.stl)',
             browseCaption='Choose 3D model for tracker visualization'
         )
@@ -108,6 +110,7 @@ class ToolWidget:
             browseMode='getOpenFilename',
             filepath=self._tool.toolStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
+            showRelativePrefix=self._tool.filepathsRelToKey,
             extFilters='STL (*.stl)',
             browseCaption='Choose 3D model for tool visualization'
         )
@@ -246,6 +249,8 @@ class ToolWidget:
         self._romFilepath.filepath = self._tool.romFilepath
         self._trackerStlFilepath.filepath = self._tool.trackerStlFilepath
         self._toolStlFilepath.filepath = self._tool.toolStlFilepath
+        for wdgt in (self._romFilepath, self._trackerStlFilepath, self._toolStlFilepath):
+            wdgt.showRelativePrefix = self._tool.filepathsRelToKey
         self._trackerStlToTrackerTransf.setText(self._transfToStr(self._tool.trackerStlToTrackerTransf))
         self._toolToTrackerTransf.setText(self._transfToStr(self._tool.toolToTrackerTransf))
 

@@ -35,7 +35,7 @@ class Tool:
     _romFilepath: tp.Optional[str] = None
     _trackerStlFilepath: tp.Optional[str] = None
     _toolStlFilepath: tp.Optional[str] = None
-    _filepathsRelTo: str = '<session>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
+    _filepathsRelTo: str = '<install>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
     _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
     _toolStlToToolTransf: tp.Optional[
         np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual tool orientation
@@ -162,6 +162,13 @@ class Tool:
             return self._sessionPath
         else:
             return self._filepathsRelTo
+
+    @property
+    def filepathsRelToKey(self):
+        if self._filepathsRelTo in ('<install>', '<session>'):
+            return self._filepathsRelTo
+        else:
+            return None
 
     @property
     def sessionPath(self):

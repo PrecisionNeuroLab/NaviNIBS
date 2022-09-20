@@ -90,7 +90,7 @@ class HeadModelPanel(MainViewPanel):
         super()._onSessionSet()
         self._updateFilepath()
         self._updateRelativeToPath()
-        self.session.sigInfoChanged.connect(self._updateRelativeToPath)
+        self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
         self.session.headModel.sigFilepathChanged.connect(self._updateFilepath)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
@@ -125,8 +125,13 @@ class HeadModelPanel(MainViewPanel):
     def _updateFilepath(self):
         self._filepathWdgt.filepath = self.session.headModel.filepath
 
+    def _onSessionInfoChanged(self, whatChanged: tp.Optional[list[str]] = None):
+        if whatChanged is None or 'filepath' in whatChanged:
+            self._updateRelativeToPath()
+
     def _updateRelativeToPath(self):
         self._filepathWdgt.showRelativeTo = os.path.dirname(self.session.filepath)
+        self._filepathWdgt.showRelativePrefix = '<session>'
 
     def _onBrowsedNewFilepath(self, newFilepath: str):
         self.session.headModel.filepath = newFilepath

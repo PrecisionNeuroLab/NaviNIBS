@@ -18,6 +18,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     _filepath: tp.Optional[str] = None
     _showRelativeTo: tp.Optional[str] = None
+    _showRelativePrefix: tp.Optional[str] = None  # if showing relative to path, can show this prefix in displayed QLineEdit to make origin of rel path clear, e.g. '[RTNaBS]'
     _extFilters: tp.Optional[str] = None
     _browseCaption: tp.Optional[str] = None
 
@@ -112,12 +113,25 @@ class QFileSelectWidget(QtWidgets.QWidget):
         self._showRelativeTo = newPath
         self._updateFilepathDisplay()
 
+    @property
+    def showRelativePrefix(self):
+        return self._showRelativePrefix
+
+    @showRelativePrefix.setter
+    def showRelativePrefix(self, newPrefix: tp.Optional[str]):
+        if self._showRelativePrefix == newPrefix:
+            return
+        self._showRelativePrefix = newPrefix
+        self._updateFilepathDisplay()
+
     def _updateFilepathDisplay(self):
         if self._filepath is None:
             displayPath = ''
         else:
             if self._showRelativeTo is not None:
                 displayPath = os.path.relpath(self._filepath, self._showRelativeTo)  # TODO: confirm working as intended
+                if self._showRelativePrefix is not None:
+                    displayPath = self._showRelativePrefix + displayPath
             else:
                 displayPath = self._filepath
         self._textWidget.setText(displayPath)
