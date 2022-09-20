@@ -5,10 +5,13 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI, SamplesTableModel, TargetsTableModel
+from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
+from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel
+from RTNaBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
+from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
 from RTNaBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
@@ -32,6 +35,13 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
     Note: this is emitted when the selection changes (e.g. a different sample is selected), NOT when a property of the currently selected sample changes.
 
     Note: this is Qt's "current" item. If multiple samples are selected, the "current" sample will just be the last sample added to the selection
+    """
+
+    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[K],)))
+    """
+    Includes keys (or indices) of all selected items.
+
+    Note: this is emitted when the selection changes (e.g. a different sample is selected), NOT when a property of the currently selected sample changes.
     """
 
     def __attrs_post_init__(self):
@@ -92,7 +102,9 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
 
     def _onTableSelectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection):
         logger.debug('Current selection changed')
-        self._model.setWhichItemsSelected(self.selectedCollectionItemKeys)
+        selectedKeys = self.selectedCollectionItemKeys
+        self._model.setWhichItemsSelected(selectedKeys)
+        self.sigSelectionChanged.emit(selectedKeys)
 
     def _onTableRowsInserted(self, parent: QtCore.QModelIndex, first: int, last: int):
         # scroll to end of new rows automatically

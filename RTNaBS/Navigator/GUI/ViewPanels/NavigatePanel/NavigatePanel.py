@@ -279,7 +279,6 @@ class NavigatePanel(MainViewPanel):
         """
         if self._hasInitialized:
             self._coordinator.currentSampleKey = newSampleKey
-            #self._samplesTableWdgt.currentSampleKey = newSampleKey  # TODO: uncomment
 
     def _onSampleBtnClicked(self, _):
         self._recordSample(timestamp=pd.Timestamp.now())
