@@ -248,6 +248,7 @@ class ManageSessionPanel(MainViewPanel):
                 session = Session.loadFromUnpackedDir(unpackedSessionDir=sesFilepath, filepath=sesFilepath)
             else:
                 # treat as compressed file
+                assert os.path.isfile(sesFilepath)
                 session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
         except Exception as e:
             logger.warning('Problem loading session from {}:\n{}'.format(sesFilepath, exceptionToStr(e)))
