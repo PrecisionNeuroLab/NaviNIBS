@@ -75,7 +75,7 @@ class Session:
             os.makedirs(self.unpackedSessionDir)
 
         if self._tools is None:
-            self._tools = Tools(sessionPath=os.path.dirname(self._filepath))
+            self._tools = Tools(sessionPath=self._filepath)
 
         self.sigInfoChanged.connect(lambda _: self.flagKeyAsDirty('info'))
         self.MRI.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('MRI'))
@@ -123,7 +123,7 @@ class Session:
         if newVal != self._filepath:
             self._filepath = newVal
             self.sigInfoChanged.emit(['filepath'])
-            self.tools.sessionPath = os.path.dirname(self._filepath)
+            self.tools.sessionPath = self._filepath
 
     @property
     def MRI(self):
@@ -231,7 +231,7 @@ class Session:
                 config[field] = getattr(self, field)
             keysToSave.discard('info')
 
-        otherPathsRelTo = os.path.dirname(self.filepath)
+        otherPathsRelTo = self.filepath
 
         if 'MRI' in keysToSave or not saveDirtyOnly:
             # save MRI path relative to location of compressed file
@@ -392,7 +392,7 @@ class Session:
         for key in ('subjectID', 'sessionID'):
             kwargs[key] = config[key]
 
-        otherPathsRelTo = os.path.dirname(kwargs['filepath'])
+        otherPathsRelTo = kwargs['filepath']
 
         if 'MRI' in config:
             configFilename_MRI = config['MRI']
