@@ -3,7 +3,6 @@ import asyncio
 import logging
 import numpy as np
 import pyvista as pv
-from pyvista.plotting.renderers import Renderers
 import pyvistaqt as pvqt
 import typing as tp
 
@@ -95,10 +94,12 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
         for renderer in self.renderers:
             mainPlotter.ren_win.AddRenderer(renderer)
             renderer.SetLayer(rendererLayer)
-            #renderer.SetInteractive(False)  # will allow main renderer to capture focus
         mainPlotter.link_views_across_plotters(self)
 
         self.renderer.set_background(mainPlotter.background_color)
+
+        for renderer in self.renderers:
+            renderer.SetLayer(rendererLayer)
 
     @property
     def rendererLayer(self):
@@ -130,10 +131,13 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
     def __init__(self, *args, rendererLayer: int = 0, **kwargs):
         self._secondaryPlotters = dict()
 
-        super().__init__(*args, **kwargs)
+        BackgroundPlotter.__init__(self, *args, **kwargs)
 
         for renderer in self.renderers:
             renderer.SetLayer(rendererLayer)
+
+        # disable auto-adjust of camera clipping since it fails with multiple renderers
+        self.iren.interactor.GetInteractorStyle().AutoAdjustCameraClippingRangeOff()
 
     @property
     def secondaryPlotters(self):
@@ -197,3 +201,8 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
             bounds[1, :] = bounds[1, :] + (bounds[1, :] - bounds[0, :])
 
             self.renderer.ResetCameraClippingRange(*bounds.T.reshape((6,)).tolist())
+
+            # for plotter in self.secondaryPlotters.values():
+            #     plotter.renderer.ResetCameraClippingRange(*bounds.T.reshape((6,)).tolist())
+
+            logger.debug(f'Camera clipping range: {self.renderer.camera.clipping_range}')
