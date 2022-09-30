@@ -23,9 +23,10 @@ from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform, composeTransform
 import RTNaBS.util.GUI.DockWidgets as dw
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from RTNaBS.util.pyvista.plotting import BackgroundPlotter, logger as plotLogger, PrimaryLayeredPlotter, SecondaryLayeredPlotter
 
 logger = logging.getLogger(__name__)
+#plotLogger.setLevel(logging.DEBUG)
 
 
 Transform = np.ndarray
@@ -88,7 +89,7 @@ class NavigationView:
 
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: PrimaryLayeredPlotter = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
     """
@@ -104,12 +105,11 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
-        self._plotter = BackgroundPlotter(
+        self._plotter = PrimaryLayeredPlotter(
             show=False,
             app=QtWidgets.QApplication.instance()
         )
         self._plotter.set_background('#FFFFFF')
-        self._plotter.enable_depth_peeling(3)
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
         self._layerLibrary = {}
@@ -202,20 +202,37 @@ class SinglePlotterNavigationView(NavigationView):
 
         except NoValidCameraPoseAvailable:
             logger.debug('No camera pose available')
+            self._plotter.reset_camera_clipping_range()
+            self._plotter.render()
             return  # TODO: change display to indicate view is out-of-date / invalid
 
         self._plotter.camera.focal_point = cameraPts[0, :]
         self._plotter.camera.position = cameraPts[1, :]
         self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
-        self._plotter.camera.reset_clipping_range()
+        self._plotter.reset_camera_clipping_range()
+        self._plotter.render()
 
-    def addLayer(self, type: str, key: str, **kwargs):
+    def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
+                 layerPlotterLayer: tp.Optional[int] = None, **kwargs):
         cls = self._layerLibrary[type]
         assert key not in self._layers
+        if layeredPlotterKey is None:
+            plotter = self._plotter
+        else:
+            if layeredPlotterKey in self._plotter.secondaryPlotters:
+                plotter = self._plotter.secondaryPlotters[layeredPlotterKey]
+                if layerPlotterLayer is not None:
+                    assert plotter.rendererLayer == layerPlotterLayer
+            else:
+                plotter = self._plotter.addLayeredPlotter(key=layeredPlotterKey, layer=layerPlotterLayer)
+                logger.debug(f'Added renderer layer {layeredPlotterKey} #{plotter.rendererLayer}')
+
         self._layers[key] = cls(key=key, **kwargs,
                                 coordinator=self._coordinator,
-                                plotter=self._plotter,
+                                plotter=plotter,
                                 plotInSpace=self._plotInSpace)
+
+        plotter.render()
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
@@ -249,18 +266,29 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self.addLayer(type='TargetingTargetCrosshairs', key='Target')
-        self.addLayer(type='TargetingCoilCrosshairs', key='Coil')
-        self.addLayer(type='SampleOrientations', key='Samples')
-        self.addLayer(type='TargetOrientations', key='Targets')
-        self.addLayer(type='TargetingTargetPoints', key='TargetPoints')
-        self.addLayer(type='TargetingCoilPoints', key='CoilPoints')
-        self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target')
-        self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil')
-        self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSimpleSurf')
         if self._doShowSkinSurf:
-            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSimpleSurf',
-                          color='#c9c5c2', opacity=0.4)
+            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSurf',
+                          color='#c9c5c2',
+                          layeredPlotterKey='SkinMesh',
+                          layerPlotterLayer=0)
+
+            #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
+
+        self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
+        self._plotter.setLayer(1 if self._doShowSkinSurf else 0)
+
+        #self._plotter.enable_depth_peeling(2)
+
+        self.addLayer(type='SampleOrientations', key='Samples', layeredPlotterKey='Orientations')
+        self.addLayer(type='TargetOrientations', key='Targets', layeredPlotterKey='Orientations')
+        self.addLayer(type='TargetingTargetPoints', key='TargetPoints', layeredPlotterKey='Orientations')
+        self.addLayer(type='TargetingCoilPoints', key='CoilPoints', layeredPlotterKey='Orientations')
+
+        self.addLayer(type='TargetingTargetCrosshairs', key='Target', layeredPlotterKey='Crosshairs')
+        self.addLayer(type='TargetingCoilCrosshairs', key='Coil', layeredPlotterKey='Crosshairs')
+
+        self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target', layeredPlotterKey='TargetingError')
+        self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil', layeredPlotterKey='TargetingError')
 
 
 @attrs.define

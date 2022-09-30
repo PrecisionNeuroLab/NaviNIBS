@@ -237,6 +237,7 @@ class CameraPanel(MainViewPanel):
                                                       toolOrTrackerStlToTrackerTransf,
                                                       self._positionsClient.getLatestTransf(key)
                                                   ]))
+                            self._plotter.render()
 
                 if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
                     if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
@@ -249,10 +250,13 @@ class CameraPanel(MainViewPanel):
 
                         setActorUserTransform(self._actors[actorKey],
                                               self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                        self._plotter.render()
 
                 if actorKey in self._actors:
                     if canShow and not self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOn()
+                        self._plotter.render()
                     elif not canShow and self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOff()
+                        self._plotter.render()
 

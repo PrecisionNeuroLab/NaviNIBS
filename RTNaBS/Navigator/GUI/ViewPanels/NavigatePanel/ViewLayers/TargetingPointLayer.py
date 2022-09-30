@@ -81,10 +81,12 @@ class TargetingPointLayer(PlotViewLayer):
                 # no valid pose available
                 if actor.GetVisibility():
                     actor.VisibilityOff()
+                    self._plotter.render()
             else:
                 setActorUserTransform(actor, composeTransform(np.eye(3), coord))
                 if not actor.GetVisibility():
                     actor.VisibilityOn()
+                self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected redraw which: {}'.format(which))

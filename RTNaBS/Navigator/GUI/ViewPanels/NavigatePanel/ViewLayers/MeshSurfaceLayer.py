@@ -22,7 +22,7 @@ Transform = np.ndarray
 class MeshSurfaceLayer(PlotViewLayer):
     _type: ClassVar[str] = 'MeshSurface'
     _color: str = '#d9a5b2'
-    _opacity: float = 0.7
+    _opacity: float = 1
     _surfKey: str = 'gmSimpleSurf'
 
     def __attrs_post_init__(self):
@@ -55,6 +55,8 @@ class MeshSurfaceLayer(PlotViewLayer):
                                                             split_sharp_edges=True,
                                                             name=actorKey)
 
+            self._plotter.reset_camera_clipping_range()
+
             self._redraw('updatePosition')
 
         elif which == 'updatePosition':
@@ -63,6 +65,7 @@ class MeshSurfaceLayer(PlotViewLayer):
                     actorKey = self._getActorKey('surf')
                     transf = np.eye(4)
                     setActorUserTransform(self._actors[actorKey], transf)
+                    self._plotter.render()
                 else:
                     pass  # assume since plotInSpace is always MRI (for now) that we don't need to update anything
         else:

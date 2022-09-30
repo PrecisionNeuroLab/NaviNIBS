@@ -27,7 +27,7 @@ class VisualizedOrientation:
     Note: this doesn't connect to any change signals from underlying sample, instead assuming that caller will
     re-instantiate for any changes as needed
     """
-    _orientation: tp.Unio[Sample, Target]
+    _orientation: tp.Union[Sample, Target]
     _plotter: pv.Plotter
     _colorDepthIndicator: str
     _colorHandleIndicator: str
@@ -123,6 +123,7 @@ class OrientationsLayer(PlotViewLayer):
 
                 if self._orientationIsVisible(key):
                     isSelected = self.orientations[key].isSelected
+                    logger.debug(f'Instantiating visualized orientation for {key}')
                     self._visualizedOrientations[key] = VisualizedOrientation(
                         orientation=self.orientations[key],
                         plotter=self._plotter,
