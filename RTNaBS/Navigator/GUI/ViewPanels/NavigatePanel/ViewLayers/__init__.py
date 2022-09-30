@@ -38,7 +38,7 @@ class ViewLayer:
 
 @attrs.define
 class PlotViewLayer(ViewLayer):
-    _plotter: BackgroundPlotter  # note this this one plotter may be shared between multiple ViewLayers
+    _plotter: BackgroundPlotter  # note that this one plotter may be shared between multiple ViewLayers
     _plotInSpace: str = 'MRI'
 
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)

@@ -86,6 +86,8 @@ class TargetingErrorLineLayer(PlotViewLayer):
 
             if not actor.GetVisibility():
                 actor.VisibilityOn()
+
+            self._plotter.render()
         else:
             raise NotImplementedError(f'Unexpected redraw which: {which}')
 

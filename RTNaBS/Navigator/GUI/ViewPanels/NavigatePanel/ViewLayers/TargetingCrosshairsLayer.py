@@ -54,6 +54,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
             if actorKey in self._actors:
                 actor = self._actors.pop(actorKey)
                 self._plotter.remove_actor(actor)
+                self._plotter.render()
 
         elif which == 'crosshairVisibility':
             actorKey = self._getActorKey('crosshair')
@@ -64,6 +65,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
                 if actor.GetVisibility() != doShow:
                     actor.SetVisibility(doShow)
+                    self._plotter.render()
 
         elif which == 'initCrosshair':
             actorKey = self._getActorKey('crosshair')
@@ -122,6 +124,8 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
             else:
                 raise NotImplementedError()
+
+            self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected redraw which: {}'.format(which))

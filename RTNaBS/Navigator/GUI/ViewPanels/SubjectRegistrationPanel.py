@@ -423,6 +423,7 @@ class SubjectRegistrationPanel(MainViewPanel):
                             self.session.subjectRegistration.trackerToMRITransf
                         ])
                     )
+                    self._plotter.render()
 
             else:
                 raise NotImplementedError()
@@ -437,6 +438,7 @@ class SubjectRegistrationPanel(MainViewPanel):
                 self._actors[actorKey],
                 self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.trackerStlToTrackerTransf
             )
+            self._plotter.render()
 
         elif which == 'initPlannedFids':
 
