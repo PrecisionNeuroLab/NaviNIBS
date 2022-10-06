@@ -38,6 +38,14 @@ class FiducialsPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
+
+    def _finishInitialization(self):
+        # don't initialize computationally-demanding views until panel is activated (viewed)
+
+        super()._finishInitialization()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('Planned fiducials')
@@ -90,14 +98,6 @@ class FiducialsPanel(MainViewPanel):
             self._views[key].sigSliceOriginChanged.connect(lambda key=key: self._onSliceOriginChanged(sourceKey=key))
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
-
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
-
-    def _finishInitialization(self):
-        # don't initialize computationally-demanding views until panel is activated (viewed)
-
-        super()._finishInitialization()
 
         for key, view in self._views.items():
             if view.session is None and self.session is not None:

@@ -63,49 +63,45 @@ class NavigatorGUI(RunnableAsApp):
 
         self._win.setAffinities(['MainViewPanel'])  # only allow main view panels to dock in this window
 
-        def addViewPanel(panel: MainViewPanel) -> MainViewPanel:
-            self._win.addDockWidgetAsTab(panel.dockWdgt)
-            self._mainViewPanels[panel.key] = panel
-            return panel
-
-        panel = addViewPanel(ManageSessionPanel(key='Manage session', session=self._session,
+        panel = self._addViewPanel(ManageSessionPanel(key='Manage session', session=self._session,
                                    inProgressBaseDir=self._inProgressBaseDir))
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
-        addViewPanel(MRIPanel(key='Set MRI', session=self._session))
+        self._addViewPanel(MRIPanel(key='Set MRI', session=self._session))
 
-        addViewPanel(HeadModelPanel(key='Set head model', session=self._session))
+        self._addViewPanel(HeadModelPanel(key='Set head model', session=self._session))
 
-        addViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session))
+        self._addViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session))
 
-        addViewPanel(MainViewPanel(key='Set transforms', session=self._session, icon=qta.icon('mdi6.head-sync-outline')))
+        self._addViewPanel(MainViewPanel(key='Set transforms', session=self._session, icon=qta.icon('mdi6.head-sync-outline')))
         # TODO: set up transforms widget
 
-        addViewPanel(TargetsPanel(key='Set targets', session=self._session))
+        self._addViewPanel(TargetsPanel(key='Set targets', session=self._session))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        addViewPanel(ToolsPanel(key='Tools', session=self._session))
+        self._addViewPanel(ToolsPanel(key='Tools', session=self._session))
 
         # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
-        addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
+        self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
-        addViewPanel(TriggerSettingsPanel(key='Trigger settings', session=self._session))
+        self._addViewPanel(TriggerSettingsPanel(key='Trigger settings', session=self._session))
 
-        addViewPanel(CameraPanel(key='Camera', session=self._session))
+        self._addViewPanel(CameraPanel(key='Camera', session=self._session))
 
-        addViewPanel(SubjectRegistrationPanel(key='Register', session=self._session))
+        self._addViewPanel(SubjectRegistrationPanel(key='Register', session=self._session))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        addViewPanel(NavigatePanel(key='Navigate', session=self._session))
+        self._addViewPanel(NavigatePanel(key='Navigate', session=self._session))
 
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
         self._updateEnabledPanels()
-        self._activateView('Navigate')  # TODO: debug, delete
+        self._activateView('Manage session')
+        #self._activateView('Navigate')  # TODO: debug, delete
 
         if self._sesFilepath is not None:
             asyncio.create_task(self._loadAfterSetup(filepath=self._sesFilepath))
@@ -114,12 +110,19 @@ class NavigatorGUI(RunnableAsApp):
             logger.debug('Showing window')
             self._win.show()
 
+    def _addViewPanel(self, panel: MainViewPanel) -> MainViewPanel:
+        logger.info(f'Adding view panel {panel.key}')
+        self._win.addDockWidgetAsTab(panel.dockWdgt)
+        self._mainViewPanels[panel.key] = panel
+        return panel
+
     def _onSessionLoaded(self, session: Session):
         assert session is not None
         logger.info('Loaded session {}'.format(session.filepath))
         self._session = session
         for pane in self._mainViewPanels.values():
             pane.session = session
+
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
@@ -179,7 +182,7 @@ if __name__ == '__main__':
     if True:  # TODO: debug, delete or set to False
         if True:
             #sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test4.rtnabs')
-            sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test7.rtnabsdir')
+            sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
         else:
             sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
                                        'data/TestSession1.rtnabs')

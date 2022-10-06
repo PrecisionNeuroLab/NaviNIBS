@@ -48,6 +48,8 @@ class SimulatedToolsPanel(MainViewPanel):
     _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
 
+    _currentlyMovingActor: tp.Optional[str] = attrs.field(init=False, default=None)
+
     _positionsClient: SimulatedToolPositionsClient = attrs.field(init=False)
 
     def __attrs_post_init__(self):
@@ -55,6 +57,12 @@ class SimulatedToolsPanel(MainViewPanel):
         self._wdgt.setAffinities([self._key])
 
         super().__attrs_post_init__()
+
+    def canBeEnabled(self):
+        return self.session is not None
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
 
         def createDockWidget(title: str,
                              widget: tp.Optional[QtWidgets.QWidget] = None,
@@ -107,7 +115,7 @@ class SimulatedToolsPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance())
         self._plotter.set_background('#FFFFFF')
-        self._plotter.enable_depth_peeling(4)
+        self._plotter.enable_depth_peeling(3)
         if False:
             # (disabled for now, breaks mesh picking)
             self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
@@ -117,11 +125,6 @@ class SimulatedToolsPanel(MainViewPanel):
         )
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnRight)
 
-    def canBeEnabled(self):
-        return self.session is not None
-
-    def _finishInitialization(self):
-        super()._finishInitialization()
         self._positionsClient = SimulatedToolPositionsClient(
             serverHostname=self.session.tools.positionsServerInfo.hostname,
             serverPubPort=self.session.tools.positionsServerInfo.pubPort,
@@ -151,6 +154,8 @@ class SimulatedToolsPanel(MainViewPanel):
                 canShow = False
                 for toolOrTracker in ('tracker', 'tool'):
                     if actorKey == key + '_' + toolOrTracker:
+                        if self._currentlyMovingActor is not None and actorKey == self._currentlyMovingActor:
+                            continue  # don't update here since interactive update code will handle this actor position during move
                         if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
                             if toolOrTracker == 'tool':
                                 toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
@@ -178,6 +183,7 @@ class SimulatedToolsPanel(MainViewPanel):
                                                       toolOrTrackerStlToTrackerTransf,
                                                       self._positionsClient.getLatestTransf(key)
                                                   ]))
+                            self._plotter.render()
 
                 if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
                     if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
@@ -190,12 +196,15 @@ class SimulatedToolsPanel(MainViewPanel):
 
                         setActorUserTransform(self._actors[actorKey],
                                               self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                        self._plotter.render()
 
                 if actorKey in self._actors:
                     if canShow and not self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOn()
+                        self._plotter.render()
                     elif not canShow and self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOff()
+                        self._plotter.render()
 
     def clearAllPositions(self):
         raise NotImplementedError  # TODO
@@ -224,16 +233,20 @@ class SimulatedToolsPanel(MainViewPanel):
             raise NotImplementedError
         logger.info(f'Picked actor {pickedKey} ({pickedTool.key}) to move')
 
+        self._currentlyMovingActor = pickedKey
+
         # move
         def onNewTransf(transf: vtk.vtkTransform):
             prevTransf = pickedActor.GetUserTransform()
-
+            logger.debug('onNewTransf')
             # back out any tool-specific transforms and send updated transf to simulated tool position server
             transf = pv.array_from_vtkmatrix(transf.GetMatrix())
             if pickedKey.endswith('_tool'):
                 # transf = trackerToWorldTransf @ toolToTrackerTransf @ toolStlToToolTransf
                 newTrackerToWorldTransf = transf @ invertTransform(pickedTool.toolToTrackerTransf @ pickedTool.toolStlToToolTransf)
+                logger.debug('Setting new simulated position')
                 self._positionsClient.setNewPosition(key=pickedTool.key, transf=newTrackerToWorldTransf)
+                logger.debug('Done setting new simulated position')
             else:
                 raise NotImplementedError(f'Support for moving {pickedKey} not yet implemented')
 

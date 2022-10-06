@@ -37,6 +37,14 @@ class MRIPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None
+
+    def _finishInitialization(self):
+        # don't initialize computationally-demanding views until panel is activated (viewed)
+
+        super()._finishInitialization()
+
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
@@ -62,17 +70,8 @@ class MRIPanel(MainViewPanel):
 
             containerLayout.addWidget(self._views[key].wdgt, iRow, iCol)
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None
-
-    def _finishInitialization(self):
-        # don't initialize computationally-demanding views until panel is activated (viewed)
-
-        super()._finishInitialization()
-
-        for key, view in self._views.items():
-            if view.session is None and self.session is not None:
-                view.session = self.session
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
 
     def _onSliceOriginChanged(self, sourceKey: str):
         for key, view in self._views.items():
@@ -82,14 +81,18 @@ class MRIPanel(MainViewPanel):
 
     def _onSessionSet(self):
         super()._onSessionSet()
+
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self._updateFilepath()
         self._updateRelativeToPath()
         self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
         self.session.MRI.sigFilepathChanged.connect(self._updateFilepath)
 
-        if self._hasInitialized:
-            for key, view in self._views.items():
-                view.session = self.session
+        for key, view in self._views.items():
+            view.session = self.session
 
     def _updateFilepath(self):
         self._filepathWdgt.filepath = self.session.MRI.filepath

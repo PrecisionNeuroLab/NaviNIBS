@@ -32,6 +32,7 @@ class MainViewPanel:
     sigPanelHidden: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
+        logger.info(f'Initializing {self.__class__.__name__}')
         self._dockWdgt = dw.DockWidget(self._key)
         self._dockWdgt.setAffinities(['MainViewPanel'])  # only allow docking with other main view panels
         self._dockWdgt.setWidget(self._wdgt)

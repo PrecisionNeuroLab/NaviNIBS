@@ -54,6 +54,14 @@ class SubjectRegistrationPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
+            and self.session.tools.subjectTracker is not None and self.session.tools.pointer is not None \
+            and self.session.subjectRegistration.hasMinimumPlannedFiducials
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         sidebar = QtWidgets.QWidget()
@@ -76,7 +84,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         btn = QtWidgets.QPushButton('Sample fiducial')
         btn.clicked.connect(self._onSampleFidBtnClicked)
         self._sampleFiducialBtn = btn
-        btnContainer.layout().addWidget(btn, 0, 0,)
+        btnContainer.layout().addWidget(btn, 0, 0, )
 
         btn = QtWidgets.QPushButton('Clear fiducial')
         btn.clicked.connect(self._onClearFidBtnClicked)
@@ -145,13 +153,6 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._positionsClient = ToolPositionsClient()
         self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which=['pointerPosition', 'sampleBtns']))
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
-            and self.session.tools.subjectTracker is not None and self.session.tools.pointer is not None \
-            and self.session.subjectRegistration.hasMinimumPlannedFiducials
-
-    def _finishInitialization(self):
-        super()._finishInitialization()
         self._redraw(which='all')
 
     def _onSessionSet(self):
