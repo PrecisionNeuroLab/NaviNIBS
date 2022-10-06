@@ -120,6 +120,14 @@ class NavigatePanel(MainViewPanel):
 
         super().__attrs_post_init__()
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
+               and self.session.tools.subjectTracker is not None \
+               and self.session.subjectRegistration.isRegistered
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
+
         def createDockWidget(title: str,
                              widget: tp.Optional[QtWidgets.QWidget] = None,
                              layout: tp.Optional[QtWidgets.QLayout] = None):
@@ -206,13 +214,6 @@ class NavigatePanel(MainViewPanel):
         self._triggerReceiver = TriggerReceiver(key=self._key)
         self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
-               and self.session.tools.subjectTracker is not None \
-               and self.session.subjectRegistration.isRegistered
-
-    def _finishInitialization(self):
-        super()._finishInitialization()
         if not self._hasInitialized:
             self._initializePanel()
 

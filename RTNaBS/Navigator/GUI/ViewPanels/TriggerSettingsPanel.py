@@ -244,14 +244,24 @@ class TriggerSettingsPanel(MainViewPanel):
 
         super().__attrs_post_init__()
 
+    def _finishInitialization(self):
+        super()._finishInitialization()
+
         self._lslSettings = LSLTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
         self._wdgt.addDockWidget(self._lslSettings.cdw, dw.DockWidgetLocation.OnLeft)
 
         self._hotkeySettings = HotkeyTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
         self._wdgt.addDockWidget(self._hotkeySettings.cdw, dw.DockWidgetLocation.OnRight)
 
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
+
     def _onSessionSet(self):
         super()._onSessionSet()
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self._lslSettings.session = self.session
         self._hotkeySettings.session = self.session
 

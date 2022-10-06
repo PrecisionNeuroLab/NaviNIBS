@@ -302,6 +302,12 @@ class ToolsPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         sidebar = QtWidgets.QWidget()
@@ -339,15 +345,18 @@ class ToolsPanel(MainViewPanel):
         self._tblWdgt.currentCellChanged.connect(self._onTblCurrentCellChanged)
         container.layout().addWidget(self._tblWdgt)
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
 
-    def _finishInitialization(self):
-        super()._finishInitialization()
         self._onToolsChanged()
 
     def _onSessionSet(self):
         super()._onSessionSet()
+
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self.session.tools.sigToolsChanged.connect(self._onToolsChanged)
         self._trackingStatusWdgt.session = self.session
         self._onToolsChanged()

@@ -165,6 +165,25 @@ class TargetsPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+    def canBeEnabled(self) -> bool:
+        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
+
+    @staticmethod
+    def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
+        if axis == 'x':
+            return ptr.active_matrix_from_extrinsic_euler_yxy([np.pi/2, np.pi/2, 0])
+        elif axis == 'y':
+            return ptr.active_matrix_from_angle(0, np.pi/2)
+        elif axis in ('z', '3D'):
+            return np.eye(3)
+        else:
+            raise NotImplementedError()
+
+    def _finishInitialization(self):
+        # don't initialize computationally-demanding views until panel is activated (viewed)
+
+        super()._finishInitialization()
+
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
         container = QtWidgets.QGroupBox('Planned targets')
@@ -217,28 +236,9 @@ class TargetsPanel(MainViewPanel):
 
             container.layout().addWidget(self._views[key].wdgt, iRow, iCol)
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
 
-    @staticmethod
-    def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
-        if axis == 'x':
-            return ptr.active_matrix_from_extrinsic_euler_yxy([np.pi/2, np.pi/2, 0])
-        elif axis == 'y':
-            return ptr.active_matrix_from_angle(0, np.pi/2)
-        elif axis in ('z', '3D'):
-            return np.eye(3)
-        else:
-            raise NotImplementedError()
-
-    def _finishInitialization(self):
-        # don't initialize computationally-demanding views until panel is activated (viewed)
-
-        super()._finishInitialization()
-
-        for key, view in self._views.items():
-            if view.session is None and self.session is not None:
-                view.session = self.session
         self._onTargetsChanged()
 
     def _onSliceTransformChanged(self, sourceKey: str):
@@ -252,12 +252,17 @@ class TargetsPanel(MainViewPanel):
 
     def _onSessionSet(self):
         super()._onSessionSet()
+
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
         self._tableWdgt.session = self.session
 
-        if self._hasInitialized:
-            for key, view in self._views.items():
-                view.session = self.session
+        for key, view in self._views.items():
+            view.session = self.session
+
 
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
         return self._tableWdgt.currentCollectionItemKey

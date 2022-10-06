@@ -54,6 +54,7 @@ class CameraPanel(MainViewPanel):
     _serverTypeComboBox: QtWidgets.QComboBox = attrs.field(init=False)
     _serverAddressEdit: QtWidgets.QLineEdit = attrs.field(init=False)
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _serverGUIContainer: QtWidgets.QGroupBox = attrs.field(init=False)
 
     _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
@@ -61,6 +62,12 @@ class CameraPanel(MainViewPanel):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+    def canBeEnabled(self) -> bool:
+        return self.session is not None
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
 
         if self._cameraFOVSTLPath is None:
             self._cameraFOVSTLPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'data', 'tools', 'PolarisVegaFOV.stl')
@@ -78,6 +85,8 @@ class CameraPanel(MainViewPanel):
         container = QtWidgets.QGroupBox('Camera connection')
         container.setLayout(QtWidgets.QVBoxLayout())
         sidebar.layout().addWidget(container)
+
+        self._serverGUIContainer = container
 
         # TODO: add GUI controls for configuring, launching, stopping Plus Server
         # for now, assume plus server is launched separately with appropriate tool configs
@@ -116,16 +125,18 @@ class CameraPanel(MainViewPanel):
 
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
 
-    def _finishInitialization(self):
-        super()._finishInitialization()
         self._onLatestPositionsChanged()
         self._onClientIsConnectedChanged()
 
     def _onSessionSet(self):
         super()._onSessionSet()
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self._session.tools.sigToolsChanged.connect(self._onToolsChanged)
         self._trackingStatusWdgt.session = self.session
 
