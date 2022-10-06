@@ -428,7 +428,7 @@ class Session:
             kwargs['triggerSources'] = TriggerSources.fromDict(config['triggerSources'])
 
         if 'addons' in config:
-            kwargs['addons'] = Addons.fromList(config['addons'])
+            kwargs['addons'] = Addons.fromList(config['addons'], unpackedSessionDir=unpackedSessionDir)
 
         # TODO: loop through any addons to give them a chance to load from unpacked dir as needed
 

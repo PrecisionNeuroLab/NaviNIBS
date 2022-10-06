@@ -119,15 +119,47 @@ class NavigatorGUI(RunnableAsApp):
     def _onSessionLoaded(self, session: Session):
         assert session is not None
         logger.info('Loaded session {}'.format(session.filepath))
+
+        self._onAddonsAboutToChange()
+
         self._session = session
+
+        self._onAddonsChanged(triggeredBySessionLoad=True)
+
         for pane in self._mainViewPanels.values():
             pane.session = session
 
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
+        session.addons.sigAddonsChanged.connect(self._onAddonsChanged)
+
         self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._updateEnabledPanels)
         self.session.tools.sigToolsChanged.connect(lambda _: self._updateEnabledPanels())
+
+    def _onAddonsAboutToChange(self):
+        if self._session is not None:
+            if len(self._session.addons) > 0:
+                pass  # TODO: unload any addons changed not present in new session
+
+    def _onAddonsChanged(self, triggeredBySessionLoad: bool = False):
+        needToUpdateEnabledPanels = False
+        for addonKey, addon in self._session.addons.items():
+            for panelKey, ACE_Panel in addon.MainViewPanels.items():
+                Panel = ACE_Panel.Class
+                if panelKey not in self._mainViewPanels:
+                    logger.info(f'Loading addon {addonKey} main view panel {panelKey}')
+                    self._addViewPanel(Panel(key=panelKey, session=self._session))
+
+                    if not triggeredBySessionLoad:
+                        self._mainViewPanels[panelKey].session = self._session
+                        needToUpdateEnabledPanels = True
+
+                else:
+                    logger.info(f'Addon {addonKey} main view panel {panelKey} already loaded, not reloading')
+
+        if needToUpdateEnabledPanels:
+            self._updateEnabledPanels()
 
     def _onSessionClosed(self, prevSession: Session):
         logger.info('Closed session {}'.format(prevSession.filepath))
