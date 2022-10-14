@@ -124,10 +124,10 @@ class NavigatorGUI(RunnableAsApp):
 
         self._session = session
 
-        self._onAddonsChanged(triggeredBySessionLoad=True)
-
         for pane in self._mainViewPanels.values():
             pane.session = session
+
+        self._onAddonsChanged(triggeredBySessionLoad=True)
 
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
@@ -144,12 +144,15 @@ class NavigatorGUI(RunnableAsApp):
 
     def _onAddonsChanged(self, triggeredBySessionLoad: bool = False):
         needToUpdateEnabledPanels = False
+        prevActiveViewKey = self.activeViewKey
         for addonKey, addon in self._session.addons.items():
             for panelKey, ACE_Panel in addon.MainViewPanels.items():
                 Panel = ACE_Panel.Class
                 if panelKey not in self._mainViewPanels:
                     logger.info(f'Loading addon {addonKey} main view panel {panelKey}')
-                    self._addViewPanel(Panel(key=panelKey, session=self._session))
+                    self._addViewPanel(Panel(key=panelKey))  # don't set session until after setting active view below to support deferred panel initialization
+                    self._activateView(prevActiveViewKey)  # prevented switching focus to most recent loaded main view panel
+                    self._mainViewPanels[panelKey].session = self._session
 
                     if not triggeredBySessionLoad:
                         self._mainViewPanels[panelKey].session = self._session

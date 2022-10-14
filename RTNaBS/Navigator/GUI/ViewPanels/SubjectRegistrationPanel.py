@@ -155,10 +155,17 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         self._redraw(which='all')
 
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
+
     def _onSessionSet(self):
         super()._onSessionSet()
         # TODO: connect relevant session changed signals to _redraw calls
 
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self.session.headModel.sigDataChanged.connect(lambda which: self._redraw(which='initSurf'))
         self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._redraw(which='initPlannedFids'))
         self.session.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._redraw(which='initSampledFids'))
