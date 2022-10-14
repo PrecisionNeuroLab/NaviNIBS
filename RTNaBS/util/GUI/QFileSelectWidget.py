@@ -131,7 +131,8 @@ class QFileSelectWidget(QtWidgets.QWidget):
             if self._showRelativeTo is not None:
                 displayPath = os.path.relpath(self._filepath, self._showRelativeTo)  # TODO: confirm working as intended
                 if self._showRelativePrefix is not None:
-                    displayPath = self._showRelativePrefix + displayPath
+                    filesep = '\\' if '\\' in displayPath else '/'
+                    displayPath = self._showRelativePrefix + filesep + displayPath
             else:
                 displayPath = self._filepath
         self._textWidget.setText(displayPath)
