@@ -57,7 +57,8 @@ class _PoseMetricGroup:
     """
     _title: str
     _container: QtWidgets.QWidget
-    _calculator: tp.Union[str, PoseMetricCalculator] = None
+    _calculatorKey: str
+    _calculator: tp.Optional[PoseMetricCalculator] = None
     _indicators: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
     _hasInitialized: bool = attrs.field(init=False, default=False)
 
@@ -65,25 +66,37 @@ class _PoseMetricGroup:
         pass
 
     @property
+    def calculatorKey(self):
+        return self._calculatorKey
+
+    @property
     def calculator(self):
         return self._calculator
 
     @calculator.setter
     def calculator(self, calculator: PoseMetricCalculator):
-        assert not self._hasInitialized
+        if calculator is self._calculator:
+            return
+
         assert isinstance(calculator, PoseMetricCalculator)
+
         self._calculator = calculator
 
-        self._container.setLayout(QtWidgets.QFormLayout())
+        if not self._hasInitialized:
+            self._container.setLayout(QtWidgets.QFormLayout())
 
-        for poseMetric in self._calculator.supportedMetrics:
-            wdgt = QtWidgets.QLabel(f"NaN{poseMetric.units}")
-            self._container.layout().addRow(poseMetric.label, wdgt)
-            self._indicators[poseMetric.label] = wdgt
+            for poseMetric in self._calculator.supportedMetrics:
+                wdgt = QtWidgets.QLabel(f"NaN{poseMetric.units}")
+                self._container.layout().addRow(poseMetric.label, wdgt)
+                self._indicators[poseMetric.label] = wdgt
+
+            self._hasInitialized = True
+        else:
+            assert len(self._calculator.supportedMetrics) == self._container.layout().rowCount()
+            assert len(self._calculator.supportedMetrics) == len(self._indicators)
+            assert all(poseMetric.label in self._indicators for poseMetric in self._calculator.supportedMetrics)
 
         self._calculator.sigCacheReset.connect(self._update)
-
-        self._hasInitialized = True
 
         self._update()
 
@@ -150,8 +163,7 @@ class NavigatePanel(MainViewPanel):
         cdw, container = createDockWidget(
             title='Tools tracking status',
         )
-        self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
-                                                        wdgt=container,
+        self._trackingStatusWdgt = TrackingStatusWidget(wdgt=container,
                                                         hideToolTypes=[CalibrationPlate, Pointer])
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
@@ -177,7 +189,7 @@ class NavigatePanel(MainViewPanel):
             poseGroup = _PoseMetricGroup(
                 title=poseGroupDict['title'],
                 container=container,
-                calculator=poseGroupDict['calculatorKey']
+                calculatorKey=poseGroupDict['calculatorKey']
             )
 
             self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
@@ -202,7 +214,7 @@ class NavigatePanel(MainViewPanel):
         # TODO: only enable when one or more samples are selected
 
         btn = QtWidgets.QPushButton('Hide all samples')
-        btn.clicked.connect(lambda *args: self.session.samples.setWhichSamplesVisible([]))
+        btn.clicked.connect(lambda *args: self.session.samples.setWhichSamplesVisible([]) if self.session is not None else None)
         container.layout().addWidget(btn)
 
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
@@ -214,33 +226,30 @@ class NavigatePanel(MainViewPanel):
         self._triggerReceiver = TriggerReceiver(key=self._key)
         self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
 
-        if not self._hasInitialized:
-            self._initializePanel()
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
 
     def _onSessionSet(self):
         super()._onSessionSet()
-        if self._hasInitialized:
-            raise NotImplementedError()  # TODO: handle change in session when previously initialized with different session
-        else:
-            # we'll handle the new session when initializing later
-            pass
 
-    def _initializePanel(self):
-        assert not self._hasInitialized
-        self._hasInitialized = True
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
+        logger.debug(f'{self.__class__.__name__} onPanelInitializedAndSessionSet')
         self._trackingStatusWdgt.session = self.session
-        self._coordinator = TargetingCoordinator(session=self._session)
+        self._coordinator = TargetingCoordinator(session=self.session)
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))
         self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
-        self._targetsTableWdgt.session = self._session
-        self._samplesTableWdgt.session = self._session
+        self._targetsTableWdgt.session = self.session
+        self._samplesTableWdgt.session = self.session
 
         # now that coordinator is available, finish initializing pose metric groups
         for poseGroup in self._poseMetricGroups:
-            assert isinstance(poseGroup.calculator, str)
-            poseGroup.calculator = getattr(self._coordinator, poseGroup.calculator)
+            poseGroup.calculator = getattr(self._coordinator, poseGroup.calculatorKey)
 
-        self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
+        if not self._hasInitialized:
+            self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
 
         # register that we want to receive sample triggers when visible
         self.session.triggerSources.triggerRouter.registerReceiver(self._triggerReceiver)
