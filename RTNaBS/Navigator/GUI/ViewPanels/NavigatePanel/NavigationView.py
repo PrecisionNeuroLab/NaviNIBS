@@ -109,7 +109,6 @@ class SinglePlotterNavigationView(NavigationView):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
-        self._plotter.set_background('#FFFFFF')
         self._wdgt.layout().addWidget(self._plotter.interactor)
 
         self._layerLibrary = {}

@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import pyvista as pv
 import pyvistaqt as pvqt
+from qtpy import QtGui, QtCore
 import typing as tp
 
 
@@ -58,6 +59,8 @@ class _DelayedPlotter:
 class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.BackgroundPlotter):
     """
     Same as inherited pvqt.BackgroundPlotter, but batches multiple render calls together with an async coroutine
+
+    Also set default background color based on app palette
     """
 
     def __init__(self, *args, auto_update: float = 0.01, **kwargs):
@@ -67,6 +70,8 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.BackgroundPlotter):
         except KeyError:
             pass
         pvqt.plotting.BackgroundPlotter.__init__(self, *args, auto_update=auto_update, **kwargs)
+
+        self.set_background(self.palette().color(QtGui.QPalette.Base).name())
 
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
