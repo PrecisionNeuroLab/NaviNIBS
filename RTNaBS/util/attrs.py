@@ -21,7 +21,7 @@ def attrsAsDict(obj,
             # don't include non-init attribs
             return False
 
-        if exclude is not None and attrib.name in exclude or ('_' + attrib.name) in exclude:
+        if exclude is not None and (attrib.name in exclude or ('_' + attrib.name) in exclude):
             # don't include excluded attribs
             return False
 
