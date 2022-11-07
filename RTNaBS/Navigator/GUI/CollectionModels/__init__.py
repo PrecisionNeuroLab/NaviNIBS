@@ -223,7 +223,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
         return changeType
 
-    def _onCollectionAboutToChange(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]]):
+    def _onCollectionAboutToChange(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]] = None):
         """
         Should be called by subclass (e.g. via connected signal) whenever underlying collection is about to change
         :param keys: keys (or indices for non-dict collections) of items about to change; if None, all items are assumed to be about to change
@@ -253,7 +253,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             case _:
                 raise NotImplementedError
 
-    def _onCollectionChanged(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]]):
+    def _onCollectionChanged(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]] = None):
         """
         Should be called by subclass (e.g. via connected signal) whenever underlying collection has changed
         :param keys: keys (or indices for non-dict collections) of items changed; if None, all items are assumed to be about to change

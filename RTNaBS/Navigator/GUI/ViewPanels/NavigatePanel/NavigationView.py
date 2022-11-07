@@ -200,7 +200,7 @@ class SinglePlotterNavigationView(NavigationView):
                  raise NotImplementedError()
 
         except NoValidCameraPoseAvailable:
-            logger.debug('No camera pose available')
+            #logger.debug('No camera pose available')
             self._plotter.reset_camera_clipping_range()
             self._plotter.render()
             return  # TODO: change display to indicate view is out-of-date / invalid

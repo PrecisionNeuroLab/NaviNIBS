@@ -7,7 +7,7 @@
     <Device
       Id="TrackerDevice"
       Type="NDITracker"
-      SerialPort="COM11"
+      SerialPort="COM15"
       BaudRate="115200"
       ToolReferenceFrame="Tracker" >
       <DataSources>
