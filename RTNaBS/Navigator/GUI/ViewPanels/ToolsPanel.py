@@ -164,7 +164,7 @@ class ToolWidget:
                 name='Tool'
             )
             setActorUserTransform(actor, self._tool.toolStlToToolTransf)
-            self._toolSpacePlotter.show_grid()
+            self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
         if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
             actor = self._trackerSpacePlotter.add_mesh(
@@ -174,7 +174,7 @@ class ToolWidget:
                 name='Tracker'
             )
             setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
-            self._trackerSpacePlotter.show_grid()
+            self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
             if self._tool.toolToTrackerTransf is not None:
                 actor = self._toolSpacePlotter.add_mesh(
@@ -184,7 +184,7 @@ class ToolWidget:
                     name='Tracker'
                 )
                 setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
-                self._toolSpacePlotter.show_grid()
+                self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
         if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
             actor = self._trackerSpacePlotter.add_mesh(
@@ -194,7 +194,7 @@ class ToolWidget:
                 name='Tool'
             )
             setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
-            self._trackerSpacePlotter.show_grid()
+            self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
     @property
     def wdgt(self):
