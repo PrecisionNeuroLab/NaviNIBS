@@ -6,6 +6,7 @@ from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
+from RTNaBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
 from RTNaBS.Navigator.Model.Session import Session
@@ -144,3 +145,12 @@ class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTabl
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+
+@attrs.define
+class HeadPointsTableWidget(CollectionTableWidget[int, HeadPoint, HeadPoints, HeadPointsTableModel]):
+    _Model: tp.Callable[[Session], HeadPointsTableModel] = HeadPointsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
