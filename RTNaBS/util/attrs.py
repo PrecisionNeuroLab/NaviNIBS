@@ -4,7 +4,9 @@ import typing as tp
 from .numpy import array_equalish
 
 
-def attrsAsDict(obj, eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any], bool]]] = None) -> tp.Dict[str, tp.Any]:
+def attrsAsDict(obj,
+                eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any], bool]]] = None,
+                exclude: tp.Optional[list[str]] = None) -> tp.Dict[str, tp.Any]:
     """
     Similar to attrs.asdict(), but strips underscore from private attributes, doesn't include items with unchanged defaults, etc.
 
@@ -13,9 +15,14 @@ def attrsAsDict(obj, eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any],
     """
 
     def filterAttrs(attrib: attrs.Attribute, val: tp.Any,
-                    eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any], bool]]] = None):
+                    eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any], bool]]] = None,
+                    exclude: tp.Optional[list[str]] = None):
         if not attrib.init:
             # don't include non-init attribs
+            return False
+
+        if exclude is not None and attrib.name in exclude or ('_' + attrib.name) in exclude:
+            # don't include excluded attribs
             return False
 
         if True:
@@ -49,7 +56,8 @@ def attrsAsDict(obj, eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any],
 
         return True
 
-    d = attrs.asdict(obj, filter=lambda attrib, val, eqs=eqs: filterAttrs(attrib, val, eqs=eqs))
+    d = attrs.asdict(obj, filter=lambda attrib, val, eqs=eqs, exclude=exclude: filterAttrs(
+        attrib, val, eqs=eqs, exclude=exclude))
 
     # remove underscores before private attributes
     d = {(key[1:] if key.startswith('_') else key): val for key, val in d.items()}

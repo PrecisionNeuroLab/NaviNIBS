@@ -5,6 +5,7 @@ import asyncio
 import appdirs
 import attrs
 from datetime import datetime
+import json
 import logging
 import numpy as np
 import os
@@ -154,11 +155,88 @@ class VisualizedTarget:
 
 
 @attrs.define
+class CoordinateWidget:
+
+    _session: tp.Optional[Session] = None
+    _mainCoord: tp.Optional[tuple[float, float, float]] = None
+    _mainCoordSysKey: tp.Optional[str] = None
+
+    _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
+    _layout: QtWidgets.QFormLayout = attrs.field(init=False, factory=QtWidgets.QFormLayout)
+    _coordInSysWdgts: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
+
+    def __attrs_post_init__(self):
+        self._wdgt.setLayout(self._layout)
+
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, newSes: tp.Optional[Session]):
+        self._session = newSes
+        self._redraw()
+
+    @property
+    def wdgt(self):
+        return self._wdgt
+
+    def setMainCoordAndSys(self, coord: tuple[float, float, float], coordSysKey: str):
+        self._mainCoord = coord
+        self._mainCoordSysKey = coordSysKey
+        self._redraw()
+
+    def _redraw(self):
+
+        if self._session is None:
+            for key, wdgt in self._coordInSysWdgts.items():
+                self._layout.removeWidget(wdgt)
+            self._coordInSysWdgts.clear()
+            return
+
+        assert 'World' not in self._session.coordinateSystems
+        coordSysKeys = ['World'] + list(self._session.coordinateSystems.keys())
+        for key in coordSysKeys:
+            if key not in self._coordInSysWdgts:
+                wdgt = QtWidgets.QLabel()
+                if key != 'World':
+                    wdgt.setToolTip(self._session.coordinateSystems[key].description)
+                self._coordInSysWdgts[key] = wdgt
+                self._layout.addRow(key, wdgt)
+
+            # TODO: make mainCoord widget an editable lineedit, keep others readonly unless user
+            #  specifically chooses to switch main coordinate system defining the coordinate (if allowed)
+
+            if key == self._mainCoordSysKey:
+                coord = self._mainCoord
+            else:
+                if self._mainCoordSysKey == 'World':
+                    coord = self._session.coordinateSystems[key].transformFromWorldToThis(self._mainCoord)
+                else:
+                    coord = self._session.coordinateSystems[self._mainCoordSysKey].transformFromThisToWorld(self._mainCoord)
+                    coord = self._session.coordinateSystems[key].transformFromWorldToThis(self._mainCoord)
+
+            # assume one decimal point is sufficient for any coordinate system
+            # (works for integer or mm units, not m units...)
+            coordTxt = json.dumps(np.around(coord, decimals=1).tolist())
+
+            self._coordInSysWdgts[key].setText(coordTxt)
+
+        removeKeys = set(self._coordInSysWdgts.keys()) - set(coordSysKeys)
+        for key in removeKeys:
+            wdgt = self._coordInSysWdgts.pop(key)
+            self._layout.removeWidget(wdgt)
+
+
+@attrs.define
 class TargetsPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
     _tableWdgt: TargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
+
+    _selectedTargetTargetWdgt: CoordinateWidget = attrs.field(init=False)
+    _selectedTargetEntryWdgt: CoordinateWidget = attrs.field(init=False)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -216,8 +294,20 @@ class TargetsPanel(MainViewPanel):
         btnContainer.layout().addWidget(btn, 2, 1)
 
         self._tableWdgt = TargetsTableWidget()
-        self._tableWdgt.sigCurrentItemChanged.connect(self._gotoTarget)  # go to target immediately whenever selection changes
+        self._tableWdgt.sigCurrentItemChanged.connect(self._onSelectedTargetChanged)
         container.layout().addWidget(self._tableWdgt.wdgt)
+
+        subcontainer = QtWidgets.QGroupBox('Target coordinate')
+        subcontainer.setLayout(QtWidgets.QVBoxLayout())
+        container.layout().addWidget(subcontainer)
+        self._selectedTargetTargetWdgt = CoordinateWidget(session=self.session)
+        subcontainer.layout().addWidget(self._selectedTargetTargetWdgt.wdgt)
+
+        subcontainer = QtWidgets.QGroupBox('Entry coordinate')
+        subcontainer.setLayout(QtWidgets.QVBoxLayout())
+        container.layout().addWidget(subcontainer)
+        self._selectedTargetEntryWdgt = CoordinateWidget(session=self.session)
+        subcontainer.layout().addWidget(self._selectedTargetEntryWdgt.wdgt)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -266,6 +356,14 @@ class TargetsPanel(MainViewPanel):
 
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
         return self._tableWdgt.currentCollectionItemKey
+
+    def _onSelectedTargetChanged(self, targetKey: str):
+        target = self.session.targets[targetKey]
+        self._selectedTargetTargetWdgt.setMainCoordAndSys(coord=target.targetCoord, coordSysKey='World')
+        self._selectedTargetEntryWdgt.setMainCoordAndSys(coord=target.entryCoord, coordSysKey='World')
+        # TODO: connect to necessary signals to update coordinate displays when this target's contents change
+
+        self._gotoTarget(targetKey=targetKey)    # go to target immediately whenever selection changes
 
     def _gotoTarget(self, targetKey: str):
         # change slice camera views to align with selected target
@@ -327,7 +425,7 @@ class TargetsPanel(MainViewPanel):
                                                                                         visible=target.isVisible)
 
                 if len(self.session.targets) > 0:
-                    self._gotoTarget(self._getCurrentTargetKey())
+                    self._onSelectedTargetChanged(self._getCurrentTargetKey())
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
