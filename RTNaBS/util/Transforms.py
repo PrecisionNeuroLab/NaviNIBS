@@ -12,7 +12,7 @@ def composeTransform(R: np.ndarray, p: tp.Optional[np.ndarray] = None) -> np.nda
     return ptt.transform_from(R, p)
 
 
-def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.ndarray) -> np.ndarray:
+def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.ndarray, doStrictCheck: bool = True) -> np.ndarray:
     """
     Apply 4x4 transform(s) to a set of points
     :param A2B: single 4x4 transform, or iterable of 4x4 transforms. If multiple, will apply in reversed order, so that
@@ -31,7 +31,7 @@ def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.n
     if not isinstance(A2B, np.ndarray):
         A2B = concatenateTransforms(A2B)
 
-    result = ptt.transform(A2B, ptt.vectors_to_points(pts))[:, 0:3]
+    result = ptt.transform(A2B, ptt.vectors_to_points(pts), strict_check=doStrictCheck)[:, 0:3]
     if didInsertAxis:
         result = result[0, :]
     return result
