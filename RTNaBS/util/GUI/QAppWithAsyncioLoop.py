@@ -17,6 +17,7 @@ class RunnableAsApp:
     _appAsyncPollPeriod = 0.01
     _doRunAsApp: bool = False
     _appLogEveryNLoops: tp.Optional[int] = None
+    _theme: str = 'auto'  # auto, light, or dark
 
     _app: QtGui.QGuiApplication = attr.ib(init=False)
     _Win: tp.Callable[..., QMainWindowWithCloseSignal] = attr.ib(default=QMainWindowWithCloseSignal)
@@ -34,9 +35,29 @@ class RunnableAsApp:
 
             logger.debug('Initializing GUI window')
             self._app = pg.mkQApp(self._appName)
+
+            theme = self._theme
+            if theme == 'auto':
+                import darkdetect
+                if darkdetect.isDark():
+                    theme = 'dark'
+                else:
+                    theme = 'light'
+            match theme:
+                case 'light':
+                    pass  # do nothing
+                case 'dark':
+                    import qtawesome as qta
+                    qta.dark(self._app)
+                case _:
+                    raise NotImplementedError
+
             self._win = self._Win()
             self._win.setWindowTitle(self._appName)
             self._win.sigAboutToClose.connect(self._onAppAboutToQuit)
+
+
+
 
     def _onAppAboutToQuit(self):
         logger.info('About to quit')

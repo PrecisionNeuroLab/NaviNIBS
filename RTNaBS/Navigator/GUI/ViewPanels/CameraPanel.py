@@ -118,7 +118,6 @@ class CameraPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
-        self._plotter.set_background('#FFFFFF')
         self._plotter.enable_depth_peeling(4)
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
