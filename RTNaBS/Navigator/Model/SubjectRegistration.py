@@ -25,7 +25,82 @@ FiducialCoord = np.ndarray
 FiducialSet = tp.Dict[str, tp.Optional[FiducialCoord]]
 Transform = np.ndarray
 HeadPoint = np.ndarray
-HeadPoints = list[HeadPoint]
+
+
+@attrs.define
+class HeadPoints:
+    _headPoints: list[HeadPoint]
+
+    sigHeadpointsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((list[int],)))
+    """
+    This signal includes list of indices of headpoints about to change.
+    """
+
+    sigHeadpointsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[int],)))
+    """"
+    This signal includes list of indices of headpoints that changed.
+    """
+
+    def __attrs_post_init__(self):
+        pass
+
+    def append(self, point: HeadPoint):
+        index = len(self)
+        self.sigHeadpointsAboutToChange.emit([index])
+        self._headPoints.append(point)
+        self.sigHeadpointsChanged.emit([index])
+
+    def extend(self, points: np.ndarray):
+        assert points.shape[1] == 3
+        indices = len(self) + np.arange(points.shape[0])
+        self.sigHeadpointsAboutToChange.emit(indices)
+        self._headPoints.extend(points)
+        self.sigHeadpointsChanged.emit(indices)
+
+    def remove(self, indexOrIndices: int | list[int]):
+        if isinstance(indexOrIndices, int):
+            indexOrIndices = [indexOrIndices]
+
+        indexOrIndices = sorted(indexOrIndices)
+
+        changedIndices = list(range(indexOrIndices[0], len(self)));
+        self.sigHeadpointsAboutToChange.emit(changedIndices)
+        for index in reversed(indexOrIndices):
+            del self._headPoints[index]
+        self.sigHeadpointsChanged.emit(changedIndices)
+
+    def replace(self, points: np.ndarray):
+        """
+        Clear all previous points, set to new points.
+        """
+        indices = list(range(0, max(len(points), len(self))))
+        self.sigHeadpointsAboutToChange.emit(indices)
+        self._headPoints.clear()
+        with self.sigHeadpointsAboutToChange.blocked(), self.sigHeadpointsChanged.blocked():
+            self.extend(points)
+        self.sigHeadpointsChanged.emit(indices)
+
+    def clear(self):
+        indices = list(range(0, len(self)))
+        self.sigHeadpointsAboutToChange.emit(indices)
+        self._headPoints.clear()
+        self.sigHeadpointsChanged.emit(indices)
+
+    def __len__(self):
+        return len(self._headPoints)
+
+    def __iter__(self):
+        return iter(self._headPoints)
+
+    def __getitem__(self, index):
+        return self._headPoints[index]
+
+    def asList(self):
+        return [headPt.tolist() for headPt in self._headPoints]
+
+    @classmethod
+    def fromList(cls, l: list[tuple[float, float, float]]):
+        return cls(headPoints=[np.asarray(headPt) for headPt in l])
 
 
 @attrs.define()
@@ -33,7 +108,7 @@ class SubjectRegistration:
 
     _plannedFiducials: FiducialSet = attrs.field(factory=dict)  # in MRI space
     _sampledFiducials: FiducialSet = attrs.field(factory=dict)  # in head tracker space
-    _sampledHeadPoints: tp.Optional[HeadPoints] = attrs.field(default=None)  # in head tracker space
+    _sampledHeadPoints: HeadPoints = attrs.field(factory=HeadPoints)  # in head tracker space
     _trackerToMRITransf: tp.Optional[Transform] = None
 
     _plannedFiducialsHistory: tp.Dict[str, FiducialSet] = attrs.field(factory=dict)
@@ -42,16 +117,7 @@ class SubjectRegistration:
 
     sigPlannedFiducialsChanged: Signal = attrs.field(init=False, factory=Signal)
     sigSampledFiducialsChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigSampledHeadPointsAboutToChange: Signal = attrs.field(init=False,
-                                                            factory=lambda: Signal((tp.Optional[list[int]],)))
-    """
-    This signal optionally includes list of indices of head points about to change; if second arg is None, all indices should be assumed to be about to change.
-    """
-    sigSampledHeadPointsChanged: Signal = attrs.field(init=False,
-                                                      factory=lambda: Signal((tp.Optional[list[int]],)))
-    """
-        This signal optionally includes list of indices of changed head points; if second arg is None, all indices should be assumed to have changed.
-        """
+
     sigTrackerToMRITransfChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
@@ -141,25 +207,8 @@ class SubjectRegistration:
         return numFiducialsSet >= 3
 
     @property
-    def sampledHeadPoints(self):
+    def sampledHeadPoints(self) -> HeadPoints:
         return self._sampledHeadPoints
-
-    @sampledHeadPoints.setter
-    def sampledHeadPoints(self, newHeadPts: tp.Optional[HeadPoints]):
-        self.sigSampledHeadPointsAboutToChange.emit(None)
-        if newHeadPts is not None:
-            assert isinstance(newHeadPts, list)
-        self._sampledHeadPoints = newHeadPts
-        self.sigSampledHeadPointsChanged.emit(None)
-
-    def addSampledHeadPoint(self, headPt: np.ndarray):
-        if self._sampledHeadPoints is None:
-            self.sigSampledHeadPointsAboutToChange.emit([0])
-            self._sampledHeadPoints = [headPt]
-        else:
-            self.sigSampledHeadPointsAboutToChange.emit([len(self._sampledHeadPoints)])
-            self._sampledHeadPoints.append(headPt)
-        self.sigSampledHeadPointsChanged.emit([len(self._sampledHeadPoints)-1])
     
     @property
     def trackerToMRITransf(self):
@@ -214,9 +263,7 @@ class SubjectRegistration:
 
         d['plannedFiducialsHistory'] = [dict(time=key, fiducials=exportFiducialSet(val)) for key, val in self._plannedFiducialsHistory.items()]
         d['sampledFiducialsHistory'] = [dict(time=key, fiducials=exportFiducialSet(val)) for key, val in self._sampledFiducialsHistory.items()]
-
-        if self._sampledHeadPoints is not None:
-            d['sampledHeadPoints'] = [headPt.tolist() for headPt in self._sampledHeadPoints]
+        d['sampledHeadPoints'] = self._sampledHeadPoints.asList()
         if self._trackerToMRITransf is not None:
             d['trackerToMRITransf'] = self._trackerToMRITransf.tolist()
         if len(self._trackerToMRITransfHistory) > 0:
@@ -238,9 +285,6 @@ class SubjectRegistration:
                     fiducials[key] = np.asarray(fiducials[key])
             return fiducials
 
-        def convertHeadpoints(headPts: tp.List[tp.List[float, float, float]]) -> HeadPoints:
-            return [np.asarray(headPt) for headPt in headPts]
-
         def convertTransf(transf: tp.List[tp.List[float, float, float]]) -> np.ndarray:
             return np.asarray(transf)
 
@@ -259,7 +303,7 @@ class SubjectRegistration:
                                                                         entryConverter=convertFiducials)
 
         if 'sampledHeadPoints' in d:
-            d['sampledHeadPoints'] = convertHeadpoints(d['sampledHeadPoints'])
+            d['sampledHeadPoints'] = HeadPoints.fromList(d['sampledHeadPoints'])
 
         if 'trackerToMRITransf' in d:
             d['trackerToMRITransf'] = convertTransf(d['trackerToMRITransf'])

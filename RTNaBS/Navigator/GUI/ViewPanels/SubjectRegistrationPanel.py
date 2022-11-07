@@ -21,7 +21,7 @@ from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.GUI.Widgets.HeadPointsTableWidget import HeadPointsTableWidget
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTableWidget
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
@@ -129,7 +129,8 @@ class SubjectRegistrationPanel(MainViewPanel):
         # TODO: change this to "clear head points" when multiple selected
 
         self._headPtsTblWdgt = HeadPointsTableWidget()
-        self._headPtsTblWdgt.sigSelectedPointsChanged.connect(self._onSelectedHeadPointsChanged)
+        self._headPtsTblWdgt.sigSelectionChanged.connect(self._onSelectedHeadPointsChanged)
+
         headPtsBox.layout().addWidget(self._headPtsTblWdgt.wdgt)
 
         btnContainer = QtWidgets.QWidget()
@@ -147,7 +148,6 @@ class SubjectRegistrationPanel(MainViewPanel):
             show=False,
             app=QtWidgets.QApplication.instance()
         )
-        self._plotter.set_background('#FFFFFF')
         self._plotter.enable_depth_peeling(4)
         self._wdgt.layout().addWidget(self._plotter.interactor)
         self._positionsClient = ToolPositionsClient()
@@ -169,7 +169,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.headModel.sigDataChanged.connect(lambda which: self._redraw(which='initSurf'))
         self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._redraw(which='initPlannedFids'))
         self.session.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._redraw(which='initSampledFids'))
-        self.session.subjectRegistration.sigSampledHeadPointsChanged.connect(lambda *args: self._redraw(which='initHeadPts'))
+        self.session.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(lambda *args: self._redraw(which='initHeadPts'))  # TODO: pass which indices to redraw to not entirely redraw each time there's a change
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
             'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
 
@@ -278,13 +278,13 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         logger.info(f'Sampled head pt relative to tracker: {pointerCoord_relToSubTracker}')
 
-        self.session.subjectRegistration.addSampledHeadPoint(pointerCoord_relToSubTracker)
+        self.session.subjectRegistration.sampledHeadPoints.append(pointerCoord_relToSubTracker)
 
     def _onClearHeadPtsBtnClicked(self):
         raise NotImplementedError()  # TODO
 
     def _onSelectedHeadPointsChanged(self, selectedIndices: list[int]):
-        pass  #  TODO: trigger redraw to visualize selected points differently than non-selected
+        self._redraw(which='initHeadPts')  # TODO: redraw just previously and currently selected points instead of all
 
     def _onAlignToHeadPtsBtnClicked(self):
         sampledHeadPts_trackerSpace = np.asarray(self.session.subjectRegistration.sampledHeadPoints)
@@ -472,7 +472,7 @@ class SubjectRegistrationPanel(MainViewPanel):
                 shape=None,
                 render_points_as_spheres=True,
                 reset_camera=False,
-                render=False
+                render=True
             )
 
         elif which == 'initSampledFids':
@@ -511,35 +511,69 @@ class SubjectRegistrationPanel(MainViewPanel):
                 shape=None,
                 render_points_as_spheres=True,
                 reset_camera=False,
-                render=False
+                render=True
             )
 
         elif which == 'initHeadPts':
 
-            actorKey = 'headPts'
+            actorKeys = ['headPts', 'headPts_selected']
 
-            doShowHeadPts = self.session.subjectRegistration.sampledHeadPoints is not None \
-                            and len(self.session.subjectRegistration.sampledHeadPoints) > 0 \
+            doShowHeadPts = len(self.session.subjectRegistration.sampledHeadPoints) > 0 \
                             and self.session.subjectRegistration.trackerToMRITransf is not None
 
             if not doShowHeadPts:
                 # no sampled head points or necessary transform (yet)
-                if actorKey in self._actors:
-                    self._plotter.remove_actor(actorKey)
-                    self._actors.pop(actorKey)
+                for actorKey in actorKeys:
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(actorKey)
+                        self._actors.pop(actorKey)
                 return
 
             coords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, np.asarray(self.session.subjectRegistration.sampledHeadPoints))
 
-            self._actors[actorKey] = self._plotter.add_points(
-                name=actorKey,
-                points=coords,
-                color='red',
-                point_size=10,
-                render_points_as_spheres=True,
-                reset_camera=False,
-                render=False
-            )
+            # color selected points differently
+            actorKey = actorKeys[1]
+            selectedIndices = self._headPtsTblWdgt.selectedCollectionItemKeys
+
+            if len(selectedIndices) > 0:
+                selectedCoords = coords[selectedIndices, :]
+
+                self._actors[actorKey] = self._plotter.add_points(
+                    name=actorKey,
+                    points=selectedCoords,
+                    color='orange',
+                    point_size=15,
+                    render_points_as_spheres=True,
+                    reset_camera=False,
+                    render=False
+                )
+
+                unselectedIndices = list(range(coords.shape[0]))
+                for index in reversed(sorted(selectedIndices)):
+                    del unselectedIndices[index]
+                coords = coords[unselectedIndices, :]
+            else:
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(actorKey)
+                    self._actors.pop(actorKey)
+
+            actorKey = actorKeys[0]
+            if coords.shape[0] > 0:
+                self._actors[actorKey] = self._plotter.add_points(
+                    name=actorKey,
+                    points=coords,
+                    color='red',
+                    point_size=10,
+                    render_points_as_spheres=True,
+                    reset_camera=False,
+                    render=False
+                )
+            else:
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(actorKey)
+                    self._actors.pop(actorKey)
+
+            self._plotter.render()
 
         elif which == 'fidTbl':
             # TODO: do iterative partial updates rather than entirely clearing and repopulating table with every change
