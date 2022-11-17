@@ -242,28 +242,29 @@ class TriggerSettingsPanel(MainViewPanel):
         self._wdgt = DockWidgetsContainer(uniqueName=self._key)
         self._wdgt.setAffinities([self._key])
 
-        super().__attrs_post_init__()
-
-    def _finishInitialization(self):
-        super()._finishInitialization()
-
         self._lslSettings = LSLTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
         self._wdgt.addDockWidget(self._lslSettings.cdw, dw.DockWidgetLocation.OnLeft)
 
         self._hotkeySettings = HotkeyTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
         self._wdgt.addDockWidget(self._hotkeySettings.cdw, dw.DockWidgetLocation.OnRight)
 
+        super().__attrs_post_init__()
+
+    def _finishInitialization(self):
+        super()._finishInitialization()
+
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
 
     def _onSessionSet(self):
         super()._onSessionSet()
+        self._lslSettings.session = self.session
+        self._hotkeySettings.session = self.session
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self._lslSettings.session = self.session
-        self._hotkeySettings.session = self.session
+        pass
 
     def _onTriggered(self, triggerEvt: TriggerEvent):
         pass  # TODO: show GUI indicator about time of last trigger(s)
