@@ -29,7 +29,7 @@ HeadPoint = np.ndarray
 
 @attrs.define
 class HeadPoints:
-    _headPoints: list[HeadPoint]
+    _headPoints: list[HeadPoint] = attrs.field(factory=list)
 
     sigHeadpointsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((list[int],)))
     """
