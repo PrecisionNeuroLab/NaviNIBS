@@ -44,6 +44,7 @@ class ManageSessionPanel(MainViewPanel):
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
     _autosaveTask: asyncio.Task = attrs.field(init=False)
 
+    sigAboutToFinishLoadingSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
     sigLoadedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
 
@@ -224,7 +225,9 @@ class ManageSessionPanel(MainViewPanel):
                 return
         logger.info('New session filepath: {}'.format(sesFilepath))
 
-        self.session = Session.createNew(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+        session = Session.createNew(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+        self.sigAboutToFinishLoadingSession.emit(session)
+        self.session = session
         self.sigLoadedSession.emit(self.session)
 
     def loadSession(self, sesFilepath: tp.Optional[str] = None):
@@ -254,6 +257,7 @@ class ManageSessionPanel(MainViewPanel):
             logger.warning('Problem loading session from {}:\n{}'.format(sesFilepath, exceptionToStr(e)))
             return
 
+        self.sigAboutToFinishLoadingSession.emit(session)
         self.session = session
         try:
             self.sigLoadedSession.emit(self.session)
@@ -275,7 +279,9 @@ class ManageSessionPanel(MainViewPanel):
                 return
         logger.info('Recover session data dir: {}'.format(sesDataDir))
 
-        self.session = Session.loadFromUnpackedDir(unpackedSessionDir=sesDataDir)
+        session = Session.loadFromUnpackedDir(unpackedSessionDir=sesDataDir)
+        self.sigAboutToFinishLoadingSession.emit(session)
+        self.session = session
         self.sigLoadedSession.emit(self.session)
 
     def _cloneSession(self, fromSesFilepath: tp.Optional[str] = None, toSesFilepath: tp.Optional[str] = None):

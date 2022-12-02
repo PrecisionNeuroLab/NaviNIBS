@@ -51,6 +51,8 @@ class NavigatorGUI(RunnableAsApp):
 
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
 
+    _logFileHandler: tp.Optional[logging.FileHandler] = attrs.field(init=False, default=None)
+
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
@@ -65,6 +67,7 @@ class NavigatorGUI(RunnableAsApp):
 
         panel = self._addViewPanel(ManageSessionPanel(key='Manage session', session=self._session,
                                    inProgressBaseDir=self._inProgressBaseDir))
+        panel.sigAboutToFinishLoadingSession.connect(self._onSessionAboutToFinishLoading)
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
@@ -115,6 +118,20 @@ class NavigatorGUI(RunnableAsApp):
         self._win.addDockWidgetAsTab(panel.dockWdgt)
         self._mainViewPanels[panel.key] = panel
         return panel
+
+    def _onSessionAboutToFinishLoading(self, session: Session):
+        if self._logFileHandler is not None:
+            # remove previous session log file handler
+            logging.getLogger('').removeHandler(self._logFileHandler)
+            self._logFileHandler = None
+        self._logFileHandler = logging.FileHandler(
+            filename=os.path.join(session.unpackedSessionDir, 'RTNaBS_Log.txt'),
+        )
+        self._logFileHandler.setFormatter(logging.Formatter(
+            fmt='%(asctime)s.%(msecs)03d  %(process)6d %(filename)20s %(lineno)4d %(levelname)5s: %(message)s',
+            datefmt='%H:%M:%S'))
+        self._logFileHandler.setLevel(logging.DEBUG)  # TODO: set to info instead
+        logging.getLogger('').addHandler(self._logFileHandler)
 
     def _onSessionLoaded(self, session: Session):
         assert session is not None
@@ -217,7 +234,8 @@ if __name__ == '__main__':
     if True:  # TODO: debug, delete or set to False
         if True:
             #sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test4.rtnabs')
-            sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
+            # sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
+            sesFilepath = r'D:\KellerLab\RT-TEP\sub-2355\ses-221202\sub-2355_ses-221202_RTNaBS'
         else:
             sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
                                        'data/TestSession1.rtnabs')
