@@ -21,6 +21,8 @@ from . import MainViewPanel
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
+from RTNaBS.Devices.SimulatedToolPositionsServer import SimulatedToolPositionsServer
+from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
@@ -103,7 +105,7 @@ class CameraPanel(MainViewPanel):
         self._serverAddressEdit = QtWidgets.QLineEdit()
         formLayout.addRow('Server addr', self._serverAddressEdit)
 
-        btn = QtWidgets.QPushButton('Start server')
+        btn = QtWidgets.QPushButton('Start server' if self._positionsServerProc is not None else 'Stop server')
         btn.clicked.connect(self._onStartStopServerClicked)
         subContainer.layout().addWidget(btn)
         self._serverStartStopBtn = btn
@@ -132,6 +134,14 @@ class CameraPanel(MainViewPanel):
 
     def _onSessionSet(self):
         super()._onSessionSet()
+
+        if self._positionsServerProc is not None:
+            # kill previous server
+            self._stopPositionsServer()
+
+        if self.session.tools.positionsServerInfo.doAutostart:
+            self._startPositionsServer()
+
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
 
@@ -159,19 +169,35 @@ class CameraPanel(MainViewPanel):
         if didRemove:
             self._onLatestPositionsChanged()
 
+    def _startPositionsServer(self):
+        logger.info('Starting Positions server process')
+        match(self.session.tools.positionsServerInfo.type):
+            case 'IGTLink':
+                Server = IGTLinkToolPositionsServer
+            case 'Simulated':
+                Server = SimulatedToolPositionsServer
+            case _:
+                raise NotImplementedError(f'Unexpected positionsServerInfo type: {self.session.tools.positionsServerInfo.type}')
+        self._positionsServerProc = mp.Process(target=Server.createAndRun,
+                                               kwargs=self.session.tools.positionsServerInfo.initKwargs)
+        self._positionsServerProc.start()
+        if self._hasInitialized:
+            self._serverStartStopBtn.setText('Stop server')
+
+    def _stopPositionsServer(self):
+        logger.info('Stopping Positions server process')
+        self._positionsServerProc.kill()
+        self._positionsServerProc = None
+        if self._hasInitialized:
+            self._serverStartStopBtn.setText('Start server')
+
     def _onStartStopServerClicked(self, checked: bool):
         if self._positionsServerProc is None:
             # start server
-            logger.info('Starting Positions server process')
-            self._positionsServerProc = mp.Process(target=IGTLinkToolPositionsServer.createAndRun)
-            self._positionsServerProc.start()
-            self._serverStartStopBtn.setText('Stop server')
+            self._startPositionsServer()
         else:
             # stop server
-            logger.info('Stopping Positions server process')
-            self._positionsServerProc.kill()
-            self._positionsServerProc = None
-            self._serverStartStopBtn.setText('Start server')
+            self._stopPositionsServer()
 
     def _onClientIsConnectedChanged(self):
         if not self._hasInitialized and not self.isInitializing:

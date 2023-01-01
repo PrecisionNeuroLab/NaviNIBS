@@ -356,7 +356,9 @@ class ToolPositionsServerInfo:
     _hostname: str = positionsServerHostname
     _pubPort: int = positionsServerPubPort
     _cmdPort: int = positionsServerCmdPort
-    _type: tp.Optional[str] = None
+    _type: str = 'IGTLink'
+    _doAutostart: bool = True
+    _initKwargs: dict[str, tp.Any] = attrs.field(factory=dict)  # args to be passed when starting ToolPositionsServer (e.g. `{'igtlHostname': '192.168.1.123`}`)
 
     sigInfoChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str],)))
 
@@ -382,6 +384,14 @@ class ToolPositionsServerInfo:
             return
         self._type = newType
         self.sigInfoChanged.emit(['type'])
+
+    @property
+    def doAutostart(self):
+        return self._doAutostart
+
+    @property
+    def initKwargs(self):
+        return self._initKwargs
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
         return attrsAsDict(self)
