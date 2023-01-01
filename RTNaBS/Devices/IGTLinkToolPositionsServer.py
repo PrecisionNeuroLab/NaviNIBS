@@ -65,6 +65,7 @@ class IGTLinkToolPositionsServer(ToolPositionsServer):
                             else:
                                 raise KeyError('Unexpected position device_name: {}'.format(key))
 
+                            logger.debug(f'Transform for key {key}')
                             await self._recordNewPosition(key=key, position=position)
                         else:
                             logger.error('Unexpected message type: {}'.format(msg.message_type))
