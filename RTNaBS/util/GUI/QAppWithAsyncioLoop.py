@@ -25,7 +25,7 @@ class RunnableAsApp:
     Can specify Win to point to a different MainWindow class (e.g. for docking support)
     """
     _win: QMainWindowWithCloseSignal = attr.ib(init=False, default=None)
-    _appWasClosed: bool = attr.ib(init=False, default=False)
+    _appIsClosing: bool = attr.ib(init=False, default=False)
 
     def __attrs_post_init__(self):
         if self._doRunAsApp:
@@ -56,12 +56,13 @@ class RunnableAsApp:
             self._win.setWindowTitle(self._appName)
             self._win.sigAboutToClose.connect(self._onAppAboutToQuit)
 
-
-
-
     def _onAppAboutToQuit(self):
         logger.info('About to quit')
-        self._appWasClosed = True
+        self._appIsClosing = True
+
+    @property
+    def appIsClosing(self):
+        return self._appIsClosing
 
     @classmethod
     async def createAndRun_async(cls, *args, **kwargs):
@@ -75,7 +76,7 @@ class RunnableAsApp:
             counter = 1
         else:
             counter = 0
-        while not self._appWasClosed:
+        while not self._appIsClosing:
             if counter == 0:
                 logger.debug('Main loop: process Qt events')
             self._app.processEvents()

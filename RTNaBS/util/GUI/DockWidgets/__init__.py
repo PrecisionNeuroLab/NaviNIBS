@@ -123,6 +123,9 @@ class DockWidget(KDDockWidgets.DockWidget):
     def setWidget(self, widget: QtWidgets.QWidget):
         super().setWidget(widget)
 
+    def close(self):
+        super().close()
+
 
 class MainWindow(KDDockWidgets.MainWindow):
     def __init__(self, uniqueName: str, options: tp.Optional[MainWindowOptions] = None, parent: tp.Optional[QtWidgets.QWidget] = None, flags: tp.Optional[QtCore.Qt.WindowFlags] = None):
