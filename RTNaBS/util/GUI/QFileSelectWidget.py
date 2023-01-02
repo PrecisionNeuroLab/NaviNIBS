@@ -92,7 +92,11 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     @property
     def filepath(self):
-        return self._filepath
+        if self._filepath is None:
+            return None
+        else:
+            # convert to always use non-windows file separators for display
+            return self._filepath.replace('\\', '/')
 
     @filepath.setter
     def filepath(self, newFilepath: str):
@@ -104,7 +108,11 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     @property
     def showRelativeTo(self):
-        return self._showRelativeTo
+        if self._showRelativeTo is None:
+            return None
+        else:
+            # convert to always use non-windows file separators for display
+            return self._showRelativeTo.replace('\\', '/')
 
     @showRelativeTo.setter
     def showRelativeTo(self, newPath: tp.Optional[str]):
@@ -129,7 +137,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
             displayPath = ''
         else:
             if self._showRelativeTo is not None:
-                displayPath = os.path.relpath(self._filepath, self._showRelativeTo)  # TODO: confirm working as intended
+                displayPath = os.path.relpath(self.filepath, self.showRelativeTo)  # TODO: confirm working as intended
                 if self._showRelativePrefix is not None:
                     filesep = '\\' if '\\' in displayPath else '/'
                     displayPath = self._showRelativePrefix + filesep + displayPath
