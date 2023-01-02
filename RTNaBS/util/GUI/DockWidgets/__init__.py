@@ -168,3 +168,6 @@ class MainWindow(KDDockWidgets.MainWindow):
 
     def layoutEqually(self):
         super().layoutEqually()
+
+    def resize(self, size: QtCore.QSize):
+        super().resize(size)

@@ -19,8 +19,9 @@ import typing as tp
 
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
+from RTNaBS.Navigator.GUI.ModalWindows.PointerCalibrationWindow import PointerCalibrationWindow
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool
+from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import setActorUserTransform
 from RTNaBS.util.Signaler import Signal
@@ -289,6 +290,37 @@ class CoilToolWidget(ToolWidget):
 
 
 @attrs.define
+class PointerToolWidget(ToolWidget):
+    _tool: Pointer
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        btn = QtWidgets.QPushButton('Calibrate pointer by multiple endpoint samples...')
+        self._formLayout.addRow('', btn)
+        btn.clicked.connect(lambda _: self._calibrateByEndpoint())
+
+        btn = QtWidgets.QPushButton('Calibrate pointer with calibration plate...')
+        self._formLayout.addRow('', btn)
+        btn.clicked.connect(lambda _: self._calibrateWithPlate())
+
+    def _calibrateWithPlate(self):
+        # TODO: add extra arg to specify that pointer will be rotated 90 deg (tangential to calibration plate instead of perpendicular)
+        CoilCalibrationWindow(
+            parent=self._wdgt,
+            toolKeyToCalibrate=self._tool.key,
+            session=self._session
+        ).show()
+
+    def _calibrateByEndpoint(self):
+        PointerCalibrationWindow(
+            parent=self._wdgt,
+            toolKeyToCalibrate=self._tool.key,
+            session=self._session
+        ).show()
+
+
+@attrs.define
 class ToolsPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.hammer-screwdriver'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
@@ -418,6 +450,8 @@ class ToolsPanel(MainViewPanel):
 
         if isinstance(self.session.tools[currentToolKey], CoilTool):
             ToolWidgetCls = CoilToolWidget
+        elif isinstance(self.session.tools[currentToolKey], Pointer):
+            ToolWidgetCls = PointerToolWidget
         else:
             ToolWidgetCls = ToolWidget
 
