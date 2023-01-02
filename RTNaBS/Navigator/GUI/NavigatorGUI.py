@@ -119,6 +119,14 @@ class NavigatorGUI(RunnableAsApp):
         self._mainViewPanels[panel.key] = panel
         return panel
 
+    def _onAppAboutToQuit(self):
+        super()._onAppAboutToQuit()
+
+        # close each non-visible panel first to prevent them from initializing right before closing
+        for panelKey, panel in self._mainViewPanels.items():
+            if not panel.isVisible:
+                panel.close()
+
     def _onSessionAboutToFinishLoading(self, session: Session):
         if self._logFileHandler is not None:
             # remove previous session log file handler
