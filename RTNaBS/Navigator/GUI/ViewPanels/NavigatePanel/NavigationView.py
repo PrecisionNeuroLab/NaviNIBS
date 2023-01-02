@@ -52,7 +52,7 @@ class NavigationView:
         self._wdgt = QtWidgets.QWidget()
         self._dock.setWidget(self._wdgt)
 
-        self._wdgt.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
+        self._wdgt.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
         # TODO: add context menu to be able to change view type with right click on title bar (?)
 

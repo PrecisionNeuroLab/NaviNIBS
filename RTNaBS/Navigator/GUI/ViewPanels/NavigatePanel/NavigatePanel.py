@@ -154,7 +154,7 @@ class NavigatePanel(MainViewPanel):
                 widget = QtWidgets.QWidget()
             if layout is not None:
                 widget.setLayout(layout)
-            widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+            #widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
             cdw.setWidget(widget)
             cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
             self._dockWidgets[title] = cdw
@@ -170,6 +170,7 @@ class NavigatePanel(MainViewPanel):
         self._targetsTableWdgt = TargetsTableWidget()
         self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
         container.layout().addWidget(self._targetsTableWdgt.wdgt)
+
         cdw, container = createDockWidget(
             title='Targets',
             widget=self._targetsTableWdgt.wdgt
@@ -355,5 +356,10 @@ class NavigatePanel(MainViewPanel):
 
         assert view.key not in self._views
         self._views[view.key] = view
-        self._wdgt.addDockWidget(view.dock, location=dw.DockWidgetLocation.OnRight)
+        if viewType == 'TargetingCrosshairs-Y':
+            self._wdgt.addDockWidget(view.dock,
+                                     location=dw.DockWidgetLocation.OnBottom,
+                                     relativeTo=self._views['Crosshairs-X'].dock)
+        else:
+            self._wdgt.addDockWidget(view.dock, location=dw.DockWidgetLocation.OnRight)
 
