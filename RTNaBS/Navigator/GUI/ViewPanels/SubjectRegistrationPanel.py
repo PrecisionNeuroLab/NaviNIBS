@@ -36,6 +36,189 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define
+class _PointerDistanceReadout:
+    _label: str
+    _parentLayout: QtWidgets.QFormLayout
+    _units: str = ' mm'
+    _value: float = np.nan
+    _doHideWhenNaN: bool = False
+
+    _wdgt: QtWidgets.QLabel | None= attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        self.update()
+
+    def update(self):
+        if self._doHideWhenNaN and np.isnan(self._value):
+            if self._wdgt is not None:
+                labelWdgt = self._parentLayout.labelForField(self._wdgt)
+                assert isinstance(labelWdgt, QtWidgets.QLabel)
+                labelWdgt.setText('')
+                self._wdgt.setText('')
+            return
+
+        text = f"{self._value:.1f}{self._units}"
+        if self._wdgt is None:
+            self._wdgt = QtWidgets.QLabel(text)
+            self._parentLayout.addRow(self._label, self._wdgt)
+        else:
+            self._wdgt.setText(text)
+
+    @property
+    def label(self):
+        return self._label
+
+    @label.setter
+    def label(self, newLabel: str):
+        self._label = newLabel
+        if self._wdgt is not None:
+            labelWdgt = self._parentLayout.labelForField(self._wdgt)
+            assert isinstance(labelWdgt, QtWidgets.QLabel)
+            labelWdgt.setText(self._label)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, newVal: float):
+        self._value = newVal
+        self.update()
+
+
+@attrs.define
+class _PointerDistanceReadouts:
+    _session: Session
+    _positionsClient: ToolPositionsClient
+    _title: str = 'Current pointer position'
+
+    _wdgt: QtWidgets.QGroupBox = attrs.field(init=False)
+    _layout: QtWidgets.QFormLayout = attrs.field(init=False)
+
+    _distToSkinReadout: _PointerDistanceReadout = attrs.field(init=False)
+    _distToPlannedFidReadout: _PointerDistanceReadout = attrs.field(init=False)
+    _distToSampledFidReadout: _PointerDistanceReadout = attrs.field(init=False)
+
+    def __attrs_post_init__(self):
+        self._wdgt = QtWidgets.QGroupBox(self._title)
+        self._layout = QtWidgets.QFormLayout()
+        self._wdgt.setLayout(self._layout)
+
+        self._distToSkinReadout = _PointerDistanceReadout(
+            label='Dist to skin',
+            parentLayout=self._layout,
+            doHideWhenNaN=False
+        )
+
+        self._distToPlannedFidReadout = _PointerDistanceReadout(
+            label='Dist to planned fid',
+            parentLayout=self._layout,
+            doHideWhenNaN=True
+        )
+
+        self._distToSampledFidReadout = _PointerDistanceReadout(
+            label='Dist to sampled fid',
+            parentLayout=self._layout,
+            doHideWhenNaN=True
+        )
+
+        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+
+        # note: could subscribe to fiducial location and head model mesh change signal here, but instead
+        # assume that pointer position changes often enough to catch up on any such changes anyway
+
+    @property
+    def wdgt(self):
+        return self._wdgt
+
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, newSes: Session):
+        self._session = newSes
+
+    def _onLatestPositionsChanged(self):
+        self._update()
+
+    def _update(self):
+        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.key, None)
+        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.key, None)
+
+        if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
+            # TODO: report NaNs for all distances
+            return
+
+        pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.toolToTrackerTransf,
+                                                       pointerToCameraTransf,
+                                                       invertTransform(subjectTrackerToCameraTransf)
+                                                       ], np.zeros((3,)))
+
+        subjectTrackerToMRITransf = self.session.subjectRegistration.trackerToMRITransf
+        if subjectTrackerToMRITransf is None:
+            # TODO: report NaNS for all distances
+            return
+
+        pointerCoord_MRISpace = applyTransform(subjectTrackerToMRITransf, pointerCoord_relToSubTracker)
+
+        # find distance to skin
+        closestPtIndex = self.session.headModel.skinSurf.find_closest_point(pointerCoord_MRISpace)
+        closestPt = self.session.headModel.skinSurf.points[closestPtIndex, :]
+        dist = np.linalg.norm(closestPt - pointerCoord_MRISpace)
+        self._distToSkinReadout.value = dist
+
+        # determine which fiducial to compare to
+        plannedFiducialCoords = self.session.subjectRegistration.plannedFiducials
+        sampledFiducialCoords = self.session.subjectRegistration.sampledFiducials
+
+        # look at both planned and sampled fiducials to choose single closest, then use that for both planned and sampled
+
+        whichFidClosest: str | None = None
+        closestDist = np.inf
+
+        for whichType, coords in (('planned', plannedFiducialCoords), ('sampled', sampledFiducialCoords)):
+            for whichFid, coord in coords.items():
+                if coord is None:  # e.g. fiducial not yet sampled
+                    continue
+                if whichType == 'sampled':
+                    # must do extra coordinate conversion from head tracker space to MRI space
+                    coord = applyTransform(subjectTrackerToMRITransf, coord)
+                dist = np.linalg.norm(coord - pointerCoord_MRISpace)
+                if dist < closestDist:
+                    closestDist = dist
+                    whichFidClosest = whichFid
+
+        if closestDist > 50:
+            # don't show any fiducial distance feedback if not close to any fiducials
+            whichFidClosest = None
+
+        if whichFidClosest is None:
+            # hide fiducial distance readouts
+            self._distToPlannedFidReadout.value = np.nan
+            self._distToSampledFidReadout.value = np.nan
+
+        else:
+            coord = plannedFiducialCoords[whichFidClosest]
+            if coord is None:
+                self._distToPlannedFidReadout.value = np.nan
+            else:
+                self._distToPlannedFidReadout.value = np.linalg.norm(coord - pointerCoord_MRISpace)
+                self._distToPlannedFidReadout.label = f'Dist to planned {whichFidClosest}'
+
+            coord = sampledFiducialCoords.get(whichFidClosest, None)
+            if coord is None:
+                self._distToSampledFidReadout.value = np.nan
+            else:
+                # must do extra coordinate conversion from head tracker space to MRI space
+                coord = applyTransform(subjectTrackerToMRITransf, coord)
+
+                self._distToSampledFidReadout.value = np.linalg.norm(coord - pointerCoord_MRISpace)
+                self._distToSampledFidReadout.label = f'Dist to sampled {whichFidClosest}'
+
+
+
+@attrs.define
 class SubjectRegistrationPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake'))
     _surfKey: str = 'skinSurf'
@@ -48,8 +231,9 @@ class SubjectRegistrationPanel(MainViewPanel):
     _sampleHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+    _pointerDistanceReadouts: _PointerDistanceReadouts = attrs.field(init=False)
 
-    _positionsClient: ToolPositionsClient = attrs.field(init=False)
+    _positionsClient: ToolPositionsClient | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -61,6 +245,9 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     def _finishInitialization(self):
         super()._finishInitialization()
+
+        self._positionsClient = ToolPositionsClient()
+        self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which=['pointerPosition', 'sampleBtns']))
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
@@ -142,6 +329,13 @@ class SubjectRegistrationPanel(MainViewPanel):
         # TODO: set this to only be enabled when have already aligned to fiducials and when sufficient # head points have been sampled
         btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
 
+        self._pointerDistanceReadouts = _PointerDistanceReadouts(
+            session=self.session,
+            positionsClient=self._positionsClient,
+
+        )
+        sidebar.layout().addWidget(self._pointerDistanceReadouts.wdgt)
+
         sidebar.layout().addStretch()
 
         self._plotter = BackgroundPlotter(
@@ -150,8 +344,6 @@ class SubjectRegistrationPanel(MainViewPanel):
         )
         self._plotter.enable_depth_peeling(4)
         self._wdgt.layout().addWidget(self._plotter.interactor)
-        self._positionsClient = ToolPositionsClient()
-        self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which=['pointerPosition', 'sampleBtns']))
 
         self._redraw(which='all')
 
@@ -176,6 +368,8 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._trackingStatusWdgt.session = self.session
 
         self._headPtsTblWdgt.session = self.session
+
+        self._pointerDistanceReadouts.session = self.session
 
     def _currentFidTblFidKey(self) -> tp.Optional[str]:
         if self._fidTblWdgt.currentItem() is None:
