@@ -50,7 +50,7 @@ class TargetsTreeWidget:
         if self._session is not None:
             raise NotImplementedError()  # TODO: disconnect from previous signals
         self._session = newSes
-        self._session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
+        self._session.targets.sigItemsChanged.connect(self._onTargetsChanged)
         self._onTargetsChanged()
 
     @property

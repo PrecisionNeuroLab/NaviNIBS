@@ -90,7 +90,7 @@ class TrackingStatusWidget:
             self._positionsClient = ToolPositionsClient()
             self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
             # TODO: connect to any necessary signals from session
-            self._session.tools.sigToolsChanged.connect(lambda _: self._initializeToolWidgets())
+            self._session.tools.sigItemsChanged.connect(lambda _: self._initializeToolWidgets())
             self._initializeToolWidgets()
         else:
             raise NotImplementedError

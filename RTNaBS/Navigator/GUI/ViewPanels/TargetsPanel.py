@@ -347,7 +347,7 @@ class TargetsPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
+        self.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
         self._tableWdgt.session = self.session
 
         for key, view in self._views.items():

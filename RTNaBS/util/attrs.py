@@ -1,12 +1,10 @@
 import attrs
 import typing as tp
 
-from .numpy import array_equalish
-
 
 def attrsAsDict(obj,
                 eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any], bool]]] = None,
-                exclude: tp.Optional[list[str]] = None) -> tp.Dict[str, tp.Any]:
+                exclude: tp.Optional[tp.Iterable[str]] = None) -> tp.Dict[str, tp.Any]:
     """
     Similar to attrs.asdict(), but strips underscore from private attributes, doesn't include items with unchanged defaults, etc.
 
@@ -16,7 +14,7 @@ def attrsAsDict(obj,
 
     def filterAttrs(attrib: attrs.Attribute, val: tp.Any,
                     eqs: tp.Optional[tp.Dict[str, tp.Callable[[tp.Any, tp.Any], bool]]] = None,
-                    exclude: tp.Optional[list[str]] = None):
+                    exclude: tp.Optional[tp.Iterable[str]] = None):
         if not attrib.init:
             # don't include non-init attribs
             return False

@@ -146,7 +146,7 @@ class CameraPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self._session.tools.sigToolsChanged.connect(self._onToolsChanged)
+        self._session.tools.sigItemsChanged.connect(self._onToolsChanged)
         self._trackingStatusWdgt.session = self.session
 
         info = self.session.tools.positionsServerInfo

@@ -31,8 +31,8 @@ class TargetsTableModel(CollectionTableModel[str, Targets, Target]):
             key=lambda oldKey, newKey: len(newKey) > 0 and (oldKey == newKey or newKey not in self._session.targets),  # don't allow setting one target to key of another target
         )
 
-        self._collection.sigTargetsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigTargetsChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
+        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
 
         super().__attrs_post_init__()
 

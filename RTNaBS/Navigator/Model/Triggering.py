@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import attrs
 import json
 import logging
@@ -10,6 +12,8 @@ from RTNaBS.util.attrs import attrsAsDict
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util import exceptionToStr
 
+from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,15 +25,14 @@ class TriggerEvent:
 
 
 @attrs.define
-class TriggerSource:
+class TriggerSource(GenericCollectionDictItem[str]):
     type: ClassVar[str] = 'TriggerSource'
     _isEnabled: bool = True
 
-    sigTriggerSettingChanged: Signal = attrs.field(init=False, factory=Signal)
     sigTriggered: Signal = attrs.field(init=False, factory=lambda: Signal((TriggerEvent,)))
 
     def __attrs_post_init__(self):
-        pass
+        super().__attrs_post_init__()
 
     def trigger(self, triggerEvt: TriggerEvent):
         triggerEvt.metadata['source'] = self.type
@@ -70,8 +73,9 @@ class LSLTriggerSource(TriggerSource):
     def streamKey(self, newKey: tp.Optional[str]):
         if self._streamKey == newKey:
             return
+        self.sigItemAboutToChange.emit(self.key, ['streamKey'])
         self._streamKey = newKey
-        self.sigTriggerSettingChanged.emit()
+        self.sigItemChanged.emit(self.key, ['streamKey'])
 
     @property
     def triggerEvents(self):
@@ -81,8 +85,9 @@ class LSLTriggerSource(TriggerSource):
     def triggerEvents(self, newEvents: tp.Optional[list[str]]):
         if self._triggerEvents == newEvents:
             return
+        self.sigItemAboutToChange.emit(self.key, ['triggerEvents'])
         self._triggerEvents = newEvents
-        self.sigTriggerSettingChanged.emit()
+        self.sigItemChanged.emit(self.key, ['triggerEvents'])
 
 
 @attrs.define
@@ -178,54 +183,32 @@ class TriggerRouter:
 
 
 @attrs.define
-class TriggerSources:
-    _sources: tp.Dict[str, TriggerSource] = attrs.field(factory=dict)
+class TriggerSources(GenericCollection[str, TriggerSource]):
     _triggerRouter: TriggerRouter = attrs.field(init=False, factory=TriggerRouter)
 
-    sigTriggerSettingChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))  # includes key of TriggerSource
-
     def __attrs_post_init__(self):
-        for key, source in self._sources.items():
-            source.sigTriggerSettingChanged.connect(lambda sourceKey=key: self.sigTriggerSettingChanged.emit(sourceKey))
+        super().__attrs_post_init__()
+        for key, source in self.items():
             self._triggerRouter.connectToTriggerSource(source)
 
     @property
     def triggerRouter(self):
         return self._triggerRouter
 
-    def __getitem__(self, key: str) -> TriggerSource:
-        return self._sources[key]
-
-    def __setitem__(self, key, source: TriggerSource):
-        assert isinstance(source, TriggerSource)
-        if key in self._sources:
-            self._triggerRouter.disconnectFromTriggerSource(self._sources[key])
-            raise NotImplementedError  # TODO: disconnect signals from previous source
-        self._sources[key] = source
-        source.sigTriggerSettingChanged.connect(lambda sourceKey=key: self.sigTriggerSettingChanged.emit(sourceKey))
-        self._triggerRouter.connectToTriggerSource(source)
-
-    def __iter__(self):
-        return iter(self._sources)
-
-    def __len__(self):
-        return len(self._sources)
-
-    def keys(self):
-        return self.sources.keys()
-
-    def items(self):
-        return self._sources.items()
-
-    def asDict(self) -> dict[str, dict[str, tp.Any]]:
-        return {key: source.asDict() for key, source in self._sources.items()}
+    def setItem(self, item: TriggerSource):
+        key = item.key
+        if key in self._items:
+            self._triggerRouter.disconnectFromTriggerSource(self[key])
+        super().setItem(item=item)
+        self._triggerRouter.connectToTriggerSource(item)
 
     @classmethod
-    def fromDict(cls, d):
-        sources = dict()
-        for key, triggerSourceDict in d.items():
-            sources[key] = TriggerSource.fromDict(triggerSourceDict)
-        return cls(sources=sources)
+    def fromList(cls, itemList: list[dict[str, tp.Any]]) -> TriggerSources:
+        items = {}
+        for itemDict in itemList:
+            items[itemDict['key']] = TriggerSource.fromDict(itemDict)
+
+        return cls(items=items)
 
 
 

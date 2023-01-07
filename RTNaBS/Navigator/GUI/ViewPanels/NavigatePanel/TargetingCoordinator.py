@@ -65,9 +65,9 @@ class TargetingCoordinator:
 
     def __attrs_post_init__(self):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
-        self._session.tools[self.activeCoilKey].sigToolChanged.connect(lambda _: self.sigCurrentCoilPositionChanged.emit())
-        self._session.targets.sigTargetsChanged.connect(self._onSessionTargetsChanged)
-        self._session.targets.sigTargetKeyAboutToChange.connect(self._onSessionTargetKeyAboutToChange)
+        self._session.tools[self.activeCoilKey].sigItemChanged.connect(lambda _: self.sigCurrentCoilPositionChanged.emit())
+        self._session.targets.sigItemsChanged.connect(self._onSessionTargetsChanged)
+        self._session.targets.sigItemKeyAboutToChange.connect(self._onSessionTargetKeyAboutToChange)
 
         self._currentPoseMetrics = PoseMetricCalculator(
             session=self._session,
@@ -195,7 +195,7 @@ class TargetingCoordinator:
     def _onSessionTargetKeyAboutToChange(self, fromKey: str, toKey: str):
         if self._currentTargetKey == fromKey:
             self._currentTargetKey = toKey
-            # other changes will be handled when sigTargetsChanged is emitted later
+            # other changes will be handled when sigItemsChanged is emitted later
 
     def _updateCurrentPoseMetricsSample(self):
         self._currentPoseMetrics.sample.timestamp = pd.Timestamp.now()
