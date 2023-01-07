@@ -32,8 +32,8 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
             timestamp='Time'
         )
 
-        self._collection.sigSamplesAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigSamplesChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
+        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
 
         super().__attrs_post_init__()
 

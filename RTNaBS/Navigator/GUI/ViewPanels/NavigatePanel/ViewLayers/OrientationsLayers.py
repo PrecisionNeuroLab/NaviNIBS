@@ -149,7 +149,7 @@ class SampleOrientationsLayer(OrientationsLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.session.samples.sigSamplesChanged.connect(self._onSamplesChanged)
+        self._coordinator.session.samples.sigItemsChanged.connect(self._onSamplesChanged)
 
     @OrientationsLayer.orientations.getter
     def orientations(self) -> Samples:
@@ -178,7 +178,7 @@ class TargetOrientationsLayer(OrientationsLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
+        self._coordinator.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
 
     @OrientationsLayer.orientations.getter
     def orientations(self) -> Targets:

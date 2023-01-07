@@ -41,10 +41,10 @@ class PoseMetricCalculator:
     def __attrs_post_init__(self):
         # self.session.MNIRegistration.sigTransformChanged.connect(lambda *args: self._clearCachedValues())  # TODO: debug, uncomment
         self.session.headModel.sigDataChanged.connect(lambda *args: self._clearCachedValues())
-        self.session.targets.sigTargetsChanged.connect(self._onTargetsChanged)
+        self.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
         self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._onPlannedFiducialsChanged)
         if self._sample is not None:
-            self._sample.sigSampleChanged.connect(self._onSampleChanged)
+            self._sample.sigItemChanged.connect(self._onSampleChanged)
 
         self._supportedMetrics.extend([
             MetricSpecification(getter=self.getTargetErrorInBrain, units=' mm', label='Target error in brain'),
@@ -89,9 +89,9 @@ class PoseMetricCalculator:
             return
         logger.debug('Sample changed')
         if self._sample is not None:
-            self._sample.sigSampleChanged.disconnect(self._onSampleChanged)
+            self._sample.sigItemChanged.disconnect(self._onSampleChanged)
         self._sample = newSample
-        self._sample.sigSampleChanged.connect(self._onSampleChanged)
+        self._sample.sigItemChanged.connect(self._onSampleChanged)
         self._clearCachedValues()
 
     def _onTargetsChanged(self, targetKeys: list[str], targetAttrs: tp.Optional[list[str]]):
@@ -104,7 +104,7 @@ class PoseMetricCalculator:
 
     def _onSampleChanged(self, sampleKey: str, sampleAttrs: tp.Optional[list[str]]):
         """
-        Called when sample.sigSampleChanged is emitted, not when `self.sample = ...` setter is called.
+        Called when sample.sigItemChanged is emitted, not when `self.sample = ...` setter is called.
         """
         if sampleAttrs is None or len(set(sampleAttrs) - {'isVisible', 'isSelected', 'timestamp'}) > 0:
             logger.debug(f'PoseMetricCalculator onSampleChanged')

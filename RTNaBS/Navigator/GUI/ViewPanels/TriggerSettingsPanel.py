@@ -205,8 +205,8 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         elif self._inlet is not None and not self._streamSelector.selectedStreamIsAvailable:
             self._disconnectInlet()
 
-    def _onSessionTriggerSettingChanged(self, triggerSourceKey: str):
-        if triggerSourceKey != self._triggerSourceKey:
+    def _onSessionTriggerSettingChanged(self, triggerSourceKeys: list[str], attribs: tp.Optional[list[str]]):
+        if self._triggerSourceKey not in triggerSourceKeys:
             return  # ignore other trigger sources
         self._streamSelector.selectedStreamKey = self.triggerSource.streamKey
         # TODO: handle any other change updates as needed
@@ -216,7 +216,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
             # create new trigger source settings
             self.session.triggerSources[self._triggerSourceKey] = LSLTriggerSource()
         self._streamSelector.selectedStreamKey = self.triggerSource.streamKey
-        self._session.triggerSources.sigTriggerSettingChanged.connect(self._onSessionTriggerSettingChanged)
+        self._session.triggerSources.sigItemsChanged.connect(self._onSessionTriggerSettingChanged)
 
 @attrs.define
 class HotkeyTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[HotkeyTriggerSource]):

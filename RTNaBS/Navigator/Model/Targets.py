@@ -15,21 +15,22 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.attrs import attrsAsDict
+from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
+
+from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 
 logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class Target:
+class Target(GenericCollectionDictItem[str]):
     """
     Can specify (targetCoord, entryCoord, angle, [depthOffset]) to autogenerate coilToMRITransf,
     or (coilToMRITransf, [targetCoord]) to use transform directly.
     """
-    _key: str
     _targetCoord: tp.Optional[np.ndarray] = None
     _entryCoord: tp.Optional[np.ndarray] = None
     _angle: tp.Optional[float] = None  # typical coil handle angle, in coil's horizontal plane
@@ -41,37 +42,6 @@ class Target:
     _color: str = '#0000FF'
 
     _cachedCoilToMRITransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)
-
-    sigKeyAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str, str)))  # includes old key, new key
-    sigKeyChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str, str)))  # includes old key, new key
-
-    sigTargetAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str, tp.Optional[tp.List[str]])))
-    """
-    This signal includes the key of the target, and optionally a list of keys of attributes about to change;
-    if second arg is None, all attributes should be assumed to be about to change.
-    
-    Not emitted when key changed (use sigKeyAboutToChange instead!)
-    """
-    sigTargetChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str, tp.Optional[tp.List[str]])))
-    """
-    This signal includes the key of the target, and optionally a list of keys of changed attributes;  
-    if second arg is None, all attributes should be assumed to have changed.
-    
-    Not emitted when key changed (use sigKeyChanged instead!)
-    """
-
-    @property
-    def key(self):
-        return self._key
-
-    @key.setter
-    def key(self, newKey: str):
-        if self._key == newKey:
-            return
-        prevKey = self._key
-        self.sigKeyAboutToChange.emit(prevKey, newKey)
-        self._key = newKey
-        self.sigKeyChanged.emit(prevKey, newKey)
 
     @property
     def targetCoord(self):
@@ -121,9 +91,9 @@ class Target:
     def isVisible(self, isVisible: bool):
         if self._isVisible == isVisible:
             return
-        self.sigTargetAboutToChange.emit(self._key, ['isVisible'])
+        self.sigItemAboutToChange.emit(self._key, ['isVisible'])
         self._isVisible = isVisible
-        self.sigTargetChanged.emit(self._key, ['isVisible'])
+        self.sigItemChanged.emit(self._key, ['isVisible'])
 
     @property
     def isSelected(self):
@@ -133,192 +103,33 @@ class Target:
     def isSelected(self, isSelected: bool):
         if self._isSelected == isSelected:
             return
-        self.sigTargetAboutToChange.emit(self.key, ['isSelected'])
+        self.sigItemAboutToChange.emit(self.key, ['isSelected'])
         self._isSelected = isSelected
-        self.sigTargetChanged.emit(self.key, ['isSelected'])
+        self.sigItemChanged.emit(self.key, ['isSelected'])
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
-
-        npFields = ('targetCoord', 'entryCoord', 'coilToMRITransf')
-
-        d = attrsAsDict(self, eqs={field: array_equalish for field in npFields})
-
-        for key in npFields:
-            if key in d and d[key] is not None:
-                d[key] = d[key].tolist()
-
-        return d
+        return attrsWithNumpyAsDict(self, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any]):
-
-        def convertOptionalNDArray(val: tp.Optional[tp.List[tp.Any]]) -> tp.Optional[np.ndarray]:
-            if val is None:
-                return None
-            else:
-                return np.asarray(val)
-
-        for attrKey in ('targetCoord', 'entryCoord', 'coilToMRITransf'):
-            if attrKey in d:
-                d[attrKey] = convertOptionalNDArray(d[attrKey])
-
-        return cls(**d)
+        return attrsWithNumpyFromDict(cls, d, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
 
 
 @attrs.define
-class Targets:
-    _targets: tp.Dict[str, Target] = attrs.field(factory=dict)
-
-    sigTargetsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))
-    """
-    This signal includes list of keys of targets about to change, and optionally a list of keys of attributes about to change;  
-    if second arg is None, all attributes should be assumed to be about to change.
-    """
-    sigTargetsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))
-    """
-    This signal includes list of keys of changed targets, and optionally a list of keys of changed attributes;  
-    if second arg is None, all attributes should be assumed to have changed.
-    """
-
-    sigTargetKeyAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((str, str)))
-    sigTargetKeyChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str, str)))
-    """
-    Emitted in addition to sigTargetsAboutToChange and sigTargetsChanged specifically when target key changes.
-    
-    This is because when a key does change, everything else about a target may have changed, so these other signals don't include a list of attributes indicating the source of the change.
-    """
-
+class Targets(GenericCollection[str, Target]):
     def __attrs_post_init__(self):
-        for key, target in self._targets.items():
-            assert target.key == key
-            target.sigTargetAboutToChange.connect(self._onTargetAboutToChange)
-            target.sigTargetChanged.connect(self._onTargetChanged)
-            target.sigKeyAboutToChange.connect(self._onTargetKeyAboutToChange)
-            target.sigKeyChanged.connect(self._onTargetKeyChanged)
-
-    def addTarget(self, target: Target):
-        assert target.key not in self._targets
-        return self.setTarget(target=target)
-
-    def deleteTarget(self, key: str):
-        raise NotImplementedError()  # TODO
-
-    def setTarget(self, target: Target):
-        self.sigTargetsAboutToChange.emit([target.key], None)
-        if target.key in self._targets:
-            self._targets[target.key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
-            self._targets[target.key].sigKeyAboutToChange.disconnect(self._onTargetKeyAboutToChange)
-            self._targets[target.key].sigKeyChanged.disconnect(self._onTargetKeyChanged)
-            self._targets[target.key].sigTargetChanged.disconnect(self._onTargetChanged)
-        self._targets[target.key] = target
-
-        target.sigTargetAboutToChange.connect(self._onTargetAboutToChange)
-        target.sigKeyAboutToChange.connect(self._onTargetKeyAboutToChange)
-        target.sigKeyChanged.connect(self._onTargetKeyChanged)
-        target.sigTargetChanged.connect(self._onTargetChanged)
-
-        self.sigTargetsChanged.emit([target.key], None)
-
-    def setTargets(self, targets: tp.List[Target]):
-        # assume all keys are changing, though we could do comparisons to find subset changed
-        oldKeys = list(self.targets.keys())
-        newKeys = [target.key for target in targets]
-        combinedKeys = list(set(oldKeys) | set(newKeys))
-        self.sigTargetsAboutToChange.emit(combinedKeys, None)
-        for key in oldKeys:
-            self._targets[key].sigTargetAboutToChange.disconnect(self._onTargetAboutToChange)
-            self._targets[key].sigKeyAboutToChange.disconnect(self._onTargetKeyAboutToChange)
-            self._targets[key].sigKeyChanged.disconnect(self._onTargetKeyChanged)
-            self._targets[key].sigTargetChanged.disconnect(self._onTargetChanged)
-        self._targets = {target.key: target for target in targets}
-        for key, target in self._targets.items():
-            self._targets[key].sigTargetAboutToChange.connect(self._onTargetAboutToChange)
-            self._targets[key].sigKeyAboutToChange.connect(self._onTargetKeyAboutToChange)
-            self._targets[key].sigKeyChanged.connect(self._onTargetKeyChanged)
-            self._targets[key].sigTargetChanged.connect(self._onTargetChanged)
-        self.sigTargetsChanged.emit(combinedKeys, None)
-
-    def _onTargetAboutToChange(self, key: str, attribKeys: tp.Optional[tp.List[str]] = None):
-        self.sigTargetsAboutToChange.emit([key], attribKeys)
-
-    def _onTargetKeyAboutToChange(self, fromKey: str, toKey: str):
-        assert toKey not in self._targets
-        self.sigTargetKeyAboutToChange.emit(fromKey, toKey)
-        self.sigTargetsAboutToChange.emit([fromKey, toKey], None)
-
-    def _onTargetKeyChanged(self, fromKey: str, toKey: str):
-        assert toKey not in self._targets
-        self._targets = {(toKey if key == fromKey else key): val for key, val in self._targets.items()}
-        self.sigTargetsChanged.emit([fromKey, toKey], None)
-        self.sigTargetKeyChanged.emit(fromKey, toKey)
-
-    def _onTargetChanged(self, key: str, attribKeys: tp.Optional[tp.List[str]] = None):
-        self.sigTargetsChanged.emit([key], attribKeys)
+        super().__attrs_post_init__()
 
     def setWhichTargetsVisible(self, visibleKeys: tp.List[str]):
-        changingKeys = [key for key, target in self.targets.items() if target.isVisible != (key in visibleKeys)]
-        if len(changingKeys) == 0:
-            return
-        self.sigTargetsAboutToChange.emit(changingKeys, ['isVisible'])
-        with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
-            for key in changingKeys:
-                self.targets[key].isVisible = key in visibleKeys
-        self.sigTargetsChanged.emit(changingKeys, ['isVisible'])
+        self.setAttribForItems(self.keys(), dict(isVisible=[key in visibleKeys for key in self.keys()]))
 
     def setWhichTargetsSelected(self, selectedKeys: tp.List[str]):
-        changingKeys = [key for key, target in self.targets.items() if target.isSelected != (key in selectedKeys)]
-        if len(changingKeys) == 0:
-            return
-        self.sigTargetsAboutToChange.emit(changingKeys, ['isSelected'])
-        with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
-            for key in changingKeys:
-                self.targets[key].isSelected = key in selectedKeys
-        self.sigTargetsChanged.emit(changingKeys, ['isSelected'])
-
-    def __getitem__(self, key):
-        return self._targets[key]
-
-    def __setitem__(self, key, target: Target):
-        assert key == target.key
-        self.setTarget(target=target)
-
-    def __iter__(self):
-        return iter(self._targets)
-
-    def __len__(self):
-        return len(self._targets)
-
-    def keys(self):
-        return self._targets.keys()
-
-    def items(self):
-        return self._targets.items()
-
-    def values(self):
-        return self._targets.values()
-
-    def merge(self, otherTargets: Targets):
-
-        self.sigTargetsAboutToChange.emit(list(otherTargets.keys()), None)
-
-        with self.sigTargetsAboutToChange.blocked(), self.sigTargetsChanged.blocked():
-            for target in otherTargets.values():
-                self.setTarget(target)
-
-        self.sigTargetsChanged.emit(list(otherTargets.keys()), None)
-
-    @property
-    def targets(self):
-        return self._targets  # note: result should not be modified directly
-
-    def asList(self) -> tp.List[tp.Dict[str, tp.Any]]:
-        return [target.asDict() for target in self._targets.values()]
+        self.setAttribForItems(self.keys(), dict(isSelected=[key in selectedKeys for key in self.keys()]))
 
     @classmethod
-    def fromList(cls, targetList: tp.List[tp.Dict[str, tp.Any]]) -> Targets:
+    def fromList(cls, itemList: list[dict[str, tp.Any]]) -> Targets:
+        items = {}
+        for itemDict in itemList:
+            items[itemDict['key']] = Target.fromDict(itemDict)
 
-        targets = {}
-        for targetDict in targetList:
-            targets[targetDict['key']] = Target.fromDict(targetDict)
-
-        return cls(targets=targets)
+        return cls(items=items)

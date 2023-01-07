@@ -12,6 +12,8 @@ from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.attrs import attrsAsDict
 from RTNaBS.util.json import jsonPrettyDumps
 
+from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+
 if tp.TYPE_CHECKING:
     from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
     from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import NavigationView
@@ -89,8 +91,7 @@ class AddonClassElement(tp.Generic[ACE]):
 
 
 @attrs.define
-class Addon:
-    _key: str
+class Addon(GenericCollectionDictItem[str]):
     _addonInstallPath: str
     _MainViewPanels: tp.Dict[str, AddonClassElement[MainViewPanel]] = attrs.field(factory=dict)
     _NavigationViews: tp.Dict[str, AddonClassElement[NavigationView]] = attrs.field(factory=dict)
@@ -98,9 +99,8 @@ class Addon:
     _SessionAttrs: tp.Dict[str, AddonClassElement[tp.Any]] = attrs.field(factory=dict)
     _isActive: bool = True
 
-    @property
-    def key(self):
-        return self._key
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
 
     @property
     def MainViewPanels(self):
@@ -111,13 +111,8 @@ class Addon:
         return self._addonInstallPath
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        d = dict(
-            key=self._key,
-        )
-        if not self._isActive:
-            d['isActive'] = self._isActive
-
         elementAttrs = ('MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')
+        d = attrsAsDict(self, exclude=elementAttrs)
         for elementAttr in elementAttrs:
             d[elementAttr] = {key: element.asDict() for key, element in getattr(self, '_' + elementAttr).items()}
 
@@ -169,36 +164,9 @@ class Addon:
 
 
 @attrs.define
-class Addons:
-    _addons: tp.Dict[str, Addon] = attrs.field(factory=dict)
-
-    sigAddonsChanged: Signal = attrs.field(factory=lambda: Signal((tp.List[str], tp.Optional[tp.List[str]])))
-
+class Addons(GenericCollection[str, Addon]):
     def __attrs_post_init__(self):
-        for key, addon in self._addons.items():
-            assert addon.key == key
-
-    def __getitem__(self, item):
-        return self._addons[item]
-
-    def __iter__(self):
-        return iter(self._addons)
-
-    def __len__(self):
-        return len(self._addons)
-
-    def keys(self):
-        return self._addons.keys()
-
-    def items(self):
-        return self._addons.items()
-
-    def values(self):
-        return self._addons.values()
-
-    @property
-    def addons(self):
-        return self._addons  # note: result should not be modified directly
+        super().__attrs_post_init__()
 
     def asList(self, unpackedSessionDir) -> tp.List[str]:
         addonSessionConfigFilenames = []
@@ -218,7 +186,7 @@ class Addons:
             addon = Addon.fromDict(addonDict)
             addons[addon.key] = addon
 
-        return cls(addons=addons)
+        return cls(items=addons)
 
 
 

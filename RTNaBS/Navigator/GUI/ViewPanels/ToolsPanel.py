@@ -63,7 +63,7 @@ class ToolWidget:
         formContainer.setLayout(self._formLayout)
         self._wdgt.layout().addWidget(formContainer)
 
-        #self._tool.sigToolChanged.connect(lambda key: self._onToolChanged())
+        #self._tool.sigItemChanged.connect(lambda key: self._onToolChanged())
 
         self._key = QtWidgets.QLineEdit(self._tool.key)
         self._key.editingFinished.connect(self._onKeyEdited)
@@ -389,7 +389,7 @@ class ToolsPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self.session.tools.sigToolsChanged.connect(self._onToolsChanged)
+        self.session.tools.sigItemsChanged.connect(self._onToolsChanged)
         self._trackingStatusWdgt.session = self.session
         self._onToolsChanged()
 

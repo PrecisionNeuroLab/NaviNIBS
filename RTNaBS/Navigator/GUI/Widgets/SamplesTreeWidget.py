@@ -53,7 +53,7 @@ class SamplesTreeWidget:
         if self._session is not None:
             raise NotImplementedError()  # TODO: disconnect from previous signals
         self._session = newSes
-        self._session.samples.sigSamplesChanged.connect(self._onSamplesChanged)
+        self._session.samples.sigItemsChanged.connect(self._onSamplesChanged)
         self._onSamplesChanged()
 
     @property

@@ -105,7 +105,7 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
     _pendingNewTransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)  # result of calibration, not yet saved to tool
 
     _plotter: BackgroundPlotter = attrs.field(init=False)
-    _liveVisual: VisualizedOrientation | None = attrs.field(init=False, default=None)
+    _liveVisual: tp.Optional[VisualizedOrientation] = attrs.field(init=False, default=None)
     _sampleVisuals_orig: list[VisualizedOrientation] = attrs.field(init=False, factory=list)
     _sampleVisuals_pending: list[VisualizedOrientation] = attrs.field(init=False, factory=list)
 
