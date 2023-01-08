@@ -42,7 +42,7 @@ class PoseMetricCalculator:
         # self.session.MNIRegistration.sigTransformChanged.connect(lambda *args: self._clearCachedValues())  # TODO: debug, uncomment
         self.session.headModel.sigDataChanged.connect(lambda *args: self._clearCachedValues())
         self.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
-        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._onPlannedFiducialsChanged)
+        self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         if self._sample is not None:
             self._sample.sigItemChanged.connect(self._onSampleChanged)
 
@@ -115,6 +115,10 @@ class PoseMetricCalculator:
                     self.getTargetCoilToScalpDist.cacheKey,
                     self.getTargetCoilToCortexDist.cacheKey,
                 ])
+
+    def _onFiducialsChanged(self, fidKeys: list[str], attribs: tp.Optional[list[str]] = None):
+        if attribs is None or 'plannedCoord' in attribs:
+            self._onPlannedFiducialsChanged()
 
     def _onPlannedFiducialsChanged(self):
         self._clearCachedValues(includingKeys=[self.getAngleFromMidline.cacheKey])
@@ -364,9 +368,10 @@ class PoseMetricCalculator:
         # TODO: dynamically switch between MNI space and fiducial space depending on whether MNI transf is available
         if True:
             # use fiducial locations to define aligned coordinate space
-            nas = self.session.subjectRegistration.plannedFiducials.get('NAS', None)
-            lpa = self.session.subjectRegistration.plannedFiducials.get('LPA', None)
-            rpa = self.session.subjectRegistration.plannedFiducials.get('RPA', None)
+            nas = self.session.subjectRegistration.fiducials.get('NAS', None)
+            lpa = self.session.subjectRegistration.fiducials.get('LPA', None)
+            rpa = self.session.subjectRegistration.fiducials.get('RPA', None)
+            nas, lpa, rpa = tuple(fid.plannedCoord for fid in (nas, lpa, rpa))
             if any(coord is None for coord in (nas, lpa, rpa)):
                 logger.debug('Missing fiducial(s), cannot find midline axis')
                 return np.nan
