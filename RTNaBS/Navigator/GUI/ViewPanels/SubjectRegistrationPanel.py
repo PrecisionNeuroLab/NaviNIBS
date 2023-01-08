@@ -359,8 +359,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     def _onPanelInitializedAndSessionSet(self):
         self.session.headModel.sigDataChanged.connect(lambda which: self._redraw(which='initSurf'))
-        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(lambda: self._redraw(which='initPlannedFids'))
-        self.session.subjectRegistration.sigSampledFiducialsChanged.connect(lambda: self._redraw(which='initSampledFids'))
+        self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         self.session.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(lambda *args: self._redraw(which='initHeadPts'))  # TODO: pass which indices to redraw to not entirely redraw each time there's a change
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
             'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
@@ -370,6 +369,13 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._headPtsTblWdgt.session = self.session
 
         self._pointerDistanceReadouts.session = self.session
+
+    def _onFiducialsChanged(self, fidKeys: list[str], attribs: tp.Optional[list[str]] = None):
+        # TODO: pass fidKeys to redraw below to only redraw changed fiducials
+        if attribs is None or 'plannedCoord' in attribs:
+            self._redraw(which='initPlannedFids')
+        if attribs is None or 'sampledCoord' in attribs or 'sampledCoords' in attribs:
+            self._redraw(which='initSampledFids')
 
     def _currentFidTblFidKey(self) -> tp.Optional[str]:
         if self._fidTblWdgt.currentItem() is None:
@@ -405,7 +411,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         logger.info(f'Sampled fiducial relative to tracker: {pointerCoord_relToSubTracker}')
 
-        self.session.subjectRegistration.setFiducial(whichSet='sampled', whichFiducial=fidKey, coord=pointerCoord_relToSubTracker)
+        self.session.subjectRegistration.fiducials[fidKey].sampledCoord = pointerCoord_relToSubTracker
 
         if True:
             currentRow = self._fidTblWdgt.currentRow()
@@ -433,10 +439,10 @@ class SubjectRegistrationPanel(MainViewPanel):
             return
 
         subReg = self.session.subjectRegistration
-        if fidKey in subReg.plannedFiducials and subReg.plannedFiducials[fidKey] is not None:
-            lookAt = subReg.plannedFiducials[fidKey]
-        elif fidKey in subReg.sampledFiducials and subReg.sampledFiducials[fidKey] is not None and subReg.trackerToMRITransf is not None:
-            lookAt = applyTransform(subReg.trackerToMRITransf, subReg.sampledFiducials[fidKey])
+        if fidKey in subReg.fiducials and subReg.fiducials[fidKey].plannedCoord is not None:
+            lookAt = subReg.fiducials[fidKey].plannedCoord
+        elif fidKey in subReg.fiducials and subReg.fiducials[fidKey].sampledCoord is not None and subReg.trackerToMRITransf is not None:
+            lookAt = applyTransform(subReg.trackerToMRITransf, subReg.fiducials[fidKey].sampledCoord)
         else:
             lookAt = None
         if lookAt is not None:
@@ -453,13 +459,13 @@ class SubjectRegistrationPanel(MainViewPanel):
         subReg = self.session.subjectRegistration
         assert subReg.hasMinimumSampledFiducials
 
-        validPlannedFidKeys = {key for key, coord in subReg.plannedFiducials.items() if coord is not None}
-        validSampledFidKeys = {key for key, coord in subReg.sampledFiducials.items() if coord is not None}
+        validPlannedFidKeys = {key for key, fid in subReg.fiducials.items() if fid.plannedCoord is not None}
+        validSampledFidKeys = {key for key, fid in subReg.fiducials.items() if fid.sampledCoord is not None}
         commonKeys = validPlannedFidKeys & validSampledFidKeys
         assert len(commonKeys) >= 3
 
-        plannedPts_mriSpace = np.vstack(subReg.plannedFiducials[key] for key in commonKeys)
-        sampledPts_subSpace = np.vstack(subReg.sampledFiducials[key] for key in commonKeys)
+        plannedPts_mriSpace = np.vstack(subReg.fiducials[key].plannedCoord for key in commonKeys)
+        sampledPts_subSpace = np.vstack(subReg.fiducials[key].sampledCoord for key in commonKeys)
 
         logger.info('Estimating transform aligning sampled fiducials to planned fiducials')
         subReg.trackerToMRITransf = estimateAligningTransform(sampledPts_subSpace, plannedPts_mriSpace)
@@ -650,11 +656,11 @@ class SubjectRegistrationPanel(MainViewPanel):
             self._redraw(which='fidTbl')
 
             labels = []
-            coords = np.full((len(self.session.subjectRegistration.plannedFiducials), 3), np.nan)
-            for iFid, (label, coord) in enumerate(self.session.subjectRegistration.plannedFiducials.items()):
+            coords = np.full((len(self.session.subjectRegistration.fiducials), 3), np.nan)
+            for iFid, (label, fid) in enumerate(self.session.subjectRegistration.fiducials.items()):
                 labels.append(label)
-                if coord is not None:
-                    coords[iFid, :] = coord
+                if fid.plannedCoord is not None:
+                    coords[iFid, :] = fid.plannedCoord
 
             self._actors[actorKey] = self._plotter.add_point_labels(
                 name=actorKey,
@@ -676,7 +682,8 @@ class SubjectRegistrationPanel(MainViewPanel):
             # also update table
             self._redraw(which='fidTbl')
 
-            doShowSampledFids = len(self.session.subjectRegistration.sampledFiducials) > 0 \
+            sampledFidKeys = [key for key, fid in self.session.subjectRegistration.fiducials.items() if fid.sampledCoord is not None]
+            doShowSampledFids = len(sampledFidKeys) > 0 \
                                 and self.session.subjectRegistration.trackerToMRITransf is not None
 
             if not doShowSampledFids:
@@ -687,11 +694,13 @@ class SubjectRegistrationPanel(MainViewPanel):
                 return
 
             labels = []
-            coords = np.full((len(self.session.subjectRegistration.sampledFiducials), 3), np.nan)
-            for iFid, (label, coord) in enumerate(self.session.subjectRegistration.sampledFiducials.items()):
+            coords = np.full((len(self.session.subjectRegistration.fiducials), 3), np.nan)
+            for iFid, (label, fid) in enumerate(self.session.subjectRegistration.fiducials.items()):
                 labels.append(label)
-                if coord is not None:
-                    coords[iFid, :] = coord
+                if fid.sampledCoord is not None:
+                    coords[iFid, :] = fid.sampledCoord
+
+            # TODO: also plot multipoint sampled coords (if available) in slightly different color
 
             coords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, coords)
 
@@ -774,7 +783,7 @@ class SubjectRegistrationPanel(MainViewPanel):
             prevKey = self._currentFidTblFidKey()
             subReg = self.session.subjectRegistration
             self._fidTblWdgt.clearContents()
-            allFidKeys = list(subReg.plannedFiducials.keys()) + [key for key in subReg.sampledFiducials if key not in subReg.plannedFiducials]
+            allFidKeys = list(subReg.fiducials.keys())
             self._fidTblWdgt.setRowCount(len(allFidKeys))
 
             checkIcon_planned = qta.icon('mdi6.checkbox-marked-circle', color='blue')
@@ -786,23 +795,18 @@ class SubjectRegistrationPanel(MainViewPanel):
                 item = QtWidgets.QTableWidgetItem(key)
                 self._fidTblWdgt.setItem(iFid, 0, item)
 
-                if key in subReg.plannedFiducials:
-                    if subReg.plannedFiducials[key] is not None:
-                        icon = checkIcon_planned
-                    else:
-                        icon = xIcon
+                if subReg.fiducials[key].plannedCoord is not None:
+                    icon = checkIcon_planned
                 else:
                     icon = xIcon
                 item = QtWidgets.QTableWidgetItem(icon, '')
                 self._fidTblWdgt.setItem(iFid, 1, item)
 
-                if key in subReg.sampledFiducials:
-                    if subReg.sampledFiducials[key] is not None:
-                        icon = checkIcon_sampled
-                    else:
-                        icon = xIcon
+                if subReg.fiducials[key].sampledCoord is not None:
+                    icon = checkIcon_sampled
                 else:
                     icon = xIcon
+                # TODO: show indicator of number of repeated samples if multi-sampled
                 item = QtWidgets.QTableWidgetItem(icon, '')
                 self._fidTblWdgt.setItem(iFid, 2, item)
 
