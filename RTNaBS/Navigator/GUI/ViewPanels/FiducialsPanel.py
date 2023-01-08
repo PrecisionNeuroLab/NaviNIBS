@@ -22,6 +22,7 @@ from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.Navigator.Model.Session import Session
+from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial
 
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,7 @@ class FiducialsPanel(MainViewPanel):
 
     def _onSessionSet(self):
         super()._onSessionSet()
-        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._onPlannedFiducialsChanged)
+        self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
         if self._hasInitialized:
@@ -123,7 +124,7 @@ class FiducialsPanel(MainViewPanel):
     def _onDragAndDropReorderedRows(self):
         newOrder = [self._tblWdgt.item(iR, 0).text() for iR in range(self._tblWdgt.rowCount())]
         logger.info('Reordering fiducials: {}'.format(newOrder))
-        self.session.subjectRegistration.plannedFiducials = {key: self.session.subjectRegistration.plannedFiducials[key] for key in newOrder}
+        self.session.subjectRegistration.fiducials.setItems([self.session.subjectRegistration.fiducials[key] for key in newOrder])
 
     def _onTblCellChanged(self, row: int, col: int):
         if col != 0:
@@ -133,19 +134,23 @@ class FiducialsPanel(MainViewPanel):
             # ignore any changes during drag-and-drop processing (these are signals separately)
             return
         newLabel = self._tblWdgt.item(row, col).text()
-        oldLabel = list(self.session.subjectRegistration.plannedFiducials.keys())[row]
+        oldLabel = list(self.session.subjectRegistration.fiducials.keys())[row]
         if newLabel != oldLabel:
+            if newLabel in self.session.subjectRegistration.fiducials:
+                logger.warning(f'Tried to change fiducial label from {oldLabel} to {newLabel}, but {newLabel} already exists.')
+                return   # TODO: confirm this shows correct behavior of visually rejecting change in GUI
+
             logger.info('Fiducial label changed from {} to {}'.format(oldLabel, newLabel))
-            oldKeys = list(self.session.subjectRegistration.plannedFiducials.keys())
-            newKeys = oldKeys.copy()
-            newKeys[newKeys.index(oldLabel)] = newLabel
-            self.session.subjectRegistration.plannedFiducials = {
-                newKey: self.session.subjectRegistration.plannedFiducials[oldKey] for oldKey, newKey in zip(oldKeys, newKeys)}
+            self.session.subjectRegistration.fiducials[oldLabel].key = newLabel
 
     def _onTblCellDoubleClicked(self, row: int, col: int):
-        coord = list(self.session.subjectRegistration.plannedFiducials.values())[row]
+        coord = list(self.session.subjectRegistration.fiducials.values())[row]
         if coord is not None:
             self._views['3D'].sliceOrigin = coord
+
+    def _onFiducialsChanged(self, fidKeys: list[str], attribs: tp.Optional[list[str]] = None):
+        if attribs is None or 'plannedCoord' in attribs:
+            self._onPlannedFiducialsChanged()
 
     def _onPlannedFiducialsChanged(self):
         logger.debug('Planned fiducials changed. Updating table and plots')
@@ -153,18 +158,20 @@ class FiducialsPanel(MainViewPanel):
         # TODO: do iterative partial updates rather than entirely clearing and repopulating table with every change
         prevSelectedItem = self._tblWdgt.currentItem()
         self._tblWdgt.clearContents()
-        self._tblWdgt.setRowCount(len(self.session.subjectRegistration.plannedFiducials))
-        for iFid, (label, coord) in enumerate(self.session.subjectRegistration.plannedFiducials.items()):
+        self._tblWdgt.setRowCount(len(self.session.subjectRegistration.fiducials))
+        for iFid, (label, fid) in enumerate(self.session.subjectRegistration.fiducials.items()):
             item = QtWidgets.QTableWidgetItem(label)
             self._tblWdgt.setItem(iFid, 0, item)
+            coord = fid.plannedCoord
             item = QtWidgets.QTableWidgetItem('{:.1f}, {:.1f}, {:.1f}'.format(*coord) if coord is not None else '')
             item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
             self._tblWdgt.setItem(iFid, 1, item)
         # TODO: restore selected row
 
         labels = []
-        coords = np.full((len(self.session.subjectRegistration.plannedFiducials), 3), np.nan)
-        for iFid, (label, coord) in enumerate(self.session.subjectRegistration.plannedFiducials.items()):
+        coords = np.full((len(self.session.subjectRegistration.fiducials), 3), np.nan)
+        for iFid, (label, fid) in enumerate(self.session.subjectRegistration.fiducials.items()):
+            coord = fid.plannedCoord
             labels.append(label)
             if coord is not None:
                 coords[iFid, :] = coord
@@ -213,7 +220,11 @@ class FiducialsPanel(MainViewPanel):
         coords = np.zeros((3, 3))
         for iLabel, (label, altLabel) in enumerate(labelMapping.items()):
             coords[iLabel, :] = eegPositions.loc[altLabel, ['x', 'y', 'z']].values
-            subReg.setFiducial(whichSet='planned', whichFiducial=label, coord=coords[iLabel, :])
+            if label in subReg.fiducials:
+                subReg.fiducials[label].plannedCoord = coords[iLabel, :]
+            else:
+                subReg.fiducials[label] = Fiducial(key=label,
+                                                   plannedCoord=coords[iLabel, :])
 
         if True:
             # also set approximate nose tip
@@ -224,7 +235,14 @@ class FiducialsPanel(MainViewPanel):
             projPts = np.dot(getattr(self.session.headModel, self._surfKey).points, centerToNoseDir)
             iMax = np.argmax(projPts)
             noseCoord = getattr(self.session.headModel, self._surfKey).points[iMax, :]
-            subReg.setFiducial(whichSet='planned', whichFiducial='NoseTip', coord=noseCoord)
+            label = 'NoseTip'
+            if label in subReg.fiducials:
+                subReg.fiducials[label].plannedCoord = noseCoord
+            else:
+                subReg.fiducials[label] = Fiducial(key=label,
+                                                   plannedCoord=noseCoord)
+
+        # note: any pre-existing fiducials with non-standard names will remain unchanged
 
     def _getTblCurrentFiducialKey(self) -> tp.Optional[str]:
         curItem = self._tblWdgt.currentItem()
@@ -242,7 +260,7 @@ class FiducialsPanel(MainViewPanel):
             # no fiducial selected
             return
         logger.info('Deleting {} fiducial'.format(key))
-        self.session.subjectRegistration.deleteFiducial(whichSet='planned', whichFiducial=key)
+        self.session.subjectRegistration.fiducials.deleteItem(key)
 
     def _onSetBtnClicked(self, checked: bool):
         key = self._getTblCurrentFiducialKey()
@@ -251,14 +269,14 @@ class FiducialsPanel(MainViewPanel):
             return
         coord = self._views['3D'].sliceOrigin
         logger.info('Setting {} fiducial coord to {}'.format(key, coord))
-        self.session.subjectRegistration.setFiducial(whichSet='planned', whichFiducial=key, coord=coord)
+        self.session.subjectRegistration.fiducials[key].plannedCoord = coord
 
     def _onGotoBtnClicked(self, checked: bool):
         key = self._getTblCurrentFiducialKey()
         if key is None:
             # no fiducial selected
             return
-        coord = self.session.subjectRegistration.getFiducial(whichSet='planned', whichFiducial=key)
+        coord = self.session.subjectRegistration.fiducials[key].plannedCoord
         if coord is None:
             # no coordinates set for this fiducial
             return

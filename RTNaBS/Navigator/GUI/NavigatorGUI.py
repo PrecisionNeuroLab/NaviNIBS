@@ -159,7 +159,7 @@ class NavigatorGUI(RunnableAsApp):
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.addons.sigItemsChanged.connect(self._onAddonsChanged)
 
-        self.session.subjectRegistration.sigPlannedFiducialsChanged.connect(self._updateEnabledPanels)
+        self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._updateEnabledPanels)
         self.session.tools.sigItemsChanged.connect(lambda _: self._updateEnabledPanels())
 
     def _onAddonsAboutToChange(self):

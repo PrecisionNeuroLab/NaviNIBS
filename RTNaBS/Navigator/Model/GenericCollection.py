@@ -127,6 +127,7 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
 
     def setItems(self, items: list[CI]):
         # assume all keys are changing, though we could do comparisons to find subset changed
+        # note that this can also be used for reordering items
         oldKeys = list(self.keys())
         newKeys = [item.key for item in items]
         combinedKeys = list(set(oldKeys) | set(newKeys))
@@ -210,6 +211,9 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
 
     def items(self):
         return self._items.items()
+
+    def get(self, *args, **kwargs):
+        return self._items.get(*args, **kwargs)
 
     def values(self):
         return self._items.values()
