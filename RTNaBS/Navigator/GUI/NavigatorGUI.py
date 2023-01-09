@@ -87,7 +87,7 @@ class NavigatorGUI(RunnableAsApp):
         self._addViewPanel(ToolsPanel(key='Tools', session=self._session))
 
         # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
-        self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
+        #self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
         self._addViewPanel(TriggerSettingsPanel(key='Trigger settings', session=self._session))
 
@@ -159,8 +159,8 @@ class NavigatorGUI(RunnableAsApp):
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.addons.sigItemsChanged.connect(self._onAddonsChanged)
 
-        self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._updateEnabledPanels)
-        self.session.tools.sigItemsChanged.connect(lambda _: self._updateEnabledPanels())
+        self.session.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
+        self.session.tools.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
 
     def _onAddonsAboutToChange(self):
         if self._session is not None:

@@ -2,7 +2,7 @@ import attrs
 from collections.abc import Sequence, Mapping
 import logging
 import typing as tp
-from qtpy import QtCore
+from qtpy import QtCore, QtGui, QtWidgets
 
 from RTNaBS.Navigator.Model import Session
 from RTNaBS.util.Signaler import Signal
@@ -21,12 +21,31 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     _session: Session
     _columns: list[str] = attrs.field(factory=list)
     _attrColumns: list[str] = attrs.field(factory=list)
-    _derivedColumns: dict[str, tp.Callable[[K], tp.Any]] = attrs.field(factory=dict)  # mapping from column key to function which generates derived value for given key/index
+    _derivedColumns: dict[str, tp.Callable[[K], tp.Any]] = attrs.field(factory=dict)
+    """
+    Mapping from column key to function which generates derived value for given key/index
+    """
     _boolColumns: list[str] = attrs.field(factory=list)
+    """
+    Columns (attr or derived) that should be represented by a checkbox
+    """
+    _decoratedColumns: list[str] = attrs.field(factory=list)
+    """
+    Columns (attr or derived) that include an icon. Values of referenced columns should be (QIcon, text) tuples. Usually, it will be necessary to set up a derived column for proper formatting.
+    """
     _editableColumns: list[str] = attrs.field(factory=list)
-    _columnLabels: dict[str, str] = attrs.field(factory=dict)  # mapping from column key to nice label; if a key is not included, will be used directly as a label
-    _editableColumnValidators: dict[str, tp.Callable[[tp.Any, tp.Any], bool]] = attrs.field(factory=dict)  # mapping from column key to validator function which returns True if passed (prevVal, newVal) is valid
-    _isSelectedAttr: tp.Optional[str] = None  # key of attr in collection indicating selection status; if None, selection state will not be synced to model; partially reliant on connected CollectionTableWidget to implement
+    _columnLabels: dict[str, str] = attrs.field(factory=dict)
+    """
+    Mapping from column key to nice label; if a key is not included, will be used directly as a label
+    """
+    _editableColumnValidators: dict[str, tp.Callable[[tp.Any, tp.Any], bool]] = attrs.field(factory=dict)
+    """
+    Mapping from column key to validator function which returns True if passed (prevVal, newVal) is valid
+    """
+    _isSelectedAttr: tp.Optional[str] = None
+    """
+    Key of attr in collection indicating selection status; if None, selection state will not be synced to model; partially reliant on connected CollectionTableWidget to implement
+    """
 
     _collection: tp.Union[Sequence[CI], Mapping[K, CI]] = attrs.field(init=False)
 
@@ -95,12 +114,37 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                     return None
                 elif colKey in self._attrColumns:
                     colVal = getattr(item, colKey)
+                    if colKey in self._decoratedColumns:
+                        # assume val above is an (icon, text) tuple
+                        assert len(colVal) == 2
+                        colVal = colVal[1]
                     return str(colVal)
                 elif colKey in self._derivedColumns:
                     colVal = self._derivedColumns[colKey](self.getCollectionItemKeyFromIndex(index=index.row()))
+                    if colKey in self._decoratedColumns:
+                        # assume val above is an (icon, text) tuple
+                        assert len(colVal) == 2
+                        colVal = colVal[1]
                     return str(colVal)
                 else:
                     raise KeyError
+            case QtCore.Qt.DecorationRole:
+                if colKey in self._decoratedColumns:
+                    if colKey in self._attrColumns:
+                        colVal = getattr(item, colKey)
+
+                    elif colKey in self._derivedColumns:
+                        colVal = self._derivedColumns[colKey](self.getCollectionItemKeyFromIndex(index=index.row()))
+
+                    else:
+                        raise KeyError
+
+                    # assume val above is an (icon, text) tuple
+                    assert len(colVal) == 2
+                    colIcon = colVal[0]
+                    assert isinstance(colIcon, (QtGui.QColor, QtGui.QIcon, QtGui.QPixmap))
+                    return colIcon
+
             case QtCore.Qt.CheckStateRole:
                 if colKey in self._boolColumns:
                     if colKey in self._attrColumns:

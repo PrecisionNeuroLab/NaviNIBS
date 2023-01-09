@@ -48,9 +48,9 @@ class Fiducial(GenericCollectionDictItem[str]):
     """
     Is of size (3,). 
     
-    Can be used without sampledCoords to specify single sampled coordinate. Or can be used with sampledCoords to override the
-    default sampledCoords->sampledCoord aggregation (a simple mean) with some other result (e.g. a trimmed mean) while still
-    preserving all original samples.
+    Can be used without sampledCoords to specify single sampled coordinate. Or can be used with sampledCoords to override the default sampledCoords->sampledCoord aggregation (a simple mean) with some other result (e.g. a trimmed mean) while still preserving all original samples.
+    
+    Note that this is cleared whenever sampledCoords is set, to avoid persisting an out-of-date aggregated sample. 
     """
 
     def __attrs_post_init__(self):
@@ -121,14 +121,17 @@ class Fiducial(GenericCollectionDictItem[str]):
     @sampledCoords.setter
     def sampledCoords(self, newCoords: tp.Optional[np.ndarray]):
         if array_equalish(newCoords, self._sampledCoords):
+            if newCoords is None and self._sampledCoord is not None:
+                self.sampledCoord = None
             return
 
         if newCoords is not None:
             assert newCoords.ndim == 2 and newCoords.shape[1] == 3
         changingAttrs = ['sampledCoords']
-        if self._sampledCoord is None:
+        if newCoords is not None or self._sampledCoord is not None:
             changingAttrs.append('sampledCoord')
         self.sigItemAboutToChange.emit(self._key, changingAttrs)
+        self._sampledCoord = None  # reset whenever sampledCoords is set to avoid persisting an out-of-date aggregated sample
         self._sampledCoords = newCoords
         self.sigItemChanged.emit(self._key, changingAttrs)
 
@@ -399,16 +402,5 @@ class SubjectRegistration:
         return datetime.today().strftime('%y%m%d%H%M%S.%f')
 
     @staticmethod
-    def fiducialsEqual(fidsA: FiducialSet, fidsB: FiducialSet) -> bool:
-        if len(fidsA) != len(fidsB):
-            return False
-
-        if list(fidsA.keys()) != list(fidsB.keys()):
-            # order matters for this comparison
-            return False
-
-        for key in fidsA.keys():
-            if not array_equalish(fidsA[key], fidsB[key]):
-                return False
-
-        return True
+    def fiducialsEqual(fidsA: Fiducials, fidsB: Fiducials) -> bool:
+        return json.dumps(fidsA.asList()) == json.dumps(fidsB.asList())

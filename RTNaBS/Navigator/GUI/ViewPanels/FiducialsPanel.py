@@ -18,9 +18,9 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import PlanningFiducialsTableWidget
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial
 
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class FiducialsPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake-outline'))
-    _tblWdgt: QTableWidgetDragRows = attrs.field(init=False)
+    _tblWdgt: PlanningFiducialsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _surfKey: str = 'skinSurf'
     _fiducialActors: tp.Dict[str, tp.Any] = attrs.field(init=False, factory=dict)
@@ -78,12 +78,9 @@ class FiducialsPanel(MainViewPanel):
         btn.clicked.connect(self._onGotoBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 1)
 
-        self._tblWdgt = QTableWidgetDragRows(0, 2)
-        self._tblWdgt.setHorizontalHeaderLabels(['Label', 'XYZ'])
-        self._tblWdgt.sigDragAndDropReordered.connect(self._onDragAndDropReorderedRows)
-        self._tblWdgt.cellChanged.connect(self._onTblCellChanged)
-        self._tblWdgt.cellDoubleClicked.connect(self._onTblCellDoubleClicked)
-        container.layout().addWidget(self._tblWdgt)
+        self._tblWdgt = PlanningFiducialsTableWidget()
+        self._tblWdgt.sigSelectionChanged.connect(self._onSelectedFiducialsChanged)
+        container.layout().addWidget(self._tblWdgt.wdgt)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -104,6 +101,9 @@ class FiducialsPanel(MainViewPanel):
             if view.session is None and self.session is not None:
                 view.session = self.session
 
+        if self.session is not None:
+            self._onPanelInitializedAndSessionSet()
+
         self._onPlannedFiducialsChanged()
 
     def _onSliceOriginChanged(self, sourceKey: str):
@@ -114,59 +114,33 @@ class FiducialsPanel(MainViewPanel):
 
     def _onSessionSet(self):
         super()._onSessionSet()
+
+        if self._hasInitialized:
+            self._onPanelInitializedAndSessionSet()
+
+    def _onPanelInitializedAndSessionSet(self):
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
-        if self._hasInitialized:
-            for key, view in self._views.items():
-                view.session = self.session
+        self._tblWdgt.session = self.session
 
-    def _onDragAndDropReorderedRows(self):
-        newOrder = [self._tblWdgt.item(iR, 0).text() for iR in range(self._tblWdgt.rowCount())]
-        logger.info('Reordering fiducials: {}'.format(newOrder))
-        self.session.subjectRegistration.fiducials.setItems([self.session.subjectRegistration.fiducials[key] for key in newOrder])
-
-    def _onTblCellChanged(self, row: int, col: int):
-        if col != 0:
-            # ignore
-            return
-        if self._tblWdgt.dropInProgress:
-            # ignore any changes during drag-and-drop processing (these are signals separately)
-            return
-        newLabel = self._tblWdgt.item(row, col).text()
-        oldLabel = list(self.session.subjectRegistration.fiducials.keys())[row]
-        if newLabel != oldLabel:
-            if newLabel in self.session.subjectRegistration.fiducials:
-                logger.warning(f'Tried to change fiducial label from {oldLabel} to {newLabel}, but {newLabel} already exists.')
-                return   # TODO: confirm this shows correct behavior of visually rejecting change in GUI
-
-            logger.info('Fiducial label changed from {} to {}'.format(oldLabel, newLabel))
-            self.session.subjectRegistration.fiducials[oldLabel].key = newLabel
+        for key, view in self._views.items():
+            view.session = self.session
 
     def _onTblCellDoubleClicked(self, row: int, col: int):
-        coord = list(self.session.subjectRegistration.fiducials.values())[row]
+        coord = list(self.session.subjectRegistration.fiducials.values())[row].plannedCoord
         if coord is not None:
             self._views['3D'].sliceOrigin = coord
+
+    def _onSelectedFiducialsChanged(self, selKeys: list[str]):
+        pass
 
     def _onFiducialsChanged(self, fidKeys: list[str], attribs: tp.Optional[list[str]] = None):
         if attribs is None or 'plannedCoord' in attribs:
             self._onPlannedFiducialsChanged()
 
     def _onPlannedFiducialsChanged(self):
-        logger.debug('Planned fiducials changed. Updating table and plots')
-
-        # TODO: do iterative partial updates rather than entirely clearing and repopulating table with every change
-        prevSelectedItem = self._tblWdgt.currentItem()
-        self._tblWdgt.clearContents()
-        self._tblWdgt.setRowCount(len(self.session.subjectRegistration.fiducials))
-        for iFid, (label, fid) in enumerate(self.session.subjectRegistration.fiducials.items()):
-            item = QtWidgets.QTableWidgetItem(label)
-            self._tblWdgt.setItem(iFid, 0, item)
-            coord = fid.plannedCoord
-            item = QtWidgets.QTableWidgetItem('{:.1f}, {:.1f}, {:.1f}'.format(*coord) if coord is not None else '')
-            item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-            self._tblWdgt.setItem(iFid, 1, item)
-        # TODO: restore selected row
+        logger.debug('Planned fiducials changed. Updating plots')
 
         labels = []
         coords = np.full((len(self.session.subjectRegistration.fiducials), 3), np.nan)
@@ -245,11 +219,7 @@ class FiducialsPanel(MainViewPanel):
         # note: any pre-existing fiducials with non-standard names will remain unchanged
 
     def _getTblCurrentFiducialKey(self) -> tp.Optional[str]:
-        curItem = self._tblWdgt.currentItem()
-        if curItem is None:
-            # no item selected
-            return None
-        return self._tblWdgt.item(curItem.row(), 0).text()
+        return self._tblWdgt.currentCollectionItemKey
 
     def _onAddBtnClicked(self, checked: bool):
         raise NotImplementedError()  # TODO
