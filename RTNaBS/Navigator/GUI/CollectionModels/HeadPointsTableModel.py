@@ -29,12 +29,9 @@ class HeadPointsTableModel(CollectionTableModel[int, HeadPoints, HeadPoint]):
         )
 
         self._collection.sigHeadpointsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigHeadpointsChanged.connect(self._onHeadPointsChanged)
+        self._collection.sigHeadpointsChanged.connect(self._onCollectionChanged)
 
         super().__attrs_post_init__()
-
-    def _onHeadPointsChanged(self, changedIndices: list[int]):
-        self._onCollectionChanged(changedIndices)
 
     def _getDistFromSkinForIndex(self, index: int) -> str:
         pt = self._collection[index]

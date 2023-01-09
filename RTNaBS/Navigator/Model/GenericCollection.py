@@ -107,7 +107,17 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
         return self.setItem(item=item)
 
     def deleteItem(self, key: str):
-        raise NotImplementedError()  # TODO
+        assert key in self._items
+        self.sigItemsAboutToChange.emit([key], None)
+
+        self._items[key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+        self._items[key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
+        self._items[key].sigKeyChanged.disconnect(self._onItemKeyChanged)
+        self._items[key].sigItemChanged.disconnect(self._onItemChanged)
+
+        del self._items[key]
+
+        self.sigItemsChanged.emit([key], None)
 
     def setItem(self, item: CI):
         self.sigItemsAboutToChange.emit([item.key], None)

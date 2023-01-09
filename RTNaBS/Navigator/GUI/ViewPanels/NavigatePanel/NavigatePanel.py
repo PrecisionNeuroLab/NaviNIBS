@@ -314,7 +314,7 @@ class NavigatePanel(MainViewPanel):
             coilKey=self._coordinator.activeCoilKey
         )
 
-        self.session.samples.addSample(sample)
+        self.session.samples.addItem(sample)
 
         logger.info(f'Manually recorded a sample: {sample}')
 

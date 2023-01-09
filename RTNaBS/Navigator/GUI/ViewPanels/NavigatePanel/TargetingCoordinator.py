@@ -242,7 +242,7 @@ class TargetingCoordinator:
         )
 
         if doAddToSession:
-            self.session.targets.addTarget(target)
+            self.session.targets.addItem(target)
 
         return target
 

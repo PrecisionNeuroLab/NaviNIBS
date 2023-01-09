@@ -6,13 +6,14 @@ from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
+from RTNaBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
-from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
+from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints, Fiducial, Fiducials
 from RTNaBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
@@ -74,8 +75,10 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
         self._tableView.resizeColumnsToContents()
 
     @property
-    def currentCollectionItemKey(self) -> K:
+    def currentCollectionItemKey(self) -> tp.Optional[K]:
         curRow = self._tableView.currentIndex().row()
+        if curRow == -1:
+            return None
         return self._model.getCollectionItemKeyFromIndex(curRow)
 
     @currentCollectionItemKey.setter
@@ -84,6 +87,20 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
             return
         index = self._model.getIndexFromCollectionItemKey(key)
         self._tableView.setCurrentIndex(self._model.index(index, 0))
+
+    @property
+    def rowCount(self):
+        return self._model.rowCount()
+
+    @property
+    def currentRow(self):
+        return self._tableView.currentIndex().row()
+
+    @currentRow.setter
+    def currentRow(self, row: int):
+        if row == self.currentRow:
+            return
+        self._tableView.setCurrentIndex(self._model.index(row, 0))
 
     @property
     def currentCollectionItem(self) -> CI:
@@ -142,6 +159,22 @@ class SamplesTableWidget(CollectionTableWidget[str, Sample, Samples, SamplesTabl
 @attrs.define
 class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTableModel]):
     _Model: tp.Callable[[Session], TargetsTableModel] = TargetsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+
+@attrs.define
+class PlanningFiducialsTableWidget(CollectionTableWidget[str, Fiducial, Fiducials, PlanningFiducialsTableModel]):
+    _Model: tp.Callable[[Session], PlanningFiducialsTableModel] = PlanningFiducialsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+
+@attrs.define
+class RegistrationFiducialsTableWidget(CollectionTableWidget[str, Fiducial, Fiducials, RegistrationFiducialsTableModel]):
+    _Model: tp.Callable[[Session], RegistrationFiducialsTableModel] = RegistrationFiducialsTableModel
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
