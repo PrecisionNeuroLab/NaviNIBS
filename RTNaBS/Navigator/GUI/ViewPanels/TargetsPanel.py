@@ -385,11 +385,11 @@ class TargetsPanel(MainViewPanel):
 
         logger.debug('Targets changed. Updating tree view and plots')
 
+        if changedTargetKeys is None:
+            changedTargetKeys = self.session.targets.keys()
+
         if changedTargetAttrs == ['isVisible']:
             # only visibility changed
-
-            if changedTargetKeys is None:
-                changedTargetKeys = self.session.targets.keys()
 
             for targetKey in changedTargetKeys:
                 target = self._session.targets[targetKey]
@@ -425,7 +425,11 @@ class TargetsPanel(MainViewPanel):
                                                                                         visible=target.isVisible)
 
                 if len(self.session.targets) > 0:
-                    self._onSelectedTargetChanged(self._getCurrentTargetKey())
+                    currentTarget = self._getCurrentTargetKey()
+                    if currentTarget is None and len(self.session.targets) > 0:
+                        currentTarget = list(self.session.targets.keys())[0]
+                    if currentTarget is not None:
+                        self._onSelectedTargetChanged(currentTarget)
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
