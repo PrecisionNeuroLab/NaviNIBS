@@ -82,6 +82,7 @@ class MainViewPanel:
         return self._isInitializing
 
     def _onSessionSet(self):
+        logger.debug(f'{self.__class__.__name__} onSessionSet')
         pass  # to be implemented by subclass
 
     def _onPanelShown(self):
@@ -119,7 +120,11 @@ class MainViewPanel:
         self._hasInitialized = True
 
     def _finishInitialization(self):
+        logger.debug(f'{self.__class__.__name__} _finishInitialization')
         pass  # can be implemented by subclass
 
     def _onPanelDeactivated(self):
         pass
+
+    def close(self):
+        self._dockWdgt.close()
