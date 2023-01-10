@@ -59,7 +59,7 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
         if numPtsSampled == 1:
             return self._checkIcon_sampled, ''
         else:
-            return self._checkIcon_sampled, f'({numPtsSampled}'  # show an indicator of how many points have been sampled
+            return self._checkIcon_sampled, f'{numPtsSampled}'  # show an indicator of how many points have been sampled
 
 
 # TODO: implement PlanningFiducialsTableModel for planning fiducials tab (not showing sampled fiducials at all)
