@@ -228,6 +228,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     _fidTblWdgt: RegistrationFiducialsTableWidget = attrs.field(init=False)
     _headPtsTblWdgt: HeadPointsTableWidget = attrs.field(init=False)
     _sampleFiducialBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _sampleFiducialMultipleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _clearFiducialBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _newFidFromPointerBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _newFidFromSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -274,10 +275,15 @@ class SubjectRegistrationPanel(MainViewPanel):
         btnContainer.setLayout(QtWidgets.QGridLayout())
         fiducialsBox.layout().addWidget(btnContainer)
 
-        btn = QtWidgets.QPushButton('Sample fiducial')
+        btn = QtWidgets.QPushButton('Sample fiducial (single)')
         btn.clicked.connect(self._onSampleFidBtnClicked)
         self._sampleFiducialBtn = btn
         btnContainer.layout().addWidget(btn, 0, 0, )
+
+        btn = QtWidgets.QPushButton('Sample fiducial (multiple)')
+        btn.clicked.connect(self._onSampleFidMultipleBtnClicked)
+        self._sampleFiducialMultipleBtn = btn
+        btnContainer.layout().addWidget(btn, 1, 0, )
 
         btn = QtWidgets.QPushButton('Clear fiducial')
         btn.clicked.connect(self._onClearFidBtnClicked)
@@ -287,13 +293,13 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton('New planned fiducial from pointer')
         btn.clicked.connect(self._onNewFidFromPointerClicked)
-        btnContainer.layout().addWidget(btn, 1, 0, 1, 2)
+        btnContainer.layout().addWidget(btn, 2, 0, 1, 2)
         btn.setEnabled(False)
         self._newFidFromPointerBtn = btn
 
         btn = QtWidgets.QPushButton('New planned fiducial from sample')
         btn.clicked.connect(self._onNewFidFromSampleClicked)
-        btnContainer.layout().addWidget(btn, 2, 0, 1, 2)
+        btnContainer.layout().addWidget(btn, 3, 0, 1, 2)
         self._newFidFromSampleBtn = btn
 
         # TODO: add prev/next fiducial buttons for mapping to foot pedal actions
@@ -442,6 +448,24 @@ class SubjectRegistrationPanel(MainViewPanel):
             else:
                 # advance to next fiducial in table
                 self._fidTblWdgt.currentRow += 1
+
+    def _onSampleFidMultipleBtnClicked(self):
+        fidKey = self._currentFidTblFidKey()
+
+        pointerCoord_relToSubTracker = self._getPointerCoordRelToSubTracker()
+        if pointerCoord_relToSubTracker is None:
+            return
+
+        logger.info(f'Sampled fiducial relative to tracker: {pointerCoord_relToSubTracker}')
+
+        coords = self.session.subjectRegistration.fiducials[fidKey].sampledCoords
+        if coords is None:
+            coords = pointerCoord_relToSubTracker[np.newaxis, :]
+        else:
+            coords = np.vstack((coords, pointerCoord_relToSubTracker[np.newaxis, :]))
+        self.session.subjectRegistration.fiducials[fidKey].sampledCoords = coords
+
+        # don't auto-advance to allow additional samples of this fiducial
 
     def _onClearFidBtnClicked(self):
         fidKeys = self._getSelectedFiducialKeys()
@@ -670,6 +694,8 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             if self._sampleFiducialBtn.isEnabled() != allowSampling:
                 self._sampleFiducialBtn.setEnabled(allowSampling)
+            if self._sampleFiducialMultipleBtn.isEnabled() != allowSampling:
+                self._sampleFiducialMultipleBtn.setEnabled(allowSampling)
             if self._sampleHeadPtsBtn.isEnabled() != allowSampling:
                 self._sampleHeadPtsBtn.setEnabled(allowSampling)
             if self._newFidFromPointerBtn.isEnabled() != allowSampling:
@@ -796,7 +822,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         elif which == 'initSampledFids':
 
-            actorKey = 'sampledFids'
+            actorKeys = ('sampledFids', 'repeatedSampledFids')
 
             sampledFidKeys = [key for key, fid in self.session.subjectRegistration.fiducials.items() if fid.sampledCoord is not None]
             doShowSampledFids = len(sampledFidKeys) > 0 \
@@ -804,24 +830,31 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             if not doShowSampledFids:
                 # no sampled fiducials or necessary transform for plotting (yet)
-                if actorKey in self._actors:
-                    self._plotter.remove_actor(actorKey)
-                    self._actors.pop(actorKey)
+                for actorKey in actorKeys:
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(actorKey)
+                        self._actors.pop(actorKey)
                 return
 
             labels = []
             coords = np.full((len(self.session.subjectRegistration.fiducials), 3), np.nan)
+            repeatedCoords = np.zeros((0, 3))
+
             for iFid, (label, fid) in enumerate(self.session.subjectRegistration.fiducials.items()):
                 labels.append(label)
                 if fid.sampledCoord is not None:
                     coords[iFid, :] = fid.sampledCoord
+                if fid.sampledCoords is not None and fid.sampledCoords.shape[0] > 1:
+                    repeatedCoords = np.vstack((repeatedCoords, fid.sampledCoords))
 
             # TODO: also plot multipoint sampled coords (if available) in slightly different color
 
             coords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, coords)
+            if repeatedCoords.shape[0] > 0:
+                repeatedCoords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, repeatedCoords)
 
-            self._actors[actorKey] = self._plotter.add_point_labels(
-                name=actorKey,
+            self._actors[actorKeys[0]] = self._plotter.add_point_labels(
+                name=actorKeys[0],
                 points=coords,
                 labels=labels,
                 point_color='green',
@@ -832,6 +865,23 @@ class SubjectRegistrationPanel(MainViewPanel):
                 reset_camera=False,
                 render=True
             )
+
+            if repeatedCoords.shape[0] > 0:
+                self._actors[actorKeys[1]] = self._plotter.add_points(
+                    name=actorKeys[1],
+                    points=repeatedCoords,
+                    color='green',
+                    opacity=0.7,
+                    point_size=10,
+                    render_points_as_spheres=True,
+                    reset_camera=False,
+                    render=True
+                )
+            else:
+                actorKey = actorKeys[1]
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(actorKey)
+                    self._actors.pop(actorKey)
 
         elif which == 'initHeadPts':
 
