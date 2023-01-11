@@ -403,7 +403,7 @@ class ToolsPanel(MainViewPanel):
         logger.info('Reordering tools: {}'.format(newOrder))
         self.session.tools.setTools([self.session.tools[key] for key in newOrder])
 
-    def _onToolsChanged(self, changedKeys: tp.Optional[str] = None):
+    def _onToolsChanged(self, changedKeys: tp.Optional[str] = None, changedAttribs: tp.Optional[list[str]] = None):
         logger.debug('Tools changed.')
 
         if changedKeys is None:
