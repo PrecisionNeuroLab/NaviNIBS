@@ -156,7 +156,7 @@ class CameraPanel(MainViewPanel):
             self._serverTypeComboBox.setCurrentText(info.type)
         self._serverAddressEdit.setText(f'{info.hostname}:{info.pubPort},{info.cmdPort}')
 
-    def _onToolsChanged(self, toolKeysChanged: tp.List[str]):
+    def _onToolsChanged(self, toolKeysChanged: tp.List[str], changedAttribs: tp.Optional[list[str]] = None):
         didRemove = False
         for key, tool in self.session.tools.items():
             actorKeysForTool = [key + '_tracker', key + '_tool']
