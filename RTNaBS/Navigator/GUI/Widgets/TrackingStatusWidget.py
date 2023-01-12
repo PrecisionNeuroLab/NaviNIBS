@@ -115,7 +115,7 @@ class TrackingStatusWidget:
         for iTool, tool in enumerate(toolsToShow):
             iCol = iTool // maxNumToolsPerCol
             wdgt = IconWidget(icon=qta.icon('mdi6.circle-outline', color='gray'))
-            self._columnContainers[iCol].layout().addRow(tool.key, wdgt)
+            self._columnContainers[iCol].layout().addRow(tool.label, wdgt)
             self._toolWdgts[tool.key] = wdgt
 
     def _onLatestPositionsChanged(self):
