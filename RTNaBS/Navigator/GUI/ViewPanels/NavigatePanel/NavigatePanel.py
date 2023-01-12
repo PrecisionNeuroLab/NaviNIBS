@@ -42,7 +42,7 @@ from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.INFO)
 
 Transform = np.ndarray
 
@@ -82,19 +82,21 @@ class _PoseMetricGroup:
 
         self._calculator = calculator
 
+        poseMetrics = [poseMetric for poseMetric in self._calculator.supportedMetrics if poseMetric.doShowByDefault]
+
         if not self._hasInitialized:
             self._container.setLayout(QtWidgets.QFormLayout())
 
-            for poseMetric in self._calculator.supportedMetrics:
+            for poseMetric in poseMetrics:
                 wdgt = QtWidgets.QLabel(f"NaN{poseMetric.units}")
                 self._container.layout().addRow(poseMetric.label, wdgt)
                 self._indicators[poseMetric.label] = wdgt
 
             self._hasInitialized = True
         else:
-            assert len(self._calculator.supportedMetrics) == self._container.layout().rowCount()
-            assert len(self._calculator.supportedMetrics) == len(self._indicators)
-            assert all(poseMetric.label in self._indicators for poseMetric in self._calculator.supportedMetrics)
+            assert len(poseMetrics) == self._container.layout().rowCount()
+            assert len(poseMetrics) == len(self._indicators)
+            assert all(poseMetric.label in self._indicators for poseMetric in poseMetrics)
 
         self._calculator.sigCacheReset.connect(self._update)
 
@@ -102,7 +104,8 @@ class _PoseMetricGroup:
 
     def _update(self):
         logger.debug(f'Updating pose metric indicators for {self._title}')
-        for poseMetric in self._calculator.supportedMetrics:
+        poseMetrics = [poseMetric for poseMetric in self._calculator.supportedMetrics if poseMetric.doShowByDefault]
+        for poseMetric in poseMetrics:
             wdgt = self._indicators[poseMetric.label]
             val = poseMetric.getter()
             wdgt.setText(f"{val:.1f}{poseMetric.units}")
@@ -337,14 +340,19 @@ class NavigatePanel(MainViewPanel):
         match viewType:
             case 'TargetingCrosshairs':
                 View = TargetingCrosshairsView
+                kwargs.setdefault('doShowHandleAngleError', True)
             case 'TargetingCrosshairs-X':
                 View = TargetingCrosshairsView
-                kwargs.setdefault('alignCameraTo', 'coil-X')
+                kwargs.setdefault('alignCameraTo', 'coil+X')
                 kwargs.setdefault('doShowSkinSurf', True)
+                kwargs.setdefault('doShowTargetTangentialAngleError', True)
+                kwargs.setdefault('doShowScalpTangentialAngleError', True)
             case 'TargetingCrosshairs-Y':
                 View = TargetingCrosshairsView
                 kwargs.setdefault('alignCameraTo', 'coil-Y')
                 kwargs.setdefault('doShowSkinSurf', True)
+                kwargs.setdefault('doShowTargetTangentialAngleError', True)
+                kwargs.setdefault('doShowScalpTangentialAngleError', True)
 
             case _:
                 raise NotImplementedError('Unexpected viewType: {}'.format(viewType))

@@ -18,11 +18,15 @@ from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTrans
 logger = logging.getLogger(__name__)
 
 
+T = tp.TypeVar('T')
+
+
 @attrs.define(frozen=True)
 class MetricSpecification:
     getter: tp.Callable[[], float]
     units: str
     label: str
+    doShowByDefault: bool = True
 
 
 @attrs.define
@@ -30,7 +34,7 @@ class PoseMetricCalculator:
     _session: Session
     _sample: tp.Optional[Sample]
 
-    _cachedValues: dict[str, float] = attrs.field(init=False, factory=dict)
+    _cachedValues: dict[str, tp.Any] = attrs.field(init=False, factory=dict)
     _supportedMetrics: list[MetricSpecification] = attrs.field(init=False, factory=list)
 
     sigCacheReset: Signal = attrs.field(init=False, factory=Signal)
@@ -51,12 +55,18 @@ class PoseMetricCalculator:
             MetricSpecification(getter=self.getTargetErrorAtCoil, units=' mm', label='Target error at coil'),
             MetricSpecification(getter=self.getDepthOffsetError, units=' mm', label='Depth offset error'),
             MetricSpecification(getter=self.getDepthAngleError, units='°', label='Depth angle error'),
+            MetricSpecification(getter=self.getDepthTargetXAngleError, units='°', label='Depth target X angle error', doShowByDefault=False),
+            MetricSpecification(getter=self.getDepthTargetYAngleError, units='°', label='Depth target Y angle error', doShowByDefault=False),
+            MetricSpecification(getter=self.getDepthCoilXAngleError, units='°', label='Depth coil X angle error', doShowByDefault=False),
+            MetricSpecification(getter=self.getDepthCoilYAngleError, units='°', label='Depth coil Y angle error', doShowByDefault=False),
+            MetricSpecification(getter=self.getNormalCoilXAngleError, units='°', label='Normal coil X angle error', doShowByDefault=False),
+            MetricSpecification(getter=self.getNormalCoilYAngleError, units='°', label='Normal coil Y angle error', doShowByDefault=False),
             MetricSpecification(getter=self.getHorizAngleError, units='°', label='Horiz angle error'),
             MetricSpecification(getter=self.getAngleFromMidline, units='°', label='Angle from midline'),
             MetricSpecification(getter=self.getAngleFromNormal, units='°', label='Angle from normal')
         ])
 
-    def _cacheWrap(self, fn: tp.Callable[..., float]) -> float:
+    def _cacheWrap(self, fn: tp.Callable[..., T]) -> T:
         """
         Note: this assumes no other args or kwargs are needed for fn, since their values are not
         included in the cache key
@@ -70,6 +80,16 @@ class PoseMetricCalculator:
             val = fn(doUseCache=False)
             self._cachedValues[key] = val
             return val
+
+    def getValueForMetric(self, label: str):
+        whichMetric = None
+        for metric in self._supportedMetrics:
+            if metric.label == label:
+                whichMetric = metric
+        if whichMetric is None:
+            raise KeyError(f'No metric with label {label} found')
+
+        return whichMetric.getter()
 
     @property
     def supportedMetrics(self):
@@ -94,12 +114,12 @@ class PoseMetricCalculator:
         self._sample.sigItemChanged.connect(self._onSampleChanged)
         self._clearCachedValues()
 
-    def _onTargetsChanged(self, targetKeys: list[str], targetAttrs: tp.Optional[list[str]]):
+    def _onTargetsChanged(self, targetKeys: list[str], targetAttrs: tp.Optional[list[str]] = None):
         if self._sample is not None and self._sample.targetKey in targetKeys and \
                 (targetAttrs is None or len(set(targetAttrs) - {'isVisible'}) > 0):
             self._clearCachedValues(exceptKeys=[
                 self.getAngleFromMidline.cacheKey,
-                self.getAngleFromNormal.cacheKey
+                self.getAngleFromNormal.cacheKey,
             ])
 
     def _onSampleChanged(self, sampleKey: str, sampleAttrs: tp.Optional[list[str]]):
@@ -330,6 +350,76 @@ class PoseMetricCalculator:
 
     getDepthAngleError.cacheKey = 'depthAngleError'
 
+    def _getDepthComponentAngleError(self, iDim: int, relTo: str):
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        if self._sample.targetKey is None:
+            return np.nan
+
+        target = self._session.targets[self._sample.targetKey]
+
+        match relTo:
+            case 'target':
+                targetLinePts_targetCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
+
+                sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
+                sampleLinePts_targetCoilSpace = applyTransform([self._sample.coilToMRITransf,
+                                                                invertTransform(target.coilToMRITransf)],
+                                                                sampleLinePts_sampleCoilSpace)
+
+                targetVector = Vector(np.diff(targetLinePts_targetCoilSpace[:, [iDim, 2]], axis=0).squeeze())
+                sampleVector = Vector(np.diff(sampleLinePts_targetCoilSpace[:, [iDim, 2]], axis=0).squeeze())
+
+            case 'coil':
+                targetLinePts_targetCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
+                targetLinePts_sampleCoilSpace = applyTransform([target.coilToMRITransf,
+                                                               invertTransform(self._sample.coilToMRITransf)], targetLinePts_targetCoilSpace)
+
+                sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
+
+                targetVector = Vector(np.diff(targetLinePts_sampleCoilSpace[:, [iDim, 2]], axis=0).squeeze())
+                sampleVector = Vector(np.diff(sampleLinePts_sampleCoilSpace[:, [iDim, 2]], axis=0).squeeze())
+
+            case _:
+                raise NotImplementedError
+
+        angle = targetVector.angle_signed(sampleVector)
+
+        return np.rad2deg(angle)
+
+    def getDepthTargetXAngleError(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getDepthTargetXAngleError)
+
+        return self._getDepthComponentAngleError(iDim=0, relTo='target')
+
+    getDepthTargetXAngleError.cacheKey = 'depthTargetXAngleError'
+
+    def getDepthTargetYAngleError(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getDepthTargetYAngleError)
+
+        return self._getDepthComponentAngleError(iDim=1, relTo='target')
+
+    getDepthTargetYAngleError.cacheKey = 'depthTargetYAngleError'
+
+    def getDepthCoilXAngleError(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getDepthCoilXAngleError)
+
+        return self._getDepthComponentAngleError(iDim=0, relTo='coil')
+
+    getDepthCoilXAngleError.cacheKey = 'depthCoilXAngleError'
+
+    def getDepthCoilYAngleError(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getDepthCoilYAngleError)
+
+        return self._getDepthComponentAngleError(iDim=1, relTo='coil')
+
+    getDepthCoilYAngleError.cacheKey = 'depthCoilYAngleError'
+
     def getHorizAngleError(self, doUseCache: bool = True) -> float:
         if doUseCache:
             return self._cacheWrap(fn=self.getHorizAngleError)
@@ -425,27 +515,22 @@ class PoseMetricCalculator:
         if self._sample is None or self._sample.coilToMRITransf is None:
             return np.nan
 
-        gmSurf = self._session.headModel.gmSurf
-        skinSurf = self._session.headModel.skinSurf
-        if gmSurf is None or skinSurf is None:
+        coilToCortexDist = self.getSampleCoilToCortexDist()
+        if np.isnan(coilToCortexDist):
             return np.nan
 
-        assert isinstance(gmSurf, pv.PolyData)
-        assert isinstance(skinSurf, pv.PolyData)
+        if False:
+            pt_gm = self.getClosestPointToCoilOnGM()
+            closestPt_skin = self.getClosestPointToCoilOnSkin()
+        else:
+            pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
+            closestPt_skin = self.getClosestPointToSampleCortexDepthOnSkin()
 
-        coilOrigin_MRI = applyTransform(self._sample.coilToMRITransf, np.zeros((3,)))
-
-        # find closest point to coil in brain
-        # TODO: maybe use csf surf or some other locally smoothed surf to avoid gyri details from affecting results too much
-        closestPtIndex = gmSurf.find_closest_point(coilOrigin_MRI)
-        closestPt_gm = gmSurf.points[closestPtIndex, :]
-
-        # find closest point to this brain point on the scalp
-        closestPtIndex = skinSurf.find_closest_point(closestPt_gm)
-        closestPt_skin = skinSurf.points[closestPtIndex, :]
+        if closestPt_skin is None or pt_gm is None:
+            return np.nan
 
         # find ideal normal by defining line through these two points
-        idealNormal = Vector(closestPt_skin - closestPt_gm)
+        idealNormal = Vector(closestPt_skin - pt_gm)
         actualNormal = Vector(np.diff(applyTransform(self._sample.coilToMRITransf, np.asarray([[0, 0, -1], [0, 0, 0,]])), axis=0).squeeze())
 
         angle = idealNormal.angle_between(actualNormal)
@@ -453,3 +538,99 @@ class PoseMetricCalculator:
         return np.rad2deg(angle)
 
     getAngleFromNormal.cacheKey = 'angleFromNormal'
+
+    def _getClosestPointToPointOnMesh(self, whichMesh: str, point_MRISpace: np.ndarray) -> tp.Optional[np.ndarray]:
+        surf = getattr(self._session.headModel, whichMesh)
+        if surf is None:
+            return None
+
+        assert isinstance(surf, pv.PolyData)
+
+        # find closest point to coil on surf
+        closestPtIndex = surf.find_closest_point(point_MRISpace)
+        closestPt = surf.points[closestPtIndex, :]
+
+        return closestPt
+
+    def getClosestPointToCoilOnSkin(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getClosestPointToCoilOnSkin)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return None
+
+        return self._getClosestPointToPointOnMesh(whichMesh='skinSurf',
+                                                  point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
+
+    getClosestPointToCoilOnSkin.cacheKey = 'closestPointToCoilOnSkin'
+
+    def getClosestPointToCoilOnGM(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getClosestPointToCoilOnGM)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return None
+
+        return self._getClosestPointToPointOnMesh(whichMesh='gmSurf',
+                                                  point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
+
+    getClosestPointToCoilOnGM.cacheKey = 'closestPointToCoilOnGM'
+
+    def getClosestPointToSampleCortexDepthOnSkin(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getClosestPointToSampleCortexDepthOnSkin)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return None
+
+        coilToCortexDist = self.getSampleCoilToCortexDist()
+        if np.isnan(coilToCortexDist):
+            return None
+
+        point_MRISpace = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
+
+        return self._getClosestPointToPointOnMesh(whichMesh='skinSurf',
+                                                  point_MRISpace=point_MRISpace)
+
+    getClosestPointToSampleCortexDepthOnSkin.cacheKey = 'closestPointToSampleCortexDepthOnSkin'
+
+    def _getNormalCoilAngleError(self, iDim: int) -> float:
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        coilToCortexDist = self.getSampleCoilToCortexDist()
+        if np.isnan(coilToCortexDist):
+            return np.nan
+
+        pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
+        closestPt_skin = self.getClosestPointToSampleCortexDepthOnSkin()
+
+        if closestPt_skin is None:
+            return np.nan
+
+        # find ideal normal by defining line through these two points
+        idealNormalPts_mriSpace = np.vstack([pt_gm, closestPt_skin])
+        idealNormalPts_coilSpace = applyTransform(invertTransform(self._sample.coilToMRITransf), idealNormalPts_mriSpace)
+        idealNormal = Vector(np.diff(idealNormalPts_coilSpace[:, [iDim, 2]], axis=0).squeeze())
+        actualNormal = Vector([0, 1])
+
+        angle = idealNormal.angle_signed(actualNormal)  # TODO: check sign
+
+        return np.rad2deg(angle)
+
+    def getNormalCoilXAngleError(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getNormalCoilXAngleError)
+
+        return self._getNormalCoilAngleError(iDim=0)
+
+    getNormalCoilXAngleError.cacheKey = 'normalCoilXAngleError'
+
+    def getNormalCoilYAngleError(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getNormalCoilYAngleError)
+
+        return self._getNormalCoilAngleError(iDim=1)
+
+    getNormalCoilYAngleError.cacheKey = 'normalCoilYAngleError'

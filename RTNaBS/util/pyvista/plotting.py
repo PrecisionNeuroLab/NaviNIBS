@@ -89,7 +89,7 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
 
         if rendererLayer is None:
             rendererLayer = mainPlotter.ren_win.GetNumberOfLayers()
-            logger.debug('Renderer layer: {rendererLayer}')
+            logger.info('Renderer layer: {rendererLayer}')
 
         self._rendererLayer = rendererLayer
 

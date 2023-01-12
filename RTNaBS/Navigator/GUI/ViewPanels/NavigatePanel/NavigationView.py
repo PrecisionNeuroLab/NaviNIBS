@@ -18,6 +18,7 @@ from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
+from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
@@ -121,6 +122,7 @@ class SinglePlotterNavigationView(NavigationView):
                     TargetingTargetPointsLayer,
                     TargetingCoilPointsLayer,
                     TargetingErrorLineLayer,
+                    TargetingAngleErrorLayer,
                     ):
             self._layerLibrary[cls.type] = cls
 
@@ -147,15 +149,15 @@ class SinglePlotterNavigationView(NavigationView):
         match rotSuffix:
             case '':
                 extraRot = np.eye(3)
-            case 'X':
+            case '+X':
                 extraRot = ptr.active_matrix_from_intrinsic_euler_yzy([np.pi / 2, np.pi/2, 0])
             case '-X':
                 extraRot = ptr.active_matrix_from_intrinsic_euler_yzy([-np.pi / 2, -np.pi/2, 0])
-            case 'Y':
+            case '+Y':
                 extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([-np.pi / 2, 0, np.pi])
             case '-Y':
                 extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi / 2, 0, 0])
-            case 'Z':
+            case '+Z':
                 extraRot = np.eye(3)
             case '-Z':
                 extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi, 0, 0])
@@ -261,6 +263,9 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
     _alignCameraTo: str = 'target'
     _doShowSkinSurf: bool = False
+    _doShowHandleAngleError: bool = False
+    _doShowTargetTangentialAngleError: bool = False
+    _doShowScalpTangentialAngleError: bool = False
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -288,6 +293,64 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target', layeredPlotterKey='TargetingError')
         self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil', layeredPlotterKey='TargetingError')
+
+        if self._doShowHandleAngleError:
+            self.addLayer(type='TargetingAngleError', key='HandleAngleError',
+                          angleMetric='Horiz angle error',
+                          layeredPlotterKey='TargetingError')
+
+        if self._doShowTargetTangentialAngleError:
+            plotOn = self._alignCameraTo[:-2]
+            if plotOn == 'coil':
+                multiplier = 4.
+            elif plotOn == 'target':
+                multiplier = -4.
+            else:
+                raise NotImplementedError
+            if self._alignCameraTo.endswith('X'):
+                xyDims = (1, 2)
+                angleMetric = f'Depth {plotOn} Y angle error'
+            elif self._alignCameraTo.endswith('Y'):
+                xyDims = (0, 2)
+                plotOn = self._alignCameraTo[:-2]
+                angleMetric = f'Depth {plotOn} X angle error'
+            else:
+                raise NotImplementedError
+            self.addLayer(type='TargetingAngleError', key='TargetTangentialAngleError',
+                          plotOnTargetOrCoil=plotOn,
+                          angleMetric=angleMetric,
+                          angleOffset=np.pi/2,
+                          multiplier=multiplier,
+                          radius=15,
+                          xyDims=xyDims,
+                          layeredPlotterKey='TargetingError')
+
+        if self._doShowScalpTangentialAngleError:
+            plotOn = self._alignCameraTo[:-2]
+            if plotOn == 'coil':
+                multiplier = 4.
+            elif plotOn == 'target':
+                multiplier = -4.
+            else:
+                raise NotImplementedError
+            if self._alignCameraTo.endswith('X'):
+                xyDims = (1, 2)
+                angleMetric = f'Normal {plotOn} Y angle error'
+            elif self._alignCameraTo.endswith('Y'):
+                xyDims = (0, 2)
+                plotOn = self._alignCameraTo[:-2]
+                angleMetric = f'Normal {plotOn} X angle error'
+            else:
+                raise NotImplementedError
+            self.addLayer(type='TargetingAngleError', key='ScalpTangentialAngleError',
+                          color='#9fc58b',
+                          plotOnTargetOrCoil=plotOn,
+                          angleMetric=angleMetric,
+                          angleOffset=np.pi/2,
+                          multiplier=multiplier,
+                          radius=12,
+                          xyDims=xyDims,
+                          layeredPlotterKey='TargetingError')
 
 
 @attrs.define
