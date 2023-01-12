@@ -945,8 +945,7 @@ class SubjectRegistrationPanel(MainViewPanel):
                     self._plotter.remove_actor(actorKey)
                     self._actors.pop(actorKey)
 
-            self._plotter.render()
-
         else:
             raise NotImplementedError('Unexpected redraw key: {}'.format(which))
 
+        self._plotter.render()

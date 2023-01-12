@@ -177,6 +177,8 @@ class FiducialsPanel(MainViewPanel):
                         render=True
                     )
 
+                view.plotter.render()
+
     def _onHeadModelUpdated(self, whatChanged: str):
         if whatChanged is not None and whatChanged != self._surfKey:
             return
