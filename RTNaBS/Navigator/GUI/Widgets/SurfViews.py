@@ -108,6 +108,8 @@ class SurfSliceView(MRISliceView):
 
         self._plotter.camera.clipping_range = (90, 110)
 
+        self._plotter.render()
+
 
 @attrs.define()
 class Surf3DView(SurfSliceView):
@@ -189,3 +191,5 @@ class Surf3DView(SurfSliceView):
                     line.GetMapper().SetInputData(pts_pv)
 
         self._plotterInitialized = True
+
+        self._plotter.render()

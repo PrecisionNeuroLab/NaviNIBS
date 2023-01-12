@@ -302,6 +302,8 @@ class MRISliceView:
 
         self._plotterInitialized = True
 
+        self._plotter.render()
+
 
 @attrs.define
 class MRI3DView(MRISliceView):
@@ -367,3 +369,5 @@ class MRI3DView(MRISliceView):
                     line.GetMapper().SetInputData(pts_pv)
 
         self._plotterInitialized = True
+
+        self._plotter.render()
