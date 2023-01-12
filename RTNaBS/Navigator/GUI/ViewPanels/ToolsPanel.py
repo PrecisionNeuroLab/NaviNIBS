@@ -43,6 +43,7 @@ class ToolWidget:
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
     _key: QtWidgets.QLineEdit = attrs.field(init=False)
+    _label: QtWidgets.QLineEdit = attrs.field(init=False)
     _usedFor: QtWidgets.QComboBox = attrs.field(init=False)
     _isActive: QtWidgets.QCheckBox = attrs.field(init=False)
     _romFilepath: QFileSelectWidget = attrs.field(init=False)
@@ -68,6 +69,10 @@ class ToolWidget:
         self._key = QtWidgets.QLineEdit(self._tool.key)
         self._key.editingFinished.connect(self._onKeyEdited)
         formContainer.layout().addRow('Key', self._key)
+
+        self._label = QtWidgets.QLineEdit(self._tool.label)
+        self._label.editingFinished.connect(self._onLabelEdited)
+        formContainer.layout().addRow('Label', self._label)
 
         self._usedFor = QtWidgets.QComboBox()
         self._usedFor.insertItems(0, ['coil', 'subject', 'pointer', 'calibration'])
@@ -203,6 +208,12 @@ class ToolWidget:
 
     def _onKeyEdited(self):
         self._tool.key = self._key.text()
+
+    def _onLabelEdited(self):
+        newLabel = self._label.text().strip()
+        if len(newLabel) == 0:
+            newLabel = None
+        self._tool.label = self._tool.label = newLabel
 
     def _onUsedForEdited(self):
         self._tool.usedFor = self._usedFor.currentText()

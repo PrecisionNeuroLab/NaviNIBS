@@ -32,6 +32,10 @@ SurfMesh = pv.PolyData
 @attrs.define
 class Tool(GenericCollectionDictItem[str]):
     _usedFor: str  # e.g. 'subject', 'coil', 'pointer'
+    _label: tp.Optional[str] = None
+    """
+    Optional "nice" label for display. If not specified, key will be used instead. Label does not need to be unique, but could be confusing in some GUI displays if multiple tools with the same label are shown.
+    """
     _isActive: bool = True
     _romFilepath: tp.Optional[str] = None
     _trackerStlFilepath: tp.Optional[str] = None
@@ -54,6 +58,21 @@ class Tool(GenericCollectionDictItem[str]):
         super().__attrs_post_init__()
         if self._installPath is None:
             self._installPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
+
+    @property
+    def label(self):
+        if self._label is None:
+            return self.key
+        else:
+            return self._label
+
+    @label.setter
+    def label(self, newLabel: tp.Optional[str]):
+        if self._label == newLabel:
+            return
+        self.sigItemAboutToChange.emit(self._key, ['label'])
+        self._usedFor = newLabel
+        self.sigItemChanged.emit(self._key, ['label'])
 
     @property
     def usedFor(self):
