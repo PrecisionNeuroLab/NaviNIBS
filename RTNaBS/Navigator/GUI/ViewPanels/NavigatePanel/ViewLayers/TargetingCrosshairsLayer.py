@@ -27,8 +27,8 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
     _color: str = '#0000ff'
     _opacity: float = 0.5
-    _radius: float = 10.
-    _offsetRadius: float = 5.
+    _radius: float = 15.
+    _offsetRadius: float = 7.5
     _lineWidth: float = 4.
 
     def __attrs_post_init__(self):
@@ -194,8 +194,6 @@ class TargetingCoilCrosshairsLayer(TargetingCrosshairsLayer):
     _targetOrCoil: str = 'coil'
 
     _color: str = '#00ff00'
-    _radius: float = 10.
-    _offsetRadius: float = 5.
     _lineWidth: float = 8.
 
     def __attrs_post_init__(self):
