@@ -23,6 +23,7 @@ from RTNaBS.Navigator.Model.Samples import Samples, Sample
 from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
 from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
 from RTNaBS.Navigator.Model.Triggering import TriggerSources
+from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
 from RTNaBS.Navigator.Model.Addons import Addons, Addon
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.json import jsonPrettyDumps
@@ -50,6 +51,7 @@ class Session:
     _targets: Targets = attrs.field(factory=Targets)
     _tools: Tools = attrs.field(default=None)
     _samples: Samples = attrs.field(factory=Samples)
+    _digitizedLocations: DigitizedLocations = attrs.field(factory=DigitizedLocations)
     _triggerSources: TriggerSources = attrs.field(factory=TriggerSources)
     _addons: Addons = attrs.field(factory=Addons)
 
@@ -99,6 +101,7 @@ class Session:
         self.addons.sigItemsChanged.connect(lambda addonKeys, attribKeys: self.flagKeyAsDirty('addons'))
         self.targets.sigItemKeyChanged.connect(self._onTargetKeyChanged)
         self.coordinateSystems.sigItemsChanged.connect(self._onCoordinateSystemsChanged)
+        self.digitizedLocations.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('digitizedLocations'))
 
         self.coordinateSystems.session = self
 
@@ -146,6 +149,10 @@ class Session:
     @property
     def coordinateSystems(self):
         return self._coordinateSystems
+
+    @property
+    def digitizedLocations(self):
+        return self._digitizedLocations
 
     @property
     def subjectRegistration(self):
@@ -273,6 +280,15 @@ class Session:
             with open(os.path.join(self.unpackedSessionDir, configFilename_coordinateSystems), 'w') as f:
                 f.write(jsonPrettyDumps(self.coordinateSystems.asList()))
             keysToSave.discard('coordinateSystems')
+
+        if 'digitizedLocations' in keysToSave or not saveDirtyOnly:
+            # save digitized locations path relative to location of compressed file
+            logger.debug('Writing digitizedLocations info')
+            configFilename_digitizedLocations = autosaveFilenamePrefix + self._sessionConfigFilename + '_DigitizedLocations' + '.json'
+            config['digitizedLocations'] = configFilename_digitizedLocations
+            with open(os.path.join(self.unpackedSessionDir, configFilename_digitizedLocations), 'w') as f:
+                f.write(jsonPrettyDumps(self.digitizedLocations.asList()))
+            keysToSave.discard('digitizedLocations')
 
         if 'subjectRegistration' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing subjectRegistration info')
@@ -442,6 +458,11 @@ class Session:
             configFilename_coordinateSystems = config['coordinateSystems']
             with open(os.path.join(unpackedSessionDir, configFilename_coordinateSystems), 'r') as f:
                 kwargs['coordinateSystems'] = CoordinateSystems.fromList(json.load(f))
+
+        if 'digitizedLocations' in config:
+            configFilename_digitizedLocations = config['digitizedLocations']
+            with open(os.path.join(unpackedSessionDir, configFilename_digitizedLocations), 'r') as f:
+                kwargs['digitizedLocations'] = DigitizedLocations.fromList(json.load(f))
 
         if 'subjectRegistration' in config:
             configFilename_subjectReg = config['subjectRegistration']

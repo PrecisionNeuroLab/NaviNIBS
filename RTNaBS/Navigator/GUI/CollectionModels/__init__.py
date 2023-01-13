@@ -47,6 +47,17 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     Key of attr in collection indicating selection status; if None, selection state will not be synced to model; partially reliant on connected CollectionTableWidget to implement
     """
 
+    _hasPlaceholderNewRow: bool = False
+    """
+    Whether to include a row at end of table as a placeholder for adding a new entry
+    """
+    _placeholderNewRowDefaults: dict[str, tp.Any] = attrs.field(factory=dict)
+    """
+    When including a row at end of table as a placeholder for adding a new entry, what defaults should be shown.
+    This is a mapping from columnKey -> default value. If a column is not present in mapping, its default
+    will be empty or false.
+    """
+
     _collection: tp.Union[Sequence[CI], Mapping[K, CI]] = attrs.field(init=False)
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
@@ -61,7 +72,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
         return hasattr(self._collection, 'keys')
 
     def rowCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
-        return len(self._collection)
+        return len(self._collection) + (1 if self._hasPlaceholderNewRow else 0)
 
     def columnCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
         return len(self._columns)
@@ -106,6 +117,8 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     def data(self, index: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex], role: int = ...) -> tp.Any:
         colKey = self._columns[index.column()]
         item = self.getCollectionItemFromIndex(index=index.row())
+        if item is None:
+            assert self._hasPlaceholderNewRow
         #logger.debug(f'Getting data for {self.getCollectionItemKeyFromIndex(index=index.row())} {colKey} role {role}')
         match role:
             case QtCore.Qt.DisplayRole | QtCore.Qt.ToolTipRole | QtCore.Qt.EditRole:
@@ -113,7 +126,10 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                     # will be handled by CheckStateRole instead
                     return None
                 elif colKey in self._attrColumns:
-                    colVal = getattr(item, colKey)
+                    if item is None:
+                        colVal = self._placeholderNewRowDefaults.get(colKey, (None, '') if colKey in self._decoratedColumns else '')
+                    else:
+                        colVal = getattr(item, colKey)
                     if colKey in self._decoratedColumns:
                         # assume val above is an (icon, text) tuple
                         assert len(colVal) == 2
@@ -131,7 +147,10 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             case QtCore.Qt.DecorationRole:
                 if colKey in self._decoratedColumns:
                     if colKey in self._attrColumns:
-                        colVal = getattr(item, colKey)
+                        if item is None:
+                            colVal = self._placeholderNewRowDefaults.get(colKey, (None, ''))
+                        else:
+                            colVal = getattr(item, colKey)
 
                     elif colKey in self._derivedColumns:
                         colVal = self._derivedColumns[colKey](self.getCollectionItemKeyFromIndex(index=index.row()))
@@ -142,13 +161,18 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                     # assume val above is an (icon, text) tuple
                     assert len(colVal) == 2
                     colIcon = colVal[0]
-                    assert isinstance(colIcon, (QtGui.QColor, QtGui.QIcon, QtGui.QPixmap))
+                    assert colIcon is None or isinstance(colIcon, (QtGui.QColor, QtGui.QIcon, QtGui.QPixmap))
                     return colIcon
 
             case QtCore.Qt.CheckStateRole:
                 if colKey in self._boolColumns:
                     if colKey in self._attrColumns:
-                        colVal = getattr(item, colKey)
+                        if item is None:
+                            colVal = self._placeholderNewRowDefaults.get(colKey, None)
+                            if colVal is None:
+                                return None  # don't show a checkbox for placeholder without a default
+                        else:
+                            colVal = getattr(item, colKey)
                     elif colKey in self._derivedColumns:
                         colVal = self._derivedColumns[colKey](self.getCollectionItemKeyFromIndex(index=index.row()))
                     else:
@@ -203,10 +227,20 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             case _:
                 return False
 
-    def getCollectionItemFromIndex(self, index: int) -> CI:
-        return self._collection[self.getCollectionItemKeyFromIndex(index)]
+    def getCollectionItemFromIndex(self, index: int) -> tp.Optional[CI]:
+        key = self.getCollectionItemKeyFromIndex(index)
+        if key is None:
+            return None  # return None as indicator of being in placeholder row
 
-    def getCollectionItemKeyFromIndex(self, index: int) -> K:
+        return self._collection[key]
+
+    def getCollectionItemKeyFromIndex(self, index: int) -> tp.Optional[K]:
+        if index >= len(self._collection):
+            if index == len(self._collection) and self._hasPlaceholderNewRow:
+                return None  # return None as indicator of being in placeholder row
+            else:
+                raise IndexError
+
         if self.collectionIsDict:
             key = list(self._collection.keys())[index]
             return key

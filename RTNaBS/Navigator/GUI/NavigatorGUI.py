@@ -23,6 +23,7 @@ from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ManageSessionPanel import ManageSessionPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
+from RTNaBS.Navigator.GUI.ViewPanels.CoordinateSystemsPanel import CoordinateSystemsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
@@ -31,8 +32,8 @@ from RTNaBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettings
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
+from RTNaBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
 from RTNaBS.util import exceptionToStr
-
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class NavigatorGUI(RunnableAsApp):
     _appName: str = 'RTNaBS Navigator GUI'
+    _theme: str = 'auto'  # auto, light, or dark
 
     _sesFilepath: tp.Optional[str] = None  # only used to load session on startup
     _inProgressBaseDir: tp.Optional[str] = None
@@ -99,6 +101,7 @@ class NavigatorGUI(RunnableAsApp):
 
         self._addViewPanel(NavigatePanel(key='Navigate', session=self._session))
 
+        self._addViewPanel(DigitizedLocationsPanel(key='Digitize', session=self._session))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
@@ -111,6 +114,7 @@ class NavigatorGUI(RunnableAsApp):
 
         if self._doRunAsApp:
             logger.debug('Showing window')
+            self._win.resize(QtCore.QSize(1200, 900))  # TODO: restore previous size if available
             self._win.show()
 
     def _addViewPanel(self, panel: MainViewPanel) -> MainViewPanel:
