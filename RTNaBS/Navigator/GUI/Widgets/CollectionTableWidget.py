@@ -6,6 +6,7 @@ from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
+from RTNaBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel
@@ -14,6 +15,7 @@ from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
 from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints, Fiducial, Fiducials
+from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocation, DigitizedLocations
 from RTNaBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,14 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
             selection.merge(QtCore.QItemSelection(index, index), cmd)
 
         self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.SelectCurrent)
+
+
+@attrs.define
+class DigitizedLocationsTableWidget(CollectionTableWidget[str, DigitizedLocation, DigitizedLocations, DigitizedLocationsTableModel]):
+    _Model: tp.Callable[[Session], DigitizedLocationsTableModel] = DigitizedLocationsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
 
 
 @attrs.define
