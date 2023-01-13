@@ -157,7 +157,7 @@ class NavigatorGUI(RunnableAsApp):
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
-        session.addons.sigItemsChanged.connect(self._onAddonsChanged)
+        session.addons.sigItemsChanged.connect(lambda *args: self._onAddonsChanged())
 
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
         self.session.tools.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
