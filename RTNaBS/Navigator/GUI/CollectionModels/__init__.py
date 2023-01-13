@@ -108,7 +108,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
         item = self.getCollectionItemFromIndex(index=index.row())
         #logger.debug(f'Getting data for {self.getCollectionItemKeyFromIndex(index=index.row())} {colKey} role {role}')
         match role:
-            case QtCore.Qt.DisplayRole | QtCore.Qt.ToolTipRole:
+            case QtCore.Qt.DisplayRole | QtCore.Qt.ToolTipRole | QtCore.Qt.EditRole:
                 if colKey in self._boolColumns:
                     # will be handled by CheckStateRole instead
                     return None
