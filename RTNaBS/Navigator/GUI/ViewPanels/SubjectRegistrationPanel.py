@@ -383,7 +383,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         self.session.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(self._onHeadpointsChanged)
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
-            'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'pointerPosition']))
+            'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'initPointer', 'pointerPosition']))
 
         self._trackingStatusWdgt.session = self.session
 
@@ -846,8 +846,6 @@ class SubjectRegistrationPanel(MainViewPanel):
                     coords[iFid, :] = fid.sampledCoord
                 if fid.sampledCoords is not None and fid.sampledCoords.shape[0] > 1:
                     repeatedCoords = np.vstack((repeatedCoords, fid.sampledCoords))
-
-            # TODO: also plot multipoint sampled coords (if available) in slightly different color
 
             coords = applyTransform(self.session.subjectRegistration.trackerToMRITransf, coords)
             if repeatedCoords.shape[0] > 0:
