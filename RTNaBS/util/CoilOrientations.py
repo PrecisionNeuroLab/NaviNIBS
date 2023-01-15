@@ -480,20 +480,20 @@ class PoseMetricCalculator:
 
         coilLoc_stdSpace = applyTransform([self._sample.coilToMRITransf, MRIToStdTransf], np.asarray([0, 0, 0]))
 
-        iDir = np.argmax(coilLoc_stdSpace)
+        iDir = np.argmax(np.abs(coilLoc_stdSpace))
         match iDir:
             case 0:
                 # far left or right
                 refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
-                refDir2 = np.asarray([0, 0, -1])  # this handle angle corresponds to +90 degrees from midline
+                refDir2 = np.asarray([0, 0, -1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
             case 1:
                 # far anterior or posterior
                 refDir1 = np.asarray([0, 0, 1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to 0 degrees from midline
-                refDir2 = np.asarray([-1, 0, 0]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
+                refDir2 = np.asarray([1, 0, 0])  # this handle angle corresponds to +90 degrees from midline
             case 2:
                 # far up (or down)
                 refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
-                refDir2 = np.asarray([-1, 0, 0]) * np.sign(coilLoc_stdSpace[iDir]) # this handle angle corresponds to +90 degrees from midline
+                refDir2 = np.asarray([1, 0, 0]) * np.sign(coilLoc_stdSpace[iDir]) # this handle angle corresponds to +90 degrees from midline
             case _:
                 raise NotImplementedError
 
