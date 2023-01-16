@@ -197,8 +197,8 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
     def _onItemKeyChanged(self, fromKey: str, toKey: str):
         assert toKey not in self._items
         self._items = {(toKey if key == fromKey else key): val for key, val in self._items.items()}
-        self.sigItemsChanged.emit([fromKey, toKey], None)
         self.sigItemKeyChanged.emit(fromKey, toKey)
+        self.sigItemsChanged.emit([fromKey, toKey], None)
 
     def _onItemChanged(self, key: str, attribKeys: tp.Optional[list[str]] = None):
         self.sigItemsChanged.emit([key], attribKeys)
