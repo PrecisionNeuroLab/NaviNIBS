@@ -67,13 +67,15 @@ class TargetingCoordinator:
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._session.targets.sigItemsChanged.connect(self._onSessionTargetsChanged)
         self._session.targets.sigItemKeyAboutToChange.connect(self._onSessionTargetKeyAboutToChange)
+        self._session.targets.sigItemKeyChanged.connect(
+            self._onSessionTargetKeyChanged)
 
         self._currentPoseMetrics = PoseMetricCalculator(
             session=self._session,
             sample=Sample(
                 key='CurrentPose',
                 timestamp=pd.Timestamp.now()
-            ),
+            )
         )
         self.sigCurrentTargetChanged.connect(lambda: setattr(self._currentPoseMetrics.sample, 'targetKey', self.currentTargetKey))
         self.sigCurrentCoilPositionChanged.connect(self._updateCurrentPoseMetricsSample)
@@ -236,6 +238,10 @@ class TargetingCoordinator:
         if self._currentTargetKey == fromKey:
             self._currentTargetKey = toKey
             # other changes will be handled when sigItemsChanged is emitted later
+
+    def _onSessionTargetKeyChanged(self, fromKey: str, toKey: str):
+        if fromKey == self._currentPoseMetrics.sample.targetKey:
+            self._currentPoseMetrics.sample.targetKey = toKey
 
     def _updateCurrentPoseMetricsSample(self):
         self._currentPoseMetrics.sample.timestamp = pd.Timestamp.now()
