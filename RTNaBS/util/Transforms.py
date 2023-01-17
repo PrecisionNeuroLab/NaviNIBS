@@ -2,7 +2,6 @@ import json
 import sys
 
 import numpy as np
-from scipy.spatial.transform import Rotation as spRotation
 import pytransform3d.transformations as ptt
 import typing as tp
 
@@ -73,7 +72,6 @@ def stringToTransform(inputStr: str) -> np.ndarray:
     return arrayVal
 
 
-def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd') -> np.ndarray:
 def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd', weights: tp.Optional[np.ndarray] = None) -> np.ndarray:
     """
     Estimate a transform that aligns one set of points onto another.
