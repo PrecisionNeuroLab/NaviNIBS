@@ -598,8 +598,16 @@ class SubjectRegistrationPanel(MainViewPanel):
         plannedPts_mriSpace = np.vstack(subReg.fiducials[key].plannedCoord for key in commonKeys)
         sampledPts_subSpace = np.vstack(subReg.fiducials[key].sampledCoord for key in commonKeys)
 
+        alignmentWeights = np.asarray([subReg.fiducials[key].alignmentWeight for key in commonKeys])
+
+        if all(alignmentWeights == 1.):
+            alignmentWeights = None
+
         logger.info('Estimating transform aligning sampled fiducials to planned fiducials')
-        subReg.trackerToMRITransf = estimateAligningTransform(sampledPts_subSpace, plannedPts_mriSpace)
+        subReg.trackerToMRITransf = estimateAligningTransform(
+            sampledPts_subSpace,
+            plannedPts_mriSpace,
+            weights=alignmentWeights)
 
     def _onSampleHeadPtsBtnClicked(self):
 

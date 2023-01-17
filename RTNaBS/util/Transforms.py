@@ -2,6 +2,7 @@ import json
 import sys
 
 import numpy as np
+from scipy.spatial.transform import Rotation as spRotation
 import pytransform3d.transformations as ptt
 import typing as tp
 
@@ -73,6 +74,7 @@ def stringToTransform(inputStr: str) -> np.ndarray:
 
 
 def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd') -> np.ndarray:
+def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd', weights: tp.Optional[np.ndarray] = None) -> np.ndarray:
     """
     Estimate a transform that aligns one set of points onto another.
 
@@ -102,31 +104,40 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
             if ptsA.shape[0] < 3:
                 raise ValueError('Need at least 3 points to estimate aligning transform')
 
-            centroidA = ptsA.mean(axis=0)
-            centroidB = ptsB.mean(axis=0)
+            if weights is None:
+                centroidA = ptsA.mean(axis=0)
+                centroidB = ptsB.mean(axis=0)
 
-            ptsA_ctrd = ptsA - centroidA
-            ptsB_ctrd = ptsB - centroidB
+                ptsA_ctrd = ptsA - centroidA
+                ptsB_ctrd = ptsB - centroidB
 
-            H = ptsA_ctrd.T @ ptsB_ctrd
+                H = ptsA_ctrd.T @ ptsB_ctrd
 
-            U, S, Vt = np.linalg.svd(H)
-            R = Vt.T @ U.T
-
-            # reflection
-            if np.linalg.det(R) < 0:
-                Vt[2, :] *= -1
+                U, S, Vt = np.linalg.svd(H)
                 R = Vt.T @ U.T
 
-            t = -R @ centroidA.reshape(-1, 1) + centroidB.reshape(-1, 1)
+                # reflection
+                if np.linalg.det(R) < 0:
+                    Vt[2, :] *= -1
+                    R = Vt.T @ U.T
 
-            transf = np.eye(4)
-            transf[:3, :3] = R
-            transf[:3, 3] = t.reshape(3)
+                t = -R @ centroidA.reshape(-1, 1) + centroidB.reshape(-1, 1)
+
+                transf = np.eye(4)
+                transf[:3, :3] = R
+                transf[:3, 3] = t.reshape(3)
+
+            else:
+                from rmsd import kabsch_weighted
+                [R, p, _] = kabsch_weighted(ptsB, ptsA, weights)
+                transf = composeTransform(R, p)
 
             return transf
 
         case 'ICP':
+            if weights is not None:
+                raise NotImplementedError(f'Weights not supported for method={method}')
+
             import simpleicp
 
             pc_fix = simpleicp.PointCloud(ptsB, columns=('x', 'y', 'z'))

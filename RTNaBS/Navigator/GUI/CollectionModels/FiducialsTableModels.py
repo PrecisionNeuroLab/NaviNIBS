@@ -1,4 +1,5 @@
 import attrs
+import numpy as np
 import qtawesome as qta
 from qtpy import QtGui
 
@@ -18,7 +19,8 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
         self._collection = self._session.subjectRegistration.fiducials
 
         self._attrColumns = [
-            'key'
+            'key',
+            'alignmentWeight'
         ]
 
         self._derivedColumns = dict(
@@ -26,7 +28,21 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
             sampledIsSet=self._getSampledIsSet
         )
 
-        self._columns = self._attrColumns + list(self._derivedColumns.keys())
+        self._editableColumnValidators = dict(
+            key=self._checkIfKeyValid,
+            alignmentWeight=self._checkIfWeightValid,
+        )
+
+        self._derivedColumnSetters = dict(
+            alignmentWeight=self._setAlignmentWeight,
+        )
+
+        self._columns = [
+            'key',
+            'plannedIsSet',
+            'sampledIsSet',
+            'alignmentWeight'
+        ]
 
         self._decoratedColumns = [
             'plannedIsSet',
@@ -36,15 +52,25 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
         self._columnLabels = dict(
             key='Fiducial',
             plannedIsSet='Planned',
-            sampledIsSet='Sampled'
+            sampledIsSet='Sampled',
+            alignmentWeight='Weight'
         )
 
-        self._editableColumns.append('key')
+        self._editableColumns.extend(['key', 'alignmentWeight'])
 
         self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
         self._collection.sigItemsChanged.connect(self._onCollectionChanged)
 
         super().__attrs_post_init__()
+
+    def _checkIfKeyValid(self, fidKey: str, oldKey: str, newKey: str) -> bool:
+        if len(newKey) == 0:
+            return False
+
+        if newKey != fidKey and newKey in self._session.subjectRegistration.fiducials:
+            return False  # key is not unique
+
+        return True
 
     def _getPlannedIsSet(self, fidKey: str) -> tuple[QtGui.QIcon, str]:
         if self._collection[fidKey].plannedCoord is None:
@@ -60,6 +86,25 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
             return self._checkIcon_sampled, ''
         else:
             return self._checkIcon_sampled, f'{numPtsSampled}'  # show an indicator of how many points have been sampled
+
+    def _checkIfWeightValid(self, fidKey: str, oldVal: str, newVal: str) -> bool:
+        if len(newVal) == 0:
+            return False
+
+        try:
+            val = float(newVal)
+        except Exception as e:
+            return False
+
+        if np.isnan(val) or np.isinf(val) or val < 0:
+            return False
+
+        return True
+
+    def _setAlignmentWeight(self, fidKey: str, strVal: str) -> None:
+        self._collection[fidKey].alignmentWeight = float(strVal)
+
+
 
 
 # TODO: implement PlanningFiducialsTableModel for planning fiducials tab (not showing sampled fiducials at all)
