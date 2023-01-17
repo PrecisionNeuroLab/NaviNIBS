@@ -178,6 +178,10 @@ class SinglePlotterNavigationView(NavigationView):
                 extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('target'):])
                 extraTransf = composeTransform(extraRot)
 
+                if self._alignCameraTo[-1] in 'XY':
+                    # add negative z offset to reduce empty space above coil in camera view
+                    extraTransf[2, 3] = -20
+
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
                         cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf @ extraTransf, cameraPts)
@@ -189,6 +193,10 @@ class SinglePlotterNavigationView(NavigationView):
             elif self._alignCameraTo.startswith('coil'):
                 extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('coil'):])
                 extraTransf = composeTransform(extraRot)
+
+                if self._alignCameraTo[-1] in 'XY':
+                    # add negative z offset to reduce empty space above coil in camera view
+                    extraTransf[2, 3] = -20
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentCoilToMRITransform is not None:
