@@ -122,6 +122,8 @@ class NavigatePanel(MainViewPanel):
     _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
     _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _hideSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _showSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
 
@@ -205,26 +207,41 @@ class NavigatePanel(MainViewPanel):
             layout=QtWidgets.QVBoxLayout())
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
+        btnContainer = QtWidgets.QWidget()
+        btnContainerLayout = QtWidgets.QGridLayout()
+        btnContainer.setLayout(btnContainerLayout)
+        container.layout().addWidget(btnContainer)
+
         btn = QtWidgets.QPushButton('Add a sample')
         btn.clicked.connect(self._onSampleBtnClicked)
-        container.layout().addWidget(btn)
+        btnContainerLayout.addWidget(btn, 0, 0)
         self._sampleBtn = btn
         # TODO: change color to warning indicator when coil or tracker are not visible
 
-        btn = QtWidgets.QPushButton('Create target from sample')
+        btn = QtWidgets.QPushButton('Sample ⇒ Target')
         btn.clicked.connect(self._onSampleToTargetBtnClicked)
-        container.layout().addWidget(btn)
+        btnContainerLayout.addWidget(btn, 0, 1)
+        btn.setEnabled(False)
         self._sampleToTargetBtn = btn
         # TODO: only enable when one or more samples are selected
 
-        btn = QtWidgets.QPushButton('Hide all samples')
-        btn.clicked.connect(lambda *args: self.session.samples.setWhichSamplesVisible([]) if self.session is not None else None)
-        container.layout().addWidget(btn)
+        btn = QtWidgets.QPushButton('Hide sample')
+        btn.clicked.connect(self._onHideSampleBtnClicked)
+        btn.setEnabled(False)
+        btnContainerLayout.addWidget(btn, 1, 1)
+        self._hideSampleBtn = btn
+
+        btn = QtWidgets.QPushButton('Show sample')
+        btn.clicked.connect(self._onShowSampleBtnClicked)
+        btn.setEnabled(False)
+        btnContainerLayout.addWidget(btn, 1, 0)
+        self._showSampleBtn = btn
 
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
 
         self._samplesTableWdgt = SamplesTableWidget()
         self._samplesTableWdgt.sigCurrentItemChanged.connect(self._onCurrentSampleChanged)
+        self._samplesTableWdgt.sigSelectionChanged.connect(self._onSelectedSamplesChanged)
         container.layout().addWidget(self._samplesTableWdgt.wdgt)
 
         self._triggerReceiver = TriggerReceiver(key=self._key)
@@ -248,6 +265,8 @@ class NavigatePanel(MainViewPanel):
         self._targetsTableWdgt.session = self.session
         self._samplesTableWdgt.session = self.session
 
+        self.session.samples.sigItemsChanged.connect(self._onSamplesChanged)
+
         # now that coordinator is available, finish initializing pose metric groups
         for poseGroup in self._poseMetricGroups:
             poseGroup.calculator = getattr(self._coordinator, poseGroup.calculatorKey)
@@ -259,6 +278,7 @@ class NavigatePanel(MainViewPanel):
         self.session.triggerSources.triggerRouter.registerReceiver(self._triggerReceiver)
         if self._isShown:
             self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
+
 
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """
@@ -287,12 +307,28 @@ class NavigatePanel(MainViewPanel):
                 if isinstance(view, SinglePlotterNavigationView):
                     view.plotter.pauseRendering()
 
+    def _onSamplesChanged(self, changesKeys: list[str], changedAttribs: tp.Optional[list[str]] = None):
+        if changedAttribs is None or 'isVisible' in changedAttribs:
+            self._onSelectedSamplesChanged(self._samplesTableWdgt.selectedCollectionItemKeys)
+
     def _onCurrentSampleChanged(self, newSampleKey: str):
         """
         Called when sampleTreeWdgt selection or coordinator currentSample changes, NOT when attributes of currently selected sample change
         """
         if self._hasInitialized:
             self._coordinator.currentSampleKey = newSampleKey
+
+    def _onSelectedSamplesChanged(self, selectedKeys: list[str]):
+        if self._hasInitialized:
+            numSelectedHidden = sum(not self.session.samples[key].isVisible for key in selectedKeys)
+            self._showSampleBtn.setEnabled(numSelectedHidden > 0)
+            self._showSampleBtn.setText('Show samples' if numSelectedHidden > 1 else 'Show sample')
+
+            numSelectedVisible = len(selectedKeys) - numSelectedHidden
+            self._hideSampleBtn.setEnabled(numSelectedVisible > 0)
+            self._hideSampleBtn.setText('Hide samples' if numSelectedVisible > 1 else 'Hide sample')
+
+            self._sampleToTargetBtn.setEnabled(len(selectedKeys) > 0)
 
     def _onSampleBtnClicked(self, _):
         self._recordSample(timestamp=pd.Timestamp.now())
@@ -324,6 +360,14 @@ class NavigatePanel(MainViewPanel):
     def _onSampleToTargetBtnClicked(self, _):
         newTarget = self._coordinator.createTargetFromCurrentSample(doAddToSession=True)
         self._targetsTableWdgt.currentCollectionItemKey = newTarget.key
+
+    def _onShowSampleBtnClicked(self, _):
+        selKeys = self._samplesTableWdgt.selectedCollectionItemKeys
+        self.session.samples.setAttribForItems(selKeys, dict(isVisible=[True for key in selKeys]))
+
+    def _onHideSampleBtnClicked(self, _):
+        selKeys = self._samplesTableWdgt.selectedCollectionItemKeys
+        self.session.samples.setAttribForItems(selKeys, dict(isVisible=[False for key in selKeys]))
 
     def _initializeDefaultViews(self):
         if len(self._views) > 0:
