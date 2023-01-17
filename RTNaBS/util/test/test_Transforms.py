@@ -103,3 +103,18 @@ def test_estimateAligningTransf(transf, pts, method):
     transfPts2 = applyTransform(estTransf, pts)
     assert array_equalish(transfPts, transfPts2)
 
+
+def test_estimateAligningTransf_weighted(transf, pts):
+    transfPts = applyTransform(transf, pts)
+    weights = np.ones((pts.shape[0],))
+    weights[0] = 100
+    if pts.ndim < 2 or pts.shape[1] != 3 or pts.shape[0] < 3:
+        with pytest.raises(ValueError):
+            estTransf = estimateAligningTransform(pts, transfPts, weights=weights)
+        return
+    else:
+        estTransf = estimateAligningTransform(pts, transfPts, weights=weights)
+    assert array_equalish(estTransf, transf)
+    transfPts2 = applyTransform(estTransf, pts)
+    assert array_equalish(transfPts, transfPts2)
+

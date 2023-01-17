@@ -53,6 +53,17 @@ class Fiducial(GenericCollectionDictItem[str]):
     Note that this is cleared whenever sampledCoords is set, to avoid persisting an out-of-date aggregated sample. 
     """
 
+    _alignmentWeight: float = 1.
+    """
+    Can be used to specify a relative positive weight for how this fiducial will be incorporated
+    into registration. 
+    
+    For example, if the NAS fiducial is given weight 100, and the LPA and RPA
+    fiducials have default weights of 1, then alignment will always very closely match measured 
+    NAS to planned NAS location, and allow larger deviations for LPA and RPA for the sake of 
+    closely matching NAS.  
+    """
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
         if self._sampledCoords is not None:
@@ -135,6 +146,18 @@ class Fiducial(GenericCollectionDictItem[str]):
         self._sampledCoords = newCoords
         self.sigItemChanged.emit(self._key, changingAttrs)
 
+    @property
+    def alignmentWeight(self):
+        return self._alignmentWeight
+
+    @alignmentWeight.setter
+    def alignmentWeight(self, newWeight: float):
+        if newWeight == self._alignmentWeight:
+            return
+        self.sigItemAboutToChange.emit(self._key, ['alignmentWeight'])
+        self._alignmentWeight = newWeight
+        self.sigItemChanged.emit(self._key, ['alignmentWeight'])
+
     def asDict(self) -> dict[str, tp.Any]:
         npFields = ['plannedCoord', 'sampledCoord', 'sampledCoords']
         return attrsWithNumpyAsDict(self, npFields=npFields)
@@ -166,6 +189,10 @@ class Fiducials(GenericCollection[str, Fiducial]):
     @property
     def allSampledFiducials(self) -> dict[str, tp.Optional[np.ndarray]]:
         return {key: fid.sampledCoords for key, fid in self.items()}
+
+    @property
+    def alignmentWeights(self) -> np.ndarray:
+        return np.asarray([fid.alignmentWeight for fid in self.values()])
 
     @classmethod
     def fromList(cls, itemList: list[dict[str, tp.Any]]) -> Fiducials:
