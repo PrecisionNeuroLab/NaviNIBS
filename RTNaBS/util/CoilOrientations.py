@@ -16,6 +16,7 @@ from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTrans
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 T = tp.TypeVar('T')
