@@ -28,7 +28,7 @@ class TargetsTableModel(CollectionTableModel[str, Targets, Target]):
         )
 
         self._editableColumnValidators = dict(
-            key=lambda oldKey, newKey: len(newKey) > 0 and (oldKey == newKey or newKey not in self._session.targets),  # don't allow setting one target to key of another target
+            key=lambda _, oldKey, newKey: len(newKey) > 0 and (oldKey == newKey or newKey not in self._session.targets),  # don't allow setting one target to key of another target
         )
 
         self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)

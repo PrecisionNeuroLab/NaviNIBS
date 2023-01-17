@@ -38,9 +38,16 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     """
     Mapping from column key to nice label; if a key is not included, will be used directly as a label
     """
-    _editableColumnValidators: dict[str, tp.Callable[[tp.Any, tp.Any], bool]] = attrs.field(factory=dict)
+    _editableColumnValidators: dict[str, tp.Callable[[K, tp.Any, tp.Any], bool]] = attrs.field(factory=dict)
     """
     Mapping from column key to validator function which returns True if passed (prevVal, newVal) is valid
+    """
+    _derivedColumnSetters: dict[str, tp.Callable[[K, str], None]] = attrs.field(factory=dict)
+    """"
+    Mapping from (editable, derived) column key to a setter function which, given a key/index 
+    and a newly-edited string value, applies changes to the underlying collection.
+    
+    E.g. may be used for converting string text field to float for a numeric attribute.
     """
     _isSelectedAttr: tp.Optional[str] = None
     """
@@ -66,6 +73,18 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
     def __attrs_post_init__(self):
         QtCore.QAbstractTableModel.__init__(self)
+
+        for seq in (self._attrColumns,
+                    self._derivedColumns.keys(),
+                    self._boolColumns,
+                    self._decoratedColumns,
+                    self._editableColumns,
+                    self._columnLabels.keys(),
+                    self._editableColumnValidators.keys(),
+                    self._derivedColumnSetters.keys(),
+                    self._placeholderNewRowDefaults.keys()):
+            for key in seq:
+                assert key in self._columns, f'{key} not in main columns list'
 
     @property
     def collectionIsDict(self):
@@ -196,16 +215,17 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             case QtCore.Qt.EditRole:
                 if colKey not in self._boolColumns:
                     logger.info(f'Editing column {colKey} to value {value}')
+                    itemKey = self.getCollectionItemKeyFromIndex(index.row())
                     if colKey in self._editableColumnValidators:
                         oldValue = self.data(index, role)
-                        isValid = self._editableColumnValidators[colKey](oldValue, value)
+                        isValid = self._editableColumnValidators[colKey](itemKey, oldValue, value)
                         if not isValid:
                             logger.warning('Attempted to set invalid value, rejecting change.')
                             return False
-                    if colKey in self._attrColumns:
-                        setattr(self.getCollectionItemFromIndex(index.row()), colKey, value)
-                    elif colKey in self._derivedColumns:
-                        raise NotImplementedError
+                    if colKey in self._derivedColumnSetters:
+                        self._derivedColumnSetters[colKey](itemKey, value)
+                    elif colKey in self._attrColumns:
+                        setattr(self._collection[itemKey], colKey, value)
                     else:
                         raise KeyError
                     return True
