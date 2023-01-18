@@ -270,6 +270,7 @@ class SinglePlotterNavigationView(NavigationView):
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
     _alignCameraTo: str = 'target'
+    _doParallelProjection: bool = False
     _doShowSkinSurf: bool = False
     _doShowHandleAngleError: bool = False
     _doShowTargetTangentialAngleError: bool = False
@@ -288,6 +289,9 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
         self._plotter.setLayer(1 if self._doShowSkinSurf else 0)
+
+        if self._doParallelProjection:
+            self._plotter.camera.enable_parallel_projection()
 
         #self._plotter.enable_depth_peeling(2)
 
