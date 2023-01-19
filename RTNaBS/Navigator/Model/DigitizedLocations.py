@@ -46,6 +46,14 @@ class DigitizedLocation(GenericCollectionDictItem[str]):
     def sampledCoord(self):
         return self._sampledCoord
 
+    @sampledCoord.setter
+    def sampledCoord(self, newCoord: tp.Optional[np.ndarray]):
+        if array_equalish(newCoord, self._sampledCoord):
+            return
+        self.sigItemAboutToChange.emit(self.key, ['sampledCoord'])
+        self._sampledCoord = newCoord
+        self.sigItemChanged.emit(self.key, ['sampledCoord'])
+
     @property
     def type(self):
         return self._type
@@ -66,6 +74,17 @@ class DigitizedLocation(GenericCollectionDictItem[str]):
 class DigitizedLocations(GenericCollection[str, DigitizedLocation]):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+    def loadFromXML(self, xmlPath: str):
+        import xmltodict
+        with open(xmlPath, 'r') as f:
+            montage = xmltodict.parse(f.read())
+
+        for marker in montage['PresetEEG']['Marker']:
+            self.addItem(DigitizedLocation(
+                key=marker['@name'],
+                color=marker['@color']
+            ))
 
     @classmethod
     def fromList(cls, itemList: list[dict[str, tp.Any]]) -> DigitizedLocations:

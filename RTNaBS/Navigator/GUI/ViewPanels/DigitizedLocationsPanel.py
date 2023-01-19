@@ -41,6 +41,7 @@ class DigitizedLocationsPanel(MainViewPanel):
 
     _sampleLocationBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _clearSampleLocationBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _deleteLocationBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _newLocationFromPointerBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
@@ -81,18 +82,28 @@ class DigitizedLocationsPanel(MainViewPanel):
         btnContainer.setLayout(QtWidgets.QGridLayout())
         samplesBox.layout().addWidget(btnContainer)
 
+        btn = QtWidgets.QPushButton('Import montage')
+        btn.clicked.connect(self._onImportMontageBtnClicked)
+        btnContainer.layout().addWidget(btn, 0, 0)
+
         btn = QtWidgets.QPushButton('Sample location')
         btn.clicked.connect(self._onSampleLocationBtnClicked)
         btn.setEnabled(False)
         self._sampleLocationBtn = btn
-        btnContainer.layout().addWidget(btn, 0, 0)
+        btnContainer.layout().addWidget(btn, 1, 0)
 
         btn = QtWidgets.QPushButton('Clear sampled location')
         btn.clicked.connect(self._onClearSampledLocationBtnClicked)
         btn.setEnabled(False)
-        btnContainer.layout().addWidget(btn, 1, 0)
+        btnContainer.layout().addWidget(btn, 2, 0)
         # TODO: change this to "clear sampled locations" when multiple selected
         self._clearSampleLocationBtn = btn
+
+        btn = QtWidgets.QPushButton('Delete row')
+        btn.clicked.connect(self._onDeleteLocationBtnClicked)
+        btnContainer.layout().addWidget(btn, 3, 0)
+        # TODO: change this to "clear sampled locations" when multiple selected
+        self._deleteLocationBtn = btn
 
         self._tblWdgt = DigitizedLocationsTableWidget()
         self._tblWdgt.sigSelectionChanged.connect(self._onSelectedLocationsChanged)
@@ -172,6 +183,14 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         return pointerCoord_MRISpace
 
+    def _onImportMontageBtnClicked(self, checked: bool):
+        filepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
+                                                               'Select montage file to import',
+                                                               os.path.dirname(self.session.filepath),
+                                                               'xml (*.xml)')
+
+        self.session.digitizedLocations.loadFromXML(filepath)
+
     def _onSampleLocationBtnClicked(self):
 
         pointerCoord_MRISpace = self._getPointerCoordInMRISpace()
@@ -202,8 +221,15 @@ class DigitizedLocationsPanel(MainViewPanel):
                 # advance to next fiducial in table
                 self._tblWdgt.currentRow += 1
 
-    def _onClearSampledLocationBtnClicked(self):
-        raise NotImplementedError  # TODO
+    def _onClearSampledLocationBtnClicked(self, checked: bool):
+        for key in self._tblWdgt.selectedCollectionItemKeys:
+            if key is not None:
+                self.session.digitizedLocations[key].sampledCoord = None
+
+    def _onDeleteLocationBtnClicked(self, checked: bool):
+        for key in self._tblWdgt.selectedCollectionItemKeys:
+            if key is not None:
+                self.session.digitizedLocations.deleteItem(key)
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
