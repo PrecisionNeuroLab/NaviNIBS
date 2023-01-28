@@ -123,6 +123,7 @@ class NavigatePanel(MainViewPanel):
     _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _hideSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _showSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
@@ -236,6 +237,11 @@ class NavigatePanel(MainViewPanel):
         btn.setEnabled(False)
         btnContainerLayout.addWidget(btn, 1, 0)
         self._showSampleBtn = btn
+
+        btn = QtWidgets.QPushButton('Hide all samples')
+        btn.clicked.connect(self._onHideAllSamplesBtnClicked)
+        btnContainerLayout.addWidget(btn, 2, 1)
+        self._hideAllSamplesBtn = btn
 
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
 
@@ -364,6 +370,9 @@ class NavigatePanel(MainViewPanel):
     def _onShowSampleBtnClicked(self, _):
         selKeys = self._samplesTableWdgt.selectedCollectionItemKeys
         self.session.samples.setAttribForItems(selKeys, dict(isVisible=[True for key in selKeys]))
+
+    def _onHideAllSamplesBtnClicked(self, _):
+        self.session.samples.setWhichSamplesVisible([])
 
     def _onHideSampleBtnClicked(self, _):
         selKeys = self._samplesTableWdgt.selectedCollectionItemKeys
