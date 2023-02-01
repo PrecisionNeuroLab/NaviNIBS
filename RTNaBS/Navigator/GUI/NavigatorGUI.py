@@ -79,7 +79,7 @@ class NavigatorGUI(RunnableAsApp):
 
         self._addViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session))
 
-        self._addViewPanel(MainViewPanel(key='Set transforms', session=self._session, icon=qta.icon('mdi6.head-sync-outline')))
+        self._addViewPanel(CoordinateSystemsPanel(key='Set transforms', session=self._session))
         # TODO: set up transforms widget
 
         self._addViewPanel(TargetsPanel(key='Set targets', session=self._session))
