@@ -17,6 +17,7 @@ import typing as tp
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
+from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
@@ -110,7 +111,7 @@ class NavigatorGUI(RunnableAsApp):
         #self._activateView('Navigate')  # TODO: debug, delete
 
         if self._sesFilepath is not None:
-            asyncio.create_task(self._loadAfterSetup(filepath=self._sesFilepath))
+            asyncio.create_task(asyncTryAndRaiseDialogOnError(self._loadAfterSetup, filepath=self._sesFilepath))
 
         if self._doRunAsApp:
             logger.debug('Showing window')
@@ -207,11 +208,7 @@ class NavigatorGUI(RunnableAsApp):
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
-        try:
-            self._mainViewPanels['Manage session'].loadSession(sesFilepath=filepath)
-        except Exception as e:
-            logger.error(exceptionToStr(e))
-            raise e
+        self._mainViewPanels['Manage session'].loadSession(sesFilepath=filepath)
         logger.debug('Done loading session')
 
     def _updateEnabledPanels(self):

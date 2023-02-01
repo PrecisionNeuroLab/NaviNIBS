@@ -98,7 +98,7 @@ class Session:
         self.tools.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
         self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self.flagKeyAsDirty('tools'))
         self.triggerSources.sigItemsChanged.connect(lambda sourceKey: self.flagKeyAsDirty('triggerSources'))
-        self.addons.sigItemsChanged.connect(lambda addonKeys, attribKeys: self.flagKeyAsDirty('addons'))
+        self.addons.sigItemsChanged.connect(self._onAddonsChanged)
         self.targets.sigItemKeyChanged.connect(self._onTargetKeyChanged)
         self.coordinateSystems.sigItemsChanged.connect(self._onCoordinateSystemsChanged)
         self.digitizedLocations.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('digitizedLocations'))
@@ -332,8 +332,20 @@ class Session:
 
         if 'addons' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing addons info')
-            config['addons'] = self.addons.asList()
-            keysToSave.discard('addons')
+            config['addons'] = self.addons.asList(unpackedSessionDir=self.unpackedSessionDir)
+            keysToDiscard = {'addons'}
+            for key in keysToSave:
+                if key.startswith('addon.'):
+                    keysToDiscard.add(key)
+            keysToSave -= keysToDiscard
+        else:
+            # write config for changed addons only, not all addons
+            for addonKey, addon in self.addons.items():
+                flagKey = f'addon.{addonKey}'
+                if flagKey in keysToSave:
+                    configFilename_addon = addon.writeConfig(unpackedSessionDir=self.unpackedSessionDir)
+                    assert configFilename_addon in config['addons']
+                    keysToSave.discard(flagKey)
 
         # TODO: save other fields
         assert len(keysToSave) == 0
@@ -362,6 +374,10 @@ class Session:
                 break
         if isDirty:
             self.flagKeyAsDirty('coordinateSystems')
+
+    def _onAddonsChanged(self, addonKeys: list[str], attribKeys: tp.Optional[list[str]] = None):
+        for addonKey in addonKeys:
+            self.flagKeyAsDirty(f'addon.{addonKey}')
 
     def saveToFile(self, updateDirtyOnly: bool = True):
         self.saveToUnpackedDir(saveDirtyOnly=updateDirtyOnly)

@@ -83,3 +83,8 @@ def raiseErrorDialog(title: str = 'Error',
         return retKey
 
 
+async def asyncTryAndRaiseDialogOnError(fn: tp.Callable, *args, **kwargs):
+    try:
+        await fn(*args, **kwargs)
+    except Exception as e:
+        raiseErrorDialog(exception=e)

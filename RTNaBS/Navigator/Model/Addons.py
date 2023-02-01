@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 import attrs
 import importlib
 import json
@@ -26,6 +27,30 @@ _installPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.
 
 
 ACE = tp.TypeVar('ACE')  # type (e.g. MainViewPanel) referenced by each addon class element
+
+
+@attrs.define
+class AddonSessionConfig(ABC):
+    """
+    Base class to define an addon's configuration parameters that will be saved in session config
+    """
+
+    sigConfigAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[list[str]],)))
+    # should be emitted whenever a field that is included in serialized asDict() is about to change
+    sigConfigChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[list[str]],)))
+    # should be emitted whenever a field that is included in serialized asDict() has changed
+
+    def __attrs_post_init__(self):
+        pass
+
+    def asDict(self) -> dict[str, tp.Any]:
+        # can be overridden by subclass
+        return attrsAsDict(self)
+
+    @classmethod
+    def fromDict(cls, d: dict[str, tp.Any]):
+        # can be overridden by subclass
+        return cls(**d)
 
 
 @attrs.define
@@ -96,11 +121,21 @@ class Addon(GenericCollectionDictItem[str]):
     _MainViewPanels: tp.Dict[str, AddonClassElement[MainViewPanel]] = attrs.field(factory=dict)
     _NavigationViews: tp.Dict[str, AddonClassElement[NavigationView]] = attrs.field(factory=dict)
     _NavigationViewLayers: tp.Dict[str, AddonClassElement[ViewLayer]] = attrs.field(factory=dict)
-    _SessionAttrs: tp.Dict[str, AddonClassElement[tp.Any]] = attrs.field(factory=dict)
+    _SessionAttrs: tp.Dict[str, AddonClassElement[AddonSessionConfig]] = attrs.field(factory=dict)
+    _sessionAttrs: dict[str, AddonSessionConfig] = attrs.field(factory=dict)
     _isActive: bool = True
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        for key, SessionAttr in self._SessionAttrs.items():
+            if key not in self._sessionAttrs:
+                self._sessionAttrs[key] = SessionAttr.Class()
+
+        for key, sessionAttr in self._sessionAttrs.items():
+            assert isinstance(sessionAttr, self._SessionAttrs[key].Class)
+            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit([self.key, [key]]))
+            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit([self.key, [key]]))
 
     @property
     def MainViewPanels(self):
@@ -110,15 +145,35 @@ class Addon(GenericCollectionDictItem[str]):
     def addonInstallPath(self):
         return self._addonInstallPath
 
+    @property
+    def SessionAttrs(self):
+        return self._SessionAttrs
+
+    def __getattr__(self, key: str):
+        """
+        Allow accessing session attributes with addon.attributeName
+        """
+        try:
+            return self._sessionAttrs[key]
+        except KeyError:
+            raise AttributeError
+
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        elementAttrs = ('MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')
-        d = attrsAsDict(self, exclude=elementAttrs)
-        for elementAttr in elementAttrs:
-            d[elementAttr] = {key: element.asDict() for key, element in getattr(self, '_' + elementAttr).items()}
+        predefinedAttrs = ('MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')  # these should all be defined in fixed addon_configuration.json file
+
+        d = attrsAsDict(self, exclude=list(predefinedAttrs) + ['sessionAttrs'])
+        for key, sessionAttr in self._sessionAttrs.items():
+            d[key] = sessionAttr.asDict()
 
         d['addonInstallPath'] = os.path.relpath(self.addonInstallPath, _installPath)
 
         return d
+
+    def writeConfig(self, unpackedSessionDir: str) -> str:
+        configFilename_addon = 'SessionConfig_Addon_' + self.key + '.json'
+        with open(os.path.join(unpackedSessionDir, configFilename_addon), 'w') as f:
+            f.write(jsonPrettyDumps(self.asDict()))
+        return configFilename_addon
 
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any]) -> Addon:
@@ -129,6 +184,7 @@ class Addon(GenericCollectionDictItem[str]):
 
         # specified path in config is relative to root RTNaBS installPath
         addonInstallPath = os.path.join(_installPath, d['addonInstallPath'])
+        del d['addonInstallPath']
         addonConfigPath = os.path.join(addonInstallPath, 'addon_configuration.json')
 
         if not os.path.exists(addonConfigPath):
@@ -153,10 +209,18 @@ class Addon(GenericCollectionDictItem[str]):
                 for elementKey, elementDict in dc[elementAttr].items():
                     initKwargs[elementAttr][elementKey] = AddonClassElement.fromDict(elementDict)
 
-        if len(d) > 1:
-            # TODO: assert that all other keys (other than `addonInstallPath` are declared in addon SessionAttrs)
-            # TODO: load values of sessionAttrs and pass to cls constructor below
-            raise NotImplementedError
+        if len(d) > 0:
+            sessionAttrs = dict()
+            for key, sessionAttrDict in d.items():
+                try:
+                    SessionAttr = initKwargs['SessionAttrs'][key].Class
+                except KeyError:
+                    raise KeyError('Addon session config included session attributes defined for {key}, but this was not found in addon_configuration.json')
+
+                assert issubclass(SessionAttr, AddonSessionConfig)
+                sessionAttrs[key] = SessionAttr.fromDict(sessionAttrDict)
+
+            initKwargs['sessionAttrs'] = sessionAttrs
         else:
             pass  # no other addon-specific attrs defined in session config
 
@@ -165,15 +229,14 @@ class Addon(GenericCollectionDictItem[str]):
 
 @attrs.define
 class Addons(GenericCollection[str, Addon]):
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-    def asList(self, unpackedSessionDir) -> tp.List[str]:
+    def asList(self, unpackedSessionDir: str) -> tp.List[str]:
         addonSessionConfigFilenames = []
         for addonKey, addon in self.addons.items():
-            configFilename_addon = 'SessionConfig_Addon_' + addonKey + '.json'
-            with open(os.path.join(unpackedSessionDir, configFilename_addon), 'w') as f:
-                f.write(jsonPrettyDumps(addon.asDict()))
+            configFilename_addon = addon.writeConfig(unpackedSessionDir)
             addonSessionConfigFilenames.append(configFilename_addon)
         return addonSessionConfigFilenames
 
