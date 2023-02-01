@@ -17,6 +17,7 @@ from . import MainViewPanel
 from RTNaBS.util import exceptionToStr
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
+from RTNaBS.util.GUI.ErrorDialog import raiseErrorDialog
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -254,7 +255,7 @@ class ManageSessionPanel(MainViewPanel):
                 assert os.path.isfile(sesFilepath)
                 session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
         except Exception as e:
-            logger.warning('Problem loading session from {}:\n{}'.format(sesFilepath, exceptionToStr(e)))
+            raiseErrorDialog(f'Problem loading session from {sesFilepath}', exception=e)
             return
 
         self.sigAboutToFinishLoadingSession.emit(session)

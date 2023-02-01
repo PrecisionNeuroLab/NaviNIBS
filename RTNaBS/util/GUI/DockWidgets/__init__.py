@@ -1,3 +1,4 @@
+from __future__ import annotations
 import attrs
 import logging
 from enum import Enum
@@ -125,6 +126,9 @@ class DockWidget(KDDockWidgets.DockWidget):
 
     def close(self):
         super().close()
+
+    def addDockWidgetAsTab(self, dockWidget: DockWidget):
+        super().addDockWidgetAsTab(dockWidget)
 
 
 class MainWindow(KDDockWidgets.MainWindow):
