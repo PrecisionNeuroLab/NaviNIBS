@@ -12,11 +12,6 @@ import os
 import pathlib
 
 import pandas as pd
-import pyvista as pv
-import pyvistaqt as pvqt
-from pyqtgraph.dockarea import DockArea, Dock
-import qtawesome as qta
-from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 from typing import ClassVar

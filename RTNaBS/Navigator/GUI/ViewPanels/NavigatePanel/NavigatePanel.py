@@ -1,45 +1,26 @@
 from __future__ import annotations
 
-import asyncio
-
-import appdirs
 import attrs
-from datetime import datetime
 import logging
-import multiprocessing as mp
 import numpy as np
-import os
-import pathlib
 
 import pandas as pd
-import pyvista as pv
-import pyvistaqt as pvqt
-from pyqtgraph.dockarea import DockArea, Dock
 import qtawesome as qta
-from qtpy import QtWidgets, QtGui, QtCore
-import shutil
+from qtpy import QtWidgets, QtGui
 import typing as tp
-from typing import ClassVar
 
 from .. import MainViewPanel
 from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
-from .TargetingCoordinator import TargetingCoordinator
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
+from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.Model.Session import Session, Target
-from RTNaBS.Navigator.Model.Tools import Tool, CoilTool, SubjectTracker, CalibrationPlate, Pointer
+from RTNaBS.Navigator.Model.Tools import CalibrationPlate, Pointer
 from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
-from RTNaBS.Navigator.Model.Samples import Samples, Sample, getSampleTimestampNow
+from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -144,29 +125,30 @@ class NavigatePanel(MainViewPanel):
                and self.session.tools.subjectTracker is not None \
                and self.session.subjectRegistration.isRegistered
 
+    def _createDockWidget(self,
+                          title: str,
+                          widget: tp.Optional[QtWidgets.QWidget] = None,
+                          layout: tp.Optional[QtWidgets.QLayout] = None):
+        cdw = dw.DockWidget(
+            uniqueName=self._key + title,
+            options=dw.DockWidgetOptions(notClosable=True),
+            title=title,
+            affinities=[self._key]
+        )
+        if widget is None:
+            widget = QtWidgets.QWidget()
+        if layout is not None:
+            widget.setLayout(layout)
+        # widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
+        cdw.setWidget(widget)
+        cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
+        self._dockWidgets[title] = cdw
+        return cdw, widget
+
     def _finishInitialization(self):
         super()._finishInitialization()
 
-        def createDockWidget(title: str,
-                             widget: tp.Optional[QtWidgets.QWidget] = None,
-                             layout: tp.Optional[QtWidgets.QLayout] = None):
-            cdw = dw.DockWidget(
-                uniqueName=self._key + title,
-                options=dw.DockWidgetOptions(notClosable=True),
-                title=title,
-                affinities=[self._key]
-            )
-            if widget is None:
-                widget = QtWidgets.QWidget()
-            if layout is not None:
-                widget.setLayout(layout)
-            #widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
-            cdw.setWidget(widget)
-            cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
-            self._dockWidgets[title] = cdw
-            return cdw, widget
-
-        cdw, container = createDockWidget(
+        cdw, container = self._createDockWidget(
             title='Tools tracking status',
         )
         self._trackingStatusWdgt = TrackingStatusWidget(wdgt=container,
@@ -177,7 +159,7 @@ class NavigatePanel(MainViewPanel):
         self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
         container.layout().addWidget(self._targetsTableWdgt.wdgt)
 
-        cdw, container = createDockWidget(
+        cdw, container = self._createDockWidget(
             title='Targets',
             widget=self._targetsTableWdgt.wdgt
         )
@@ -189,7 +171,7 @@ class NavigatePanel(MainViewPanel):
         ]
 
         for poseGroupDict in poseGroupDicts:
-            cdw, container = createDockWidget(
+            cdw, container = self._createDockWidget(
                 title=poseGroupDict['title'],
             )
 
@@ -203,7 +185,7 @@ class NavigatePanel(MainViewPanel):
 
             self._poseMetricGroups.append(poseGroup)
 
-        cdw, container = createDockWidget(
+        cdw, container = self._createDockWidget(
             title='Samples',
             layout=QtWidgets.QVBoxLayout())
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
@@ -284,7 +266,6 @@ class NavigatePanel(MainViewPanel):
         self.session.triggerSources.triggerRouter.registerReceiver(self._triggerReceiver)
         if self._isShown:
             self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
-
 
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """

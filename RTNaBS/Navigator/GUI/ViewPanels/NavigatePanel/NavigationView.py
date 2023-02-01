@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import asyncio
-
 import attrs
 import logging
 import numpy as np
-import pyvista as pv
-import pyvistaqt as pvqt
 import pytransform3d.rotations as ptr
-import qtawesome as qta
-from qtpy import QtWidgets, QtGui, QtCore
+from qtpy import QtWidgets
 import typing as tp
 from typing import ClassVar
 
-from .TargetingCoordinator import TargetingCoordinator
+from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
@@ -22,9 +17,9 @@ from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform, composeTransform
+from RTNaBS.util.Transforms import applyTransform, composeTransform
 import RTNaBS.util.GUI.DockWidgets as dw
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter, logger as plotLogger, PrimaryLayeredPlotter, SecondaryLayeredPlotter
+from RTNaBS.util.pyvista.plotting import PrimaryLayeredPlotter
 
 logger = logging.getLogger(__name__)
 #plotLogger.setLevel(logging.DEBUG)
