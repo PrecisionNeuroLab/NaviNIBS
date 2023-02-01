@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import asyncio
-
 import attrs
 import logging
 import numpy as np
-import pyvista as pv
 import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
 from .PlotLayersGroup import PlotLayersGroup
-from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.TargetingCoordinator import ProjectionSpecification
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
-from RTNaBS.util.Transforms import applyTransform, concatenateTransforms, invertTransform, composeTransform
+from RTNaBS.Navigator.TargetingCoordinator import ProjectionSpecification
+from RTNaBS.util.pyvista import setActorUserTransform
+from RTNaBS.util.Transforms import composeTransform
 
 
 logger = logging.getLogger(__name__)
