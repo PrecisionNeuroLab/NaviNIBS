@@ -54,6 +54,8 @@ class PoseMetricCalculator:
         self._supportedMetrics.extend([
             MetricSpecification(getter=self.getTargetErrorInBrain, units=' mm', label='Target error in brain'),
             MetricSpecification(getter=self.getTargetErrorAtCoil, units=' mm', label='Target error at coil'),
+            MetricSpecification(getter=self.getTargetXErrorAtCoil, units=' mm', label='Target X error at coil', doShowByDefault=False),
+            MetricSpecification(getter=self.getTargetYErrorAtCoil, units=' mm', label='Target Y error at coil', doShowByDefault=False),
             MetricSpecification(getter=self.getDepthOffsetError, units=' mm', label='Depth offset error'),
             MetricSpecification(getter=self.getDepthAngleError, units='°', label='Depth angle error'),
             MetricSpecification(getter=self.getDepthTargetXAngleError, units='°', label='Depth target X angle error', doShowByDefault=False),
@@ -156,19 +158,18 @@ class PoseMetricCalculator:
                                   if (key in exceptKeys or key not in includingKeys)}
         self.sigCacheReset.emit()
 
-    def _getTargetErrorAtDepth(self, depthFromTargetCoil: float) -> float:
+    def _getTargetErrorAtDepth(self, depthFromTargetCoil: float, axis: tp.Optional[int] = None) -> float:
 
         target = self._session.targets[self._sample.targetKey]
 
         targetLinePts_targetCoilSpace = np.asarray([[0, 0, -depthFromTargetCoil], [0, 0, -depthFromTargetCoil + 10]])
-        targetLinePts_MRISpace = applyTransform(target.coilToMRITransf, targetLinePts_targetCoilSpace)
 
-        plane = Plane(point=targetLinePts_MRISpace[0, :].squeeze(),
-                      normal=np.diff(targetLinePts_MRISpace, axis=0).squeeze())
+        plane = Plane(point=targetLinePts_targetCoilSpace[0, :].squeeze(),
+                      normal=np.diff(targetLinePts_targetCoilSpace, axis=0).squeeze())
 
         sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
-        sampleLinePts_MRISpace = applyTransform(self._sample.coilToMRITransf, sampleLinePts_sampleCoilSpace)
-        line = Line(sampleLinePts_MRISpace[0, :].squeeze(), np.diff(sampleLinePts_MRISpace, axis=0).squeeze())
+        sampleLinePts_targetCoilSpace = applyTransform([self._sample.coilToMRITransf, invertTransform(target.coilToMRITransf)], sampleLinePts_sampleCoilSpace)
+        line = Line(sampleLinePts_targetCoilSpace[0, :].squeeze(), np.diff(sampleLinePts_targetCoilSpace, axis=0).squeeze())
 
         try:
             samplePtOnPlane = plane.intersect_line(line)
@@ -176,7 +177,10 @@ class PoseMetricCalculator:
             # sample axis is parallel to plane
             return np.nan
 
-        dist = np.linalg.norm(targetLinePts_MRISpace[0, :].squeeze() - samplePtOnPlane)
+        if axis is None:
+            dist = np.linalg.norm(targetLinePts_targetCoilSpace[0, :].squeeze() - samplePtOnPlane)
+        else:
+            dist = targetLinePts_targetCoilSpace[0, axis].squeeze() - samplePtOnPlane[axis]  # note that this is signed
 
         return dist
 
@@ -301,6 +305,34 @@ class PoseMetricCalculator:
         return self._getTargetErrorAtDepth(depthFromTargetCoil=0)
 
     getTargetErrorAtCoil.cacheKey = 'targetErrorAtCoil'
+
+    def getTargetXErrorAtCoil(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(self.getTargetXErrorAtCoil)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        if self._sample.targetKey is None:
+            return np.nan
+
+        return self._getTargetErrorAtDepth(depthFromTargetCoil=0, axis=0)  # note that this is relative to the target X axis, not sample X axis
+
+    getTargetXErrorAtCoil.cacheKey = 'targetXErrorAtCoil'
+
+    def getTargetYErrorAtCoil(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(self.getTargetYErrorAtCoil)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        if self._sample.targetKey is None:
+            return np.nan
+
+        return self._getTargetErrorAtDepth(depthFromTargetCoil=0, axis=0)  # note that this is relative to the target X axis, not sample X axis
+
+    getTargetYErrorAtCoil.cacheKey = 'targetYErrorAtCoil'
 
     def getDepthOffsetError(self, doUseCache: bool = True) -> float:
         if doUseCache:
