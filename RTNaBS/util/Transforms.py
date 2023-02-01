@@ -12,6 +12,15 @@ def composeTransform(R: np.ndarray, p: tp.Optional[np.ndarray] = None) -> np.nda
     return ptt.transform_from(R, p)
 
 
+def decomposeTransform(A2B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Extract translation and rotation components from transform. Assume the transform is rigid.
+    :return: (3x3 rotation matrix, 3-elem translation vector)
+    """
+    R = A2B[0:3, 0:3]
+    T = A2B[0:3, 3]
+    return R, T
+
 def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.ndarray, doStrictCheck: bool = True) -> np.ndarray:
     """
     Apply 4x4 transform(s) to a set of points
