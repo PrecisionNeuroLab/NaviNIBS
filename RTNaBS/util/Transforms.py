@@ -72,6 +72,27 @@ def stringToTransform(inputStr: str) -> np.ndarray:
     return arrayVal
 
 
+def calculateRotationMatrixFromTwoVectors(vecA: np.ndarray, vecB: np.ndarray) -> np.ndarray:
+    """
+    Calculate rotationg such that X-axis points in direction of vecA, Y-axis points in direction of (oproj_vecA vecB)
+    adapted from https://rock-learning.github.io/pytransform3d/_apidoc/pytransform3d.rotations.matrix_from_two_vectors.html
+
+    :param vecA:
+    :param vecB:
+    :return: 3x3 rotation matrix
+    """
+    vecA = vecA / np.linalg.norm(vecA)
+    vecB = vecB / np.linalg.norm(vecB)
+
+    assert not np.array_equal(vecA, vecB)
+
+    dirB = vecB - vecA * np.dot(vecA, vecB)
+
+    dirC = np.cross(vecA, dirB)
+
+    return np.column_stack((vecA, dirB, dirC))
+
+
 def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd', weights: tp.Optional[np.ndarray] = None) -> np.ndarray:
     """
     Estimate a transform that aligns one set of points onto another.
