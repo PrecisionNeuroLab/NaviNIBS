@@ -134,8 +134,8 @@ class Addon(GenericCollectionDictItem[str]):
 
         for key, sessionAttr in self._sessionAttrs.items():
             assert isinstance(sessionAttr, self._SessionAttrs[key].Class)
-            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit([self.key, [key]]))
-            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit([self.key, [key]]))
+            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit(self.key, [key]))
+            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit(self.key, [key]))
 
     @property
     def MainViewPanels(self):
@@ -159,9 +159,9 @@ class Addon(GenericCollectionDictItem[str]):
             raise AttributeError
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        predefinedAttrs = ('MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')  # these should all be defined in fixed addon_configuration.json file
+        predefinedAttrs = ['MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs']  # these should all be defined in fixed addon_configuration.json file
 
-        d = attrsAsDict(self, exclude=list(predefinedAttrs) + ['sessionAttrs'])
+        d = attrsAsDict(self, exclude=predefinedAttrs + ['sessionAttrs'])
         for key, sessionAttr in self._sessionAttrs.items():
             d[key] = sessionAttr.asDict()
 
@@ -171,8 +171,9 @@ class Addon(GenericCollectionDictItem[str]):
 
     def writeConfig(self, unpackedSessionDir: str) -> str:
         configFilename_addon = 'SessionConfig_Addon_' + self.key + '.json'
+        toWrite = jsonPrettyDumps(self.asDict())
         with open(os.path.join(unpackedSessionDir, configFilename_addon), 'w') as f:
-            f.write(jsonPrettyDumps(self.asDict()))
+            f.write(toWrite)
         return configFilename_addon
 
     @classmethod
