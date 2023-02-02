@@ -330,7 +330,7 @@ class PoseMetricCalculator:
         if self._sample.targetKey is None:
             return np.nan
 
-        return self._getTargetErrorAtDepth(depthFromTargetCoil=0, axis=0)  # note that this is relative to the target X axis, not sample X axis
+        return self._getTargetErrorAtDepth(depthFromTargetCoil=0, axis=1)  # note that this is relative to the target X axis, not sample X axis
 
     getTargetYErrorAtCoil.cacheKey = 'targetYErrorAtCoil'
 
