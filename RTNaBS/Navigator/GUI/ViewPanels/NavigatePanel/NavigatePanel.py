@@ -95,6 +95,7 @@ class _PoseMetricGroup:
 
 @attrs.define
 class NavigatePanel(MainViewPanel):
+    _key: str = 'Navigate'
     _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
     _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)

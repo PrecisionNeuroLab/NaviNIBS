@@ -231,7 +231,7 @@ class HotkeyTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[HotkeyTrigge
 
 @attrs.define
 class TriggerSettingsPanel(MainViewPanel):
-
+    _key: str = 'Trigger settings'
     _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.database-import'))
 

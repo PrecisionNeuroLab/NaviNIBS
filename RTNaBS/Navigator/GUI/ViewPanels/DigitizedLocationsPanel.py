@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class DigitizedLocationsPanel(MainViewPanel):
+    _key: str = 'Digitize'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.dots-hexagon'))
     _surfKey: str = 'skinSurf'
 

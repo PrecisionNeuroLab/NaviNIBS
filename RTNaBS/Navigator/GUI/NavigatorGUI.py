@@ -74,35 +74,35 @@ class NavigatorGUI(RunnableAsApp):
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
 
-        self._addViewPanel(MRIPanel(key='Set MRI', session=self._session))
+        self._addViewPanel(MRIPanel(session=self._session))
 
-        self._addViewPanel(HeadModelPanel(key='Set head model', session=self._session))
+        self._addViewPanel(HeadModelPanel(session=self._session))
 
-        self._addViewPanel(FiducialsPanel(key='Plan fiducials', session=self._session))
+        self._addViewPanel(FiducialsPanel(session=self._session))
 
-        self._addViewPanel(CoordinateSystemsPanel(key='Set transforms', session=self._session))
+        self._addViewPanel(CoordinateSystemsPanel(session=self._session))
         # TODO: set up transforms widget
 
-        self._addViewPanel(TargetsPanel(key='Set targets', session=self._session))
+        self._addViewPanel(TargetsPanel(session=self._session))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        self._addViewPanel(ToolsPanel(key='Tools', session=self._session))
+        self._addViewPanel(ToolsPanel(session=self._session))
 
         # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
         #self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
-        self._addViewPanel(TriggerSettingsPanel(key='Trigger settings', session=self._session))
+        self._addViewPanel(TriggerSettingsPanel(session=self._session))
 
-        self._addViewPanel(CameraPanel(key='Camera', session=self._session))
+        self._addViewPanel(CameraPanel(session=self._session))
 
-        self._addViewPanel(SubjectRegistrationPanel(key='Register', session=self._session))
+        self._addViewPanel(SubjectRegistrationPanel(session=self._session))
 
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
-        self._addViewPanel(NavigatePanel(key='Navigate', session=self._session))
+        self._addViewPanel(NavigatePanel(session=self._session))
 
-        self._addViewPanel(DigitizedLocationsPanel(key='Digitize', session=self._session))
+        self._addViewPanel(DigitizedLocationsPanel(session=self._session))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
