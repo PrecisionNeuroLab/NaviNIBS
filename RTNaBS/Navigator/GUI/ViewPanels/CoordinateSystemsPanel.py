@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class CoordinateSystemsPanel(MainViewPanel):
+    _key: str = 'Set transforms'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-sync-outline'))
 
     # TODO

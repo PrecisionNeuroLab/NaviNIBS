@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class FiducialsPanel(MainViewPanel):
+    _key: str = 'Plan fiducials'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake-outline'))
     _tblWdgt: PlanningFiducialsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)

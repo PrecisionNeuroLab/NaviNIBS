@@ -230,6 +230,7 @@ class CoordinateWidget:
 
 @attrs.define
 class TargetsPanel(MainViewPanel):
+    _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
     _tableWdgt: TargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)

@@ -221,6 +221,7 @@ class _PointerDistanceReadouts:
 
 @attrs.define
 class SubjectRegistrationPanel(MainViewPanel):
+    _key: str = 'Register'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake'))
     _surfKey: str = 'skinSurf'
 

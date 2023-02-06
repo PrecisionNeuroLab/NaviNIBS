@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class HeadModelPanel(MainViewPanel):
+    _key: str = 'Set head model'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-cog-outline'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)

@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define()
 class MRIPanel(MainViewPanel):
+    _key: str = 'Set MRI'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.image'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, MRI3DView]] = attrs.field(init=False, factory=dict)

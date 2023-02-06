@@ -44,7 +44,7 @@ class CameraPanel(MainViewPanel):
 
     In the future, can update to have a more device-agnostic base class that is subclassed for specific localization systems
     """
-
+    _key: str = 'Camera'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
 
     _cameraFOVSTLPath: str = None

@@ -333,6 +333,7 @@ class PointerToolWidget(ToolWidget):
 
 @attrs.define
 class ToolsPanel(MainViewPanel):
+    _key: str = 'Tools'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.hammer-screwdriver'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _tblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
