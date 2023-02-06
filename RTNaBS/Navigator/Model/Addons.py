@@ -159,7 +159,7 @@ class Addon(GenericCollectionDictItem[str]):
             raise AttributeError
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        predefinedAttrs = ['MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs']  # these should all be defined in fixed addon_configuration.json file
+        predefinedAttrs = ['key', 'MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs']  # these should all be defined in fixed addon_configuration.json file
 
         d = attrsAsDict(self, exclude=predefinedAttrs + ['sessionAttrs'])
         for key, sessionAttr in self._sessionAttrs.items():
@@ -216,7 +216,7 @@ class Addon(GenericCollectionDictItem[str]):
                 try:
                     SessionAttr = initKwargs['SessionAttrs'][key].Class
                 except KeyError:
-                    raise KeyError('Addon session config included session attributes defined for {key}, but this was not found in addon_configuration.json')
+                    raise KeyError(f'Addon session config included session attributes defined for {key}, but this was not found in addon_configuration.json')
 
                 assert issubclass(SessionAttr, AddonSessionConfig)
                 sessionAttrs[key] = SessionAttr.fromDict(sessionAttrDict)
