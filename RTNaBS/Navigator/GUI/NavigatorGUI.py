@@ -240,18 +240,26 @@ class NavigatorGUI(RunnableAsApp):
 
 
 if __name__ == '__main__':
-    if True:  # TODO: debug, delete or set to False
-        if True:
-            #sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test4.rtnabs')
-            # sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
-            sesFilepath = r'D:\KellerLab\RT-TEP\sub-2355\ses-221202\sub-2355_ses-221202_RTNaBS'
-        else:
-            sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
-                                       'data/TestSession1.rtnabs')
-        NavigatorGUI.createAndRun(sesFilepath=sesFilepath)
-    else:
-        NavigatorGUI.createAndRun()
+    import argparse
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sesFilepath', type=str, default=None)
+    args = parser.parse_args()
+
+    if args.sesFilepath is None:
+        if True:  # TODO: debug, delete or set to False
+            if True:
+                #sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test4.rtnabs')
+                # sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
+                sesFilepath = r'D:\KellerLab\ParameterSearch-MEP\MEPParamSearchV3\sub-2438\ses-230207\sub-2438_ses-230207_RTNaBS'
+            else:
+                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
+                                           'data/TestSession1.rtnabs')
+            NavigatorGUI.createAndRun(sesFilepath=sesFilepath)
+        else:
+            NavigatorGUI.createAndRun()
+    else:
+        NavigatorGUI.createAndRun(sesFilepath=args.sesFilepath)
 
 
 
