@@ -296,3 +296,7 @@ class CameraPanel(MainViewPanel):
                         self._actors[actorKey].VisibilityOff()
                         self._plotter.render()
 
+    def close(self):
+        if self._positionsServerProc is not None:
+            self._stopPositionsServer()
+        super().close()
