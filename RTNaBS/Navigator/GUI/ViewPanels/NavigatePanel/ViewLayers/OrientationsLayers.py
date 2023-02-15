@@ -87,9 +87,46 @@ class OrientationsLayer(PlotViewLayer):
     _style: str = 'lines'
 
     _visualizedOrientations: tp.Dict[str, VisualizedOrientation] = attrs.field(init=False, factory=dict)
+    _loopTask: asyncio.Task = attrs.field(init=False)
+    _hasPendingOrientations: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _pendingOrientationKeys: set[str] = attrs.field(init=False, factory=set)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        self._loopTask = asyncio.create_task(self._loop_drawPendingOrientations())
+
+    async def _loop_drawPendingOrientations(self):
+        """
+        Handle drawing of orientations in async loop here, with a yield to make sure we give
+        GUI time to handle other tasks during drawing of many orientations (e.g. drawing hundreds of samples)
+        """
+        while True:
+            await asyncio.sleep(0)
+            await self._hasPendingOrientations.wait()
+            if len(self._pendingOrientationKeys) == 0:
+                self._hasPendingOrientations.clear()
+                continue
+
+            key = self._pendingOrientationKeys.pop()
+
+            if self._orientationIsVisible(key):
+                isSelected = self.orientations[key].isSelected
+                logger.debug(f'Instantiating visualized orientation for {key}')
+                self._visualizedOrientations[key] = VisualizedOrientation(
+                    orientation=self.orientations[key],
+                    plotter=self._plotter,
+                    colorHandleIndicator=self._colorHandleIndicatorSelected if isSelected else self._colorHandleIndicator,
+                    colorDepthIndicator=self._colorDepthIndicatorSelected if isSelected else self._colorDepthIndicator,
+                    opacity=self._opacity,
+                    lineWidth=self._lineWidth,
+                    style=self._style,
+                    actorKeyPrefix=self._getActorKey(key)
+                )
+                for actorKey, actor in self._visualizedOrientations[key].actors.items():
+                    self._actors[actorKey] = actor
+            else:
+                logger.debug(f'Skipping drawing of {key} since it should not be visible')
 
     def _orientationIsVisible(self, key: str) -> bool:
         """
@@ -121,21 +158,9 @@ class OrientationsLayer(PlotViewLayer):
                     for actorKey in self._visualizedOrientations.pop(key).actors:
                         self._plotter.remove_actor(self._actors.pop(actorKey))
 
-                if self._orientationIsVisible(key):
-                    isSelected = self.orientations[key].isSelected
-                    logger.debug(f'Instantiating visualized orientation for {key}')
-                    self._visualizedOrientations[key] = VisualizedOrientation(
-                        orientation=self.orientations[key],
-                        plotter=self._plotter,
-                        colorHandleIndicator=self._colorHandleIndicatorSelected if isSelected else self._colorHandleIndicator,
-                        colorDepthIndicator=self._colorDepthIndicatorSelected if isSelected else self._colorDepthIndicator,
-                        opacity=self._opacity,
-                        lineWidth=self._lineWidth,
-                        style=self._style,
-                        actorKeyPrefix=self._getActorKey(key)
-                    )
-                    for actorKey, actor in self._visualizedOrientations[key].actors.items():
-                        self._actors[actorKey] = actor
+                self._pendingOrientationKeys.add(key)
+                self._hasPendingOrientations.set()  # tell orientation drawing loop to check for new key(s) to draw
+
 
 @attrs.define
 class SampleOrientationsLayer(OrientationsLayer):
