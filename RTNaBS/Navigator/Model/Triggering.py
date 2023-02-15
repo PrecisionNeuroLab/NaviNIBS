@@ -105,6 +105,9 @@ class HotkeyTriggerSource(TriggerSource):
 @attrs.define
 class TriggerReceiver:
     _key: str
+    _minTimeBetweenEvents: tp.Optional[float] = None
+
+    _lastTriggeredEvent: tp.Optional[TriggerEvent] = attrs.field(init=False, default=None)
     sigTriggered: Signal = attrs.field(init=False, factory=lambda: Signal((TriggerEvent,)))
 
     def __attrs_post_init__(self):
@@ -113,6 +116,16 @@ class TriggerReceiver:
     @property
     def key(self):
         return self._key
+
+    def trigger(self, event: TriggerEvent):
+        if self._minTimeBetweenEvents is not None and self._lastTriggeredEvent is not None:
+            timeBetweenEvents = (event.time - self._lastTriggeredEvent.time).total_seconds()
+            if timeBetweenEvents < self._minTimeBetweenEvents:
+                logger.debug(f'Event {event} occured too quickly after previous, ignoring.')
+                return
+
+        self._lastTriggeredEvent = event
+        self.sigTriggered.emit(event)
 
 
 @attrs.define
@@ -168,12 +181,12 @@ class TriggerRouter:
                 receiverKey = self._exclusiveTriggerStacks[triggerEvt.type][-1]
                 logger.debug(f'Sending exclusive trigger {triggerEvt.type} to {receiverKey}')
                 try:
-                    self._receivers[receiverKey].sigTriggered.emit(triggerEvt)
+                    self._receivers[receiverKey].trigger(triggerEvt)
                 except Exception as e:
                     logger.error(f'Problem while signaling exclusive trigger: \n{exceptionToStr(e)}')
         if triggerEvt.type in self._nonexclusiveTriggerReceivers:
             for receiverKey in self._nonexclusiveTriggerReceivers[triggerEvt.type]:
-                self._receivers[receiverKey].sigTriggered.emit(triggerEvt)
+                self._receivers[receiverKey].trigger(triggerEvt)
 
     def connectToTriggerSource(self, source: TriggerSource):
         source.sigTriggered.connect(self._onSourceTriggered)

@@ -233,7 +233,10 @@ class NavigatePanel(MainViewPanel):
         self._samplesTableWdgt.sigSelectionChanged.connect(self._onSelectedSamplesChanged)
         container.layout().addWidget(self._samplesTableWdgt.wdgt)
 
-        self._triggerReceiver = TriggerReceiver(key=self._key)
+        self._triggerReceiver = TriggerReceiver(
+            key=self._key,
+            minTimeBetweenEvents=1.1,  # TODO: make this GUI-configurable and config-file-configurable
+        )
         self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
 
         if self.session is not None:
