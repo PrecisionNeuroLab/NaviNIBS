@@ -169,22 +169,26 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
             assert len(values) == len(keys)
 
         changingKeys = list()
+        changingAttribsAndValues = dict()
         for iKey, key in enumerate(keys):
             for attrib, values in attribsAndValues.items():
                 assert len(values) == len(keys)
                 if not array_equalish(getattr(self._items[key], attrib), values[iKey]):
                     changingKeys.append(key)
+                    if attrib not in changingAttribsAndValues:
+                        changingAttribsAndValues[attrib] = list()
+                    changingAttribsAndValues[attrib].append(values[iKey])
                     break
 
         if len(changingKeys) == 0:
             return
 
-        self.sigItemsAboutToChange.emit(changingKeys, list(attribsAndValues.keys()))
+        self.sigItemsAboutToChange.emit(changingKeys, list(changingAttribsAndValues.keys()))
         with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
             for iKey, key in enumerate(changingKeys):
-                for attrib, values in attribsAndValues.items():
+                for attrib, values in changingAttribsAndValues.items():
                     setattr(self._items[key], attrib, values[iKey])
-        self.sigItemsChanged.emit(changingKeys, list(attribsAndValues.keys()))
+        self.sigItemsChanged.emit(changingKeys, list(changingAttribsAndValues.keys()))
 
     def _onItemAboutToChange(self, key: str, attribKeys: tp.Optional[list[str]] = None):
         self.sigItemsAboutToChange.emit([key], attribKeys)
