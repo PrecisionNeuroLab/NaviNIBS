@@ -5,6 +5,8 @@ import asyncio
 import appdirs
 import attrs
 from datetime import datetime
+import inspect
+import json
 import logging
 import numpy as np
 import os
@@ -13,6 +15,7 @@ import pyvista as pv
 import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
+import re
 import shutil
 import typing as tp
 
@@ -23,13 +26,15 @@ from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTableWidget, RegistrationFiducialsTableWidget
 from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial
+from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
 from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from RTNaBS.util import makeStrUnique
+from RTNaBS.util import exceptionToStr
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
@@ -236,6 +241,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     _alignToFiducialsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _clearHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _refineWeightsField: QLineEditWithValidationFeedback = attrs.field(init=False)
     _refineWithHeadpointsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
@@ -343,6 +349,53 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         headPtsBox.layout().addWidget(self._headPtsTblWdgt.wdgt)
 
+        container = QtWidgets.QWidget()
+        container.setLayout(QtWidgets.QFormLayout())
+        headPtsBox.layout().addWidget(container)
+        self._refineWeightsField = QLineEditWithValidationFeedback()
+        container.layout().addRow('Refine weights', self._refineWeightsField)
+        self._refineWeightsField.setToolTip(
+            inspect.cleandoc(
+                """
+                Optional weights used for headpoint-based registration refinement, in format expected by 
+                simpleicp's `rbp_observation_weights` argument (i.e. rot_x, rot_y, rot_z, t_x, t_y, t_z). 
+                Can alternatively specify as a single scalar to apply the same weight to all terms, or as 
+                two scalars to apply the first weight to all rotation term, the second weights to all
+                translation terms.
+                
+                Note that values will be inverted (weightArg = 1 / weight) so that higher input values 
+                correspond to greater weighting of head points, rather than greater weighting of fiducials.
+                
+                Note that these weights are different in definition and usage than `Fiducial.alignmentWeight`.
+                """
+            )
+        )
+        self._refineWeightsField.setPlaceholderText('Optional')
+        self._refineWeightsField.editingFinished.connect(self._onHeadPointsWeightsFieldChanged)
+
+        class RefineWeightsValidator(QtGui.QValidator):
+            def __init__(self):
+                super().__init__()
+                self._invalidRegex = re.compile(r'(\[\[)|([a-zA-Z]+)|(\d+ +[\d.]+)|(]])|(,,)|(\.\.)|(] +\[)')
+
+            def validate(self, inputStr: str, pos: int) -> QtGui.QValidator.State:
+                if len(inputStr) == 0:
+                    return self.Acceptable, inputStr, pos
+                try:
+                    listOrScalarVal = json.loads(inputStr)
+                    if not isinstance(listOrScalarVal, (list, float, int)):
+                        raise ValueError('Expected list or scalar')
+                    arrayVal = np.asarray(listOrScalarVal, dtype=np.float64)  # raises value error if problem
+                except ValueError as e:
+                    if self._invalidRegex.search(inputStr):
+                        return self.Invalid, inputStr, pos
+                    else:
+                        return self.Intermediate, inputStr, pos
+                else:
+                    return self.Acceptable, inputStr, pos
+
+        self._refineWeightsField.setValidator(RefineWeightsValidator())
+
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
         headPtsBox.layout().addWidget(btnContainer)
@@ -356,7 +409,6 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._pointerDistanceReadouts = _PointerDistanceReadouts(
             session=self.session,
             positionsClient=self._positionsClient,
-
         )
         sidebar.layout().addWidget(self._pointerDistanceReadouts.wdgt)
 
@@ -383,8 +435,10 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.headModel.sigDataChanged.connect(lambda which: self._redraw(which='initSurf'))
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         self.session.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(self._onHeadpointsChanged)
+        self.session.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(self._onHeadPointAttribsChanged)
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
             'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'initPointer', 'pointerPosition']))
+        self._updateHeadPointsWeightsField()
 
         self._trackingStatusWdgt.session = self.session
 
@@ -406,6 +460,41 @@ class SubjectRegistrationPanel(MainViewPanel):
     def _onHeadpointsChanged(self, ptIndices: list[int], attribs: tp.Optional[list[str]] = None):
         self._redraw(which='initHeadPts')  # TODO: pass which indices to redraw to not entirely redraw each time there's a change
         self._onSelectedHeadPointsChanged(self._headPtsTblWdgt.selectedCollectionItemKeys)
+
+    def _onHeadPointAttribsChanged(self, attribKeys: list[str]):
+        """
+        Called when an attribute of the headpoints instance changes other than the head points themselves.
+
+        For now, this is just the alignmentWeights, but could be something else in the future.
+        """
+        if 'alignmentWeights' in attribKeys:
+            self._updateHeadPointsWeightsField()
+
+    def _updateHeadPointsWeightsField(self):
+        if self.session is None:
+            self._refineWeightsField.setText('')
+        else:
+            weights = self.session.subjectRegistration.sampledHeadPoints.alignmentWeights
+            if weights is None:
+                self._refineWeightsField.setText('')
+            else:
+                newText = json.dumps(weights.tolist())
+                if self._refineWeightsField.text() != newText:
+                    self._refineWeightsField.setText(newText)
+
+    def _onHeadPointsWeightsFieldChanged(self):
+        try:
+            weightsStr = self._refineWeightsField.text()
+            if len(weightsStr)==0:
+                weights = None
+            else:
+                weights = json.loads(weightsStr)
+                weights = np.atleast_1d(np.asarray(weights)).astype(np.float64)
+            self.session.subjectRegistration.sampledHeadPoints.alignmentWeights = weights
+        except Exception as e:
+            # revert text
+            logger.warning(f'Error trying to set weights from str {weightsStr}: {exceptionToStr(e)}')
+            self._updateHeadPointsWeightsField()
 
     def _currentFidTblFidKey(self) -> tp.Optional[str]:
         return self._fidTblWdgt.currentCollectionItemKey
@@ -642,7 +731,31 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         meshHeadPts_MRISpace = self.session.headModel.skinSurf.points
 
-        extraTransf = estimateAligningTransform(sampledHeadPts_MRISpace, meshHeadPts_MRISpace, method='ICP')
+        alignmentWeights = self.session.subjectRegistration.sampledHeadPoints.alignmentWeights
+        if alignmentWeights is not None:
+            match len(alignmentWeights):
+                case 1:
+                    alignmentWeights = np.tile(alignmentWeights, (6,))
+                case 2:
+                    assert alignmentWeights.ndim == 1
+                    alignmentWeights = np.tile(alignmentWeights, (3, 1)).T.flatten()
+                case 6:
+                    pass  # no changes
+                case _:
+                    raise NotImplementedError('Unexpected size of alignmentWeights')
+
+            # Invert weights so that larger input weights correspond to less trusting of initial values.
+            #  Also, convert input zero values to inf values in output.
+            icpObservationWeights = np.divide(1, alignmentWeights,
+                                              out=np.full_like(alignmentWeights, np.inf),
+                                              where=alignmentWeights != 0)
+
+        else:
+            icpObservationWeights = None
+
+        extraTransf = estimateAligningTransform(sampledHeadPts_MRISpace, meshHeadPts_MRISpace,
+                                                method='ICP',
+                                                weights=icpObservationWeights)
 
         logger.info(f'Extra transf from refinining head points: {extraTransf}')
 

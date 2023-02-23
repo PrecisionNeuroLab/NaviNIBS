@@ -206,6 +206,19 @@ class Fiducials(GenericCollection[str, Fiducial]):
 @attrs.define
 class HeadPoints:
     _headPoints: list[HeadPoint] = attrs.field(factory=list)
+    _alignmentWeights: tp.Optional[np.ndarray] = attrs.field(default=None)
+    """
+    Optional weights used for headpoint-based registration refinement, in format expected by 
+    simpleicp's `rbp_observation_weights` argument (i.e. rot_x, rot_y, rot_z, t_x, t_y, t_z). 
+    Can alternatively specify as a single scalar to apply the same weight to all terms, or as 
+    two scalars to apply the first weight to all rotation term, the second weights to all
+    translation terms.
+    
+    Note that values will be inverted (weightArg = 1 / weight) so that higher input values 
+    correspond to greater weighting of head points, rather than greater weighting of fiducials.
+    
+    Note that these weights are different in definition and usage than `Fiducial.alignmentWeight`.
+    """
 
     sigHeadpointsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((list[int],)))
     """
@@ -217,8 +230,33 @@ class HeadPoints:
     This signal includes list of indices of headpoints that changed.
     """
 
+    sigAttribsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((dict[str],)))
+    """
+    This signal includes keys and incoming values of attributes (besides main headPoints list) about to change.
+    """
+
+    sigAttribsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[str],)))
+    """
+    This signal includes keys of attributes (besides main headPoints list) that changed.
+    """
+
     def __attrs_post_init__(self):
         pass
+
+    @property
+    def alignmentWeights(self):
+        return self._alignmentWeights
+
+    @alignmentWeights.setter
+    def alignmentWeights(self, newWeights: tp.Optional[np.ndarray]):
+        if array_equalish(newWeights, self._alignmentWeights):
+            return
+        if newWeights is not None:
+            assert isinstance(newWeights, np.ndarray)
+            assert len(newWeights) in (1, 2, 6)
+        self.sigAttribsAboutToChange.emit(dict(alignmentWeights=newWeights))
+        self._alignmentWeights = newWeights
+        self.sigAttribsChanged.emit(['alignmentWeights'])
 
     def append(self, point: HeadPoint):
         index = len(self)
@@ -380,6 +418,9 @@ class SubjectRegistration:
 
         d['sampledHeadPoints'] = self._sampledHeadPoints.asList()
 
+        if self._sampledHeadPoints.alignmentWeights is not None:
+            d['headPointAlignmentWeights'] = self._sampledHeadPoints.alignmentWeights.tolist()
+
         if self._trackerToMRITransf is not None:
             d['trackerToMRITransf'] = self._trackerToMRITransf.tolist()
         if len(self._trackerToMRITransfHistory) > 0:
@@ -413,6 +454,9 @@ class SubjectRegistration:
 
         if 'sampledHeadPoints' in d:
             d['sampledHeadPoints'] = HeadPoints.fromList(d['sampledHeadPoints'])
+
+        if 'headPointAlignmentWeights' in d:
+            d['sampledHeadPoints'].alignmentWeights = np.asarray(d.pop('headPointAlignmentWeights'))
 
         if 'trackerToMRITransf' in d:
             d['trackerToMRITransf'] = convertTransf(d['trackerToMRITransf'])
