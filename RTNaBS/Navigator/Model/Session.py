@@ -92,6 +92,7 @@ class Session:
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
         self.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
+        self.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
         self.targets.sigItemsChanged.connect(lambda targetKeys, attribKeys: self.flagKeyAsDirty('targets'))
         self.samples.sigItemsChanged.connect(lambda sampleTimestamps, attribKeys: self.flagKeyAsDirty('samples'))

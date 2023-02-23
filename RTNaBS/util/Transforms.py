@@ -116,6 +116,11 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
     :param ptsA: Nx3 ndarray of points 
     :param ptsB: Mx3 ndarray of points
     :param method: method to use for estimating transform. Default is 'kabsch-svd''
+    :param weights: default None, otherwise format depends on method:
+        if method == 'kabsch-svd':
+            Kabsch weighted algorithm will be used. Weights should be of length equal to number of points in ptsA and ptsB.
+        elif method == 'ICP':
+            Weights should be of length 6, with values as defined by simpleicp's `rbp_observation_weights` argument.
     :return: A2B, 4x4 transform aligning ptsA to ptsB 
     """
 
@@ -163,8 +168,10 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
             return transf
 
         case 'ICP':
+            runKwargs = dict()
             if weights is not None:
-                raise NotImplementedError(f'Weights not supported for method={method}')
+                assert len(weights) == 6
+                runKwargs['rbp_observation_weights'] = weights
 
             import simpleicp
 
@@ -172,7 +179,7 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
             pc_mov = simpleicp.PointCloud(ptsA, columns=('x', 'y', 'z'))
             icp = simpleicp.SimpleICP()
             icp.add_point_clouds(pc_fix, pc_mov)
-            H, X_mov_transformed, rigid_body_transformation_params = icp.run()
+            H, X_mov_transformed, rigid_body_transformation_params = icp.run(**runKwargs)
 
             return H
 
