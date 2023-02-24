@@ -51,7 +51,7 @@ class TriggerSource(GenericCollectionDictItem[str]):
             case LSLTriggerSource.type:
                 return LSLTriggerSource(**d)
             case HotkeyTriggerSource.type:
-                return HotkeyTriggerSource(**d)
+                return HotkeyTriggerSource.fromDict(d)
             case _:
                 raise NotImplementedError(f'Unexpected trigger source type: {type}')
 
@@ -60,7 +60,8 @@ class TriggerSource(GenericCollectionDictItem[str]):
 class LSLTriggerSource(TriggerSource):
     type: ClassVar[str] = 'LSLTriggerSource'
     _streamKey: tp.Optional[str] = None
-    _triggerEvents: tp.Optional[list[str]] = None  # list of event values on which to trigger
+    _triggerEvents: tp.Optional[dict[str, tp.Optional[str]]] = None  # dict mapping of {eventValue: action} on which to trigger
+    _defaultAction: str = 'pulse'
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -82,24 +83,104 @@ class LSLTriggerSource(TriggerSource):
         return self._triggerEvents
 
     @triggerEvents.setter
-    def triggerEvents(self, newEvents: tp.Optional[list[str]]):
+    def triggerEvents(self, newEvents: tp.Optional[dict[str, tp.Optional[str]]]):
         if self._triggerEvents == newEvents:
             return
         self.sigItemAboutToChange.emit(self.key, ['triggerEvents'])
         self._triggerEvents = newEvents
         self.sigItemChanged.emit(self.key, ['triggerEvents'])
 
+    @property
+    def defaultAction(self):
+        return self._defaultAction
+
+
+@attrs.define
+class Hotkey(GenericCollectionDictItem[str]):
+    _key: str
+    """
+    Literal key that will trigger hotkey (e.g. "." or "PgDn")
+    """
+    _action: str
+    """
+    Action to trigger when hotkey fires (e.g. "sample", "previous", or "next")
+    """
+    _keyboardDeviceID: tp.Optional[str] = None
+    """
+    Can specify a keyboard's device ID to only respond to keypresses from that device. Useful for situations
+    like when using a presenter remote that generates common keypresses like '.' and 'esc', and you don't want
+    triggers to be generated when pressing the same keys on a normal keyboard.
+
+    If None, no device filter will be applied.
+    """
+
+    @property
+    def action(self):
+        return self._action
+
+    @action.setter
+    def action(self, newAction: str):
+        if self._action == newAction:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['action'])
+        self._action = newAction
+        self.sigItemChanged.emit(self.key, ['action'])
+
+    @property
+    def keyboardDeviceID(self):
+        return self._keyboardDeviceID
+
+    @keyboardDeviceID.setter
+    def keyboardDeviceID(self, newID: tp.Optional[str]):
+        if self._keyboardDeviceID == newID:
+            return
+
+        self.sigItemAboutToChange.emit(self.key, ['keyboardDeviceID'])
+        self._keyboardDeviceID = newID
+        self.sigItemChanged.emit(self.key, ['keyboardDeviceID'])
+
+
+@attrs.define
+class Hotkeys(GenericCollection[str, Hotkey]):
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+    @classmethod
+    def fromList(cls, itemList: list[dict[str, tp.Any]]) -> Hotkeys:
+        items = {}
+        for itemDict in itemList:
+            items[itemDict['key']] = Hotkey.fromDict(itemDict)
+
+        return cls(items=items)
+
 
 @attrs.define
 class HotkeyTriggerSource(TriggerSource):
     type: ClassVar[str] = 'HotkeyTriggerSource'
 
-    _keyMapping: dict[str, str] = attrs.field(factory=lambda: {
-        'F13': 'sample'  # TODO: determine foot pedal key mapping and fill in here
-    })
-    """
-    Mapping from hotkey to trigger key.
-    """
+    _hotkeys: Hotkeys = attrs.field(factory=Hotkeys)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._hotkeys.sigItemsAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit(self.key, ['hotkeys']))
+        self._hotkeys.sigItemsChanged.connect(lambda *args: self.sigItemChanged.emit(self.key, ['hotkeys']))
+
+    @property
+    def hotkeys(self):
+        return self._hotkeys
+
+    def asDict(self) -> dict[str, tp.Any]:
+        d = attrsAsDict(self, exclude=['hotkeys'])
+        d['type'] = self.type
+        d['hotkeys'] = self.hotkeys.asList()
+        return d
+
+    @classmethod
+    def fromDict(cls, d):
+        if 'hotkeys' in d:
+            d['hotkeys'] = Hotkeys.fromList(d['hotkeys'])
+        return cls(**d)
 
 
 @attrs.define

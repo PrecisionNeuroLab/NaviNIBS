@@ -269,7 +269,10 @@ class NavigatePanel(MainViewPanel):
         # register that we want to receive sample triggers when visible
         self.session.triggerSources.triggerRouter.registerReceiver(self._triggerReceiver)
         if self._isShown:
-            self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
+            self.session.triggerSources.triggerRouter.subscribeToTrigger(
+                receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
+            self.session.triggerSources.triggerRouter.subscribeToTrigger(
+                receiver=self._triggerReceiver, triggerKey='pulse', exclusive=True)
 
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """
