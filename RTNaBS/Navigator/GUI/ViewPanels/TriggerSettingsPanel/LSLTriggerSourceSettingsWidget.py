@@ -1,74 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import typing as tp
+
 import attrs
 import logging
-
 import numpy as np
 import pandas as pd
-import qtawesome as qta
-from qtpy import QtWidgets, QtGui, QtCore
-import typing as tp
 import pylsl as lsl
+from qtpy import QtWidgets
 
-from . import MainViewPanel
-from RTNaBS.Navigator.Model.Triggering import TriggerEvent, TriggerSource, LSLTriggerSource, HotkeyTriggerSource
-from RTNaBS.util import exceptionToStr
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
-from RTNaBS.util.lsl import getDTypeFromStreamInfo
+from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
+from RTNaBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent
 from RTNaBS.util.lsl.LSLStreamSelector import LSLStreamSelector
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.Navigator.Model.Session import Session
 
 
 logger = logging.getLogger(__name__)
-
-
-TS = tp.TypeVar('TS')   # TriggerSource class (e.g. LSLTriggerSource) referenced by a settings widget
-
-
-@attrs.define(kw_only=True)
-class TriggerSourceSettingsWidget(tp.Generic[TS]):
-    _dockKey: str
-    _title: str
-    _cdw: dw.DockWidget = attrs.field(init=False)
-    _wdgt: QtWidgets.QWidget = attrs.field(factory=QtWidgets.QWidget)
-    _triggerSourceKey: str
-    _session: Session
-
-    def __attrs_post_init__(self):
-        self._cdw = dw.DockWidget(
-            uniqueName=self._dockKey + self._title,
-            options=dw.DockWidgetOptions(notClosable=True),
-            title=self._title,
-            affinities=[self._dockKey]
-        )
-        self._cdw.setWidget(self._wdgt)
-
-    @property
-    def cdw(self):
-        return self._cdw
-
-    @property
-    def session(self):
-        return self._session
-
-    @session.setter
-    def session(self, newSession: Session):
-        self._session = newSession
-        self._onSessionSet()
-
-    def _onSessionSet(self):
-        pass
-
-    @property
-    def triggerSource(self) -> tp.Optional[TS]:
-        if self.session is not None and self._triggerSourceKey in self.session.triggerSources:
-            return self.session.triggerSources[self._triggerSourceKey]
-        else:
-            return None
-
 
 @attrs.define
 class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSource]):
@@ -81,7 +28,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
     _inletConnectedEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _pollPeriod: float = 0.05
     _pollTask: asyncio.Task = attrs.field(init=False)
-    _lastTriggerTime: tp.Optional[pd.Timestamp] = attrs.field(init=False, default=None)
+    _lastTriggerTimePerAction: dict[str, tp.Optional[pd.Timestamp]] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -109,7 +56,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
             logger.info('Selected trigger stream is not available. Skipping attempt to connect')
             return
 
-        isFixedRate =  self._streamSelector.selectedStreamInfo.nominal_srate() > 0
+        isFixedRate = self._streamSelector.selectedStreamInfo.nominal_srate() > 0
         if isFixedRate:
             logger.warning('Fixed rate streams not currently supported. Not connecting inlet.')
             return
@@ -152,16 +99,21 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                 continue
 
             for evtTime, evtDat in zip(evtTimes, evtData):
+                if self.triggerSource.triggerEvents is not None:
+                    action = self.triggerSource.triggerEvents.get(evtDat, None)
+                if action is None:
+                    action = self.triggerSource.defaultAction
+
                 triggerEvt = TriggerEvent(
-                    type='sample',  # assume for now that all relevant LSL triggers should trigger samples
+                    type=action,
                     time=pd.Timestamp.now() + pd.Timedelta(seconds=(evtTime - lsl.local_clock())),  # convert from lsl time to pandas timestamp
                     metadata=dict(originalType=evtDat)
                 )
-                if self._lastTriggerTime is not None and (triggerEvt.time - self._lastTriggerTime).total_seconds() < self._minInterTriggerPeriod:
+                if self._lastTriggerTimePerAction[action] is not None and (triggerEvt.time - self._lastTriggerTimePerAction[action]).total_seconds() < self._minInterTriggerPeriod:
                     logger.debug('Ignoring trigger that occured too quickly after previous')
                     continue
                 self.triggerSource.trigger(triggerEvt)
-                self._lastTriggerTime = triggerEvt.time
+                self._lastTriggerTimePerAction[action] = triggerEvt.time
 
     def _getRelevantEvents(self, evtTimes: list[float], evtData: np.ndarray) -> tuple[list[float], list[np.ndarray], np.ndarray]:
         if self.triggerSource.triggerEvents is not None and len(self.triggerSource.triggerEvents) > 0:
@@ -184,8 +136,6 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
             relevantEvtTimes.append(evtTimes[evtIndex])
             relevantEvtData.append(evtData[evtIndex])
         return relevantEvtTimes, relevantEvtData, relevantEvtIndices
-
-
 
     def _onSelectedStreamKeyChanged(self, newKey: str):
         if self.session is None:
@@ -217,54 +167,3 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
             self.session.triggerSources[self._triggerSourceKey] = LSLTriggerSource()
         self._streamSelector.selectedStreamKey = self.triggerSource.streamKey
         self._session.triggerSources.sigItemsChanged.connect(self._onSessionTriggerSettingChanged)
-
-@attrs.define
-class HotkeyTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[HotkeyTriggerSource]):
-    _title: str = 'Hotkey trigger settings'
-    _triggerSourceKey: str = 'HotkeyTriggerSource'
-
-    def __attrs_post_init__(self):
-        super().__attrs_post_init__()
-
-    # TODO
-
-
-@attrs.define
-class TriggerSettingsPanel(MainViewPanel):
-    _key: str = 'Trigger settings'
-    _wdgt: DockWidgetsContainer = attrs.field(init=False)
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.database-import'))
-
-    _lslSettings: LSLTriggerSourceSettingsWidget = attrs.field(init=False)
-    _hotkeySettings: HotkeyTriggerSourceSettingsWidget = attrs.field(init=False)
-
-    def __attrs_post_init__(self):
-        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
-        self._wdgt.setAffinities([self._key])
-
-        self._lslSettings = LSLTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
-        self._wdgt.addDockWidget(self._lslSettings.cdw, dw.DockWidgetLocation.OnLeft)
-
-        self._hotkeySettings = HotkeyTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
-        self._wdgt.addDockWidget(self._hotkeySettings.cdw, dw.DockWidgetLocation.OnRight)
-
-        super().__attrs_post_init__()
-
-    def _finishInitialization(self):
-        super()._finishInitialization()
-
-        if self.session is not None:
-            self._onPanelInitializedAndSessionSet()
-
-    def _onSessionSet(self):
-        super()._onSessionSet()
-        self._lslSettings.session = self.session
-        self._hotkeySettings.session = self.session
-        if self._hasInitialized:
-            self._onPanelInitializedAndSessionSet()
-
-    def _onPanelInitializedAndSessionSet(self):
-        pass
-
-    def _onTriggered(self, triggerEvt: TriggerEvent):
-        pass  # TODO: show GUI indicator about time of last trigger(s)

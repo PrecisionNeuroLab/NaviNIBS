@@ -34,6 +34,7 @@ simpleicp = "^2.0.12"
 pytest-asyncio = "^0.19.0"
 pytest-pycharm = "^0.7.0"
 nitransforms = {git = "https://github.com/nipy/nitransforms.git"}
+keyboard = {git = "https://github.com/chriscline/keyboard.git"}
 darkdetect = "^0.7.1"
 rmsd = "^1.5.1"
 

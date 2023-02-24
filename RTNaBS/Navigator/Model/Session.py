@@ -87,7 +87,7 @@ class Session:
         if self._tools is None:
             self._tools = Tools(sessionPath=self._filepath)
 
-        self.sigInfoChanged.connect(lambda _: self.flagKeyAsDirty('info'))
+        self.sigInfoChanged.connect(lambda *args: self.flagKeyAsDirty('info'))
         self.MRI.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
         self.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
@@ -97,8 +97,8 @@ class Session:
         self.targets.sigItemsChanged.connect(lambda targetKeys, attribKeys: self.flagKeyAsDirty('targets'))
         self.samples.sigItemsChanged.connect(lambda sampleTimestamps, attribKeys: self.flagKeyAsDirty('samples'))
         self.tools.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
-        self.tools.sigPositionsServerInfoChanged.connect(lambda infoKeys: self.flagKeyAsDirty('tools'))
-        self.triggerSources.sigItemsChanged.connect(lambda sourceKey: self.flagKeyAsDirty('triggerSources'))
+        self.tools.sigPositionsServerInfoChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
+        self.triggerSources.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('triggerSources'))
         self.addons.sigItemsChanged.connect(self._onAddonsChanged)
         self.targets.sigItemKeyChanged.connect(self._onTargetKeyChanged)
         self.coordinateSystems.sigItemsChanged.connect(self._onCoordinateSystemsChanged)
@@ -326,7 +326,7 @@ class Session:
 
         if 'triggerSources' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing triggerSources info')
-            config['triggerSources'] = self.triggerSources.asDict()
+            config['triggerSources'] = self.triggerSources.asList()
             keysToSave.discard('triggerSources')
 
         # TODO: loop through any addons to give them a chance to save to config as needed
