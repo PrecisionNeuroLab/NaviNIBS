@@ -64,6 +64,24 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
     This is a mapping from columnKey -> default value. If a column is not present in mapping, its default
     will be empty or false.
     """
+    _addNewRowFromEditedPlaceholder: tp.Optional[tp.Callable[[tp.Any,...], K]] = attrs.field(default=None)
+    """
+    When user tries editing the placeholder row, a new row should be added to the collection. Specify how to
+    create a new collection entry by providing a function that accepts as arguments any edited kwargs (e.g.
+    a new key), creates an instance of a collection item, and adds this to the model, and returns the corresponding key.     
+    
+    Only used if `hasPlaceholderNewRow` is True. If not specified, columns in the placeholder row will not
+    be editable even if they are editable in other rows.
+    
+    For example, using typical GenericCollection and GenericCollectionItem subclasses::
+        
+        def addNewRow(**kwargs) -> str:
+            item = CollectionItem(**kwargs)
+            collection.addItem(item)
+            return item.key
+            
+        addNewRowFromEditedPlaceholder=addNewRow 
+    """
 
     _collection: tp.Union[Sequence[CI], Mapping[K, CI]] = attrs.field(init=False)
 
@@ -73,6 +91,8 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
     def __attrs_post_init__(self):
         QtCore.QAbstractTableModel.__init__(self)
+
+        doAutoCollateColumns = len(self._columns) == 0
 
         for seq in (self._attrColumns,
                     self._derivedColumns.keys(),
@@ -84,7 +104,11 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                     self._derivedColumnSetters.keys(),
                     self._placeholderNewRowDefaults.keys()):
             for key in seq:
-                assert key in self._columns, f'{key} not in main columns list'
+                if doAutoCollateColumns:
+                    if key not in self._columns:
+                        self._columns.append(key)
+                else:
+                    assert key in self._columns, f'{key} not in main columns list'
 
     @property
     def collectionIsDict(self):
@@ -103,7 +127,16 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             flags |= QtCore.Qt.ItemIsUserCheckable
 
         if colKey in self._editableColumns and colKey not in self._boolColumns:
-            flags |= QtCore.Qt.ItemIsEditable
+            if self._hasPlaceholderNewRow and self._addNewRowFromEditedPlaceholder is None:
+                # editing columns not allowed if in placeholder row
+                itemKey = self.getCollectionItemKeyFromIndex(index.row())
+                if itemKey is None:
+                    # in placeholder row
+                    pass  # don't set flag
+                else:
+                    flags |= QtCore.Qt.ItemIsEditable
+            else:
+                flags |= QtCore.Qt.ItemIsEditable
 
         return flags
 
@@ -216,12 +249,21 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                 if colKey not in self._boolColumns:
                     logger.info(f'Editing column {colKey} to value {value}')
                     itemKey = self.getCollectionItemKeyFromIndex(index.row())
+
                     if colKey in self._editableColumnValidators:
                         oldValue = self.data(index, role)
                         isValid = self._editableColumnValidators[colKey](itemKey, oldValue, value)
                         if not isValid:
                             logger.warning('Attempted to set invalid value, rejecting change.')
                             return False
+
+                    if self._hasPlaceholderNewRow and itemKey is None:
+                        # tried to edit placeholder row, so create a new row and apply the edit to it
+                        assert self._addNewRowFromEditedPlaceholder is not None
+                        newItemKey = self._addNewRowFromEditedPlaceholder(**{colKey: value})
+                        # TODO: change current item to newly created row
+                        return True
+
                     if colKey in self._derivedColumnSetters:
                         self._derivedColumnSetters[colKey](itemKey, value)
                     elif colKey in self._attrColumns:

@@ -51,6 +51,8 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
     def __attrs_post_init__(self):
         self._tableView.setSelectionBehavior(self._tableView.SelectRows)
         self._tableView.setSelectionMode(self._tableView.ExtendedSelection)
+        if self._session is not None:
+            self._onSessionSet()
 
     @property
     def wdgt(self):
@@ -68,6 +70,9 @@ class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
             raise NotImplementedError  # TODO: notify table view of model change, disconnect from previous signals
         assert self._model is None
         self._session = newSes
+        self._onSessionSet()
+
+    def _onSessionSet(self):
         self._model = self._Model(self._session)
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
         self._tableView.setModel(self._model)
