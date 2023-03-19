@@ -36,6 +36,9 @@ def attrsAsDict(obj,
             else:
                 default = attrib.default
 
+            if attrib.default is attrs.NOTHING:
+                return True  # no default set, so include value without checking equality
+
             if attrib.eq:
                 if eqs is not None:
                     if attrib.name not in eqs and attrib.name.startswith('_'):
