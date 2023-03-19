@@ -244,8 +244,14 @@ class TargetsPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        if not self.session.MRI.isSet:
+            return False, 'No MRI set'
+        if not self.session.headModel.isSet:
+            return False, 'No head model set'
+        return True, None
 
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
@@ -353,7 +359,6 @@ class TargetsPanel(MainViewPanel):
 
         for key, view in self._views.items():
             view.session = self.session
-
 
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
         return self._tableWdgt.currentCollectionItemKey

@@ -346,8 +346,10 @@ class ToolsPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        return True, None
 
     def _finishInitialization(self):
         super()._finishInitialization()
