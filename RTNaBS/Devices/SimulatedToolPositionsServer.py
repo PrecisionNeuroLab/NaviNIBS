@@ -32,7 +32,7 @@ class SimulatedToolPositionsServer(ToolPositionsServer):
             assert transf.shape == (4, 4)
         pos = TimestampedToolPosition(time=time.time(), transf=transf)
         logger.info(f'Setting new simulated position for {key}: {pos}')
-        await self._recordNewPosition(key=key, position=pos)
+        await self.recordNewPosition(key=key, position=pos)
 
 
 if __name__ == '__main__':
