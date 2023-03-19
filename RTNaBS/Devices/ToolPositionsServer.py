@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger_ZMQConnector.setLevel(logging.INFO)
 
+
 @attrs.define
 class ToolPositionsServer:
     """
@@ -64,7 +65,9 @@ class ToolPositionsServer:
                 self._pubSocket.send_json({key: (val.asDict() if val is not None else None) for key, val in self._latestPositions.items()})
                 self._publishPending.clear()
 
-    async def _recordNewPosition(self, key: str, position: TimestampedToolPosition):
+    async def recordNewPosition(self, key: str, position: TimestampedToolPosition | dict):
+        if isinstance(position, dict):
+            position = TimestampedToolPosition.fromDict(position)
         if key in self._latestPositions and self._latestPositions[key].time > position.time:
             logger.warning('New position appears to have been received out of order. Discarding.')
             return

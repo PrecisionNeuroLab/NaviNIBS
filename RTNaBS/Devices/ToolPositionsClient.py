@@ -11,6 +11,7 @@ from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, posi
 from RTNaBS.util import ZMQAsyncioFix
 from RTNaBS.util.ZMQConnector import ZMQConnectorClient, logger as logger_ZMQConnector
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.Transforms import concatenateTransforms
 from RTNaBS.util import exceptionToStr
 
 
@@ -62,6 +63,9 @@ class ToolPositionsClient:
 
     @property
     def latestPositions(self):
+        """
+        Note that returned positions may be absolute (rel to world) or relative, based on pos.relativeTo
+        """
         return self._latestPositions
 
     def getServerType(self) -> str:
@@ -73,13 +77,32 @@ class ToolPositionsClient:
             self._pollTask = None
 
     def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
+        """
+        Note that returned transf is always absolute, even if the underlying latest position was relative
+        """
         tsPos = self.latestPositions.get(key, None)
         if tsPos is None or tsPos.transf is None:
             if default is _novalue:
                 raise KeyError('No matching, valid transf found')
             else:
                 return default
+        if tsPos.relativeTo != 'world':
+            # convert relative transform to world transform
+            otherTransf = self.getLatestTransf(key=tsPos.relativeTo)
+            if otherTransf is _novalue:
+                return default
+            else:
+                return concatenateTransforms((tsPos.transf, otherTransf))
         return tsPos.transf
+
+    async def recordNewPosition(self, key: str, position: TimestampedToolPosition):
+        """
+        This should only be used to record positions of tools that are not tracked by the camera
+        (e.g. when a position is reported by some other external system)
+        """
+        await self._connector.callAsync_async('recordNewPosition',
+                                              key=key,
+                                              position=position.asDict())
 
     async def _receiveLatestPositionsLoop(self):
         poller = azmq.Poller()
