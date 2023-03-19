@@ -252,10 +252,20 @@ class SubjectRegistrationPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
-            and self.session.tools.subjectTracker is not None and self.session.tools.pointer is not None \
-            and self.session.subjectRegistration.hasMinimumPlannedFiducials
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        if not self.session.MRI.isSet:
+            return False, 'No MRI set'
+        if not self.session.headModel.isSet:
+            return False, 'No head model set'
+        if self.session.tools.subjectTracker is None:
+            return False, 'No active subject tracker configured'
+        if self.session.tools.pointer is None:
+            return False, 'No active pointer tool configured'
+        if not self.session.subjectRegistration.hasMinimumPlannedFiducials:
+            return False, 'Missing planned fiducials'
+        return True, None
 
     def _finishInitialization(self):
         super()._finishInitialization()

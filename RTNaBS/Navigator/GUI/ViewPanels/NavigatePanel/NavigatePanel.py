@@ -121,10 +121,18 @@ class NavigatePanel(MainViewPanel):
 
         super().__attrs_post_init__()
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet and self.session.headModel.isSet \
-               and self.session.tools.subjectTracker is not None \
-               and self.session.subjectRegistration.isRegistered
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        if not self.session.MRI.isSet:
+            return False, 'No MRI set'
+        if not self.session.headModel.isSet:
+            return False, 'No head model set'
+        if self.session.tools.subjectTracker is None:
+            return False, 'No active subject tracker configured'
+        if not self.session.subjectRegistration.isRegistered:
+            return False, 'Subject not registered'
+        return True, None
 
     def _createDockWidget(self,
                           title: str,
@@ -294,7 +302,7 @@ class NavigatePanel(MainViewPanel):
 
     def _onPanelHidden(self):
         super()._onPanelHidden()
-        if self._hasInitialized:
+        if self._hasInitialized and self.session is not None:
             self.session.triggerSources.triggerRouter.unsubscribeFromTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
 
             for view in self._views.values():

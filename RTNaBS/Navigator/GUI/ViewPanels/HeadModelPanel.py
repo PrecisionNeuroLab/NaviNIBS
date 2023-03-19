@@ -37,8 +37,12 @@ class HeadModelPanel(MainViewPanel):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-    def canBeEnabled(self) -> bool:
-        return self.session is not None and self.session.MRI.isSet
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        if not self.session.MRI.isSet:
+            return False, 'No MRI set'
+        return True, None
 
     def _finishInitialization(self):
         # don't initialize computationally-demanding views until panel is activated (viewed)

@@ -58,8 +58,10 @@ class SimulatedToolsPanel(MainViewPanel):
 
         super().__attrs_post_init__()
 
-    def canBeEnabled(self):
-        return self.session is not None
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        return True, None
 
     def _finishInitialization(self):
         super()._finishInitialization()
@@ -111,10 +113,11 @@ class SimulatedToolsPanel(MainViewPanel):
 
         container.layout().addStretch()
 
+        logger.debug(f'Preparing background plotter')
+
         self._plotter = BackgroundPlotter(
             show=False,
             app=QtWidgets.QApplication.instance())
-        self._plotter.set_background('#FFFFFF')
         self._plotter.enable_depth_peeling(3)
         if False:
             # (disabled for now, breaks mesh picking)
@@ -135,6 +138,8 @@ class SimulatedToolsPanel(MainViewPanel):
         self._onLatestPositionsChanged()
 
     def _onLatestPositionsChanged(self):
+        logger.debug(f'{self.__class__.__name__} _onLatestPositionsChanged')
+
         if not self._hasInitialized and not self.isInitializing:
             return
 

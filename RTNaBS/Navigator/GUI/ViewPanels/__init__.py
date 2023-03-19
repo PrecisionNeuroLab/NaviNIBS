@@ -19,6 +19,7 @@ class MainViewPanel:
     _key: str
     _session: tp.Optional[Session] = None
 
+    _label: tp.Optional[str] = None
     _icon: tp.Optional[QtGui.QIcon] = attrs.field(default=None)  # to be set by subclass
 
     _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
@@ -33,7 +34,7 @@ class MainViewPanel:
 
     def __attrs_post_init__(self):
         logger.info(f'Initializing {self.__class__.__name__}')
-        self._dockWdgt = dw.DockWidget(self._key)
+        self._dockWdgt = dw.DockWidget(self._key, title=self.label)
         self._dockWdgt.setAffinities(['MainViewPanel'])  # only allow docking with other main view panels
         self._dockWdgt.setWidget(self._wdgt)
         if self._icon is not None:
@@ -51,6 +52,10 @@ class MainViewPanel:
     @property
     def key(self):
         return self._key
+
+    @property
+    def label(self):
+        return self._label if self._label is not None else self._key
 
     @property
     def wdgt(self):
@@ -95,8 +100,13 @@ class MainViewPanel:
         logger.info(f'Panel {self.key} hidden')
         self._isShown = False
 
-    def canBeEnabled(self) -> bool:
-        return True  # can be implemented by subclass to indicate when panel is missing critical information and can't yet show anything useful
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        """
+        Should return (True, None) if panel can be enabled, and (False, '<Reason why cannot be enabled>') otherwise.
+        The second output in the latter case should be a string explaining why the panel cannot be enabled,
+        e.g. 'Registration must be completed before navigating'
+        """
+        return True, None  # can be implemented by subclass to indicate when panel is missing critical information and can't yet show anything useful
 
     def finishInitialization(self):
         if self._isInitializing:
