@@ -37,6 +37,8 @@ nitransforms = {git = "https://github.com/nipy/nitransforms.git"}
 keyboard = {git = "https://github.com/chriscline/keyboard.git"}
 darkdetect = "^0.7.1"
 rmsd = "^1.5.1"
+pytest = "^7.2.2"
+aioconsole = "^0.6.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.1"
