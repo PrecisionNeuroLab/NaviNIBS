@@ -88,8 +88,8 @@ class ToolPositionsClient:
                 return default
         if tsPos.relativeTo != 'world':
             # convert relative transform to world transform
-            otherTransf = self.getLatestTransf(key=tsPos.relativeTo)
-            if otherTransf is _novalue:
+            otherTransf = self.getLatestTransf(key=tsPos.relativeTo, default=None)
+            if otherTransf is None:
                 return default
             else:
                 return concatenateTransforms((tsPos.transf, otherTransf))
@@ -100,6 +100,7 @@ class ToolPositionsClient:
         This should only be used to record positions of tools that are not tracked by the camera
         (e.g. when a position is reported by some other external system)
         """
+        logger.debug(f'recordNewPosition {key} {position}')
         await self._connector.callAsync_async('recordNewPosition',
                                               key=key,
                                               position=position.asDict())
