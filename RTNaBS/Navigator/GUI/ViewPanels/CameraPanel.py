@@ -264,8 +264,10 @@ class CameraPanel(MainViewPanel):
                         if canShow:
                             if actorKey not in self._actors:
                                 # initialize graphic
-                                self._actors[actorKey] = self._plotter.add_mesh(mesh=getattr(tool, toolOrTracker + 'Surf'),
-                                                       color='#2222FF',
+                                mesh = getattr(tool, toolOrTracker + 'Surf')
+                                self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
+                                                       color='#2222ff' if len(mesh.array_names) == 0 else None,
+                                                       rgb=True,
                                                        opacity=0.8,
                                                        name=actorKey)
 

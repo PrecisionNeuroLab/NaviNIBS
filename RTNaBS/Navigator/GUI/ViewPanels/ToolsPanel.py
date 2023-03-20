@@ -165,7 +165,8 @@ class ToolWidget:
         if self._tool.toolSurf is not None:
             actor = self._toolSpacePlotter.add_mesh(
                 mesh=self._tool.toolSurf,
-                color='#2222ff',
+                color='#2222ff' if len(self._tool.toolSurf.array_names) == 0 else None,
+                rgb=True,
                 opacity=0.8,
                 name='Tool'
             )
@@ -175,7 +176,8 @@ class ToolWidget:
         if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
             actor = self._trackerSpacePlotter.add_mesh(
                 mesh=self._tool.trackerSurf,
-                color='#22ff22',
+                color='#2222ff' if len(self._tool.trackerSurf.array_names)==0 else None,
+                rgb=True,
                 opacity=0.8,
                 name='Tracker'
             )
@@ -185,7 +187,8 @@ class ToolWidget:
             if self._tool.toolToTrackerTransf is not None:
                 actor = self._toolSpacePlotter.add_mesh(
                     mesh=self._tool.trackerSurf,
-                    color='#22ff22',
+                    color='#2222ff' if len(self._tool.trackerSurf.array_names)==0 else None,
+                    rgb=True,
                     opacity=0.8,
                     name='Tracker'
                 )
@@ -195,7 +198,8 @@ class ToolWidget:
         if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
             actor = self._trackerSpacePlotter.add_mesh(
                 mesh=self._tool.toolSurf,
-                color='#2222ff',
+                color='#2222ff' if len(self._tool.toolSurf.array_names)==0 else None,
+                rgb=True,
                 opacity=0.8,
                 name='Tool'
             )
