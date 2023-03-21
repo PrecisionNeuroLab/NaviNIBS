@@ -62,8 +62,6 @@ class IGTLinkToolPositionsServer(ToolPositionsServer):
                             if key.endswith('ToTracker'):
                                 # strip 'ToTracker' suffix from device_name, assuming plus config is set to only send *ToTracker transforms
                                 key = key[:-len('ToTracker')]
-                            else:
-                                raise KeyError('Unexpected position device_name: {}'.format(key))
 
                             logger.debug(f'Transform for key {key}')
                             await self.recordNewPosition(key=key, position=position)
