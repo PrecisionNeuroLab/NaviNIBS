@@ -116,7 +116,7 @@ class MRISliceView:
         return transf
 
     @sliceTransform.setter
-    def sliceTransform(self, newTransf: np.array):
+    def sliceTransform(self, newTransf: np.ndarray):
         newOrigin = newTransf[0:3, 3]
         newRot = newTransf[0:3, 0:3]
         assert array_equalish(newTransf[3, :], np.asarray([0, 0, 0, 1]))
