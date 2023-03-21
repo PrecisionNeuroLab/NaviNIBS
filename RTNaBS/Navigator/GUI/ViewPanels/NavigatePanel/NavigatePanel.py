@@ -113,7 +113,7 @@ class NavigatePanel(MainViewPanel):
     _coordinator: TargetingCoordinator = attrs.field(init=False)
     _triggerReceiver: TriggerReceiver = attrs.field(init=False)
 
-    _hasInitialized: bool = attrs.field(init=False, default=False)
+    _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
         self._wdgt = DockWidgetsContainer(uniqueName=self._key)
@@ -271,7 +271,7 @@ class NavigatePanel(MainViewPanel):
         for poseGroup in self._poseMetricGroups:
             poseGroup.calculator = getattr(self._coordinator, poseGroup.calculatorKey)
 
-        if not self._hasInitialized:
+        if not self._hasInitializedNavigationViews:
             self._initializeDefaultViews()  # TODO: only do this if not restoring from previously saved config
 
         # register that we want to receive sample triggers when visible
@@ -375,7 +375,8 @@ class NavigatePanel(MainViewPanel):
         self.session.samples.setAttribForItems(selKeys, dict(isVisible=[False for key in selKeys]))
 
     def _initializeDefaultViews(self):
-        if len(self._views) > 0:
+        if self._hasInitializedNavigationViews:
+            assert len(self._views) > 0
             raise NotImplementedError()  # TODO: clear any previous views from dock and self._views
 
         self.addView(key='Crosshairs', viewType='TargetingCrosshairs')
@@ -383,6 +384,8 @@ class NavigatePanel(MainViewPanel):
         self.addView(key='Crosshairs-Y', viewType='TargetingCrosshairs-Y')
 
         # TODO: set up other default views
+
+        self._hasInitializedNavigationViews = True
 
     def addView(self, key: str, viewType: str, **kwargs):
 
