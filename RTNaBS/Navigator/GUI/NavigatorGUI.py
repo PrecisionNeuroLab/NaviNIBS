@@ -214,7 +214,7 @@ class NavigatorGUI(RunnableAsApp):
     def _updateEnabledPanels(self):
 
         for key, panel in self._mainViewPanels.items():
-            if panel.canBeEnabled():
+            if panel.canBeEnabled()[0]:
                 if panel.isVisible:
                     if not panel.hasInitialized and not panel.isInitializing:
                         panel.finishInitialization()
