@@ -93,7 +93,7 @@ class MainViewPanel:
     def _onPanelShown(self):
         logger.info(f'Panel {self.key} shown')
         self._isShown = True
-        if not self._hasInitialized and self.canBeEnabled():
+        if not self._hasInitialized and self.canBeEnabled()[0]:
             self.finishInitialization()
 
     def _onPanelHidden(self):
@@ -117,8 +117,9 @@ class MainViewPanel:
             logger.warning(f"{self.key} finish initialization requested, but has already initialized. Not running again.")
             return
 
-        if not self.canBeEnabled():
-            logger.warning(f"{self.key} finish initialization requested, but not yet ready to be enabled. Skipping.")
+        canBeEnabled, reason = self.canBeEnabled()
+        if not canBeEnabled:
+            logger.warning(f"{self.key} finish initialization requested, but not yet ready to be enabled ({reason}). Skipping.")
             return
 
         self._isInitializing = True
