@@ -181,6 +181,7 @@ class CameraPanel(MainViewPanel):
             case _:
                 raise NotImplementedError(f'Unexpected positionsServerInfo type: {self.session.tools.positionsServerInfo.type}')
         self._positionsServerProc = mp.Process(target=Server.createAndRun,
+                                               daemon=True,
                                                kwargs=self.session.tools.positionsServerInfo.initKwargs)
         self._positionsServerProc.start()
         if self._hasInitialized:
@@ -265,8 +266,14 @@ class CameraPanel(MainViewPanel):
                             if actorKey not in self._actors:
                                 # initialize graphic
                                 mesh = getattr(tool, toolOrTracker + 'Surf')
+                                meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                if meshColor is None:
+                                    if len(mesh.array_names) > 0:
+                                        meshColor = None  # use color from surf file
+                                    else:
+                                        meshColor = '#2222ff'  # default color if nothing else provided
                                 self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                       color='#2222ff' if len(mesh.array_names) == 0 else None,
+                                                       color=meshColor,
                                                        rgb=True,
                                                        opacity=0.8,
                                                        name=actorKey)
