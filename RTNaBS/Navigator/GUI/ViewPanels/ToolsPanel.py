@@ -163,9 +163,16 @@ class ToolWidget:
         plotContainer.layout().addWidget(plotterContainer)
 
         if self._tool.toolSurf is not None:
+            meshColor = self._tool.toolColor
+            if meshColor is None:
+                if len(self._tool.toolSurf.array_names) > 0:
+                    meshColor = None  # use color from mesh file
+                else:
+                    meshColor = '#2222ff'
+            meshColor_tool = meshColor
             actor = self._toolSpacePlotter.add_mesh(
                 mesh=self._tool.toolSurf,
-                color='#2222ff' if len(self._tool.toolSurf.array_names) == 0 else None,
+                color=meshColor,
                 rgb=True,
                 opacity=0.8,
                 name='Tool'
@@ -174,9 +181,15 @@ class ToolWidget:
             self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
         if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
+            meshColor = self._tool.trackerColor
+            if meshColor is None:
+                if len(self._tool.trackerSurf.array_names) > 0:
+                    meshColor = None  # use color from mesh file
+                else:
+                    meshColor = '#2222ff'
             actor = self._trackerSpacePlotter.add_mesh(
                 mesh=self._tool.trackerSurf,
-                color='#2222ff' if len(self._tool.trackerSurf.array_names)==0 else None,
+                color=meshColor,
                 rgb=True,
                 opacity=0.8,
                 name='Tracker'
@@ -187,7 +200,7 @@ class ToolWidget:
             if self._tool.toolToTrackerTransf is not None:
                 actor = self._toolSpacePlotter.add_mesh(
                     mesh=self._tool.trackerSurf,
-                    color='#2222ff' if len(self._tool.trackerSurf.array_names)==0 else None,
+                    color=meshColor,
                     rgb=True,
                     opacity=0.8,
                     name='Tracker'
@@ -198,7 +211,7 @@ class ToolWidget:
         if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
             actor = self._trackerSpacePlotter.add_mesh(
                 mesh=self._tool.toolSurf,
-                color='#2222ff' if len(self._tool.toolSurf.array_names)==0 else None,
+                color=meshColor_tool,  # noqa
                 rgb=True,
                 opacity=0.8,
                 name='Tool'

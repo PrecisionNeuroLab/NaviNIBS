@@ -45,6 +45,11 @@ class Tool(GenericCollectionDictItem[str]):
     _toolStlToToolTransf: tp.Optional[
         np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual tool orientation
     _trackerStlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tracker STL only; can be used to align STL with actual reported tracker orientation
+    _toolColor: str | None = None
+    _trackerColor: str | None = None
+    """
+    Note: some surf file formats (e.g. .ply) allow specifying color of elements within the file; if color is None here and colors are available in the surf file, those colors will be used.
+    """
 
     _installPath: tp.Optional[str] = None  # used for relative paths
     _sessionPath: tp.Optional[str] = None  # used for relative paths
@@ -243,6 +248,15 @@ class Tool(GenericCollectionDictItem[str]):
         self._trackerStlToTrackerTransf = newTransf
         self.sigItemChanged.emit(self.key)
 
+    @property
+    def trackerColor(self):
+        return self._trackerColor
+
+    @property
+    def toolColor(self):
+        return self._toolColor
+
+    @property
     @property
     def trackerSurf(self):
         if self._trackerStlFilepath is not None and self._trackerSurf is None:
