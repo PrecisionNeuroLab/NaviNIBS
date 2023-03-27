@@ -192,9 +192,15 @@ class HeadModel:
         return cls(**d)
 
     @classmethod
-    def validateFilepath(cls, filepath: tp.Optional[str]) -> None:
+    def validateFilepath(cls, filepath: tp.Optional[str], strict: bool = False) -> None:
         if filepath is None:
             return
-        assert filepath.endswith('.msh')
-        assert os.path.exists(filepath), 'File not found at {}'.format(filepath)
-        # TODO: also verify that expected related files (e.g. m2m_* folder) are next to the referenced .msh filepath
+        if strict:
+            # make sure .msh actually exists
+            assert filepath.endswith('.msh')
+            assert os.path.exists(filepath), 'File not found at {}'.format(filepath)
+            # TODO: also verify that expected related files (e.g. m2m_* folder) are next to the referenced .msh filepath
+        else:
+            # just make sure parent directory (typically SimNIBS results dir) actually exists
+            parentDir = os.path.dirname(filepath)
+            assert os.path.exists(parentDir), 'Parent directory not found at {}'.format(parentDir)
