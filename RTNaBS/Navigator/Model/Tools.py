@@ -257,7 +257,6 @@ class Tool(GenericCollectionDictItem[str]):
         return self._toolColor
 
     @property
-    @property
     def trackerSurf(self):
         if self._trackerStlFilepath is not None and self._trackerSurf is None:
             logger.info('Loading tracker mesh from {}'.format(self.trackerStlFilepath))
