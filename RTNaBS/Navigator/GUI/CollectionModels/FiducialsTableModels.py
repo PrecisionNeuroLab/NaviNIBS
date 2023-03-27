@@ -2,10 +2,11 @@ import attrs
 import numpy as np
 import qtawesome as qta
 from qtpy import QtGui
+import typing as tp
 
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
 from RTNaBS.Navigator.Model.SubjectRegistration import Fiducials, Fiducial
-
+from RTNaBS.util import makeStrUnique
 
 @attrs.define(slots=False)
 class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]):
@@ -113,6 +114,10 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
 class PlanningFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]):
     _collection: Fiducials = attrs.field(init=False)
 
+    _hasPlaceholderNewRow: bool = True
+    _placeholderNewRowDefaults: dict[str, tp.Any] = attrs.field(factory=lambda: dict(key='<NewFiducial>'))
+
+
     def __attrs_post_init__(self):
         self._collection = self._session.subjectRegistration.fiducials
 
@@ -138,12 +143,22 @@ class PlanningFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]
         self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
         self._collection.sigItemsChanged.connect(self._onCollectionChanged)
 
+        self._addNewRowFromEditedPlaceholder = self.__addNewRowFromEditedPlaceholder
+
         super().__attrs_post_init__()
 
-
-    def _getPlannedCoordText(self, fidKey: str) -> str:
+    def _getPlannedCoordText(self, fidKey: str | None) -> str:
+        if fidKey is None:
+            return ''
         coord = self._session.subjectRegistration.fiducials[fidKey].plannedCoord
         if coord is None:
             return ''
         else:
             return '{:.1f}, {:.1f}, {:.1f}'.format(*coord)
+
+    def __addNewRowFromEditedPlaceholder(self, **kwargs) -> str:
+        if 'key' not in kwargs:
+            kwargs['key'] = makeStrUnique('Fiducial', self._collection.keys())
+        item = Fiducial(**kwargs)
+        self._collection.addItem(item)
+        return item.key

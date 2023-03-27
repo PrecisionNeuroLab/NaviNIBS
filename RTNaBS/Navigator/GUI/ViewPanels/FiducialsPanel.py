@@ -69,10 +69,6 @@ class FiducialsPanel(MainViewPanel):
         btn.clicked.connect(self._onAutosetBtnClicked)
         btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
 
-        btn = QtWidgets.QPushButton('Add fiducial')
-        btn.clicked.connect(self._onAddBtnClicked)
-        btnContainer.layout().addWidget(btn, 1, 0)
-
         btn = QtWidgets.QPushButton('Delete fiducial')
         btn.clicked.connect(self._onDeleteBtnClicked)
         btnContainer.layout().addWidget(btn, 1, 1)
