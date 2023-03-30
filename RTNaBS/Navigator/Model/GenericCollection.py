@@ -20,17 +20,21 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
 
     _key: K
 
-    sigKeyAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((K, K)))  # includes old key, new key
-    sigKeyChanged: Signal = attrs.field(init=False, factory=lambda: Signal((K, K)))  # includes old key, new key
+    sigKeyAboutToChange: Signal = attrs.field(init=False, repr=False,
+                                              factory=lambda: Signal((K, K)))  # includes old key, new key
+    sigKeyChanged: Signal = attrs.field(init=False, repr=False,
+                                        factory=lambda: Signal((K, K)))  # includes old key, new key
 
-    sigItemAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((K, tp.Optional[tp.List[str]])))
+    sigItemAboutToChange: Signal = attrs.field(init=False, repr=False,
+                                               factory=lambda: Signal((K, tp.Optional[tp.List[str]])))
     """
     This signal includes the key of the item, and optionally a list of keys of attributes about to change;
     if second arg is None, all attributes should be assumed to be about to change.
 
     Not emitted when key changed (use sigKeyAboutToChange instead!)
     """
-    sigItemChanged: Signal = attrs.field(init=False, factory=lambda: Signal((K, tp.Optional[list[str]])))
+    sigItemChanged: Signal = attrs.field(init=False, repr=False,
+                                         factory=lambda: Signal((K, tp.Optional[list[str]])))
     """
     This signal includes the key of the item, and optionally a list of keys of changed attributes;  
     if second arg is None, all attributes should be assumed to have changed.

@@ -37,6 +37,21 @@ class Tool(GenericCollectionDictItem[str]):
     Optional "nice" label for display. If not specified, key will be used instead. Label does not need to be unique, but could be confusing in some GUI displays if multiple tools with the same label are shown.
     """
     _isActive: bool = True
+    """
+    Whether to actively use for tracking/pointing
+    """
+    _doRenderTool: bool = True
+    """
+    Whether to show tool in camera view, etc. To actually render, a valid pose and mesh must be available. 
+    """
+    _doRenderTracker: bool = True
+    """
+    Whether to show tracker in camera view, etc. To actually render, a valid pose and mesh must be available.
+    """
+    _doShowTrackingState: bool = True
+    """
+    Whether to include this tool in tracking status widget(s). To actually show, must not also be excluded by other hide filters on the widget.
+    """
     _romFilepath: tp.Optional[str] = None
     _trackerStlFilepath: tp.Optional[str] = None
     _toolStlFilepath: tp.Optional[str] = None
@@ -90,7 +105,6 @@ class Tool(GenericCollectionDictItem[str]):
 
         logger.info('Changing {} usedFor from {} to {}'.format(self.key, self._usedFor, newUsedFor))
         self.sigItemAboutToChange.emit(self._key, ['usedFor'])
-        prevUsedFor = self._usedFor
         self._usedFor = newUsedFor
         self.sigItemChanged.emit(self._key, ['usedFor'])
 
@@ -104,9 +118,51 @@ class Tool(GenericCollectionDictItem[str]):
             return
 
         logger.info('Changing {} isActive to {}'.format(self.key, newIsActive))
-        self.sigItemAboutToChange.emit(self._key)
+        self.sigItemAboutToChange.emit(self._key, ['isActive'])
         self._isActive = newIsActive
-        self.sigItemChanged.emit(self._key)
+        self.sigItemChanged.emit(self._key, ['isActive'])
+
+    @property
+    def doRenderTool(self):
+        return self._doRenderTool
+
+    @doRenderTool.setter
+    def doRenderTool(self, newDoRenderTool: bool):
+        if self._doRenderTool == newDoRenderTool:
+            return
+
+        logger.info('Changing {} doRenderTool to {}'.format(self.key, newDoRenderTool))
+        self.sigItemAboutToChange.emit(self._key, ['doRenderTool'])
+        self._doRenderTool = newDoRenderTool
+        self.sigItemChanged.emit(self._key, ['doRenderTool'])
+
+    @property
+    def doRenderTracker(self):
+        return self._doRenderTracker
+
+    @doRenderTracker.setter
+    def doRenderTracker(self, newDoRenderTracker: bool):
+        if self._doRenderTracker == newDoRenderTracker:
+            return
+
+        logger.info('Changing {} doRenderTracker to {}'.format(self.key, newDoRenderTracker))
+        self.sigItemAboutToChange.emit(self._key, ['doRenderTracker'])
+        self._doRenderTracker = newDoRenderTracker
+        self.sigItemChanged.emit(self._key, ['doRenderTracker'])
+
+    @property
+    def doShowTrackingState(self):
+        return self._doShowTrackingState
+
+    @doShowTrackingState.setter
+    def doShowTrackingState(self, newDoShowTrackingState: bool):
+        if self._doShowTrackingState == newDoShowTrackingState:
+            return
+
+        logger.info('Changing {} doShowTrackingState to {}'.format(self.key, newDoShowTrackingState))
+        self.sigItemAboutToChange.emit(self._key, ['doShowTrackingState'])
+        self._doShowTrackingState = newDoShowTrackingState
+        self.sigItemChanged.emit(self._key, ['doShowTrackingState'])
 
     @property
     def romFilepath(self):
@@ -120,9 +176,9 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.romFilepath:
             return
         logger.info('Changing {} romFilepath to {}'.format(self.key, newFilepath))
-        self.sigItemAboutToChange.emit(self.key)
+        self.sigItemAboutToChange.emit(self.key, ['romFilepath'])
         self._romFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
-        self.sigItemChanged.emit(self.key)
+        self.sigItemChanged.emit(self.key, ['romFilepath'])
 
     @property
     def toolStlFilepath(self):
@@ -136,9 +192,9 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.toolStlFilepath:
             return
         logger.info('Changing {} toolStlFilepath to {}'.format(self.key, newFilepath))
-        self.sigItemAboutToChange.emit(self.key)
+        self.sigItemAboutToChange.emit(self.key, ['toolStlFilepath'])
         self._toolStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
-        self.sigItemChanged.emit(self.key)
+        self.sigItemChanged.emit(self.key, ['toolStlFilepath'])
 
     @property
     def trackerStlFilepath(self):
@@ -152,9 +208,9 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.trackerStlFilepath:
             return
         logger.info('Changing {} trackerStlFilepath to {}'.format(self.key, newFilepath))
-        self.sigItemAboutToChange.emit(self.key)
+        self.sigItemAboutToChange.emit(self.key, ['trackerStlFilepath'])
         self._trackerStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
-        self.sigItemChanged.emit(self.key)
+        self.sigItemChanged.emit(self.key, ['trackerStlFilepath'])
 
     @property
     def filepathsRelTo(self):
@@ -183,13 +239,20 @@ class Tool(GenericCollectionDictItem[str]):
         if self._sessionPath == newPath:
             return
 
+        filepathAttribs = [
+            'romFilepath',
+            'toolStlFilepath',
+            'trackerStlFilepath'
+            'sessionPath'
+        ]
+
         if self._filepathsRelTo == '<session>':
-            self.sigItemAboutToChange.emit(self.key)
+            self.sigItemAboutToChange.emit(self.key, filepathAttribs)
 
         self._sessionPath = newPath
 
         if self._filepathsRelTo == '<session>':
-            self.sigItemChanged.emit(self.key)
+            self.sigItemChanged.emit(self.key, filepathAttribs)
 
     @property
     def toolToTrackerTransf(self):
@@ -206,11 +269,11 @@ class Tool(GenericCollectionDictItem[str]):
 
         # TODO: do validation of newTransf
 
-        self.sigItemAboutToChange.emit(self.key)
+        self.sigItemAboutToChange.emit(self.key, ['toolToTrackerTransf'])
         logger.info('Set toolToTrackerTransf to {}'.format(newTransf))
         self._toolToTrackerTransf = newTransf
         self._toolToTrackerTransfHistory[self._getTimestampStr()] = None if self._toolToTrackerTransf is None else self._toolToTrackerTransf.copy()
-        self.sigItemChanged.emit(self.key)
+        self.sigItemChanged.emit(self.key, ['toolToTrackerTransf'])
 
     @property
     def toolStlToToolTransf(self):
@@ -225,10 +288,10 @@ class Tool(GenericCollectionDictItem[str]):
             logger.debug('No change in toolStlToToolTransf, returning')
             return
 
-        self.sigItemAboutToChange.emit(self.key)
+        self.sigItemAboutToChange.emit(self.key, ['toolStlToToolTransf'])
         logger.info('Set toolStlToToolTransf to {}'.format(newTransf))
         self._toolStlToToolTransf = newTransf
-        self.sigItemChanged.emit(self.key)
+        self.sigItemChanged.emit(self.key, ['toolStlToToolTransf'])
 
     @property
     def trackerStlToTrackerTransf(self):
@@ -243,10 +306,10 @@ class Tool(GenericCollectionDictItem[str]):
             logger.debug('No change in trackerStlToTrackerTransf, returning')
             return
 
-        self.sigItemAboutToChange.emit(self.key)
+        self.sigItemAboutToChange.emit(self.key, ['trackerStlToTrackerTransf'])
         logger.info('Set trackerStlToTrackerTransf to {}'.format(newTransf))
         self._trackerStlToTrackerTransf = newTransf
-        self.sigItemChanged.emit(self.key)
+        self.sigItemChanged.emit(self.key, ['trackerStlToTrackerTransf'])
 
     @property
     def trackerColor(self):
@@ -255,6 +318,10 @@ class Tool(GenericCollectionDictItem[str]):
     @property
     def toolColor(self):
         return self._toolColor
+
+    @property
+    def toolToTrackerTransfHistory(self):
+        return self._toolToTrackerTransfHistory
 
     @property
     def trackerSurf(self):
