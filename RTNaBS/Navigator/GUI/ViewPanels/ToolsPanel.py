@@ -21,9 +21,10 @@ from . import MainViewPanel
 from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
 from RTNaBS.Navigator.GUI.ModalWindows.PointerCalibrationWindow import PointerCalibrationWindow
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
 from RTNaBS.util import makeStrUnique
-from RTNaBS.util.pyvista import setActorUserTransform
+from RTNaBS.util.pyvista import setActorUserTransform, Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -55,6 +56,9 @@ class ToolWidget:
     _toolSpacePlotter: BackgroundPlotter = attrs.field(init=False)
     _trackerSpacePlotter: BackgroundPlotter = attrs.field(init=False)
 
+    _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
+    _trackerSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
+
     def __attrs_post_init__(self):
         self._wdgt = QtWidgets.QGroupBox('Selected tool: {}'.format(self._tool.key))
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
@@ -64,7 +68,7 @@ class ToolWidget:
         formContainer.setLayout(self._formLayout)
         self._wdgt.layout().addWidget(formContainer)
 
-        #self._tool.sigItemChanged.connect(lambda key: self._onToolChanged())
+        self._tool.sigItemChanged.connect(self._onToolChanged)
 
         self._key = QtWidgets.QLineEdit(self._tool.key)
         self._key.editingFinished.connect(self._onKeyEdited)
@@ -162,62 +166,84 @@ class ToolWidget:
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        if self._tool.toolSurf is not None:
-            meshColor = self._tool.toolColor
-            if meshColor is None:
-                if len(self._tool.toolSurf.array_names) > 0:
-                    meshColor = None  # use color from mesh file
-                else:
-                    meshColor = '#2222ff'
-            meshColor_tool = meshColor
-            actor = self._toolSpacePlotter.add_mesh(
-                mesh=self._tool.toolSurf,
-                color=meshColor,
-                rgb=True,
-                opacity=0.8,
-                name='Tool'
-            )
-            setActorUserTransform(actor, self._tool.toolStlToToolTransf)
-            self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+        self.redraw()
 
-        if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
-            meshColor = self._tool.trackerColor
-            if meshColor is None:
-                if len(self._tool.trackerSurf.array_names) > 0:
-                    meshColor = None  # use color from mesh file
-                else:
-                    meshColor = '#2222ff'
-            actor = self._trackerSpacePlotter.add_mesh(
-                mesh=self._tool.trackerSurf,
-                color=meshColor,
-                rgb=True,
-                opacity=0.8,
-                name='Tracker'
-            )
-            setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
-            self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+    def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
 
-            if self._tool.toolToTrackerTransf is not None:
+        if whatToRedraw is None or 'tool' in whatToRedraw:
+            actorKey = 'tool'
+            if actorKey in self._toolSpaceActors:
+                self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
+            if actorKey in self._trackerSpaceActors:
+                self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
+
+            if self._tool.toolSurf is not None:
+                meshColor = self._tool.toolColor
+                if meshColor is None:
+                    if len(self._tool.toolSurf.array_names) > 0:
+                        meshColor = None  # use color from mesh file
+                    else:
+                        meshColor = '#2222ff'
+                meshColor_tool = meshColor
                 actor = self._toolSpacePlotter.add_mesh(
+                    name=actorKey,
+                    mesh=self._tool.toolSurf,
+                    color=meshColor,
+                    rgb=True,
+                    opacity=0.8
+                )
+                self._toolSpaceActors[actorKey] = actor
+                setActorUserTransform(actor, self._tool.toolStlToToolTransf)
+                self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+
+            if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
+                actor = self._trackerSpacePlotter.add_mesh(
+                    mesh=self._tool.toolSurf,
+                    color=meshColor_tool,  # noqa
+                    rgb=True,
+                    opacity=0.8,
+                    name=actorKey
+                )
+                self._trackerSpaceActors[actorKey] = actor
+                setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
+                self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+
+        if whatToRedraw is None or 'tracker' in whatToRedraw:
+            actorKey = 'tracker'
+            if actorKey in self._toolSpaceActors:
+                self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
+            if actorKey in self._trackerSpaceActors:
+                self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
+
+            if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
+                meshColor = self._tool.trackerColor
+                if meshColor is None:
+                    if len(self._tool.trackerSurf.array_names) > 0:
+                        meshColor = None  # use color from mesh file
+                    else:
+                        meshColor = '#2222ff'
+                actor = self._trackerSpacePlotter.add_mesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
                     rgb=True,
                     opacity=0.8,
-                    name='Tracker'
+                    name=actorKey
                 )
-                setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
-                self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+                self._trackerSpaceActors[actorKey] = actor
+                setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
+                self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
-        if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
-            actor = self._trackerSpacePlotter.add_mesh(
-                mesh=self._tool.toolSurf,
-                color=meshColor_tool,  # noqa
-                rgb=True,
-                opacity=0.8,
-                name='Tool'
-            )
-            setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
-            self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+                if self._tool.toolToTrackerTransf is not None:
+                    actor = self._toolSpacePlotter.add_mesh(
+                        mesh=self._tool.trackerSurf,
+                        color=meshColor,
+                        rgb=True,
+                        opacity=0.8,
+                        name=actorKey
+                    )
+                    self._toolSpaceActors[actorKey] = actor
+                    setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
+                    self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
     @property
     def wdgt(self):
@@ -271,17 +297,40 @@ class ToolWidget:
         logger.info('User edited {} toolToTrackerTransf: {}'.format(self._tool.key, newTransf))
         self._tool.toolToTrackerTransf = newTransf
 
-    def _onToolChanged(self):
-        self._key.setText(self._tool.key)
-        self._usedFor.setCurrentIndex(self._usedFor.findText(self._tool.usedFor) if self._tool.usedFor is not None else -1)  # TODO: check for change in type that we can't handle without reinstantiating
-        self._isActive.setChecked(self._tool.isActive)
-        self._romFilepath.filepath = self._tool.romFilepath
-        self._trackerStlFilepath.filepath = self._tool.trackerStlFilepath
-        self._toolStlFilepath.filepath = self._tool.toolStlFilepath
-        for wdgt in (self._romFilepath, self._trackerStlFilepath, self._toolStlFilepath):
-            wdgt.showRelativePrefix = self._tool.filepathsRelToKey
-        self._trackerStlToTrackerTransf.setText(self._transfToStr(self._tool.trackerStlToTrackerTransf))
-        self._toolToTrackerTransf.setText(self._transfToStr(self._tool.toolToTrackerTransf))
+    def _onToolChanged(self, toolKey: str, attribsChanged: list[str] | None = None):
+        toRedraw = set()
+        if attribsChanged is None or 'key' in attribsChanged:
+            self._key.setText(self._tool.key)
+        if attribsChanged is None or 'usedFor' in attribsChanged:
+            self._usedFor.setCurrentIndex(self._usedFor.findText(self._tool.usedFor) if self._tool.usedFor is not None else -1)  # TODO: check for change in type that we can't handle without reinstantiating
+        if attribsChanged is None or 'isActive' in attribsChanged:
+            self._isActive.setChecked(self._tool.isActive)
+        if attribsChanged is None or 'romFilepath' in attribsChanged:
+            self._romFilepath.filepath = self._tool.romFilepath
+        if attribsChanged is None or 'trackerStlFilepath' in attribsChanged:
+            self._trackerStlFilepath.filepath = self._tool.trackerStlFilepath
+            toRedraw.add('tracker')
+        if attribsChanged is None or 'toolStlFilepath' in attribsChanged:
+            self._toolStlFilepath.filepath = self._tool.toolStlFilepath
+            toRedraw.add('tool')
+        if attribsChanged is None or 'filepathsRelToKey' in attribsChanged:
+            for wdgt in (self._romFilepath, self._trackerStlFilepath, self._toolStlFilepath):
+                wdgt.showRelativePrefix = self._tool.filepathsRelToKey
+        if attribsChanged is None or 'toolStlToToolTransf' in attribsChanged:
+            self._toolStlToToolTransf.setText(self._transfToStr(self._tool.toolStlToToolTransf))
+            toRedraw.add('tool')
+        if attribsChanged is None or 'trackerStlToTrackerTransf' in attribsChanged:
+            self._trackerStlToTrackerTransf.setText(self._transfToStr(self._tool.trackerStlToTrackerTransf))
+            toRedraw.add('tracker')
+        if attribsChanged is None or 'toolToTrackerTransf' in attribsChanged:
+            self._toolToTrackerTransf.setText(self._transfToStr(self._tool.toolToTrackerTransf))
+            toRedraw |= {'tracker', 'tool'}
+
+        if attribsChanged is None:
+            self.redraw()
+        else:
+            self.redraw(toRedraw)
+
 
     @staticmethod
     def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:
@@ -353,10 +402,7 @@ class ToolsPanel(MainViewPanel):
     _key: str = 'Tools'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.hammer-screwdriver'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
-    _tblWdgt: QtWidgets.QTableWidget = attrs.field(init=False)
-    _tblToolKeys: tp.List[str] = attrs.field(init=False, factory=list)
-    _tblActiveToolKeys: tp.List[str] = attrs.field(init=False, factory=list)
-    _selectedToolKey: tp.Optional[str] = attrs.field(default=None)
+    _tblWdgt: ToolsTableWidget = attrs.field(init=False)
     _toolWdgt: tp.Optional[ToolWidget] = attrs.field(init=False, default=None)
     _wdgts: tp.Dict[str, QtWidgets.QWidget] = attrs.field(init=False, factory=dict)
 
@@ -402,16 +448,14 @@ class ToolsPanel(MainViewPanel):
         btn.clicked.connect(self._onDeleteBtnClicked)
         btnContainer.layout().addWidget(btn, 0, 2)
 
-        self._tblWdgt = QTableWidgetDragRows(0, 2)
-        self._tblWdgt.setHorizontalHeaderLabels(['Tool', 'Active?'])
-        self._tblWdgt.sigDragAndDropReordered.connect(self._onDragAndDropReorderedRows)
-        self._tblWdgt.currentCellChanged.connect(self._onTblCurrentCellChanged)
-        container.layout().addWidget(self._tblWdgt)
+        self._tblWdgt = ToolsTableWidget(session=self.session)
+        self._tblWdgt.sigCurrentItemChanged.connect(lambda *args: self._updateSelectedToolWdgt())
+        container.layout().addWidget(self._tblWdgt.wdgt)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
 
-        self._onToolsChanged()
+        self._updateSelectedToolWdgt()
 
     def _onSessionSet(self):
         super()._onSessionSet()
@@ -420,57 +464,16 @@ class ToolsPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self.session.tools.sigItemsChanged.connect(self._onToolsChanged)
         self._trackingStatusWdgt.session = self.session
-        self._onToolsChanged()
-
-    def _onTblCurrentCellChanged(self, currentRow: int, currentCol: int, previousRow: int, previousCol: int):
-        if previousRow == currentRow:
-            return  # no change in row selection
+        self._tblWdgt.session = self.session
         self._updateSelectedToolWdgt()
 
-    def _onDragAndDropReorderedRows(self):
-        newOrder = [self._tblWdgt.item(iR, 0).text() for iR in range(self._tblWdgt.rowCount())]
-        logger.info('Reordering tools: {}'.format(newOrder))
-        self.session.tools.setTools([self.session.tools[key] for key in newOrder])
-
-    def _onToolsChanged(self, changedKeys: tp.Optional[str] = None, changedAttribs: tp.Optional[list[str]] = None):
-        logger.debug('Tools changed.')
-
-        if changedKeys is None:
-            changedKeys = list(self.session.tools.keys())
-
-        newTblToolKeys = list(self.session.tools.keys())
-        newTblActiveToolKeys = [key for key, tool in self.session.tools.items() if tool.isActive]
-        if self._tblToolKeys != newTblToolKeys or self._tblActiveToolKeys != newTblActiveToolKeys:
-            # order, number, isActive, or keys changed for existing tools. Repopulate table
-            prevSelectedToolKey = self._getTblCurrentToolKey()
-            self._tblWdgt.clearContents()
-            self._tblWdgt.setRowCount(len(self.session.tools))
-            for iTool, (key, tool) in enumerate(self.session.tools.items()):
-                item = QtWidgets.QTableWidgetItem(key)
-                item.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
-                self._tblWdgt.setItem(iTool, 0, item)
-                item = QtWidgets.QTableWidgetItem()  # TODO: determine if necessary
-                self._tblWdgt.setItem(iTool, 1, item)
-                wdgt = QtWidgets.QCheckBox('')
-                wdgt.setChecked(tool.isActive)
-                wdgt.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-                wdgt.setFocusPolicy(QtCore.Qt.NoFocus)
-                self._tblWdgt.setCellWidget(iTool, 1, wdgt)
-            self._tblToolKeys = newTblToolKeys
-            self._tblActiveToolKeys = newTblActiveToolKeys
-            if prevSelectedToolKey in self._tblToolKeys:
-                # restore previously selected row
-                self._tblWdgt.setCurrentCell(self._tblToolKeys.index(prevSelectedToolKey), 0)
-
-        currentToolKey = self._getTblCurrentToolKey()
-        if currentToolKey in changedKeys:
-            self._updateSelectedToolWdgt()
+    def _onTblCurrentCellChanged(self, key: str):
+        self._updateSelectedToolWdgt()
 
     def _updateSelectedToolWdgt(self):
         logger.debug('Updating selected tool widget')
-        currentToolKey = self._getTblCurrentToolKey()
+        currentToolKey = self._tblWdgt.currentCollectionItemKey
         # TODO: if possible, only update specific fields rather than fully recreating widget
         if self._toolWdgt is not None:
             self._toolWdgt.wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
@@ -489,25 +492,18 @@ class ToolsPanel(MainViewPanel):
         self._toolWdgt = ToolWidgetCls(tool=self.session.tools[currentToolKey], session=self.session)
         self._wdgt.layout().addWidget(self._toolWdgt.wdgt)
 
-    def _getTblCurrentToolKey(self) -> tp.Optional[str]:
-        curItem = self._tblWdgt.currentItem()
-        if curItem is None:
-            # no item selected
-            return None
-        return self._tblWdgt.item(curItem.row(), 0).text()
-
     def _onAddBtnClicked(self, checked: bool):
         logger.info('Add tool btn clicked')
-        self.session.tools.addToolFromDict(dict(key=makeStrUnique('Tool', self._tblToolKeys), usedFor='coil'))
+        self.session.tools.addToolFromDict(dict(key=makeStrUnique('Tool', self.session.tools.keys()), usedFor='coil'))
 
     def _onDuplicateBtnClicked(self, checked: bool):
         logger.info('Duplicate tool btn clicked')
-        toolDict = self.session.tools[self._getTblCurrentToolKey()].asDict().copy()
-        toolDict['key'] = makeStrUnique(toolDict['key'], self._tblToolKeys)
+        toolDict = self._tblWdgt.currentCollectionItem.asDict().copy()
+        toolDict['key'] = makeStrUnique(toolDict['key'], self.session.tools.keys())
         self.session.tools.addToolFromDict(toolDict)
 
     def _onDeleteBtnClicked(self, checked: bool):
-        key = self._getTblCurrentToolKey()
+        key = self._tblWdgt.currentCollectionItemKey
         if key is None:
             # no tool selected
             return

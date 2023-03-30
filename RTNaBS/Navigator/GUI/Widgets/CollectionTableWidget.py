@@ -11,9 +11,11 @@ from RTNaBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningF
 from RTNaBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
+from RTNaBS.Navigator.GUI.CollectionModels.ToolsTableModel import ToolsTableModel
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
+from RTNaBS.Navigator.Model.Tools import Tool, Tools
 from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints, Fiducial, Fiducials
 from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocation, DigitizedLocations
 from RTNaBS.util.Signaler import Signal
@@ -25,7 +27,7 @@ TM = tp.TypeVar('TM', bound=CollectionTableModel)
 
 
 @attrs.define
-class CollectionTableWidget(tp.Generic[K, C, CI, TM]):
+class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _Model: tp.Callable[[Session], TM]
     _session: tp.Optional[Session] = None
 
@@ -178,7 +180,6 @@ class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTabl
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-
 @attrs.define
 class PlanningFiducialsTableWidget(CollectionTableWidget[str, Fiducial, Fiducials, PlanningFiducialsTableModel]):
     _Model: tp.Callable[[Session], PlanningFiducialsTableModel] = PlanningFiducialsTableModel
@@ -202,3 +203,10 @@ class HeadPointsTableWidget(CollectionTableWidget[int, HeadPoint, HeadPoints, He
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+
+@attrs.define
+class ToolsTableWidget(CollectionTableWidget[int, Tool, Tools, ToolsTableModel]):
+    _Model: tp.Callable[[Session], ToolsTableModel] = ToolsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
