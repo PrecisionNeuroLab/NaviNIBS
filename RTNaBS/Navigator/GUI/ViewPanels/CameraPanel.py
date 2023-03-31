@@ -234,6 +234,8 @@ class CameraPanel(MainViewPanel):
                 [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]))
 
         for key, tool in self.session.tools.items():
+            if True == False:
+                logger.debug('TODO: delete')
             actorKeysForTool = [key + '_tracker', key + '_tool']
             if isinstance(tool, SubjectTracker):
                 actorKeysForTool.append(key + '_subject')
@@ -246,49 +248,51 @@ class CameraPanel(MainViewPanel):
                 continue
 
             for actorKey in actorKeysForTool:
-                canShow = False
+                doShow = False
                 for toolOrTracker in ('tracker', 'tool'):
-                    if actorKey == key + '_' + toolOrTracker:
-                        if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
-                            if toolOrTracker == 'tool':
-                                toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
-                            elif toolOrTracker == 'tracker':
-                                toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
-                            else:
-                                raise NotImplementedError()
-                            if toolOrTrackerStlToTrackerTransf is not None:
-                                canShow = True
+                    if actorKey == (key + '_' + toolOrTracker):
+                        if getattr(tool, 'doRender' + toolOrTracker.capitalize()) is False:
+                            doShow = False
                         else:
-                            # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
-                            canShow = False
+                            if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
+                                if toolOrTracker == 'tool':
+                                    toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
+                                elif toolOrTracker == 'tracker':
+                                    toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
+                                else:
+                                    raise NotImplementedError()
+                                if toolOrTrackerStlToTrackerTransf is not None:
+                                    doShow = True
 
-                        if canShow:
-                            if actorKey not in self._actors:
-                                # initialize graphic
-                                mesh = getattr(tool, toolOrTracker + 'Surf')
-                                meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
-                                if meshColor is None:
-                                    if len(mesh.array_names) > 0:
-                                        meshColor = None  # use color from surf file
-                                    else:
-                                        meshColor = '#2222ff'  # default color if nothing else provided
-                                self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                       color=meshColor,
-                                                       rgb=True,
-                                                       opacity=0.8,
-                                                       name=actorKey)
+                                if actorKey not in self._actors:
+                                    # initialize graphic
+                                    mesh = getattr(tool, toolOrTracker + 'Surf')
+                                    meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                    if meshColor is None:
+                                        if len(mesh.array_names) > 0:
+                                            meshColor = None  # use color from surf file
+                                        else:
+                                            meshColor = '#2222ff'  # default color if nothing else provided
+                                    self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
+                                                                                    color=meshColor,
+                                                                                    rgb=True,
+                                                                                    opacity=0.8,
+                                                                                    name=actorKey)
 
-                            # apply transform to existing actor
-                            setActorUserTransform(self._actors[actorKey],
-                                                  concatenateTransforms([
-                                                      toolOrTrackerStlToTrackerTransf,
-                                                      self._positionsClient.getLatestTransf(key)
-                                                  ]))
-                            self._plotter.render()
+                                # apply transform to existing actor
+                                setActorUserTransform(self._actors[actorKey],
+                                                      concatenateTransforms([
+                                                          toolOrTrackerStlToTrackerTransf,
+                                                          self._positionsClient.getLatestTransf(key)
+                                                      ]))
+                                self._plotter.render()
+                            else:
+                                # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
+                                doShow = False
 
                 if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
                     if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
-                        canShow = True
+                        doShow = True
                         if actorKey not in self._actors:
                             self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
                                                                             color='#d9a5b2',
@@ -300,10 +304,10 @@ class CameraPanel(MainViewPanel):
                         self._plotter.render()
 
                 if actorKey in self._actors:
-                    if canShow and not self._actors[actorKey].GetVisibility():
+                    if doShow and not self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOn()
                         self._plotter.render()
-                    elif not canShow and self._actors[actorKey].GetVisibility():
+                    elif not doShow and self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOff()
                         self._plotter.render()
 

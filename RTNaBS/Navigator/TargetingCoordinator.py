@@ -53,6 +53,7 @@ class TargetingCoordinator:
     _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False)
     _currentSamplePoseMetrics: PoseMetricCalculator = attrs.field(init=False)
 
+    sigActiveCoilKeyChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentSampleChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentCoilPositionChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -89,6 +90,7 @@ class TargetingCoordinator:
         logger.info(f'Recording active coil key change from {oldKey} to {newKey}')
         assert oldKey == self._activeCoilKey
         self._activeCoilKey = newKey
+        self.sigActiveCoilKeyChanged.emit()
 
     def _onActiveCoilToolChanged(self, key: str, attribs: tp.Optional[list[str]] = None):
         """
@@ -112,6 +114,7 @@ class TargetingCoordinator:
             self._session.tools[self._activeCoilKey].sigKeyChanged.disconnect(self._onActiveCoilToolKeyChanged)
             self._session.tools[self._activeCoilKey].sigItemChanged.disconnect(self._onActiveCoilToolChanged)
         self._activeCoilKey = None  # clear cached active coil key, will be replaced with autodiscovered active key later as needed
+        self.sigActiveCoilKeyChanged.emit()
 
         self._currentCoilToMRITransform = None  # clear any previously cached value
         self.sigCurrentCoilPositionChanged.emit()
@@ -202,9 +205,12 @@ class TargetingCoordinator:
             coilTool = self._session.tools[newKey]
             assert coilTool.isActive
             assert isinstance(coilTool, CoilTool)
+
         raise NotImplementedError()  # TODO
         # TODO: disconnect signals for previous active coil key
         # TODO: connect signals for new active coil key
+
+        self.sigActiveCoilKeyChanged.emit()
 
     @property
     def currentCoilToMRITransform(self) -> tp.Optional[Transform]:

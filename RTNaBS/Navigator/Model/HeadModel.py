@@ -44,21 +44,34 @@ class HeadModel:
         self.sigFilepathChanged.connect(self._onFilepathChanged)
         self.validateFilepath(self._filepath)
 
+    @property
+    def _m2mDir(self):
+        parentDir = os.path.dirname(self.filepath)  # simnibs results dir
+        subStr = os.path.splitext(os.path.basename(self.filepath))[0]  # e.g. 'sub-1234'
+        m2mDir = os.path.join(parentDir, 'm2m_' + subStr)
+        assert os.path.exists(m2mDir), 'm2m folder not found. Are full SimNIBS results available next to specified .msh file?'
+        return m2mDir
+
+    @property
+    def skinSurfPath(self):
+        return os.path.join(self._m2mDir, 'skin.stl')
+
+    @property
+    def gmSurfPath(self):
+        return os.path.join(self._m2mDir, 'gm.stl')
+
     def loadCache(self, which: str):
         if not self.isSet:
             logger.warning('Load data requested, but no filepath set. Returning.')
             return
 
-        parentDir = os.path.dirname(self.filepath)  # simnibs results dir
-        subStr = os.path.splitext(os.path.basename(self.filepath))[0]  # e.g. 'sub-1234'
-        m2mDir = os.path.join(parentDir, 'm2m_' + subStr)
-        assert os.path.exists(m2mDir), 'm2m folder not found. Are full SimNIBS results available next to specified .msh file?'
+        m2mDir = self._m2mDir
 
         if which in ('skinSurf', 'gmSurf'):
             if which == 'gmSurf':
-                meshPath = os.path.join(m2mDir, 'gm.stl')
+                meshPath = self.gmSurfPath
             elif which == 'skinSurf':
-                meshPath = os.path.join(m2mDir, 'skin.stl')
+                meshPath = self.skinSurfPath
             else:
                 raise NotImplementedError()
 
@@ -75,9 +88,11 @@ class HeadModel:
             else:
                 raise NotImplementedError
 
-            logger.info(f'Simplifying mesh for {which}')
-            mesh = mesh.decimate(0.8)
-            logger.debug('Done simplifying mesh')
+            if True:  # TODO: debug, set to True
+                logger.info(f'Simplifying mesh for {which}')
+                mesh = mesh.decimate(0.8)
+                logger.debug('Done simplifying mesh')
+
             setattr(self, '_' + which, mesh)
 
         elif which == 'eegPositions':
