@@ -79,7 +79,8 @@ class TrackingStatusWidget:
 
         toolsToShow = []
         for toolKey, tool in self.session.tools.items():
-            if self._hideInactiveTools and not tool.isActive \
+            if (self._hideInactiveTools and not tool.isActive) \
+                    or not tool.doShowTrackingState \
                     or any(isinstance(tool, ToolCls) for ToolCls in self._hideToolTypes):
                 continue
             toolsToShow.append(tool)
@@ -93,7 +94,8 @@ class TrackingStatusWidget:
 
     def _onLatestPositionsChanged(self):
         for toolKey, tool in self.session.tools.items():
-            if self._hideInactiveTools and not tool.isActive \
+            if (self._hideInactiveTools and not tool.isActive) \
+                    or not tool.doShowTrackingState \
                     or any(isinstance(tool, ToolCls) for ToolCls in self._hideToolTypes):
                 assert toolKey not in self._toolWdgts
                 continue

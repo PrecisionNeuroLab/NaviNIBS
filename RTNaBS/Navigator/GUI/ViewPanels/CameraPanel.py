@@ -221,18 +221,6 @@ class CameraPanel(MainViewPanel):
         if not self._hasInitialized and not self.isInitializing:
             return
 
-        actorKey = 'cameraFOV'
-        if actorKey not in self._actors:
-            logger.debug('Loading cameraFOV mesh from {}'.format(self._cameraFOVSTLPath))
-            cameraFOVMesh = pv.read(self._cameraFOVSTLPath)
-            self._actors[actorKey] = self._plotter.add_mesh(mesh=cameraFOVMesh,
-                                                            color='#222222',
-                                                            opacity=0.1,
-                                                            show_edges=True,
-                                                            name=actorKey)
-            setActorUserTransform(self._actors[actorKey], np.asarray(
-                [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]))
-
         for key, tool in self.session.tools.items():
             if True == False:
                 logger.debug('TODO: delete')
@@ -268,6 +256,7 @@ class CameraPanel(MainViewPanel):
                                     # initialize graphic
                                     mesh = getattr(tool, toolOrTracker + 'Surf')
                                     meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                    meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
                                     if meshColor is None:
                                         if len(mesh.array_names) > 0:
                                             meshColor = None  # use color from surf file
@@ -275,8 +264,8 @@ class CameraPanel(MainViewPanel):
                                             meshColor = '#2222ff'  # default color if nothing else provided
                                     self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                                                     color=meshColor,
+                                                                                    opacity=1.0 if meshOpacity is None else meshOpacity,
                                                                                     rgb=True,
-                                                                                    opacity=0.8,
                                                                                     name=actorKey)
 
                                 # apply transform to existing actor

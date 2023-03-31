@@ -65,12 +65,21 @@ class Tool(GenericCollectionDictItem[str]):
     """
     Note: some surf file formats (e.g. .ply) allow specifying color of elements within the file; if color is None here and colors are available in the surf file, those colors will be used.
     """
+    _toolOpacity: float | None = None
+    _trackerOpacity: float | None = None
 
     _installPath: tp.Optional[str] = None  # used for relative paths
     _sessionPath: tp.Optional[str] = None  # used for relative paths
 
     _trackerSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _toolSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+
+    _initialTrackerPose: tp.Optional[np.ndarray] = None
+    """
+    For defining initial pose of tool, e.g. for tools that never get a camera-reported position, or 
+    for a default (simulated) position when a camera is not connected. 
+    """
+    _initialTrackerPoseRelativeTo: str = 'world'
 
     _toolToTrackerTransfHistory: tp.Dict[str, tp.Optional[np.ndarray]] = attrs.field(factory=dict)
 
@@ -320,6 +329,14 @@ class Tool(GenericCollectionDictItem[str]):
         return self._toolColor
 
     @property
+    def trackerOpacity(self):
+        return self._trackerOpacity
+
+    @property
+    def toolOpacity(self):
+        return self._toolOpacity
+
+    @property
     def toolToTrackerTransfHistory(self):
         return self._toolToTrackerTransfHistory
 
@@ -337,8 +354,38 @@ class Tool(GenericCollectionDictItem[str]):
             self._toolSurf = pv.read(self.toolStlFilepath)
         return self._toolSurf
 
+    @property
+    def initialTrackerPose(self):
+        return self._initialTrackerPose
+
+    @initialTrackerPose.setter
+    def initialTrackerPose(self, newPose: tp.Optional[np.ndarray]):
+        if array_equalish(self._initialTrackerPose, newPose):
+            logger.debug('No change in initialTrackerPose, returning')
+            return
+
+        self.sigItemAboutToChange.emit(self.key, ['initialTrackerPose'])
+        logger.info('Set initialTrackerPose to {}'.format(newPose))
+        self._initialTrackerPose = newPose
+        self.sigItemChanged.emit(self.key, ['initialTrackerPose'])
+
+    @property
+    def initialTrackerPoseRelativeTo(self):
+        return self._initialTrackerPoseRelativeTo
+
+    @initialTrackerPoseRelativeTo.setter
+    def initialTrackerPoseRelativeTo(self, newPoseRelativeTo: tp.Optional[str]):
+        if self._initialTrackerPoseRelativeTo == newPoseRelativeTo:
+            logger.debug('No change in initialTrackerPoseRelativeTo, returning')
+            return
+
+        self.sigItemAboutToChange.emit(self.key, ['initialTrackerPoseRelativeTo'])
+        logger.info('Set initialTrackerPoseRelativeTo to {}'.format(newPoseRelativeTo))
+        self._initialTrackerPoseRelativeTo = newPoseRelativeTo
+        self.sigItemChanged.emit(self.key, ['initialTrackerPoseRelativeTo'])
+
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        npFields = ('toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf')
+        npFields = ('toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf', 'initialTrackerPose')
         d = attrsWithNumpyAsDict(self,
                                  npFields=npFields,
                                  eqs=dict(
@@ -376,7 +423,7 @@ class Tool(GenericCollectionDictItem[str]):
             d['toolToTrackerTransfHistory'] = convertHistoryListToDict(
                 d['toolToTrackerTransfHistory'], 'toolToTrackerTransf', convertTransf)
 
-        npFields = ('toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf')
+        npFields = ('toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf', 'initialTrackerPose')
 
         return attrsWithNumpyFromDict(cls, d, npFields=npFields,
                                       sessionPath=sessionPath)
@@ -613,7 +660,7 @@ class Tools(GenericCollection[str, Tool]):
                 ToolCls = CalibrationPlate
             case 'subject':
                 ToolCls = SubjectTracker
-            case '':
+            case '' | 'visualization':
                 ToolCls = Tool
             case _:
                 raise NotImplementedError('Unexpected tool usedFor: {}'.format(usedFor))

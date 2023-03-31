@@ -18,6 +18,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient, TimestampedToolPosition
 from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
 from RTNaBS.Navigator.GUI.ModalWindows.PointerCalibrationWindow import PointerCalibrationWindow
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
@@ -79,7 +80,7 @@ class ToolWidget:
         formContainer.layout().addRow('Label', self._label)
 
         self._usedFor = QtWidgets.QComboBox()
-        self._usedFor.insertItems(0, ['coil', 'subject', 'pointer', 'calibration'])
+        self._usedFor.insertItems(0, ['coil', 'subject', 'pointer', 'calibration', 'visualization'])
         if len(self._tool.usedFor) > 0:
             index = self._usedFor.findText(self._tool.usedFor)
             assert index != -1, 'Unexpected tool type: {}'.format(self._tool.usedFor)
@@ -460,8 +461,23 @@ class ToolsPanel(MainViewPanel):
     def _onSessionSet(self):
         super()._onSessionSet()
 
+        if any(tool.initialTrackerPose is not None for tool in self.session.tools.values()):
+            asyncio.create_task(self._recordInitialToolPoses())
+
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
+
+    async def _recordInitialToolPoses(self):
+        positionsClient = ToolPositionsClient()
+        for tool in self.session.tools.values():
+            if tool.initialTrackerPose is not None:
+                await positionsClient.recordNewPosition(
+                    tool.key,
+                    position=TimestampedToolPosition(
+                        time=0.,
+                        transf=tool.initialTrackerPose,
+                        relativeTo=tool.initialTrackerPoseRelativeTo
+                    ))
 
     def _onPanelInitializedAndSessionSet(self):
         self._trackingStatusWdgt.session = self.session
