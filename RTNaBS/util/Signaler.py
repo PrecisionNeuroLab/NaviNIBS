@@ -50,3 +50,11 @@ class Signal:
             yield None
         finally:
             self._blockedSemaphoreCounter -= 1
+
+    @contextlib.contextmanager
+    def connected(self, fn: tp.Callable[[], None]):
+        self.connect(fn)
+        try:
+            yield None
+        finally:
+            self.disconnect(fn)
