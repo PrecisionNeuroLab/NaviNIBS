@@ -526,6 +526,13 @@ class ZMQConnectorClient:
         return self._call(method=method, doAsync=True, *args, **kwargs)
 
     async def ping_async(self, timeout=100, numTries=2):
+        """
+        :param timeout: time in ms
+        :param numTries:
+        :return: None
+
+        Raises TimeoutError if ping fails
+        """
         for i in range(numTries):
             async with self._areqLock:
                 await self._areqSocket.send_multipart([b'ping'])
