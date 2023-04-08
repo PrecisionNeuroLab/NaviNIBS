@@ -221,6 +221,8 @@ class CameraPanel(MainViewPanel):
         if not self._hasInitialized and not self.isInitializing:
             return
 
+        doResetCamera = False
+
         for key, tool in self.session.tools.items():
             if True == False:
                 logger.debug('TODO: delete')
@@ -267,6 +269,7 @@ class CameraPanel(MainViewPanel):
                                                                                     opacity=1.0 if meshOpacity is None else meshOpacity,
                                                                                     rgb=True,
                                                                                     name=actorKey)
+                                    doResetCamera = True
 
                                 # apply transform to existing actor
                                 setActorUserTransform(self._actors[actorKey],
@@ -287,6 +290,7 @@ class CameraPanel(MainViewPanel):
                                                                             color='#d9a5b2',
                                                                             opacity=0.8,
                                                                             name=actorKey)
+                            doResetCamera = True
 
                         setActorUserTransform(self._actors[actorKey],
                                               self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
@@ -299,6 +303,9 @@ class CameraPanel(MainViewPanel):
                     elif not doShow and self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOff()
                         self._plotter.render()
+
+        if doResetCamera:
+            self._plotter.reset_camera()
 
     def close(self):
         if self._positionsServerProc is not None:
