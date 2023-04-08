@@ -12,6 +12,7 @@ from qtpy import QtWidgets
 
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
 from RTNaBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.lsl.LSLStreamSelector import LSLStreamSelector
 
 
@@ -41,7 +42,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
 
         self._wdgt.layout().addRow('Trigger stream', self._streamSelector.wdgt)
 
-        self._pollTask = asyncio.create_task(self._pollForData())
+        self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._pollForData))
 
     def _disconnectInlet(self):
         logger.info(f'Disconnecting from LSL stream')
