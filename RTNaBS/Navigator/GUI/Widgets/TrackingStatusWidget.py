@@ -32,6 +32,8 @@ class TrackingStatusWidget:
             self._wdgt = QtWidgets.QGroupBox('Tools tracking status')
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
+        self._wdgt.setContentsMargins(0, 0, 0, 0)
+        self._wdgt.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
 
         for iCol in range(self._numColumns):
             wdgt = QtWidgets.QWidget()
