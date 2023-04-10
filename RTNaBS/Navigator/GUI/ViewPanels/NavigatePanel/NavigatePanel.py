@@ -21,6 +21,7 @@ from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
+from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -38,6 +39,7 @@ class _PoseMetricGroup:
     """
     _title: str
     _container: QtWidgets.QWidget
+    _scroll: QScrollContainer = attrs.field(init=False)
     _calculatorKey: str
     _calculator: tp.Optional[PoseMetricCalculator] = None
     _indicators: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
@@ -66,11 +68,17 @@ class _PoseMetricGroup:
         poseMetrics = [poseMetric for poseMetric in self._calculator.supportedMetrics if poseMetric.doShowByDefault]
 
         if not self._hasInitialized:
-            self._container.setLayout(QtWidgets.QFormLayout())
+            self._scroll = QScrollContainer(innerContainerLayout=QtWidgets.QFormLayout())
+            self._container.setLayout(QtWidgets.QVBoxLayout())
+            self._container.layout().setContentsMargins(0, 0, 0, 0)
+            self._container.layout().setSizeConstraint(QtWidgets.QLayout.SetMinAndMaxSize)
+            self._container.layout().addWidget(self._scroll.scrollArea)
+            self._scroll.innerContainer.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
+            self._scroll.scrollArea.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
 
             for poseMetric in poseMetrics:
                 wdgt = QtWidgets.QLabel(f"NaN{poseMetric.units}")
-                self._container.layout().addRow(poseMetric.label, wdgt)
+                self._scroll.innerContainerLayout.addRow(poseMetric.label, wdgt)
                 self._indicators[poseMetric.label] = wdgt
 
             self._hasInitialized = True
@@ -198,6 +206,7 @@ class NavigatePanel(MainViewPanel):
             title='Samples',
             layout=QtWidgets.QVBoxLayout())
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        container.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.MinimumExpanding)
 
         btnContainer = QtWidgets.QWidget()
         btnContainerLayout = QtWidgets.QGridLayout()
