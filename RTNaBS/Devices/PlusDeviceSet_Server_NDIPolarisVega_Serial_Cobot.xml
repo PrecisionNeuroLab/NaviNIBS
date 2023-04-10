@@ -1,0 +1,69 @@
+<PlusConfiguration version="2.1">
+
+  <DataCollection StartupDelaySec="1.0" >
+    <DeviceSet 
+      Name="PlusServer: NDI Polaris Vega Serial Cobot"
+      Description="Broadcasting tool tracking data through OpenIGTLink" />
+    <Device
+      Id="TrackerDevice"
+      Type="NDITracker"
+      SerialPort="COM3"
+      BaudRate="115200"
+      ToolReferenceFrame="Tracker" >
+      <DataSources>
+        <DataSource Type="Tool" Id="Coil1" RomFile="../../data/tools/LOCALITE-TMS-Coil-1.rom"  />
+        <DataSource Type="Tool" Id="Coil2" RomFile="../../data/tools/LOCALITE-TMS-Coil-2.rom"  />
+        <DataSource Type="Tool" Id="Pointer" RomFile="../../data/tools/LOCALITE-Pointer.rom"  />
+        <DataSource Type="Tool" Id="Subject" RomFile="../../data/tools/LOCALITE-TMS-Reference.rom"  />
+        <DataSource Type="Tool" Id="Calibration" RomFile="../../data/tools/LOCALITE-TMS-Calibration-Plate.rom"  />
+        <DataSource Type="Tool" Id="CartLeft" RomFile="../../addons/RTNaBS_Cobot_Advanced/Devices/resources/Axilum-TMS-Cobot-Left-World.rom"  />
+        <DataSource Type="Tool" Id="CartRight" RomFile="../../addons/RTNaBS_Cobot_Advanced/Devices/resources/Axilum-TMS-Cobot-Right-World.rom"  />
+      </DataSources>
+      <OutputChannels>
+        <OutputChannel Id="TrackerStream" >
+          <DataSource Id="Coil1"/>
+          <DataSource Id="Coil2"/>
+          <DataSource Id="Pointer"/>
+          <DataSource Id="Subject"/>
+          <DataSource Id="Calibration"/>
+          <DataSource Id="CartLeft"/>
+          <DataSource Id="CartRight"/>
+        </OutputChannel>
+      </OutputChannels>
+    </Device>
+  </DataCollection>
+
+  <CoordinateDefinitions>
+    <Transform From="PointerTip" To="Pointer"
+      Matrix="
+        1	0	0	0
+        0	1	0	0
+        0	0	1	0
+        0	0	0	1"
+       Error="0" Date="220521_142600" />
+  </CoordinateDefinitions>
+
+  <PlusOpenIGTLinkServer 
+    MaxNumberOfIgtlMessagesToSend="100"
+    MaxTimeSpentWithProcessingMs="50"
+    ListeningPort="18944"
+    SendValidTransformsOnly="false"
+    NumberOfRetryAttempts="10"
+    OutputChannelId="TrackerStream" >
+    <DefaultClientInfo>
+      <MessageTypes>
+        <Message Type="TRANSFORM" />
+      </MessageTypes>
+      <TransformNames>
+        <Transform Name="Coil1ToTracker" />
+        <Transform Name="Coil2ToTracker" />
+        <Transform Name="PointerToTracker" />
+        <Transform Name="SubjectToTracker" />
+        <Transform Name="CalibrationToTracker" />
+        <Transform Name="CartLeftToTracker" />
+        <Transform Name="CartRightToTracker" />
+      </TransformNames>
+    </DefaultClientInfo>
+  </PlusOpenIGTLinkServer>
+
+</PlusConfiguration>
