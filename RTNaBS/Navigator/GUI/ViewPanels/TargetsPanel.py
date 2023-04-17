@@ -447,6 +447,10 @@ class TargetsPanel(MainViewPanel):
                                                                os.path.dirname(self.session.filepath),
                                                                'json (*.json);; RTNaBS (*.rtnabs)')
 
+        if len(newFilepath) == 0:
+            logger.warning('Import cancelled')
+            return
+
         self.session.mergeFromFile(filepath=newFilepath, sections=['targets'])
 
     def _onAddBtnClicked(self, checked: bool):

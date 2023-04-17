@@ -36,7 +36,7 @@ class MRISliceView:
     sigSliceTransformChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
-        self.sigSliceOriginChanged.connect(self._updateView)
+        self.sigSliceTransformChanged.connect(self._updateView)
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 

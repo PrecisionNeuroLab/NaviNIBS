@@ -115,7 +115,7 @@ class NavigatorGUI(RunnableAsApp):
 
         if self._doRunAsApp:
             logger.debug('Showing window')
-            self._win.resize(QtCore.QSize(1200, 900))  # TODO: restore previous size if available
+            self._win.resize(QtCore.QSize(1600, 1100))  # TODO: restore previous size if available
             self._win.show()
 
     def _addViewPanel(self, panel: MainViewPanel) -> MainViewPanel:
