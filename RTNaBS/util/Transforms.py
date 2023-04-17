@@ -21,6 +21,7 @@ def decomposeTransform(A2B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     T = A2B[0:3, 3]
     return R, T
 
+
 def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.ndarray, doStrictCheck: bool = True) -> np.ndarray:
     """
     Apply 4x4 transform(s) to a set of points

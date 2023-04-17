@@ -1,7 +1,11 @@
 import attrs
+import logging
 
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K
 from RTNaBS.Navigator.Model.Samples import Samples, Sample
+
+
+logger = logging.getLogger(__name__)
 
 
 @attrs.define(slots=False)
@@ -39,5 +43,6 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
 
     def setWhichItemsSelected(self, selectedKeys: list[K]):
         if self._pendingChangeType is not None:
+            logger.debug(f'Ignoring setWhichItemsSelected ({selectedKeys}) since another change is pending ({self._pendingChangeType})')
             return  # ignore pending changes, assume will be handled later
         self._collection.setWhichSamplesSelected(selectedKeys)

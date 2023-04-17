@@ -10,7 +10,6 @@ from RTNaBS.util.Transforms import applyTransform
 @attrs.define(slots=False)
 class HeadPointsTableModel(CollectionTableModel[int, HeadPoints, HeadPoint]):
     _collection: HeadPoints = attrs.field(init=False)
-    # TODO: re-implement with HeadPoints as a custom class instead of plain ndarray to allow indexing in expected form, etc.
 
     def __attrs_post_init__(self):
         self._collection = self._session.subjectRegistration.sampledHeadPoints
