@@ -382,7 +382,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
                 self.layoutAboutToBeChanged.emit()
 
             case 'insertRows':
-                indices = list(set(self.getIndexFromCollectionItemKey(key) for key in keys))
+                indices = list(self.getIndexFromCollectionItemKey(key) for key in keys)
                 assert all(index is None for index in indices)
                 # assume being added at end of collection
                 self.beginInsertRows(QtCore.QModelIndex(), len(self._collection), len(self._collection) + len(indices)-1)
@@ -418,6 +418,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             case 'modifyExisting':
                 indices = list(set(self.getIndexFromCollectionItemKey(key) for key in keys))
                 assert all(index is not None for index in indices)
+                assert len(indices) == len(keys), 'One or more keys repeated'
                 minIndex = min(indices)
                 maxIndex = max(indices)
 

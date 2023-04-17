@@ -63,7 +63,10 @@ class VisualizedTarget:
         else:
             for actor in self._actors.values():
                 actor.VisibilityOff()
+
         self._visible = isVisible
+
+        self._plotter.render()
 
     def plot(self):
         thinWidth = 3
@@ -389,7 +392,7 @@ class TargetsPanel(MainViewPanel):
         if not self._hasInitialized and not self._isInitializing:
             return
 
-        logger.debug('Targets changed. Updating tree view and plots')
+        logger.debug(f'Targets changed. Updating tree view and plots.\nchangedTargetKeys={changedTargetKeys}, \nchangedTargetAttrs={changedTargetAttrs}')
 
         if changedTargetKeys is None:
             changedTargetKeys = self.session.targets.keys()
@@ -425,6 +428,7 @@ class TargetsPanel(MainViewPanel):
                             if viewKey + key in self._targetActors:
                                 view.plotter.remove_actor(self._targetActors.pop(viewKey + key))
                         else:
+                            logger.debug(f'Creating VisualizedTarget for target {target.asDict()}')
                             self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
                                                                                         plotter=view.plotter,
                                                                                         style=style,
