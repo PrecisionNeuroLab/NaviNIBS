@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from functools import wraps
 import typing as tp
 
 from . import exceptionToStr
@@ -59,3 +60,29 @@ def asyncioRunAndHandleExceptions(fn: tp.Callable[..., tp.Awaitable], *args, **k
             logger.debug('Closing loop')
             loop.close()
         logger.debug('Done!')
+
+
+def asyncAtomicCancellable(fn: tp.Callable[..., tp.Awaitable], *args, **kwargs):
+    @wraps(fn)
+    async def wrapper(*args, **kwargs):
+        task = asyncio.create_task(fn(*args, **kwargs))
+        shieldedTask = asyncio.shield(task)
+        try:
+            return await shieldedTask
+        except asyncio.CancelledError:
+            await task
+            raise
+    return wrapper
+
+
+def asyncNonCancellable(fn: tp.Callable[..., tp.Awaitable], *args, **kwargs):
+    @wraps(fn)
+    async def wrapper(*args, **kwargs):
+        task = asyncio.create_task(fn(*args, **kwargs))
+        shieldedTask = asyncio.shield(task)
+        try:
+            return await shieldedTask
+        except asyncio.CancelledError:
+            return await task
+    return wrapper
+
