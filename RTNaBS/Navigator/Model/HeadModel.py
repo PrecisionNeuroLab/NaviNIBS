@@ -32,6 +32,7 @@ class HeadModel:
     # (note that .msh file and other nested files in same parent dir will be used)
 
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _csfSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -57,6 +58,10 @@ class HeadModel:
         return os.path.join(self._m2mDir, 'skin.stl')
 
     @property
+    def csfSurfPath(self):
+        return os.path.join(self._m2mDir, 'csf.stl')
+
+    @property
     def gmSurfPath(self):
         return os.path.join(self._m2mDir, 'gm.stl')
 
@@ -67,9 +72,11 @@ class HeadModel:
 
         m2mDir = self._m2mDir
 
-        if which in ('skinSurf', 'gmSurf'):
+        if which in ('skinSurf', 'csfSurf', 'gmSurf'):
             if which == 'gmSurf':
                 meshPath = self.gmSurfPath
+            elif which == 'csfSurf':
+                meshPath = self.csfSurfPath
             elif which == 'skinSurf':
                 meshPath = self.skinSurfPath
             else:

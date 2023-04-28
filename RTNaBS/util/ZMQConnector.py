@@ -523,6 +523,9 @@ class ZMQConnectorClient:
         return await self._call_async(method=method, doAsync=True, *args, **kwargs)
 
     def callAsync(self, method: str, *args, **kwargs):
+        """
+        Synchronously on the client, make an asynchronous call on the server
+        """
         return self._call(method=method, doAsync=True, *args, **kwargs)
 
     async def ping_async(self, timeout=100, numTries=2):
