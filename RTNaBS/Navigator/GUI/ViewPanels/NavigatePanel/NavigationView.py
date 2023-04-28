@@ -166,6 +166,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         try:
             cameraPts = np.asarray([[0, 0, 0], [0, 0, 200], [0, 1, 0]])  # focal point, position, and up respectively
+
             if self._alignCameraTo is None:
                 pass
 
@@ -176,6 +177,9 @@ class SinglePlotterNavigationView(NavigationView):
                 if self._alignCameraTo[-1] in 'XY':
                     # add negative z offset to reduce empty space above coil in camera view
                     extraTransf[2, 3] = -20
+
+                    # reduce distance from camera to target to zoom in tighter
+                    cameraPts[1, 2] = 100
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
@@ -192,6 +196,9 @@ class SinglePlotterNavigationView(NavigationView):
                 if self._alignCameraTo[-1] in 'XY':
                     # add negative z offset to reduce empty space above coil in camera view
                     extraTransf[2, 3] = -20
+
+                    # reduce distance from camera to coil to zoom in tighter
+                    cameraPts[1, 2] = 100
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentCoilToMRITransform is not None:
