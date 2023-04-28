@@ -20,7 +20,7 @@ import typing as tp
 from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
+from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -235,7 +235,7 @@ class CoordinateWidget:
 class TargetsPanel(MainViewPanel):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
-    _tableWdgt: TargetsTableWidget = attrs.field(init=False)
+    _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
 
@@ -303,7 +303,7 @@ class TargetsPanel(MainViewPanel):
         btn.clicked.connect(self._onGotoBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 1)
 
-        self._tableWdgt = TargetsTableWidget()
+        self._tableWdgt = FullTargetsTableWidget()
         self._tableWdgt.sigCurrentItemChanged.connect(self._onSelectedTargetChanged)
         container.layout().addWidget(self._tableWdgt.wdgt)
 
@@ -407,6 +407,9 @@ class TargetsPanel(MainViewPanel):
                     if actorKey in self._targetActors:
                         self._targetActors[actorKey].visible = target.isVisible
 
+        elif changedTargetAttrs == ['isSelected']:
+            pass  # selection update will be handled separately
+
         else:
             # assume anything/everything changed, clear target and start over
             if self._hasInitialized or self._isInitializing:
@@ -433,6 +436,8 @@ class TargetsPanel(MainViewPanel):
                                                                                         plotter=view.plotter,
                                                                                         style=style,
                                                                                         visible=target.isVisible)
+
+                    view.updateView()
 
                 if len(self.session.targets) > 0:
                     currentTarget = self._getCurrentTargetKey()

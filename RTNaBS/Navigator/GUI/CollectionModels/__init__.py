@@ -17,8 +17,17 @@ CI = tp.TypeVar('CI')  # collection item type
 
 
 @attrs.define(slots=False)
-class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
+class CollectionTableModelBase(tp.Generic[K, C, CI]):
     _session: Session
+
+    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[str],)))
+
+    def __attrs_post_init__(self):
+        pass
+
+
+@attrs.define(slots=False)
+class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[K, C, CI]):
     _columns: list[str] = attrs.field(factory=list)
     _attrColumns: list[str] = attrs.field(factory=list)
     _derivedColumns: dict[str, tp.Callable[[K], tp.Any]] = attrs.field(factory=dict)
@@ -87,9 +96,8 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
 
-    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[str],)))
-
     def __attrs_post_init__(self):
+        CollectionTableModelBase.__attrs_post_init__(self)
         QtCore.QAbstractTableModel.__init__(self)
 
         doAutoCollateColumns = len(self._columns) == 0
@@ -449,4 +457,46 @@ class CollectionTableModel(QtCore.QAbstractTableModel, tp.Generic[K, C, CI]):
             raise NotImplementedError
 
         return getattr(self._collection[key], self._isSelectedAttr)
+
+
+@attrs.define(slots=False)
+class FilteredCollectionModel(QtCore.QSortFilterProxyModel, CollectionTableModelBase[K, C, CI]):
+    """
+    Base class for models that filter a collection model, e.g. Targets subset
+    """
+
+    _proxiedModel: CollectionTableModel = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        CollectionTableModelBase.__attrs_post_init__(self)
+        QtCore.QSortFilterProxyModel.__init__(self)
+        assert self._proxiedModel is not None, 'Should be set by subclass before calling super().__attrs_post_init__'
+        self._proxiedModel.sigSelectionChanged.connect(self._onFullSelectionChanged, priority=-1)
+        self.setSourceModel(self._proxiedModel)
+
+    def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
+        raise NotImplementedError  # should be implemented by subclass
+
+    def getCollectionItemFromIndex(self, index: int) -> CI | None:
+        return self._proxiedModel.getCollectionItemFromIndex(self.mapToSource(self.index(index, 0)).row())
+
+    def getCollectionItemKeyFromIndex(self, index: int) -> str | None:
+        return self._proxiedModel.getCollectionItemKeyFromIndex(self.mapToSource(self.index(index, 0)).row())
+
+    def getIndexFromCollectionItemKey(self, key: str) -> int | None:
+        proxiedRow = self._proxiedModel.getIndexFromCollectionItemKey(key)
+        if proxiedRow is None:
+            return None
+        return self.mapFromSource(self._proxiedModel.index(proxiedRow, 0)).row()
+
+    def getCollectionItemIsSelected(self, key: str) -> bool:
+        return self._proxiedModel.getCollectionItemIsSelected(key)
+
+    def setWhichItemsSelected(self, selectedKeys: list[K]):
+        logger.debug(f'setWhichItemsSelected: {selectedKeys}')
+        self._proxiedModel.setWhichItemsSelected(selectedKeys)
+
+    def _onFullSelectionChanged(self, keys: list[str]):
+        logger.debug(f'onFullSelectionChanged: {keys}')
+        self.sigSelectionChanged.emit(keys)  # TODO: filter to just subset of keys
 
