@@ -9,7 +9,7 @@ from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
 from RTNaBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
-from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel
+from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.ToolsTableModel import ToolsTableModel
 from RTNaBS.Navigator.Model.Session import Session
@@ -94,6 +94,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def currentCollectionItemKey(self, key: K):
         if key == self.currentCollectionItemKey:
             return
+        # logger.debug(f'Setting current item to {key}')
         index = self._model.getIndexFromCollectionItemKey(key)
         self._tableView.setCurrentIndex(self._model.index(index, 0))
 
@@ -130,6 +131,11 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def _onTableSelectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection):
         logger.debug('Current selection changed')
         selectedKeys = self.selectedCollectionItemKeys
+        # logger.debug(f'selectedKeys: {selectedKeys}')
+        if self.currentCollectionItemKey not in selectedKeys and len(selectedKeys) > 0:
+            # change current item to first item in selected keys
+            # logger.debug('Updating current item to be in selection')
+            self.currentCollectionItemKey = selectedKeys[0]
         self._model.setWhichItemsSelected(selectedKeys)
         self.sigSelectionChanged.emit(selectedKeys)
 
@@ -147,12 +153,16 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             if row is None:
                 # item no longer in collection
                 continue
-            index = self._model.index(row, 0)
+            leftIndex = self._model.index(row, 0)
+            rightIndex = self._model.index(row, self._model.columnCount() - 1)
             if self._model.getCollectionItemIsSelected(key):
+                # logger.debug(f'{key} is selected')
                 cmd = QtCore.QItemSelectionModel.Select
             else:
+                # logger.debug(f'{key} is deselected')
                 cmd = QtCore.QItemSelectionModel.Deselect
-            selection.merge(QtCore.QItemSelection(index, index), cmd)
+            selection.merge(QtCore.QItemSelection(leftIndex, rightIndex), cmd)
+            # logger.debug(f'selection: {selection} {selection.indexes()}')
 
         self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.SelectCurrent)
 
@@ -174,11 +184,20 @@ class SamplesTableWidget(CollectionTableWidget[str, Sample, Samples, SamplesTabl
 
 
 @attrs.define
+class FullTargetsTableWidget(CollectionTableWidget[str, Target, Targets, FullTargetsTableModel]):
+    _Model: tp.Callable[[Session], FullTargetsTableModel] = FullTargetsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+
+@attrs.define
 class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTableModel]):
     _Model: tp.Callable[[Session], TargetsTableModel] = TargetsTableModel
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
 
 @attrs.define
 class PlanningFiducialsTableWidget(CollectionTableWidget[str, Fiducial, Fiducials, PlanningFiducialsTableModel]):
