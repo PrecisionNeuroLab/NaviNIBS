@@ -8,21 +8,29 @@ import contextlib
 
 @attr.s(auto_attribs=True, eq=False)
 class Signal:
-    _types: tp.Tuple[tp.Type, ...] = attr.ib(default=tuple())
-    _connections: tp.Set[tp.Callable[..., None]] = attr.ib(init=False, factory=set)
+    _types: tuple[tp.Type, ...] = attr.ib(default=tuple())
+    _connections: dict[int, set[tp.Callable[..., None]]] = attr.ib(init=False, factory=dict)
+    """
+    Connections groupded by priority
+    """
     _blockedSemaphoreCounter: int = 0
 
     def __attrs_post_init__(self):
         pass
 
-    def connect(self, fn: tp.Callable[[], None]):
-        try:
-            self._connections.add(fn)
-        except TypeError as e:
-            raise e
+    def connect(self, fn: tp.Callable[[], None], priority: int = 0):
+        """
+        Connections with higher priority are called first.
+        Connections with same priority are called in undetermined order.
+        """
+        if priority not in self._connections:
+            self._connections[priority] = set()
+
+        self._connections[priority].add(fn)
 
     def disconnect(self, fn: tp.Callable[[], None]):
-        self._connections.remove(fn)
+        for connectionSet in self._connections.values():
+            connectionSet.remove(fn)
 
     @property
     def isBlocked(self):
@@ -31,9 +39,12 @@ class Signal:
     def emit(self, *args, **kwargs) -> None:
         if self._blockedSemaphoreCounter > 0:
             return
-        for fn in self._connections.copy():
-            if fn in self._connections:
-                fn(*args, **kwargs)
+        priorities = sorted(self._connections.keys(), reverse=True)
+        for priority in priorities:
+            connectionSet = self._connections[priority].copy()
+            for fn in connectionSet:
+                if fn in self._connections[priority]:
+                    fn(*args, **kwargs)
 
     @contextlib.contextmanager
     def blocked(self):
