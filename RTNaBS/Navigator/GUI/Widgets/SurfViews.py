@@ -67,13 +67,13 @@ class SurfSliceView(MRISliceView):
     def _onHeadModelDataChanged(self, whatChanged: str):
         if whatChanged == self._activeSurf:
             self._clearSurfPlotActor()
-            self._updateView()
+            self.updateView()
         else:
             # ignore other changes
             pass
 
-    def _updateView(self):
-        super()._updateView()
+    def updateView(self):
+        super().updateView()
 
         if isinstance(self._activeSurf, str):
             surfKeys = [self._activeSurf]
@@ -115,7 +115,7 @@ class SurfSliceView(MRISliceView):
 class Surf3DView(SurfSliceView):
     _surfOpacity: float = 1.
 
-    def _updateView(self):
+    def updateView(self):
 
         if self.session is None or self.session.MRI.data is None:
             # no data available
