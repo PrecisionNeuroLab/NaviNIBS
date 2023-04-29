@@ -36,7 +36,7 @@ class MRISliceView:
     sigSliceTransformChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
-        self.sigSliceTransformChanged.connect(self._updateView)
+        self.sigSliceTransformChanged.connect(self.updateView)
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 
@@ -46,7 +46,7 @@ class MRISliceView:
         )
         self._plotter.set_background(self._backgroundColor)
 
-        self._updateView()
+        self.updateView()
 
     @property
     def label(self):
@@ -80,7 +80,7 @@ class MRISliceView:
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 
-        self._updateView()
+        self.updateView()
 
     @property
     def sliceOrigin(self):
@@ -172,7 +172,7 @@ class MRISliceView:
     def _onMRIDataChanged(self):
         if self._plotterInitialized:
             self._clearPlot()
-        self._updateView()
+        self.updateView()
 
     def _clearPlot(self):
         logger.debug('Clearing plot for {} slice'.format(self.label))
@@ -180,7 +180,7 @@ class MRISliceView:
         self.sliceOrigin = None
         self._plotterInitialized = False
 
-    def _updateView(self):
+    def updateView(self):
         if self.session is None or self.session.MRI.data is None:
             # no data available
             if self._plotterInitialized:
@@ -192,7 +192,7 @@ class MRISliceView:
             return
 
         # data available, update display
-        logger.debug('Updating plot for {} slice'.format(self.label))
+        logger.debug(f'Updating plot for {self.label} slice (slicePlotMothed={self._slicePlotMethod}')
 
         if self._sliceOrigin is None:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
@@ -319,7 +319,7 @@ class MRI3DView(MRISliceView):
         else:
             return self._label
 
-    def _updateView(self):
+    def updateView(self):
 
         if self.session is None or self.session.MRI.data is None:
             # no data available
