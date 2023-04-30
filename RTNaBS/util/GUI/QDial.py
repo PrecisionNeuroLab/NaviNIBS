@@ -39,6 +39,8 @@ class AngleDial:
     When centerAngle is 180, values range from (0, 360).
     """
 
+    _enabled: bool = True
+
     _movingValue: float | None = attrs.field(init=False, default=None)
     _dialStartedMove: bool = attrs.field(init=False, default=False)
     _qdial: _CustomQDial = attrs.field(init=False)
@@ -92,9 +94,39 @@ class AngleDial:
 
         self._layout.addStretch()
 
+        if not self._enabled:
+            self._enabled = True
+            self.enabled = False
+
     @property
     def wdgt(self):
         return self._container
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, val: float):
+        if val == self._value:
+            return
+        self._value = val
+        self._qdial.setValue(self._angleToQDialValue(val))
+        self._numericField.setValue(val)
+        # TODO: maybe emit sigValueMoved too
+        self.sigValueChanged.emit(val)
+
+    @property
+    def enabled(self):
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, val: bool):
+        if val == self._enabled:
+            return
+        self._enabled = val
+        self._qdial.setEnabled(val)
+        self._numericField.setEnabled(val)
 
     def _qdialValueToAngle(self, val: int) -> float:
         logger.debug(f'qdial start value: {val}')

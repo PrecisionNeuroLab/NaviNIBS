@@ -19,8 +19,8 @@ import typing as tp
 
 from . import MainViewPanel
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient, TimestampedToolPosition
-from RTNaBS.Navigator.GUI.ModalWindows.CoilCalibrationWindow import CoilCalibrationWindow
-from RTNaBS.Navigator.GUI.ModalWindows.PointerCalibrationWindow import PointerCalibrationWindow
+from RTNaBS.Navigator.GUI.EditWindows.CoilCalibrationWindow import CoilCalibrationWindow
+from RTNaBS.Navigator.GUI.EditWindows.PointerCalibrationWindow import PointerCalibrationWindow
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer

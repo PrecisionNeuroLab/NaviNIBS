@@ -5,7 +5,7 @@ import numpy as np
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.GUI.ModalWindows.ToolCalibrationWindow import ToolCalibrationWindow
+from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 
 

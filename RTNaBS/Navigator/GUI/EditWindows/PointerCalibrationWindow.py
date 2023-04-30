@@ -10,7 +10,7 @@ from scipy.optimize import least_squares
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.GUI.ModalWindows.ToolCalibrationWindow import ToolCalibrationWindow
+from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter

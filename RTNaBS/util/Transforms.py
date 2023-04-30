@@ -29,7 +29,7 @@ def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.n
         `applyTransform([space1ToSpace2Transf, space2TransfToSpace3Transf], pts)` correctly transforms from space1 to space3
         as might be expected with `space2TransfToSpace3Transf @ space1ToSpace2Transf @ augmentedPts`
     :param pts: Nx3 points. Or can be in shape (3,) and will return transformed points with same shape.
-    :return: transform points
+    :return: transformed points
     """
     if pts.ndim == 1:
         didInsertAxis = True
@@ -125,8 +125,6 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
     :return: A2B, 4x4 transform aligning ptsA to ptsB 
     """
 
-    # adapted from http://nghiaho.com/?page_id=671
-
     match method:
         case 'kabsch-svd':
             if ptsA.shape != ptsB.shape:
@@ -139,6 +137,7 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
                 raise ValueError('Need at least 3 points to estimate aligning transform')
 
             if weights is None:
+                # adapted from http://nghiaho.com/?page_id=671
                 centroidA = ptsA.mean(axis=0)
                 centroidB = ptsB.mean(axis=0)
 
