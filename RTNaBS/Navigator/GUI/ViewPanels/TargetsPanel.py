@@ -21,6 +21,7 @@ from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
+from RTNaBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -158,80 +159,6 @@ class VisualizedTarget:
 
 
 @attrs.define
-class CoordinateWidget:
-
-    _session: tp.Optional[Session] = None
-    _mainCoord: tp.Optional[tuple[float, float, float]] = None
-    _mainCoordSysKey: tp.Optional[str] = None
-
-    _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
-    _layout: QtWidgets.QFormLayout = attrs.field(init=False, factory=QtWidgets.QFormLayout)
-    _coordInSysWdgts: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
-
-    def __attrs_post_init__(self):
-        self._wdgt.setLayout(self._layout)
-
-    @property
-    def session(self):
-        return self._session
-
-    @session.setter
-    def session(self, newSes: tp.Optional[Session]):
-        self._session = newSes
-        self._redraw()
-
-    @property
-    def wdgt(self):
-        return self._wdgt
-
-    def setMainCoordAndSys(self, coord: tuple[float, float, float], coordSysKey: str):
-        self._mainCoord = coord
-        self._mainCoordSysKey = coordSysKey
-        self._redraw()
-
-    def _redraw(self):
-
-        if self._session is None:
-            for key, wdgt in self._coordInSysWdgts.items():
-                self._layout.removeWidget(wdgt)
-            self._coordInSysWdgts.clear()
-            return
-
-        assert 'World' not in self._session.coordinateSystems
-        coordSysKeys = ['World'] + list(self._session.coordinateSystems.keys())
-        for key in coordSysKeys:
-            if key not in self._coordInSysWdgts:
-                wdgt = QtWidgets.QLabel()
-                if key != 'World':
-                    wdgt.setToolTip(self._session.coordinateSystems[key].description)
-                self._coordInSysWdgts[key] = wdgt
-                self._layout.addRow(key, wdgt)
-
-            # TODO: make mainCoord widget an editable lineedit, keep others readonly unless user
-            #  specifically chooses to switch main coordinate system defining the coordinate (if allowed)
-
-            if key == self._mainCoordSysKey:
-                coord = self._mainCoord
-            else:
-                if self._mainCoordSysKey == 'World':
-                    coord = self._session.coordinateSystems[key].transformFromWorldToThis(self._mainCoord)
-                else:
-                    coord = self._session.coordinateSystems[self._mainCoordSysKey].transformFromThisToWorld(self._mainCoord)
-                    coord = self._session.coordinateSystems[key].transformFromWorldToThis(self._mainCoord)
-
-            # assume one decimal point is sufficient for any coordinate system
-            # (works for integer or mm units, not m units...)
-            coordTxt = json.dumps(np.around(coord, decimals=1).tolist())
-
-            self._coordInSysWdgts[key].setText(coordTxt)
-
-        removeKeys = set(self._coordInSysWdgts.keys()) - set(coordSysKeys)
-        for key in removeKeys:
-            wdgt = self._coordInSysWdgts.pop(key)
-            self._layout.removeWidget(wdgt)
-
-
-@attrs.define
 class TargetsPanel(MainViewPanel):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
@@ -239,8 +166,7 @@ class TargetsPanel(MainViewPanel):
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
 
-    _selectedTargetTargetWdgt: CoordinateWidget = attrs.field(init=False)
-    _selectedTargetEntryWdgt: CoordinateWidget = attrs.field(init=False)
+    _editTargetWdgt: EditTargetWidget = attrs.field(init=False)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -307,17 +233,13 @@ class TargetsPanel(MainViewPanel):
         self._tableWdgt.sigCurrentItemChanged.connect(self._onSelectedTargetChanged)
         container.layout().addWidget(self._tableWdgt.wdgt)
 
-        subcontainer = QtWidgets.QGroupBox('Target coordinate')
-        subcontainer.setLayout(QtWidgets.QVBoxLayout())
-        container.layout().addWidget(subcontainer)
-        self._selectedTargetTargetWdgt = CoordinateWidget(session=self.session)
-        subcontainer.layout().addWidget(self._selectedTargetTargetWdgt.wdgt)
-
-        subcontainer = QtWidgets.QGroupBox('Entry coordinate')
-        subcontainer.setLayout(QtWidgets.QVBoxLayout())
-        container.layout().addWidget(subcontainer)
-        self._selectedTargetEntryWdgt = CoordinateWidget(session=self.session)
-        subcontainer.layout().addWidget(self._selectedTargetEntryWdgt.wdgt)
+        self._editTargetWdgt = EditTargetWidget(session=self.session,
+                                                getNewTargetCoord=self._getCrosshairCoord,
+                                                setTargetCoordButtonLabel='Set from crosshair position',
+                                                getNewEntryCoord=self._getCrosshairCoord,
+                                                setEntryCoordButtonLabel='Set from crosshair position',
+                                                )
+        container.layout().addWidget(self._editTargetWdgt.wdgt)
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QGridLayout())
@@ -340,6 +262,12 @@ class TargetsPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
         self._onTargetsChanged()
+
+    def _getCrosshairCoord(self) -> np.ndarray:
+        """
+        Used by CoordinateWidgets to set target or entry coord from current crosshair position
+        """
+        return self._views['3D'].sliceOrigin
 
     def _onSliceTransformChanged(self, sourceKey: str):
         logger.debug('Slice {} transform changed'.format(sourceKey))
@@ -368,9 +296,6 @@ class TargetsPanel(MainViewPanel):
 
     def _onSelectedTargetChanged(self, targetKey: str):
         target = self.session.targets[targetKey]
-        self._selectedTargetTargetWdgt.setMainCoordAndSys(coord=target.targetCoord, coordSysKey='World')
-        self._selectedTargetEntryWdgt.setMainCoordAndSys(coord=target.entryCoord, coordSysKey='World')
-        # TODO: connect to necessary signals to update coordinate displays when this target's contents change
 
         self._gotoTarget(targetKey=targetKey)    # go to target immediately whenever selection changes
 
@@ -431,7 +356,7 @@ class TargetsPanel(MainViewPanel):
                             if viewKey + key in self._targetActors:
                                 view.plotter.remove_actor(self._targetActors.pop(viewKey + key))
                         else:
-                            logger.debug(f'Creating VisualizedTarget for target {target.asDict()}')
+                            logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
                             self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
                                                                                         plotter=view.plotter,
                                                                                         style=style,

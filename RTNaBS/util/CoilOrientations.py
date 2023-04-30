@@ -9,6 +9,7 @@ import types
 import typing as tp
 
 from RTNaBS.Navigator.Model import Session
+from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, getClosestPointToPointOnMesh
 from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.Navigator.Model.Targets import Target
 from RTNaBS.util.Signaler import Signal
@@ -488,56 +489,7 @@ class PoseMetricCalculator:
         if self._sample is None or self._sample.coilToMRITransf is None:
             return np.nan
 
-        # TODO: dynamically switch between MNI space and fiducial space depending on whether MNI transf is available
-        if True:
-            # use fiducial locations to define aligned coordinate space
-            nas = self.session.subjectRegistration.fiducials.get('NAS', None)
-            lpa = self.session.subjectRegistration.fiducials.get('LPA', None)
-            rpa = self.session.subjectRegistration.fiducials.get('RPA', None)
-            nas, lpa, rpa = tuple(fid.plannedCoord for fid in (nas, lpa, rpa))
-            if any(coord is None for coord in (nas, lpa, rpa)):
-                logger.debug('Missing fiducial(s), cannot find midline axis')
-                return np.nan
-
-            centerPt = (lpa + rpa) / 2
-            dirPA = nas - centerPt
-            dirPA /= np.linalg.norm(dirPA)
-            dirLR = rpa - lpa
-            dirLR /= np.linalg.norm(dirLR)
-            dirDU = np.cross(dirLR, dirPA)
-            MRIToStdTransf = estimateAligningTransform(np.asarray([centerPt, centerPt + dirDU, centerPt + dirLR]),
-                                                       np.asarray([[0, 0, 0], [0, 0, 1], [1, 0, 0]]))
-        else:
-            # TODO: use MNI transform to get midline points instead of assuming MRI is already aligned
-            raise NotImplementedError
-
-        coilLoc_stdSpace = applyTransform([self._sample.coilToMRITransf, MRIToStdTransf], np.asarray([0, 0, 0]))
-
-        iDir = np.argmax(np.abs(coilLoc_stdSpace))
-        match iDir:
-            case 0:
-                # far left or right
-                refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
-                refDir2 = np.asarray([0, 0, -1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
-            case 1:
-                # far anterior or posterior
-                refDir1 = np.asarray([0, 0, 1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to 0 degrees from midline
-                refDir2 = np.asarray([1, 0, 0])  # this handle angle corresponds to +90 degrees from midline
-            case 2:
-                # far up (or down)
-                refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
-                refDir2 = np.asarray([1, 0, 0]) * np.sign(coilLoc_stdSpace[iDir]) # this handle angle corresponds to +90 degrees from midline
-            case _:
-                raise NotImplementedError
-
-        handleDir_std = np.diff(applyTransform([self._sample.coilToMRITransf, MRIToStdTransf], np.asarray([[0, 0, 0], [0, -1, 0]])), axis=0)
-
-        handleComp1 = np.dot(handleDir_std, refDir1)
-        handleComp2 = np.dot(handleDir_std, refDir2)
-
-        angle = np.arctan2(handleComp2, handleComp1)
-
-        return np.rad2deg(angle).item()
+        return calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._sample.coilToMRITransf)
 
     getAngleFromMidline.cacheKey = 'angleFromMidline'
 
@@ -572,19 +524,6 @@ class PoseMetricCalculator:
 
     getAngleFromNormal.cacheKey = 'angleFromNormal'
 
-    def _getClosestPointToPointOnMesh(self, whichMesh: str, point_MRISpace: np.ndarray) -> tp.Optional[np.ndarray]:
-        surf = getattr(self._session.headModel, whichMesh)
-        if surf is None:
-            return None
-
-        assert isinstance(surf, pv.PolyData)
-
-        # find closest point to coil on surf
-        closestPtIndex = surf.find_closest_point(point_MRISpace)
-        closestPt = surf.points[closestPtIndex, :]
-
-        return closestPt
-
     def getClosestPointToCoilOnSkin(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
         if doUseCache:
             return self._cacheWrap(fn=self.getClosestPointToCoilOnSkin)
@@ -592,8 +531,9 @@ class PoseMetricCalculator:
         if self._sample is None or self._sample.coilToMRITransf is None:
             return None
 
-        return self._getClosestPointToPointOnMesh(whichMesh='skinSurf',
-                                                  point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
+        return getClosestPointToPointOnMesh(session=self._session,
+                                            whichMesh='skinSurf',
+                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
 
     getClosestPointToCoilOnSkin.cacheKey = 'closestPointToCoilOnSkin'
 
@@ -604,8 +544,9 @@ class PoseMetricCalculator:
         if self._sample is None or self._sample.coilToMRITransf is None:
             return None
 
-        return self._getClosestPointToPointOnMesh(whichMesh='gmSurf',
-                                                  point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
+        return getClosestPointToPointOnMesh(session=self._session,
+                                            whichMesh='gmSurf',
+                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
 
     getClosestPointToCoilOnGM.cacheKey = 'closestPointToCoilOnGM'
 
@@ -622,8 +563,9 @@ class PoseMetricCalculator:
 
         point_MRISpace = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
 
-        return self._getClosestPointToPointOnMesh(whichMesh='skinSurf',
-                                                  point_MRISpace=point_MRISpace)
+        return getClosestPointToPointOnMesh(session=self._session,
+                                            whichMesh='skinSurf',
+                                            point_MRISpace=point_MRISpace)
 
     getClosestPointToSampleCortexDepthOnSkin.cacheKey = 'closestPointToSampleCortexDepthOnSkin'
 

@@ -18,8 +18,11 @@ from typing import ClassVar
 from RTNaBS.util.attrs import attrsAsDict
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
+if tp.TYPE_CHECKING:
+    from RTNaBS.Navigator.Model.Session import Session
 
 from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, calculateCoilToMRITransfFromTargetEntryAngle
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,7 @@ class Target(GenericCollectionDictItem[str]):
     _entryCoord: tp.Optional[np.ndarray] = None
     _angle: tp.Optional[float] = None
     """
-    Typical coil handle angle, in coil's horizontal plane
+    Typical coil handle angle, defined relative to "midline"
     """
     _depthOffset: tp.Optional[float] = None
     """
@@ -62,6 +65,18 @@ class Target(GenericCollectionDictItem[str]):
     _color: str = '#0000FF'
 
     _cachedCoilToMRITransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)
+    """
+    If coilToMRITransf isn't manually set, it might be auto-calculated from other target parameters.
+    """
+    _cachedCoilAngle: tp.Optional[float] = attrs.field(init=False, default=None)
+    """
+    If angle isn't manually set, it might be auto-calculated from other target parameters.
+    """
+
+    _session: tp.Optional[Session] = attrs.field(default=None)
+    """
+    Used to access head model for determining angle from coilToMRITransf and vice versa
+    """
 
     @property
     def targetCoord(self):
@@ -71,9 +86,20 @@ class Target(GenericCollectionDictItem[str]):
     def targetCoord(self, newTargetCoord: tp.Optional[np.ndarray]):
         if array_equalish(self._targetCoord, newTargetCoord):
             return
-        self.sigItemAboutToChange.emit(self.key, ['targetCoord'])
+
+        attribsChanging = ['targetCoord', 'coilToMRITransf']
+        newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
+            session=self.session,
+            targetCoord=newTargetCoord,
+            entryCoord=self._entryCoord,
+            angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
+            depthOffset=self._depthOffset
+        )
+        self.sigItemAboutToChange.emit(self.key, attribsChanging)
         self._targetCoord = newTargetCoord
-        self.sigItemChanged.emit(self.key, ['targetCoord'])
+        self._coilToMRITransf = None  # previous transform is invalid with new target
+        self._cachedCoilToMRITransf = newCoilToMRITransf
+        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def entryCoord(self):
@@ -83,21 +109,57 @@ class Target(GenericCollectionDictItem[str]):
     def entryCoord(self, newEntryCoord: tp.Optional[np.ndarray]):
         if array_equalish(self._entryCoord, newEntryCoord):
             return
-        self.sigItemAboutToChange.emit(self.key, ['entryCoord'])
+
+        attribsChanging = ['entryCoord', 'coilToMRITransf']
+        newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
+            session=self.session,
+            targetCoord=self._targetCoord,
+            entryCoord=newEntryCoord,
+            angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
+            depthOffset=self._depthOffset
+        )
+        self.sigItemAboutToChange.emit(self.key, attribsChanging)
         self._entryCoord = newEntryCoord
-        self.sigItemChanged.emit(self.key, ['entryCoord'])
+        self._coilToMRITransf = None  # previous transform is invalid with new entry
+        self._cachedCoilToMRITransf = newCoilToMRITransf
+        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def angle(self):
-        return self._angle if self._angle is not None else 0
+        if self._angle is not None:
+            return self._angle
+        else:
+            if self._cachedCoilAngle is None:
+                if self._coilToMRITransf is not None:
+                    self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._coilToMRITransf)
+                elif self._cachedCoilToMRITransf is not None:
+                    self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._cachedCoilToMRITransf)
+                if self._cachedCoilAngle is None:
+                    return 0
+            else:
+                return 0
+            return self._cachedCoilAngle
 
     @angle.setter
     def angle(self, newAngle: tp.Optional[float]):
         if self._angle == newAngle:
             return
-        self.sigItemAboutToChange.emit(self.key, ['angle'])
+
+        attribsChanging = ['angle', 'coilToMRITransf']
+        newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
+            session=self.session,
+            targetCoord=self._targetCoord,
+            entryCoord=self._entryCoord,
+            angle=newAngle,
+            depthOffset=self._depthOffset
+        )
+        logger.debug(f'newCoilToMRITransf: {newCoilToMRITransf}')
+
+        self.sigItemAboutToChange.emit(self.key, attribsChanging)
         self._angle = newAngle
-        self.sigItemChanged.emit(self.key, ['angle'])
+        self._coilToMRITransf = None  # previous transform is invalid with new angle
+        self._cachedCoilToMRITransf = newCoilToMRITransf
+        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def depthOffset(self) -> float:
@@ -107,9 +169,21 @@ class Target(GenericCollectionDictItem[str]):
     def depthOffset(self, newDepthOffset: tp.Optional[float]):
         if self._depthOffset == newDepthOffset:
             return
-        self.sigItemAboutToChange.emit(self.key, ['depthOffset'])
+
+        attribsChanging = ['depthOffset', 'coilToMRITransf']
+        newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
+            session=self.session,
+            targetCoord=self._targetCoord,
+            entryCoord=self._entryCoord,
+            angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
+            depthOffset=newDepthOffset
+        )
+
+        self.sigItemAboutToChange.emit(self.key, attribsChanging)
         self._depthOffset = newDepthOffset
-        self.sigItemChanged.emit(self.key, ['depthOffset'])
+        self._coilToMRITransf = None  # previous transform is invalid with new depth offset
+        self._cachedCoilToMRITransf = newCoilToMRITransf
+        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def entryCoordPlusDepthOffset(self) -> tp.Optional[np.ndarray]:
@@ -131,12 +205,21 @@ class Target(GenericCollectionDictItem[str]):
             return self._coilToMRITransf
         else:
             if self._cachedCoilToMRITransf is None:
-                raise NotImplementedError()  # TODO: generate transform from target, entry, angle, offset
-                self._cachedCoilToMRITransf = 'todo'
+                self._cachedCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
+                    session=self._session,
+                    targetCoord=self.targetCoord,
+                    entryCoord=self.entryCoord,
+                    angle=self.angle,
+                    depthOffset=self.depthOffset)
             return self._cachedCoilToMRITransf
 
     @coilToMRITransf.setter
     def coilToMRITransf(self, newCoilToMRITransf: tp.Optional[np.ndarray]):
+        """
+        Note that this may be set in a way that conflicts with targetCoord, entryCoord, angle, and depthOffset.
+        However, if any of those are changed after setting this, this transf will be reset and be replaced
+        with a cached auto-calculated version.
+        """
         if array_equalish(self._coilToMRITransf, newCoilToMRITransf):
             return
         self.sigItemAboutToChange.emit(self.key, ['coilToMRITransf'])
@@ -191,18 +274,32 @@ class Target(GenericCollectionDictItem[str]):
         self._isSelected = isSelected
         self.sigItemChanged.emit(self.key, ['isSelected'])
 
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, session: Session):
+        if self._session is not session:
+            self._session = session
+
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        return attrsWithNumpyAsDict(self, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
+        return attrsWithNumpyAsDict(self, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'), exclude=('session',))
 
     @classmethod
-    def fromDict(cls, d: tp.Dict[str, tp.Any]):
-        return attrsWithNumpyFromDict(cls, d, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
+    def fromDict(cls, d: tp.Dict[str, tp.Any], session: Session | None = None):
+        o = attrsWithNumpyFromDict(cls, d, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
+        o.session = session
+        return o
 
 
 @attrs.define
 class Targets(GenericCollection[str, Target]):
+    _session: Session | None = None
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+        self.sigItemsChanged.connect(self._setSessionOnItemsChanged)
 
     def setWhichTargetsVisible(self, visibleKeys: tp.List[str]):
         self.setAttribForItems(self.keys(), dict(isVisible=[key in visibleKeys for key in self.keys()]))
@@ -211,10 +308,27 @@ class Targets(GenericCollection[str, Target]):
         logger.debug(f'setWhichTargetsSelected: {selectedKeys}')
         self.setAttribForItems(self.keys(), dict(isSelected=[key in selectedKeys for key in self.keys()]))
 
+    def _setSessionOnItemsChanged(self, keys: list[str], attribNames: list[str] | None = None):
+        if attribNames is None:
+            for key in keys:
+                if key in self:
+                    self[key].session = self._session
+
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, session: Session):
+        if self._session is not session:
+            self._session = session
+            self._setSessionOnItemsChanged(self.keys())
+
     @classmethod
-    def fromList(cls, itemList: list[dict[str, tp.Any]]) -> Targets:
+    def fromList(cls, itemList: list[dict[str, tp.Any]], session: Session | None = None) -> Targets:
         items = {}
         for itemDict in itemList:
-            items[itemDict['key']] = Target.fromDict(itemDict)
+            items[itemDict['key']] = Target.fromDict(itemDict, session=session)
 
-        return cls(items=items)
+        return cls(items=items, session=session)
+

@@ -109,6 +109,7 @@ class Session:
         self.digitizedLocations.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('digitizedLocations'))
 
         self.coordinateSystems.session = self
+        self.targets.session = self
 
         # TODO
 
@@ -376,6 +377,10 @@ class Session:
 
     def _onTargetsAboutToChange(self, keys: list[str], changingAttrs: tp.Optional[list[str]] = None):
         for targetKey in keys:
+            if targetKey not in self._targets:
+                # probably a completely new target
+                continue
+
             target = self._targets[targetKey]
             if not target.mayBeADependency:
                 continue

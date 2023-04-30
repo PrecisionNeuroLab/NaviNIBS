@@ -69,3 +69,12 @@ class Signal:
             yield None
         finally:
             self.disconnect(fn)
+
+    @contextlib.contextmanager
+    def disconnected(self, fn: tp.Callable[[], None]):
+        assert any(fn in connectionSet for connectionSet in self._connections.values())
+        self.disconnect(fn)
+        try:
+            yield None
+        finally:
+            self.connect(fn)
