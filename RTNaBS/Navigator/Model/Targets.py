@@ -22,7 +22,7 @@ if tp.TYPE_CHECKING:
     from RTNaBS.Navigator.Model.Session import Session
 
 from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
-from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, calculateCoilToMRITransfFromTargetEntryAngle
+from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, calculateCoilToMRITransfFromTargetEntryAngle, getClosestPointToPointOnMesh
 
 
 logger = logging.getLogger(__name__)
@@ -136,8 +136,7 @@ class Target(GenericCollectionDictItem[str]):
                     self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._cachedCoilToMRITransf)
                 if self._cachedCoilAngle is None:
                     return 0
-            else:
-                return 0
+
             return self._cachedCoilAngle
 
     @angle.setter
@@ -282,6 +281,21 @@ class Target(GenericCollectionDictItem[str]):
     def session(self, session: Session):
         if self._session is not session:
             self._session = session
+
+    def autosetEntryCoord(self):
+        """
+        Note: this assumes the target coordinate is far inside the scalp (e.g. on cortical surface, not on the scalp itself)
+        """
+        closestPt_skin = getClosestPointToPointOnMesh(
+            session=self._session,
+            whichMesh='skinSurf',
+            point_MRISpace=self.targetCoord)
+        if closestPt_skin is None:
+            raise ValueError('Missing information, cannot autoset entry coord')
+
+        logger.debug(f'Autosetting entry info to {closestPt_skin}')
+
+        self.entryCoord = closestPt_skin
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
         return attrsWithNumpyAsDict(self, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'), exclude=('session',))

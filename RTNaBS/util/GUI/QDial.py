@@ -110,6 +110,7 @@ class AngleDial:
     def value(self, val: float):
         if val == self._value:
             return
+        logger.debug(f'Value changed from {self._value} to {val}')
         self._value = val
         self._qdial.setValue(self._angleToQDialValue(val))
         self._numericField.setValue(val)
@@ -129,21 +130,27 @@ class AngleDial:
         self._numericField.setEnabled(val)
 
     def _qdialValueToAngle(self, val: int) -> float:
-        logger.debug(f'qdial start value: {val}')
+        origVal = val
         val = val * self._resolution
         val -= self._offsetAngle
         if self._doInvert:
             val = 360 - val
         val = ((val + (self._centerAngle - 180)) % 360) + (self._centerAngle - 180)
         val = round(val, int(ceil(log10(1 / self._resolution))))
+        logger.debug(f'qdial value to angle: {origVal} -> {val}')
         return val
 
-    def _angleToQDialValue(self, val: float) -> int:
+    def _angleToQDialValue(self, val: float | None) -> int | None:
+        if val is None:
+            return None
+        origVal = val
         if self._doInvert:
             val = 360 - val
         val += self._offsetAngle
         val = val % 360
         val /= self._resolution
+        val = int(round(val))
+        logger.debug(f'angle to qdial value: {origVal} -> {val}')
         return int(round(val))
 
     def _onDialValueMoved(self, newVal: int):
@@ -167,12 +174,13 @@ class AngleDial:
         self.sigValueMoved.emit(newVal)
 
     def _onDialValueChanged(self, newVal: int):
-        newVal = self._qdialValueToAngle(newVal)
-        if self._movingValue == newVal and not self._dialStartedMove:
+        if not self._dialStartedMove and self._angleToQDialValue(self._movingValue) == newVal:
             return  # numeric field is being edited, don't finalize here
         self._movingValue = None
-        if newVal == self._value:
+        if self._angleToQDialValue(self._value) == newVal:
             return
+
+        newVal = self._qdialValueToAngle(newVal)
 
         logger.debug(f'value changed: {newVal}')
         self._value = newVal

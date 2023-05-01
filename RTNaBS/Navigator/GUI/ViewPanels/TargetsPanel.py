@@ -22,6 +22,7 @@ from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
 from RTNaBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
+from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -221,8 +222,8 @@ class TargetsPanel(MainViewPanel):
         btn.clicked.connect(self._onDeleteBtnClicked)
         btnContainer.layout().addWidget(btn, 1, 1)
 
-        btn = QtWidgets.QPushButton('Edit target')
-        btn.clicked.connect(self._onEditBtnClicked)
+        btn = QtWidgets.QPushButton('Duplicate target')
+        btn.clicked.connect(self._onDuplicateBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 0)
 
         btn = QtWidgets.QPushButton('Goto target')
@@ -384,12 +385,18 @@ class TargetsPanel(MainViewPanel):
         self.session.mergeFromFile(filepath=newFilepath, sections=['targets'])
 
     def _onAddBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        # create new target at current crosshair location, and autoset entry
+        targetCoord = self._getCrosshairCoord()
+        targetKey = makeStrUnique('Target-1', existingStrs=self.session.targets.keys(), delimiter='-')
+        target = Target(targetCoord=targetCoord, key=targetKey, session=self.session)
+        target.autosetEntryCoord()
+        self.session.targets.addItem(target)
+        self._tableWdgt.currentCollectionItemKey = targetKey  # select new target
 
     def _onDeleteBtnClicked(self, checked: bool):
         raise NotImplementedError()  # TODO
 
-    def _onEditBtnClicked(self, checked: bool):
+    def _onDuplicateBtnClicked(self, checked: bool):
         raise NotImplementedError()  # TODO
 
     def _onGotoBtnClicked(self, checked: bool):
