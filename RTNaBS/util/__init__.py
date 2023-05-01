@@ -42,7 +42,7 @@ def makeStrUnique(baseStr: str, existingStrs: tp.List[str], delimiter: str = '_'
 
     while uniqueStr in existingStrs:
         count += 1
-        uniqueStr = '{}_{}'.format(baseStr, count)
+        uniqueStr = '{}{}{}'.format(baseStr, delimiter, count)
 
     return uniqueStr
 

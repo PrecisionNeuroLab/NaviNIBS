@@ -166,7 +166,7 @@ class EntryAnglesWidgets:
         self._layout.addRow('Entry angle pivot', self._pivotWdgt)
 
         self._angleRefWdgt = QtWidgets.QComboBox()
-        self._angleRefWdgt.addItems(['Closest scalp to cortical target'])
+        self._angleRefWdgt.addItems(['Closest scalp to target'])
         self._angleRefWdgt.setCurrentIndex(0)
         self._angleRefWdgt.currentIndexChanged.connect(self._onEntryAngleRefChanged)
         self._layout.addRow('Entry angle relative to', self._angleRefWdgt)
@@ -223,21 +223,14 @@ class EntryAnglesWidgets:
     def _getAngleRefVec(self) -> Vector | None:
         angleRef = self._angleRefWdgt.currentText()
         match angleRef:
-            case 'Closest scalp to cortical target':
-                pt_gm = getClosestPointToPointOnMesh(
-                    session=self._session,
-                    whichMesh='gmSurf',
-                    point_MRISpace=self._target.targetCoord)
-                if pt_gm is None:
-                    return None
+            case 'Closest scalp to target':
                 closestPt_skin = getClosestPointToPointOnMesh(
                     session=self._session,
                     whichMesh='skinSurf',
-                    point_MRISpace=pt_gm)
+                    point_MRISpace=self._target.targetCoord)
                 if closestPt_skin is None:
                     return None
-
-                idealNormal = Vector(closestPt_skin - pt_gm)
+                idealNormal = Vector(closestPt_skin - self._target.targetCoord)
                 return idealNormal
 
             case _:
@@ -496,7 +489,8 @@ class EditTargetWidget:
     def _onHandleAngleChangedFromGUI(self, newAngle: float):
         logger.info(f'Handle angle changed to {newAngle} degrees')
         if self.target is not None:
-            self.target.angle = newAngle  # TODO: maybe check if angle (accounting for rounding) actually changed
+            if self.target.angle != newAngle:
+                self.target.angle = newAngle  # TODO: maybe check if angle (accounting for rounding) actually changed
 
 
 
