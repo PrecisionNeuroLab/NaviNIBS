@@ -5,12 +5,12 @@ import numpy as np
 import pyvista as pv
 import pytransform3d.rotations as ptr
 import pytransform3d.transformations as ptt
-from skspatial.objects import Vector
+from skspatial.objects import Vector, Plane
 import typing as tp
 
 if tp.TYPE_CHECKING:
     from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms
+from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +29,20 @@ def getClosestPointToPointOnMesh(session: Session, whichMesh: str, point_MRISpac
     return closestPt
 
 
-def calculateAngleFromMidlineFromCoilToMRITransf(session: Session, coilToMRITransf: np.ndarray | None) -> float | None:
+def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRITransf: np.ndarray | None) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
+    """
+    Calculate the reference directions for angle=0 and angle=+90 degrees from midline, in the MRI space.
+
+    Note that these directions are dependent on the coilToMRITransf, since the definition of "midline" can differ when on top of the head vs. extreme left/right vs. extreme anterior/posterior.
+
+    :return
+        refDir1: handle angle (i.e. coil's -y axis) corresponding to 0 degrees from midline
+        refDir2: handle angle (i.e. coil's -y axis) corresponding to +90 degrees from midline
+        May return (None, None) if coilToMRITransf is None.
+    """
+
     if coilToMRITransf is None:
-        return None
+        return None, None
 
     # TODO: dynamically switch between MNI space and fiducial space depending on whether MNI transf is available
     if True:
@@ -42,7 +53,7 @@ def calculateAngleFromMidlineFromCoilToMRITransf(session: Session, coilToMRITran
         nas, lpa, rpa = tuple(fid.plannedCoord for fid in (nas, lpa, rpa))
         if any(coord is None for coord in (nas, lpa, rpa)):
             logger.debug('Missing fiducial(s), cannot find midline axis')
-            return None
+            return None, None
 
         centerPt = (lpa + rpa) / 2
         dirPA = nas - centerPt
@@ -75,10 +86,26 @@ def calculateAngleFromMidlineFromCoilToMRITransf(session: Session, coilToMRITran
         case _:
             raise NotImplementedError
 
-    handleDir_std = np.diff(applyTransform([coilToMRITransf, MRIToStdTransf], np.asarray([[0, 0, 0], [0, -1, 0]])), axis=0)
+    # convert refDirs to MRI space
+    refDir1_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir1)
+    refDir2_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir2)
 
-    handleComp1 = np.dot(handleDir_std, refDir1)
-    handleComp2 = np.dot(handleDir_std, refDir2)
+    return refDir1_MRI, refDir2_MRI
+
+
+def calculateAngleFromMidlineFromCoilToMRITransf(session: Session, coilToMRITransf: np.ndarray | None) -> float | None:
+    if coilToMRITransf is None:
+        return None
+
+    refDir1_MRI, refDir2_MRI = calculateMidlineRefDirectionsFromCoilToMRITransf(session, coilToMRITransf)
+    if refDir1_MRI is None or refDir2_MRI is None:
+        return None
+
+    handleDir_coilSpace = np.asarray([0, -1, 0])
+    handleDir_MRI = applyDirectionTransform(coilToMRITransf, handleDir_coilSpace)
+
+    handleComp1 = np.dot(handleDir_MRI, refDir1_MRI)
+    handleComp2 = np.dot(handleDir_MRI, refDir2_MRI)
 
     angle = np.arctan2(handleComp2, handleComp1)
 
@@ -95,7 +122,6 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
     """
     Implemented outside of Target class to allow preparing for invalidating old coilToMRITransf when targetCoord, entryCoord, angle, or depthOffset change, before actually applying that change to the instance.
     """
-
 
     if targetCoord is None:
         # estimate targetCoord from prevCoilToMRITransf
@@ -122,6 +148,7 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
     if depthOffset is None:
         depthOffset = 0
 
+    # determine rotation axis and angle to align with desired entry direction
     vec_targetDepth = Vector(entryCoord - targetCoord)
     vec_defaultCoilDepth = Vector([0, 0, 1])
     vec_rotAxis = vec_defaultCoilDepth.cross(vec_targetDepth)
@@ -132,22 +159,39 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
     coilToMRITransf[:3, 3] = applyTransform(coilToMRITransf, np.asarray([0, 0, depthOffset]))
 
     # determine how much to rotate coil handle to get desired angle from midline
-    intermediateAngleFromMidline = calculateAngleFromMidlineFromCoilToMRITransf(session=session,
-                                                                                coilToMRITransf=coilToMRITransf)
-    angleDiff = angle - intermediateAngleFromMidline
-    logger.debug(f'angleFromMidline: {intermediateAngleFromMidline} angleDiff: {angleDiff}')
-    vec_rotAxis = np.asarray([0, 0, 1])  # TODO: check sign
-    coilToMRITransf[:3, :3] = coilToMRITransf[:3, :3] @ ptr.matrix_from_axis_angle(np.append(vec_rotAxis, np.deg2rad(angleDiff)))
+    refDir1_MRI, refDir2_MRI = calculateMidlineRefDirectionsFromCoilToMRITransf(session, coilToMRITransf)
+    #logger.debug(f'refDir1_MRI: {refDir1_MRI} refDir2_MRI: {refDir2_MRI}')
 
-    # in case sign was flipped above, correct again but with opposite sign;
-    # if correction was correct above, this delta should be zero and additional rotation should have no effect
-    # (note: this could be made more computationally efficient)
-    intermediateAngleFromMidline = calculateAngleFromMidlineFromCoilToMRITransf(session=session,
-                                                                                coilToMRITransf=coilToMRITransf)
-    angleDiff = angle - intermediateAngleFromMidline
-    logger.debug(f'angleFromMidline: {intermediateAngleFromMidline} angleDiff: {angleDiff}')
-    vec_rotAxis = np.asarray([0, 0, -1])
-    coilToMRITransf[:3, :3] = coilToMRITransf[:3, :3] @ ptr.matrix_from_axis_angle(np.append(vec_rotAxis, np.deg2rad(angleDiff)))
+    refDir1_coil = Vector(applyDirectionTransform(invertTransform(coilToMRITransf), refDir1_MRI))
+    refDir2_coil = Vector(applyDirectionTransform(invertTransform(coilToMRITransf), refDir2_MRI))
+    #logger.debug(f'refDir1_coil: {refDir1_coil} refDir2_coil: {refDir2_coil}')
+    refPlaneNormal_coil = refDir1_coil.cross(refDir2_coil)
+    #logger.debug(f'refPlaneNormal_coil: {refPlaneNormal_coil}')
+    # note: this reference plane is likely tilted out of the XY plane of the coil space
+    rotHandleInRefPlaneTransf = np.eye(4)
+    rotHandleInRefPlaneTransf[:3, :3] = ptr.matrix_from_axis_angle(np.append(refPlaneNormal_coil, np.deg2rad(angle)))
+    handleDirInRefPlane_coil = Vector(applyDirectionTransform(rotHandleInRefPlaneTransf, refDir1_coil))
+    #logger.debug(f'handleDirInRefPlane_coil: {handleDirInRefPlane_coil}')
+    if True:
+        vec_rotAxis = refPlaneNormal_coil.cross(handleDirInRefPlane_coil)
+        projectWithinPlane = Plane.from_vectors(np.asarray([0, 0, 0]), handleDirInRefPlane_coil, refPlaneNormal_coil)
+        xyPlane_coil = Plane.from_vectors(np.asarray([0, 0, 0]), np.asarray([1, 0, 0]), np.asarray([0, 1, 0]))
+        handleLineInCoilPlane_coil = projectWithinPlane.intersect_plane(xyPlane_coil)
+        handleDirInCoilPlane_coil = handleLineInCoilPlane_coil.direction
+        if handleDirInCoilPlane_coil.dot(handleDirInRefPlane_coil) < 0:
+            handleDirInCoilPlane_coil = -handleDirInCoilPlane_coil
+    else:
+        # project this handle direction onto the XY plane of the coil space
+        handleDirInCoilPlane_coil = handleDirInRefPlane_coil.copy()
+        handleDirInCoilPlane_coil[2] = 0
+    logger.debug(f'handleDirInCoilPlane_coil: {handleDirInCoilPlane_coil}')
+
+    initialHandleDir_coil = Vector([0, -1, 0])
+    vec_rotAxis = np.asarray([0, 0, 1])  # TODO: check sign
+    targetHandleAngle = initialHandleDir_coil.angle_signed_3d(handleDirInCoilPlane_coil, vec_rotAxis)
+    logger.debug(f'targetHandleAngle: {np.rad2deg(targetHandleAngle)}')
+
+    coilToMRITransf[:3, :3] = coilToMRITransf[:3, :3] @ ptr.matrix_from_axis_angle(np.append(vec_rotAxis, targetHandleAngle))
 
     if True:
         # TODO: debug, delete
