@@ -14,7 +14,7 @@ from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTable
 from RTNaBS.Navigator.Model.Session import Session, Tool
 from RTNaBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
+from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
 from RTNaBS.util.GUI.QDial import AngleDial
 
 logger = logging.getLogger(__name__)
@@ -172,7 +172,7 @@ class EntryAnglesWidgets:
         self._layout.addRow('Entry angle relative to', self._angleRefWdgt)
 
         self._angleXWdgt = AngleDial(
-            doInvert=True,
+            doInvert=False,
             offsetAngle=180,
             centerAngle=0
         )
@@ -180,7 +180,7 @@ class EntryAnglesWidgets:
         self._layout.addRow('Entry angle X', self._angleXWdgt.wdgt)
 
         self._angleYWdgt = AngleDial(
-            doInvert=True,
+            doInvert=False,
             offsetAngle=180,
             centerAngle=0
         )
@@ -254,30 +254,27 @@ class EntryAnglesWidgets:
             self._clearAndDisableEntryAngleWidgets()
             return
 
-        angleRefVec = self._getAngleRefVec()
-        if angleRefVec is None:
+        angleRefVec_MRI = self._getAngleRefVec()
+        if angleRefVec_MRI is None:
             self._clearAndDisableEntryAngleWidgets()
             return
+        logger.debug(f'angleRefVec_MRI: {angleRefVec_MRI}')
 
         coilToMRITransf = self._target.coilToMRITransf
         if coilToMRITransf is None:
             self._clearAndDisableEntryAngleWidgets()
             return
 
-        pts_MRISpace = np.asarray([[0, 0, 0], angleRefVec]) + \
-                           applyTransform(coilToMRITransf, np.asarray([[0, 0, 0]]))
+        angleRefVec_coil = applyDirectionTransform(invertTransform(coilToMRITransf), angleRefVec_MRI)
+        logger.debug(f'angleRefVec_coil: {angleRefVec_coil}')
+        coilDepthVec_coil = Vector([0, 0, 1])
+        logger.debug(f'coilDepthVec_coil: {coilDepthVec_coil}')
 
-        pts_coilSpace = applyTransform(invertTransform(coilToMRITransf), pts_MRISpace)
+        rot = calculateRotationMatrixFromVectorToVector(angleRefVec_coil, coilDepthVec_coil)  # TODO: check sign
+        logger.debug(f'rot: {rot}')
 
-        angleRefVec_coilSpace = Vector(pts_coilSpace[1, :] - pts_coilSpace[0, :])
-
-        angleRefVec_XZ = Vector([angleRefVec_coilSpace[0], angleRefVec_coilSpace[2]])
-        angleRefVec_YZ = Vector([angleRefVec_coilSpace[1], angleRefVec_coilSpace[2]])
-
-        coilVec_depth = Vector([0, 1])
-
-        angleX = angleRefVec_YZ.angle_signed(coilVec_depth)
-        angleY = angleRefVec_XZ.angle_signed(coilVec_depth)
+        angleZ, angleX, angleY = ptr.extrinsic_euler_zxy_from_active_matrix(rot)
+        logger.debug(f'Entry angle X: {np.rad2deg(angleX)}  Y: {np.rad2deg(angleY)}  Z: {np.rad2deg(angleZ)}')
 
         with self._angleXWdgt.sigValueChanged.disconnected(self._onEntryAngleXChangedFromGUI), \
              self._angleYWdgt.sigValueChanged.disconnected(self._onEntryAngleYChangedFromGUI):
@@ -330,9 +327,9 @@ class EntryAnglesWidgets:
         angleY = np.deg2rad(self._angleYWdgt.value)
 
         pivotTransf = np.eye(4)
-        pivotTransf[:3, :3] = ptr.active_matrix_from_extrinsic_euler_xyz(np.asarray([angleX, angleY, 0]))  # TODO: double check signs
+        pivotTransf[:3, :3] = ptr.active_matrix_from_extrinsic_euler_zxy(np.asarray([0, angleX, angleY]))  # TODO: double check signs
 
-        pivotedCoilToMRITransf = concatenateTransforms([prepivotTargetCoilToMRITransf, coilToPivotSpaceTransf, pivotTransf, invertTransform(coilToPivotSpaceTransf)])
+        pivotedCoilToMRITransf = concatenateTransforms([coilToPivotSpaceTransf, pivotTransf, invertTransform(coilToPivotSpaceTransf), prepivotTargetCoilToMRITransf])
 
         self._target.entryCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset]))
         self._target.targetCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset - entryToTargetDist]))

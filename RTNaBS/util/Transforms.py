@@ -2,7 +2,9 @@ import json
 import sys
 
 import numpy as np
+import pytransform3d.rotations as ptr
 import pytransform3d.transformations as ptt
+from skspatial.objects import Vector
 import typing as tp
 
 
@@ -47,6 +49,23 @@ def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.n
     return result
 
 
+def applyDirectionTransform(A2B: np.ndarray, dirs: np.ndarray, doStrictCheck: bool = True) -> np.ndarray:
+    if dirs.ndim == 1:
+        didInsertAxis = True
+        dirs = dirs[np.newaxis, :]
+    else:
+        didInsertAxis = False
+        assert dirs.shape[1] == 3
+
+    if not isinstance(A2B, np.ndarray):
+        A2B = concatenateTransforms(A2B)
+
+    result = ptt.transform(A2B, ptt.vectors_to_directions(dirs), strict_check=doStrictCheck)[:, 0:3]
+    if didInsertAxis:
+        result = result[0, :]
+    return result
+
+
 def concatenateTransforms(A2B: tp.Iterable[np.ndarray]) -> np.ndarray:
     """
     Combine transforms in **reverse** order, using same ordering convention as `applyTransform`, such that
@@ -84,7 +103,7 @@ def stringToTransform(inputStr: str) -> np.ndarray:
 
 def calculateRotationMatrixFromTwoVectors(vecA: np.ndarray, vecB: np.ndarray) -> np.ndarray:
     """
-    Calculate rotationg such that X-axis points in direction of vecA, Y-axis points in direction of (oproj_vecA vecB)
+    Calculate rotation such that X-axis points in direction of vecA, Y-axis points in direction of (oproj_vecA vecB)
     adapted from https://rock-learning.github.io/pytransform3d/_apidoc/pytransform3d.rotations.matrix_from_two_vectors.html
 
     :param vecA:
@@ -101,6 +120,19 @@ def calculateRotationMatrixFromTwoVectors(vecA: np.ndarray, vecB: np.ndarray) ->
     dirC = np.cross(vecA, dirB)
 
     return np.column_stack((vecA, dirB, dirC))
+
+
+def calculateRotationMatrixFromVectorToVector(vecA: np.ndarray, vecB: np.ndarray) -> np.ndarray:
+    """
+    Calculate rotation that would rotate vecA to vecB
+    """
+    vecA = Vector(vecA)
+    vecB = Vector(vecB)
+    if vecA.is_parallel(vecB):
+        return np.eye(3)
+    vec_rotAxis = vecA.cross(vecB)
+    rotAngle = vecA.angle_signed_3d(vecB, vec_rotAxis)  # TODO: check sign
+    return ptr.matrix_from_axis_angle(np.append(vec_rotAxis, rotAngle))
 
 
 def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 'kabsch-svd', weights: tp.Optional[np.ndarray] = None) -> np.ndarray:
