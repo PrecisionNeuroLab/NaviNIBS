@@ -257,6 +257,7 @@ class TargetsPanel(MainViewPanel):
             elif key == '3D':
                 self._views[key] = Surf3DView(label=key, normal=np.eye(3),
                                               activeSurf=self._surfKeys,
+                                              cameraOffsetDist=50,
                                               surfOpacity=[0.8, 0.5])
             else:
                 raise NotImplementedError()
@@ -333,8 +334,7 @@ class TargetsPanel(MainViewPanel):
         if True:
             # also set camera position for 3D view to align with target
             self._views['3D'].plotter.camera.focal_point = self._views['3D'].sliceOrigin
-            self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform,
-                                                                       np.asarray([0, 0, 100]))
+            self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 200]))
             self._views['3D'].plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
                                                                  np.asarray([0, 100, 0])) - self._views[
                                                       '3D'].plotter.camera.position
