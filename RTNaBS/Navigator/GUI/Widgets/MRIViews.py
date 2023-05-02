@@ -20,6 +20,7 @@ class MRISliceView:
     _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
     _clim: tp.Tuple[float, float] = (300, 2000)  # TODO: set to auto-initialize instead of hardcoding default
+    _cameraOffsetDist: float = 100  # distance from slice to camera
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _sliceOrigin: tp.Optional[np.ndarray] = None
 
@@ -280,7 +281,7 @@ class MRISliceView:
         else:
             offsetDir = self._normal @ np.asarray([0, 0, 1])  # TODO: double check
         if True:
-            self._plotter.camera.position = offsetDir * 100 + self._sliceOrigin
+            self._plotter.camera.position = offsetDir * self._cameraOffsetDist + self._sliceOrigin
         else:
             # hack to prevent resetting clipping range due to pyvista implementation quirk
             tmp = self._plotter.camera._renderer
@@ -297,8 +298,8 @@ class MRISliceView:
             upDir = self._normal @ np.asarray([0, 1, 0])
         self._plotter.camera.up = upDir
         if self._slicePlotMethod == 'cameraClippedVolume':
-            self._plotter.camera.clipping_range = (99, 102)
-        self._plotter.camera.parallel_scale = 90
+            self._plotter.camera.clipping_range = (self._cameraOffsetDist * 0.98, self._cameraOffsetDist + 1.02)
+        self._plotter.camera.parallel_scale = self._cameraOffsetDist
 
         self._plotterInitialized = True
 
