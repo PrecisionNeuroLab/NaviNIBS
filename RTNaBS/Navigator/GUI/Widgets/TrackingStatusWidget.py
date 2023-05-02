@@ -17,7 +17,7 @@ ToolStatusWidget = IconWidget
 
 @attrs.define
 class TrackingStatusWidget:
-    _session: tp.Optional[Session] = None
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(default=None)
     _hideInactiveTools: bool = True

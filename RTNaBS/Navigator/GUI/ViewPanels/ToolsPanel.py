@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class ToolWidget:
     _tool: Tool
-    _session: Session  # only used for cross-tool references like coil calibration
+    _session: Session = attrs.field(repr=False)  # only used for cross-tool references like coil calibration
 
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)

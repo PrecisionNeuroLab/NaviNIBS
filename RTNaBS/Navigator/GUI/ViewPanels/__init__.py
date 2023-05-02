@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @attrs.define()
 class MainViewPanel:
     _key: str
-    _session: tp.Optional[Session] = None
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
 
     _label: tp.Optional[str] = None
     _icon: tp.Optional[QtGui.QIcon] = attrs.field(default=None)  # to be set by subclass

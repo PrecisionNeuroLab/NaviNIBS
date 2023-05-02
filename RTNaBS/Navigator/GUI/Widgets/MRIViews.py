@@ -20,7 +20,7 @@ class MRISliceView:
     _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
     _clim: tp.Tuple[float, float] = (300, 2000)  # TODO: set to auto-initialize instead of hardcoding default
-    _session: tp.Optional[Session] = None
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _sliceOrigin: tp.Optional[np.ndarray] = None
 
     _slicePlotMethod: str = 'cameraClippedVolume'

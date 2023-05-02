@@ -18,7 +18,7 @@ class ToolCalibrationWindow:
     """
     _parent: QtWidgets.QWidget
     _toolKeyToCalibrate: str
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
 

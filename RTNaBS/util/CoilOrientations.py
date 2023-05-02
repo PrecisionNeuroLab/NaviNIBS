@@ -33,7 +33,7 @@ class MetricSpecification:
 
 @attrs.define
 class PoseMetricCalculator:
-    _session: Session
+    _session: Session = attrs.field(repr=False)
     _sample: tp.Optional[Sample]
 
     _cachedValues: dict[str, tp.Any] = attrs.field(init=False, factory=dict)

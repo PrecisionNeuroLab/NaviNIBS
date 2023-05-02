@@ -29,7 +29,7 @@ TM = tp.TypeVar('TM', bound=CollectionTableModel)
 @attrs.define
 class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _Model: tp.Callable[[Session], TM]
-    _session: tp.Optional[Session] = None
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
 
     _tableView: QtWidgets.QTableView = attrs.field(init=False, factory=QtWidgets.QTableView)
     _model: tp.Optional[TM] = attrs.field(init=False, default=None)

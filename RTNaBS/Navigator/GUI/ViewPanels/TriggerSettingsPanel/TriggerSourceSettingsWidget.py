@@ -19,7 +19,7 @@ class TriggerSourceSettingsWidget(tp.Generic[TS]):
     _cdw: dw.DockWidget = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(factory=QtWidgets.QWidget)
     _triggerSourceKey: str
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
     def __attrs_post_init__(self):
         self._cdw = dw.DockWidget(

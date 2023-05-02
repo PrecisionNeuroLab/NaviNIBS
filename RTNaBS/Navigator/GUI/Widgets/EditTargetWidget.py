@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class CoordinateWidget:
 
-    _session: tp.Optional[Session] = None
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _target: Target | None = None
     _whichCoord: str = 'target'  # target or entry
 
@@ -149,7 +149,7 @@ class CoordinateWidget:
 @attrs.define(kw_only=True)
 class EntryAnglesWidgets:
     _layout: QtWidgets.QFormLayout
-    _session: tp.Optional[Session] = None
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _target: Target | None = None
 
     _pivotWdgt: QtWidgets.QComboBox = attrs.field(init=False)
@@ -339,7 +339,7 @@ class EntryAnglesWidgets:
 @attrs.define(kw_only=True)
 class EditTargetWidget:
     _targetKey: str | None = None
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
     _wdgt: QtWidgets.QWidget = attrs.field(factory=lambda: QtWidgets.QGroupBox('Edit target'))
 
