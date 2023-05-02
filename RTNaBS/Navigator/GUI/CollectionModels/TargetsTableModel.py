@@ -42,12 +42,6 @@ class FullTargetsTableModel(CollectionTableModel[str, Targets, Target]):
 
         super().__attrs_post_init__()
 
-    def setWhichItemsSelected(self, selectedKeys: list[K]):
-        if self._pendingChangeType is not None:
-            return  # ignore pending changes, assume will be handled later
-        # logger.debug(f'setWhichItemsSelected: {selectedKeys}')
-        self._collection.setWhichTargetsSelected(selectedKeys)
-
 
 @attrs.define(slots=False)
 class TargetsTableModel(FilteredCollectionModel[str, Targets, Target]):

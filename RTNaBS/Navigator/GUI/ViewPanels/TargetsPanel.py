@@ -27,7 +27,7 @@ from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.Transforms import composeTransform, applyTransform
+from RTNaBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
 from RTNaBS.Navigator.Model.Session import Session, Target
 
 
@@ -41,10 +41,10 @@ class VisualizedTarget:
     re-instantiate the `VisualizedTarget` for any target changes.
     """
     _target: Target
-    _plotter: pv.Plotter
+    _plotter: pv.Plotter = attrs.field(repr=False)
     _style: str
     _color: str = '#2222FF'
-    _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict)
+    _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
     _visible: bool = True  # track this separately from self._target.isVisible to allow temporarily overriding
 
     def __attrs_post_init__(self):
@@ -171,6 +171,8 @@ class TargetsPanel(MainViewPanel):
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
+    _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget | EditTargetWidget] = attrs.field(init=False, factory=list)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -221,17 +223,21 @@ class TargetsPanel(MainViewPanel):
         btn = QtWidgets.QPushButton('Delete target')
         btn.clicked.connect(self._onDeleteBtnClicked)
         btnContainer.layout().addWidget(btn, 1, 1)
+        self._enabledOnlyWhenTargetSelected.append(btn)
 
         btn = QtWidgets.QPushButton('Duplicate target')
         btn.clicked.connect(self._onDuplicateBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 0)
+        self._enabledOnlyWhenTargetSelected.append(btn)
 
         btn = QtWidgets.QPushButton('Goto target')
         btn.clicked.connect(self._onGotoBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 1)
+        self._enabledOnlyWhenTargetSelected.append(btn)
 
         self._tableWdgt = FullTargetsTableWidget()
-        self._tableWdgt.sigCurrentItemChanged.connect(self._onSelectedTargetChanged)
+        self._tableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
+        self._tableWdgt.sigSelectionChanged.connect(self._onSelectionChanged)
         container.layout().addWidget(self._tableWdgt.wdgt)
 
         self._editTargetWdgt = EditTargetWidget(session=self.session,
@@ -261,6 +267,10 @@ class TargetsPanel(MainViewPanel):
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
+
+        for widget in self._enabledOnlyWhenTargetSelected:
+            logger.debug(f'Disabling {widget}')
+            widget.setEnabled(False)
 
         self._onTargetsChanged()
 
@@ -295,10 +305,14 @@ class TargetsPanel(MainViewPanel):
     def _getCurrentTargetKey(self) -> tp.Optional[str]:
         return self._tableWdgt.currentCollectionItemKey
 
-    def _onSelectedTargetChanged(self, targetKey: str):
-        target = self.session.targets[targetKey]
+    def _onSelectionChanged(self, keys: list[str]):
+        for widget in self._enabledOnlyWhenTargetSelected:
+            logger.debug(f"{'Disabling' if len(keys)==0 is None else 'Enabling'} {widget}")
+            widget.setEnabled(len(keys)>0)
 
-        self._gotoTarget(targetKey=targetKey)    # go to target immediately whenever selection changes
+    def _onCurrentTargetChanged(self, targetKey: str | None):
+        if targetKey is not None:
+            self._gotoTarget(targetKey=targetKey)    # go to target immediately whenever selection changes
 
     def _gotoTarget(self, targetKey: str):
         # change slice camera views to align with selected target
@@ -365,12 +379,8 @@ class TargetsPanel(MainViewPanel):
 
                     view.updateView()
 
-                if len(self.session.targets) > 0:
-                    currentTarget = self._getCurrentTargetKey()
-                    if currentTarget is None and len(self.session.targets) > 0:
-                        currentTarget = list(self.session.targets.keys())[0]
-                    if currentTarget is not None:
-                        self._onSelectedTargetChanged(currentTarget)
+                currentTarget = self._getCurrentTargetKey()
+                self._onCurrentTargetChanged(currentTarget)
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
@@ -400,7 +410,11 @@ class TargetsPanel(MainViewPanel):
         raise NotImplementedError()  # TODO
 
     def _onGotoBtnClicked(self, checked: bool):
-        self._gotoTarget(self._getCurrentTargetKey())
+        targetKey = self._getCurrentTargetKey()
+        if targetKey is not None:
+            self._gotoTarget(self._getCurrentTargetKey())
+        else:
+            logger.warning('No target selected')
 
 
 

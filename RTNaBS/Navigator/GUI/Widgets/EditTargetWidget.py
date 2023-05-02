@@ -206,6 +206,22 @@ class EntryAnglesWidgets:
 
         self._refreshEntryAngleWidgets()
 
+    @property
+    def pivotWdgt(self):
+        return self._pivotWdgt
+
+    @property
+    def angleRefWdgt(self):
+        return self._angleRefWdgt
+
+    @property
+    def angleXWdgt(self):
+        return self._angleXWdgt
+
+    @property
+    def angleYWdgt(self):
+        return self._angleYWdgt
+
     def _onEntryAnglePivotChanged(self, index: int):
         self._refreshEntryAngleWidgets()
 
@@ -275,6 +291,10 @@ class EntryAnglesWidgets:
             self._angleYWdgt.value = np.rad2deg(angleY)
 
     def _applyEntryAngleChangesToModel(self):
+
+        if self._target is None:
+            logger.warning('Can\'t apply entry angle changes: no target selected')
+            return
 
         refVec = self._getAngleRefVec()
         if refVec is None:
@@ -369,6 +389,8 @@ class EditTargetWidget:
 
     _doTrackModelSelectedTarget: bool = True
 
+    _disableWidgetsWhenNoTarget: list[QtWidgets.QWidget] = attrs.field(init=False)
+
     def __attrs_post_init__(self):
         layout = QtWidgets.QFormLayout()
         self._wdgt.setLayout(layout)
@@ -408,6 +430,18 @@ class EditTargetWidget:
         )
         # children widgets added to layout internally in constructor
 
+        self._disableWidgetsWhenNoTarget = [
+            self._targetCoordWdgt.wdgt,
+            self._entryCoordWdgt.wdgt,
+            self._handleAngleWdgt.wdgt,
+            self._entryAngleWdgts.pivotWdgt,
+            self._entryAngleWdgts.angleRefWdgt,
+            self._entryAngleWdgts.angleXWdgt.wdgt,
+            self._entryAngleWdgts.angleYWdgt.wdgt
+        ]
+
+        self._onTargetComboBoxCurrentIndexChanged(self._targetComboBox.currentIndex())  # enable/disable widgets
+
     @property
     def wdgt(self):
         return self._wdgt
@@ -441,6 +475,9 @@ class EditTargetWidget:
             self._targetComboBox.setCurrentIndex(self._targetsModel.getIndexFromCollectionItemKey(target.key))
             self._handleAngleWdgt.value = target.angle
 
+    def setEnabled(self, enabled: bool):
+        self._wdgt.setEnabled(enabled)
+
     def _onModelSelectionChanged(self, changedKeys: list[str]):
         if not self._doTrackModelSelectedTarget:
             return
@@ -468,9 +505,16 @@ class EditTargetWidget:
             self._targetComboBox.setCurrentIndex(self._targetsModel.getIndexFromCollectionItemKey(firstSelectedTargetKey))
 
     def _onTargetComboBoxCurrentIndexChanged(self, index: int):
+
         if index == -1:
             self.target = None
+            for wdgt in self._disableWidgetsWhenNoTarget:
+                wdgt.setEnabled(False)
             return
+
+        else:
+            for wdgt in self._disableWidgetsWhenNoTarget:
+                wdgt.setEnabled(True)
 
         targetKey = self._targetsModel.getCollectionItemKeyFromIndex(index)
         target = self._session.targets[targetKey]

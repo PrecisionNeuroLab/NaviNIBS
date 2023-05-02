@@ -4,6 +4,7 @@ import logging
 import typing as tp
 from qtpy import QtCore, QtGui, QtWidgets
 
+from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 from RTNaBS.Navigator.Model import Session
 from RTNaBS.util.Signaler import Signal
 
@@ -12,15 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 K = tp.TypeVar('K', int, str)  # collection item key type
-C = tp.TypeVar('C')  # collection type
-CI = tp.TypeVar('CI')  # collection item type
+C = tp.TypeVar('C', bound=GenericCollection)  # collection type
+CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
 
 
 @attrs.define(slots=False)
 class CollectionTableModelBase(tp.Generic[K, C, CI]):
     _session: Session = attrs.field(repr=False)
 
-    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[str],)))
+    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[K],)))  # emits which keys had selection changed (including both newly selected AND newly deselected keys)
 
     def __attrs_post_init__(self):
         pass
@@ -92,9 +93,11 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
         addNewRowFromEditedPlaceholder=addNewRow 
     """
 
-    _collection: tp.Union[Sequence[CI], Mapping[K, CI]] = attrs.field(init=False)
+    _collection: C = attrs.field(init=False)
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
+
+    _lastSelectedKeys: list[K] = attrs.field(init=False, factory=list)  # only used if _isSelectedAttr is None
 
     def __attrs_post_init__(self):
         CollectionTableModelBase.__attrs_post_init__(self)
@@ -285,8 +288,20 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
                 if colKey in self._boolColumns:
                     if colKey in self._attrColumns:
                         isChecked = value == QtCore.Qt.CheckState.Checked
-                        setattr(self.getCollectionItemFromIndex(index.row()), colKey, isChecked)
-                        self.dataChanged.emit(index, index, [role])
+                        itemKey = self.getCollectionItemKeyFromIndex(index.row())
+                        if self._isSelectedAttr is None:
+                            lastSelectedKeys = self._lastSelectedKeys
+                        else:
+                            lastSelectedKeys = [key for key in self._collection.keys() if getattr(self._collection[key], self._isSelectedAttr)]
+                        if itemKey in lastSelectedKeys and True:
+                            # apply edited checkbox value to all selected rows
+                            self._collection.setAttribForItems(keys=lastSelectedKeys,
+                                                               attribsAndValues={colKey: [isChecked] * len(lastSelectedKeys)})
+                        else:
+                            # apply edited checkbox value to current row only
+                            logger.debug(f'Editing column {colKey} to value {isChecked}')
+                            setattr(self.getCollectionItemFromIndex(index.row()), colKey, isChecked)
+                            self.dataChanged.emit(index, index, [role])
                         return True
                     elif colKey in self._derivedColumns:
                         raise NotImplementedError
@@ -335,10 +350,16 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
         To be called by CollectionTableWidget to update model tracking of selection state.
         Does not directly change actual view selection state.
         """
+
+        if self._pendingChangeType is not None:
+            logger.debug(f'Ignoring setWhichItemsSelected ({selectedKeys}) since another change is pending ({self._pendingChangeType})')
+            return  # ignore pending changes, assume will be handled later
+
         if self._isSelectedAttr is None:
-           pass  # ignore
+            self._lastSelectedKeys = selectedKeys
         else:
-            raise NotImplementedError  # should be implemented by subclass
+            self._collection.setAttribForItems(self._collection.keys(),
+                                               {self._isSelectedAttr:[key in selectedKeys for key in self._collection.keys()]})
 
     def _inferCollectionChangeType(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]]) -> str:
 

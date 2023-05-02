@@ -41,8 +41,4 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
 
         super().__attrs_post_init__()
 
-    def setWhichItemsSelected(self, selectedKeys: list[K]):
-        if self._pendingChangeType is not None:
-            logger.debug(f'Ignoring setWhichItemsSelected ({selectedKeys}) since another change is pending ({self._pendingChangeType})')
-            return  # ignore pending changes, assume will be handled later
-        self._collection.setWhichSamplesSelected(selectedKeys)
+    

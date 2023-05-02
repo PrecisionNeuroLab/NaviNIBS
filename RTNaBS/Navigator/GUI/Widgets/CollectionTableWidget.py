@@ -164,7 +164,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             selection.merge(QtCore.QItemSelection(leftIndex, rightIndex), cmd)
             # logger.debug(f'selection: {selection} {selection.indexes()}')
 
-        self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.SelectCurrent)
+        self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
 
 
 @attrs.define
