@@ -18,7 +18,7 @@ CI = tp.TypeVar('CI')  # collection item type
 
 @attrs.define(slots=False)
 class CollectionTableModelBase(tp.Generic[K, C, CI]):
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
     sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[str],)))
 

@@ -9,11 +9,11 @@ import contextlib
 @attr.s(auto_attribs=True, eq=False)
 class Signal:
     _types: tuple[tp.Type, ...] = attr.ib(default=tuple())
-    _connections: dict[int, set[tp.Callable[..., None]]] = attr.ib(init=False, factory=dict)
+    _connections: dict[int, set[tp.Callable[..., None]]] = attr.ib(init=False, factory=dict, repr=False)
     """
     Connections groupded by priority
     """
-    _blockedSemaphoreCounter: int = 0
+    _blockedSemaphoreCounter: int = attr.ib(init=False, default=0, repr=False)
 
     def __attrs_post_init__(self):
         pass

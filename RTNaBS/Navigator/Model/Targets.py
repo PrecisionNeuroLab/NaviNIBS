@@ -73,7 +73,7 @@ class Target(GenericCollectionDictItem[str]):
     If angle isn't manually set, it might be auto-calculated from other target parameters.
     """
 
-    _session: tp.Optional[Session] = attrs.field(default=None)
+    _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     """
     Used to access head model for determining angle from coilToMRITransf and vice versa
     """
@@ -309,7 +309,7 @@ class Target(GenericCollectionDictItem[str]):
 
 @attrs.define
 class Targets(GenericCollection[str, Target]):
-    _session: Session | None = None
+    _session: Session | None = attrs.field(default=None, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()

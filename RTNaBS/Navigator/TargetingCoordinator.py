@@ -43,15 +43,15 @@ class ProjectionSpecification:
 
 @attrs.define
 class TargetingCoordinator:
-    _session: Session
+    _session: Session = attrs.field(repr=False)
     _currentTargetKey: tp.Optional[str] = None
     _currentSampleKey: tp.Optional[str] = None
     _positionsClient: ToolPositionsClient = attrs.field(factory=ToolPositionsClient)
     _activeCoilKey: tp.Optional[str] = None
 
     _currentCoilToMRITransform: tp.Optional[Transform] = attrs.field(init=False, default=None)  # relative to head tracker
-    _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False)
-    _currentSamplePoseMetrics: PoseMetricCalculator = attrs.field(init=False)
+    _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
+    _currentSamplePoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
 
     sigActiveCoilKeyChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)

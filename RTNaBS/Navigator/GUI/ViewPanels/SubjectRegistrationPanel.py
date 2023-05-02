@@ -95,7 +95,7 @@ class _PointerDistanceReadout:
 
 @attrs.define
 class _PointerDistanceReadouts:
-    _session: Session
+    _session: Session = attrs.field(repr=False)
     _positionsClient: ToolPositionsClient
     _title: str = 'Current pointer position'
 
