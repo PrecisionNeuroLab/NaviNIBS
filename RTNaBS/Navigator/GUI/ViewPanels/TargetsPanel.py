@@ -316,8 +316,19 @@ class TargetsPanel(MainViewPanel):
 
     def _gotoTarget(self, targetKey: str):
         # change slice camera views to align with selected target
-        self._views['3D'].sliceTransform = self.session.targets[targetKey].coilToMRITransf \
-                                           @ composeTransform(self._getRotMatForCoilAxis(axis='3D'))
+        target = self.session.targets[targetKey]
+        extraTransf = np.eye(4)
+        if True:
+            # align at target depth
+            extraTransf[:3, 3] = applyTransform(invertTransform(target.coilToMRITransf), target.targetCoord)
+        else:
+            # align at coil depth
+            pass
+
+        self._views['3D'].sliceTransform = concatenateTransforms([
+            composeTransform(self._getRotMatForCoilAxis(axis='3D')),
+            extraTransf,
+            target.coilToMRITransf])
 
         if True:
             # also set camera position for 3D view to align with target
