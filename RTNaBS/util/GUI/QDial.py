@@ -1,6 +1,6 @@
 import attrs
 import logging
-from math import ceil, log10
+from math import ceil, log10, trunc, fmod
 from qtpy import QtWidgets, QtCore, QtGui
 
 from RTNaBS.util.Signaler import Signal
@@ -136,7 +136,7 @@ class AngleDial:
         if self._doInvert:
             val = 360 - val
         val = ((val + (self._centerAngle - 180)) % 360) + (self._centerAngle - 180)
-        val = round(val, int(ceil(log10(1 / self._resolution))))
+        val = round(val / self._resolution) * self._resolution
         logger.debug(f'qdial value to angle: {origVal} -> {val}')
         return val
 
@@ -147,15 +147,17 @@ class AngleDial:
         if self._doInvert:
             val = 360 - val
         val += self._offsetAngle
-        val = val % 360
+        val = fmod(val, 360)
         val /= self._resolution
-        val = int(round(val))
+        val = int(trunc(val))
         logger.debug(f'angle to qdial value: {origVal} -> {val}')
-        return int(round(val))
+        return val
 
     def _onDialValueMoved(self, newVal: int):
         newVal = self._qdialValueToAngle(newVal)
         if newVal == self._movingValue:
+            return
+        if newVal == self._value and self._movingValue is None:
             return
 
         logger.debug(f'value moved: {newVal}')
@@ -167,22 +169,25 @@ class AngleDial:
     def _onNumericFieldValueChanged(self, newVal: float):
         if newVal == self._movingValue:
             return
+        currentValueRounded = round(self._value, int(ceil(log10(1 / self._resolution))))
+        if newVal == currentValueRounded and self._movingValue is None:
+            return
         logger.debug(f'value moved: {newVal}')
         self._dialStartedMove = False
         self._movingValue = newVal
         self._qdial.setValue(self._angleToQDialValue(newVal))
         self.sigValueMoved.emit(newVal)
 
-    def _onDialValueChanged(self, newVal: int):
-        if not self._dialStartedMove and self._angleToQDialValue(self._movingValue) == newVal:
+    def _onDialValueChanged(self, newDialVal: int):
+        if not self._dialStartedMove and self._movingValue is not None and self._angleToQDialValue(self._movingValue) == newDialVal:
             return  # numeric field is being edited, don't finalize here
         self._movingValue = None
-        if self._angleToQDialValue(self._value) == newVal:
+        if self._angleToQDialValue(self._value) == newDialVal:
             return
 
-        newVal = self._qdialValueToAngle(newVal)
+        newVal = self._qdialValueToAngle(newDialVal)
 
-        logger.debug(f'value changed: {newVal}')
+        logger.debug(f'value changed: {newVal} ({newDialVal})')
         self._value = newVal
         self._numericField.setValue(newVal)
         self.sigValueChanged.emit(newVal)
@@ -213,6 +218,8 @@ if __name__ == '__main__':
 
     dial3 = AngleDial(offsetAngle=90, centerAngle=0, value=45)
     layout.addRow('Offset 90°, center 0°', dial3.wdgt)
+
+    QtCore.QTimer.singleShot(1000, lambda: setattr(dial, 'value', -1e-14))
 
     win.show()
     app.exec_()
