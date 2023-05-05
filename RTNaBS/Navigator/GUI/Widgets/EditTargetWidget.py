@@ -16,6 +16,7 @@ from RTNaBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, ca
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
 from RTNaBS.util.GUI.QDial import AngleDial
+from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
 
 logger = logging.getLogger(__name__)
 
@@ -362,6 +363,7 @@ class EditTargetWidget:
     _session: Session = attrs.field(repr=False)
 
     _wdgt: QtWidgets.QWidget = attrs.field(factory=lambda: QtWidgets.QGroupBox('Edit target'))
+    _scroll: QScrollContainer = attrs.field(init=False)
 
     _getNewTargetCoord: tp.Callable[[], tp.Tuple[float, float, float]] | None = attrs.field(default=None)
     """
@@ -392,8 +394,17 @@ class EditTargetWidget:
     _disableWidgetsWhenNoTarget: list[QtWidgets.QWidget] = attrs.field(init=False)
 
     def __attrs_post_init__(self):
+        outerLayout = QtWidgets.QVBoxLayout()
+        self._wdgt.setLayout(outerLayout)
+        outerLayout.setContentsMargins(0, 0, 0, 0)
+
         layout = QtWidgets.QFormLayout()
-        self._wdgt.setLayout(layout)
+        self._scroll = QScrollContainer(innerContainerLayout=layout)
+        self._scroll.scrollArea.setFrameShape(QtWidgets.QFrame.NoFrame)
+        outerLayout.addWidget(self._scroll.scrollArea)
+
+        self._scroll.scrollArea.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
+                                              QtWidgets.QSizePolicy.Preferred)
 
         self._targetsModel = FullTargetsTableModel(self._session)
         self._targetComboBox.setModel(self._targetsModel)
@@ -502,7 +513,12 @@ class EditTargetWidget:
         if firstSelectedTargetKey is None:
             self._targetComboBox.setCurrentIndex(-1)
         else:
-            self._targetComboBox.setCurrentIndex(self._targetsModel.getIndexFromCollectionItemKey(firstSelectedTargetKey))
+            index = self._targetsModel.getIndexFromCollectionItemKey(firstSelectedTargetKey)
+            if False:
+                self._targetComboBox.setCurrentIndex(index)
+            else:
+                # run after short delay to prevent issue with nested model changes
+                QtCore.QTimer.singleShot(0, lambda index=index: self._targetComboBox.setCurrentIndex(index))
 
     def _onTargetComboBoxCurrentIndexChanged(self, index: int):
 
@@ -534,6 +550,7 @@ class EditTargetWidget:
         logger.info(f'Handle angle changed to {newAngle} degrees')
         if self.target is not None:
             if self.target.angle != newAngle:
+                logger.debug(f'Changing handle angle for {self.target.key} from {self.target.angle} to {newAngle}')
                 self.target.angle = newAngle  # TODO: maybe check if angle (accounting for rounding) actually changed
 
 

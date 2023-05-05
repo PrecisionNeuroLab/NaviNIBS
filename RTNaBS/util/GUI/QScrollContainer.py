@@ -2,6 +2,8 @@ import attrs
 import logging
 from qtpy import QtWidgets, QtCore, QtGui
 
+from RTNaBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,13 +27,20 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
         self.setMinimumWidth(width)
         super().resizeEvent(event)
 
+    def sizeHint(self) -> QtCore.QSize:
+        """
+        Modify size hint behavior to prevent scrollbar showing in some situations where the widget could be given more room to grow
+        """
+        sz = self.widget().sizeHint()
+        sz.setHeight(sz.height()+10)
+        return sz
 
 @attrs.define
 class QScrollContainer:
     _allowVerticalScrolling: bool = attrs.field(default=True)
     _allowHorizontalScrolling: bool = attrs.field(default=False)
 
-    _innerContainerLayout: QtWidgets.QVBoxLayout = attrs.field(factory=QtWidgets.QVBoxLayout)
+    _innerContainerLayout: QtWidgets.QLayout = attrs.field(factory=QtWidgets.QVBoxLayout)
     _innerContainer: QtWidgets.QWidget = attrs.field(factory=QtWidgets.QWidget)
     _scrollArea: QtWidgets.QScrollArea = attrs.field(init=False)
 
@@ -50,9 +59,14 @@ class QScrollContainer:
                 QtCore.Qt.ScrollBarAsNeeded if self._allowVerticalScrolling
                 else QtCore.Qt.ScrollBarAlwaysOff)
 
+        setStyleSheetForInstanceOnly(self._scrollArea, 'background: transparent;')
+
+        print(self._scrollArea.styleSheet())
+
         self._scrollArea.setWidgetResizable(True)
 
         self._scrollArea.setWidget(self._innerContainer)  # must happen after innerContainer's layout is set
+        setStyleSheetForInstanceOnly(self._innerContainer, 'background-color: transparent;')
 
     @property
     def scrollArea(self):
