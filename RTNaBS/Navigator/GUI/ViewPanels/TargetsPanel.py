@@ -205,7 +205,7 @@ class TargetsPanel(MainViewPanel):
 
         container = QtWidgets.QGroupBox('Planned targets')
         container.setLayout(QtWidgets.QVBoxLayout())
-        container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.MinimumExpanding)
+        container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Preferred)
         self._wdgt.layout().addWidget(container)
 
         btnContainer = QtWidgets.QWidget()
