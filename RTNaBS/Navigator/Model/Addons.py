@@ -16,6 +16,8 @@ from RTNaBS.util.json import jsonPrettyDumps
 from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 if tp.TYPE_CHECKING:
+    from RTNaBS.Navigator.Model.Session import Session
+    from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
     from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
     from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import NavigationView
     from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers import ViewLayer
@@ -95,7 +97,7 @@ class AddonClassElement(tp.Generic[ACE]):
         return self._importModule
 
     @property
-    def Class(self):
+    def Class(self) -> tp.Type[ACE]:
         if self._Class is None:
             self.reload()
             assert self._Class is not None
@@ -116,13 +118,32 @@ class AddonClassElement(tp.Generic[ACE]):
 
 
 @attrs.define
+class AddonExtra(ABC):
+    """
+    Base class to define optional custom code for an addon.
+
+    Use this when an addon needs to provide custom code not part of a main view panel, navigation view layer, etc. This may be used for code-only addon pieces (such as providing a data output stream), or for patching existing GUI functionality (using the reference to the root NavigatorGUI instance).
+
+    Any AddonCode class elements defined in an addion configuration will be instantiated and passed references to the root NavigatorGUI instance and the session model when the addon is loaded.
+    """
+    _navigatorGUI: NavigatorGUI
+    _session: Session
+
+    def __attrs_post_init__(self):
+        pass
+
+
+@attrs.define
 class Addon(GenericCollectionDictItem[str]):
     _addonInstallPath: str
     _MainViewPanels: tp.Dict[str, AddonClassElement[MainViewPanel]] = attrs.field(factory=dict)
     _NavigationViews: tp.Dict[str, AddonClassElement[NavigationView]] = attrs.field(factory=dict)
     _NavigationViewLayers: tp.Dict[str, AddonClassElement[ViewLayer]] = attrs.field(factory=dict)
+    _Extras: tp.Dict[str, AddonClassElement[AddonExtra]] = attrs.field(factory=dict)
     _SessionAttrs: tp.Dict[str, AddonClassElement[AddonSessionConfig]] = attrs.field(factory=dict)
+
     _sessionAttrs: dict[str, AddonSessionConfig] = attrs.field(factory=dict)
+    _extras: dict[str, AddonExtra] = attrs.field(init=False, factory=dict)
     _isActive: bool = True
 
     def __attrs_post_init__(self):
@@ -149,6 +170,19 @@ class Addon(GenericCollectionDictItem[str]):
     def SessionAttrs(self):
         return self._SessionAttrs
 
+    @property
+    def needsToInstantiateExtras(self):
+        return len(self._Extras) > 0 and len(self._extras) == 0
+
+    def instantiateExtras(self, navigatorGUI: NavigatorGUI, session: Session):
+        if len(self._extras) > 0:
+            raise RuntimeError('Addon extras already instantiated')
+
+        for key, Extra in self._Extras.items():
+            logger.info(f'Instantiating addon extra {key}')
+            self._extras[key] = Extra.Class(navigatorGUI=navigatorGUI,
+                                            session=session)
+
     def __getattr__(self, key: str):
         """
         Allow accessing session attributes with addon.attributeName
@@ -159,7 +193,7 @@ class Addon(GenericCollectionDictItem[str]):
             raise AttributeError
 
     def asDict(self) -> tp.Dict[str, tp.Any]:
-        predefinedAttrs = ['key', 'MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs']  # these should all be defined in fixed addon_configuration.json file
+        predefinedAttrs = ['key', 'MainViewPanels', 'Extras', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs']  # these should all be defined in fixed addon_configuration.json file
 
         d = attrsAsDict(self, exclude=predefinedAttrs + ['sessionAttrs'])
         for key, sessionAttr in self._sessionAttrs.items():
@@ -197,7 +231,7 @@ class Addon(GenericCollectionDictItem[str]):
         if not os.path.split(addonInstallPath)[0] in sys.path:
             sys.path.append(os.path.split(addonInstallPath)[0])
 
-        elementAttrs = ('MainViewPanels', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')
+        elementAttrs = ('MainViewPanels', 'Extras', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')
 
         initKwargs = dict(
             addonInstallPath=addonInstallPath,
