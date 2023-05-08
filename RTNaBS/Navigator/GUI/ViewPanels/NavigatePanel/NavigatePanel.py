@@ -71,10 +71,8 @@ class _PoseMetricGroup:
             self._scroll = QScrollContainer(innerContainerLayout=QtWidgets.QFormLayout())
             self._container.setLayout(QtWidgets.QVBoxLayout())
             self._container.layout().setContentsMargins(0, 0, 0, 0)
-            self._container.layout().setSizeConstraint(QtWidgets.QLayout.SetMinAndMaxSize)
             self._container.layout().addWidget(self._scroll.scrollArea)
-            self._scroll.innerContainer.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
-            self._scroll.scrollArea.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
+            self._container.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Preferred)
 
             for poseMetric in poseMetrics:
                 wdgt = QtWidgets.QLabel(f"NaN{poseMetric.units}")
@@ -174,6 +172,7 @@ class NavigatePanel(MainViewPanel):
 
         self._targetsTableWdgt = TargetsTableWidget()
         self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
+        self._targetsTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         container.layout().addWidget(self._targetsTableWdgt.wdgt)
 
         cdw, container = self._createDockWidget(
@@ -206,7 +205,6 @@ class NavigatePanel(MainViewPanel):
             title='Samples',
             layout=QtWidgets.QVBoxLayout())
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
-        container.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.MinimumExpanding)
 
         btnContainer = QtWidgets.QWidget()
         btnContainerLayout = QtWidgets.QGridLayout()
@@ -248,6 +246,7 @@ class NavigatePanel(MainViewPanel):
         self._samplesTableWdgt = SamplesTableWidget()
         self._samplesTableWdgt.sigCurrentItemChanged.connect(self._onCurrentSampleChanged)
         self._samplesTableWdgt.sigSelectionChanged.connect(self._onSelectedSamplesChanged)
+        self._samplesTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         container.layout().addWidget(self._samplesTableWdgt.wdgt)
 
         self._triggerReceiver = TriggerReceiver(
@@ -268,7 +267,7 @@ class NavigatePanel(MainViewPanel):
     def _onPanelInitializedAndSessionSet(self):
         logger.debug(f'{self.__class__.__name__} onPanelInitializedAndSessionSet')
         self._trackingStatusWdgt.session = self.session
-        self._coordinator = TargetingCoordinator(session=self.session)
+        self._coordinator = TargetingCoordinator.getSingleton(session=self.session)
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._onCurrentTargetChanged(self._coordinator.currentTargetKey))
         self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
         self._targetsTableWdgt.session = self.session
