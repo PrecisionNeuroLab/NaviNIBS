@@ -176,6 +176,10 @@ class NavigatorGUI(RunnableAsApp):
         needToUpdateEnabledPanels = False
         prevActiveViewKey = self.activeViewKey
         for addonKey, addon in self._session.addons.items():
+
+            if addon.needsToInstantiateExtras:
+                addon.instantiateExtras(navigatorGUI=self, session=self._session)
+
             for panelKey, ACE_Panel in addon.MainViewPanels.items():
                 Panel = ACE_Panel.Class
                 if panelKey not in self._mainViewPanels:
