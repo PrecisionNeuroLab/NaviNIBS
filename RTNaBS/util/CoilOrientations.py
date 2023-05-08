@@ -67,7 +67,10 @@ class PoseMetricCalculator:
             MetricSpecification(getter=self.getNormalCoilYAngleError, units='°', label='Normal coil Y angle error', doShowByDefault=False),
             MetricSpecification(getter=self.getHorizAngleError, units='°', label='Horiz angle error'),
             MetricSpecification(getter=self.getAngleFromMidline, units='°', label='Angle from midline'),
-            MetricSpecification(getter=self.getAngleFromNormal, units='°', label='Angle from normal')
+            MetricSpecification(getter=self.getAngleFromNormal, units='°', label='Angle from normal'),
+            MetricSpecification(getter=self.getCoilPosX, units=' mm', label='Coil X position', doShowByDefault=False),
+            MetricSpecification(getter=self.getCoilPosY, units=' mm', label='Coil Y position', doShowByDefault=False),
+            MetricSpecification(getter=self.getCoilPosZ, units=' mm', label='Coil Z position', doShowByDefault=False),
         ])
 
     def _cacheWrap(self, fn: tp.Callable[..., T]) -> T:
@@ -124,6 +127,9 @@ class PoseMetricCalculator:
             self._clearCachedValues(exceptKeys=[
                 self.getAngleFromMidline.cacheKey,
                 self.getAngleFromNormal.cacheKey,
+                self.getCoilPosX.cacheKey,
+                self.getCoilPosY.cacheKey,
+                self.getCoilPosZ.cacheKey,
             ])
 
     def _onSampleChanged(self, sampleKey: str, sampleAttrs: tp.Optional[list[str]]):
@@ -523,6 +529,39 @@ class PoseMetricCalculator:
         return np.rad2deg(angle)
 
     getAngleFromNormal.cacheKey = 'angleFromNormal'
+
+    def getCoilPosX(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getCoilPosX)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        return self._sample.coilToMRITransf[0, 3]
+
+    getCoilPosX.cacheKey = 'coilPosX'
+
+    def getCoilPosY(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getCoilPosY)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        return self._sample.coilToMRITransf[1, 3]
+
+    getCoilPosY.cacheKey = 'coilPosY'
+
+    def getCoilPosZ(self, doUseCache: bool = True) -> float:
+        if doUseCache:
+            return self._cacheWrap(fn=self.getCoilPosZ)
+
+        if self._sample is None or self._sample.coilToMRITransf is None:
+            return np.nan
+
+        return self._sample.coilToMRITransf[2, 3]
+
+    getCoilPosZ.cacheKey = 'coilPosZ'
 
     def getClosestPointToCoilOnSkin(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
         if doUseCache:
