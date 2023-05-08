@@ -100,6 +100,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                 continue
 
             for evtTime, evtDat in zip(evtTimes, evtData):
+                action = None
                 if self.triggerSource.triggerEvents is not None:
                     action = self.triggerSource.triggerEvents.get(evtDat, None)
                 if action is None:
