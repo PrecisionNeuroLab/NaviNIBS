@@ -35,6 +35,7 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
         sz.setHeight(sz.height()+10)
         return sz
 
+
 @attrs.define
 class QScrollContainer:
     _allowVerticalScrolling: bool = attrs.field(default=True)
@@ -60,8 +61,6 @@ class QScrollContainer:
                 else QtCore.Qt.ScrollBarAlwaysOff)
 
         setStyleSheetForInstanceOnly(self._scrollArea, 'background: transparent;')
-
-        print(self._scrollArea.styleSheet())
 
         self._scrollArea.setWidgetResizable(True)
 
