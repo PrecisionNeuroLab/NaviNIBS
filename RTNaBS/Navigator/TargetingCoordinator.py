@@ -41,6 +41,9 @@ class ProjectionSpecification:
     _toShape: str  # 'sphere' or 'plane'
 
 
+_targetingCoordinatorSingleton = None
+
+
 @attrs.define
 class TargetingCoordinator:
     _session: Session = attrs.field(repr=False)
@@ -55,6 +58,9 @@ class TargetingCoordinator:
 
     sigActiveCoilKeyChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
+    """
+    Emitted when a different target becomes current AND when an attribute of the current target changes. 
+    """
     sigCurrentSampleChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentCoilPositionChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentSubjectPositionChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -136,6 +142,10 @@ class TargetingCoordinator:
     @property
     def session(self):
         return self._session
+
+    @property
+    def positionsClient(self):
+        return self._positionsClient
 
     @property
     def currentTargetKey(self):
@@ -349,3 +359,16 @@ class TargetingCoordinator:
                 return targetCoord
             case _:
                 raise NotImplementedError
+
+    @classmethod
+    def getSingleton(cls, session: Session) -> TargetingCoordinator:
+        """
+        Get the singleton instance of the TargetingCoordinator for the given session.
+        """
+        global _targetingCoordinatorSingleton
+        if _targetingCoordinatorSingleton is None:
+            _targetingCoordinatorSingleton = cls(session=session)
+        else:
+            assert _targetingCoordinatorSingleton.session is session
+        return _targetingCoordinatorSingleton
+
