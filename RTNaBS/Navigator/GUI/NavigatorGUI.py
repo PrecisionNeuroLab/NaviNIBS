@@ -4,6 +4,7 @@ import asyncio
 
 import appdirs
 import attrs
+import contextlib
 from datetime import datetime
 import logging
 import os
@@ -14,13 +15,16 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
 from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
+from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.GUI.ViewPanels.ManageSessionPanel import ManageSessionPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
@@ -28,7 +32,8 @@ from RTNaBS.Navigator.GUI.ViewPanels.CoordinateSystemsPanel import CoordinateSys
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+from RTNaBS.Navigator.GUI.ViewPanels.SimulatedToolsPanel import \
+    SimulatedToolsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettingsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
@@ -56,6 +61,8 @@ class NavigatorGUI(RunnableAsApp):
 
     _logFileHandler: tp.Optional[logging.FileHandler] = attrs.field(init=False, default=None)
 
+    _restoringLayoutLock: asyncio.Lock = attrs.field(init=False, factory=asyncio.Lock)
+
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
@@ -68,8 +75,10 @@ class NavigatorGUI(RunnableAsApp):
 
         self._win.setAffinities(['MainViewPanel'])  # only allow main view panels to dock in this window
 
-        panel = self._addViewPanel(ManageSessionPanel(key='Manage session', session=self._session,
-                                   inProgressBaseDir=self._inProgressBaseDir))
+        panel = self._addViewPanel(ManageSessionPanel(key='Manage session',
+                                                      session=self._session,
+                                                      inProgressBaseDir=self._inProgressBaseDir,
+                                                      navigatorGUI=self),)
         panel.sigAboutToFinishLoadingSession.connect(self._onSessionAboutToFinishLoading)
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
@@ -122,7 +131,94 @@ class NavigatorGUI(RunnableAsApp):
         logger.info(f'Adding view panel {panel.key}')
         self._win.addDockWidgetAsTab(panel.dockWdgt)
         self._mainViewPanels[panel.key] = panel
+        if isinstance(panel, MainViewPanelWithDockWidgets):
+            panel.sigAboutToRestoreLayout.connect(self._onAboutToRestorePanelLayout)
+            panel.sigRestoredLayout.connect(self._onRestoredPanelLayout)
         return panel
+
+    def _saveRootLayout(self):
+        # save root layout
+        #return  # TODO: debug, delete
+        layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
+        if layout is None:
+            layout = DockWidgetLayout(
+                key='NavigatorGUI',
+                affinities=['MainViewPanel'])
+            self.session.dockWidgetLayouts['NavigatorGUI'] = layout
+        assert layout.affinities == ['MainViewPanel']
+        logger.debug(f'Saving root layout when winSize={self._win.size()}')
+        layout.saveLayout()
+
+    def saveLayout(self):
+        self._saveRootLayout()
+
+        # save each initialized panel's layout
+        for mainViewPanel in self.mainViewPanels.values():
+            if isinstance(mainViewPanel, MainViewPanelWithDockWidgets) and mainViewPanel.hasInitialized:
+                mainViewPanel.saveLayout()
+
+    async def _restoreRootLayout(self, needsLock: bool = True):
+        # restore root layout
+
+        await asyncio.sleep(0.01)
+        layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
+        if layout is not None and layout.layout is not None:
+
+            async with self._restoringLayoutLock if needsLock else contextlib.nullcontext():
+
+                with contextlib.ExitStack() as stack:
+                    blocks = [stack.enter_context(panel.sigPanelShown.blocked()) for panel in self.mainViewPanels.values()]
+
+                    winSize = self._win.size()
+                    logger.debug(f'About to restore root layout when winSize={winSize}')
+
+                    layout.restoreLayout(self._win)
+
+                for panel in self.mainViewPanels.values():
+                    # catch up with signals that may have been blocked above
+                    await asyncio.sleep(0.01)
+                    panel.wdgt.updateGeometry()
+                    if panel.dockWdgt.isCurrentTab():
+                        panel.sigPanelShown.emit()
+                    else:
+                        panel.sigPanelHidden.emit()
+
+                await asyncio.sleep(0.01)
+                winSize = self._win.size()
+                logger.debug(f'Restored root layout when winSize={winSize}')
+                # jiggle window size to force layout to update
+                # TODO: find way to force layout update without jiggle that is visible to user
+                self._win.resize(winSize - QtCore.QSize(10, 10))  # TODO: restore previous size if available
+                await asyncio.sleep(0.01)
+                self._win.resize(winSize)
+                await asyncio.sleep(0.01)
+                logger.debug(f'After restored root layout, winSize={winSize}')
+
+    def _onAboutToRestorePanelLayout(self):
+        if self._restoringLayoutLock.locked():
+            return  # ignore if in the middle of a whole-app restore
+        self._saveRootLayout()
+
+    def _onRestoredPanelLayout(self):
+        if self._restoringLayoutLock.locked():
+            return  # ignore if in the middle of a whole-app restore
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._restoreRootLayout))
+
+    async def restoreLayoutIfAvailable(self):
+        async with self._restoringLayoutLock:
+            await self._restoreRootLayout(needsLock=False)
+
+            # restore each initialized panel's layout
+            didRestoreAPanel = False
+            for mainViewPanel in self.mainViewPanels.values():
+                if isinstance(mainViewPanel, MainViewPanelWithDockWidgets) and mainViewPanel.hasInitialized:
+                    if mainViewPanel.restoreLayoutIfAvailable():
+                        didRestoreAPanel = True
+
+            if didRestoreAPanel:
+                # restore root layout again
+                await self._restoreRootLayout(needsLock=False)
+
 
     def _onAppAboutToQuit(self):
         super()._onAppAboutToQuit()
@@ -158,6 +254,8 @@ class NavigatorGUI(RunnableAsApp):
             pane.session = session
 
         self._onAddonsChanged(triggeredBySessionLoad=True)
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self.restoreLayoutIfAvailable))
 
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
@@ -208,6 +306,10 @@ class NavigatorGUI(RunnableAsApp):
     @property
     def session(self):
         return self._session
+
+    @property
+    def mainViewPanels(self):
+        return self._mainViewPanels
 
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
