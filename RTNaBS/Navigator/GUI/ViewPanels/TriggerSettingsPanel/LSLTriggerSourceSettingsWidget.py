@@ -36,7 +36,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
 
         self._wdgt.setLayout(QtWidgets.QFormLayout())
 
-        self._streamSelector = LSLStreamSelector()
+        self._streamSelector = LSLStreamSelector(selectedStreamKey=self.triggerSource.streamKey)
         self._streamSelector.sigSelectedStreamKeyChanged.connect(self._onSelectedStreamKeyChanged)
         self._streamSelector.sigSelectedStreamAvailabilityChanged.connect(self._onSelectedStreamAvailabilityChanged)
 
@@ -111,7 +111,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                     time=pd.Timestamp.now() + pd.Timedelta(seconds=(evtTime - lsl.local_clock())),  # convert from lsl time to pandas timestamp
                     metadata=dict(originalType=evtDat)
                 )
-                if self._lastTriggerTimePerAction[action] is not None and (triggerEvt.time - self._lastTriggerTimePerAction[action]).total_seconds() < self._minInterTriggerPeriod:
+                if self._lastTriggerTimePerAction.get(action, None) is not None and (triggerEvt.time - self._lastTriggerTimePerAction[action]).total_seconds() < self._minInterTriggerPeriod:
                     logger.debug('Ignoring trigger that occured too quickly after previous')
                     continue
                 self.triggerSource.trigger(triggerEvt)
