@@ -12,6 +12,7 @@ from .HotkeyTriggerSourceSettingsWidget import HotkeyTriggerSourceSettingsWidget
 
 from .. import MainViewPanel
 from RTNaBS.Navigator.Model.Triggering import TriggerEvent
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from .LSLTriggerSourceSettingsWidget import LSLTriggerSourceSettingsWidget
@@ -21,18 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class TriggerSettingsPanel(MainViewPanel):
+class TriggerSettingsPanel(MainViewPanelWithDockWidgets):
     _key: str = 'Trigger settings'
-    _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.database-import'))
 
     _lslSettings: tp.Optional[LSLTriggerSourceSettingsWidget] = attrs.field(init=False, default=None)
     _hotkeySettings: dict[str, HotkeyTriggerSourceSettingsWidget] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
-        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
-        self._wdgt.setAffinities([self._key])
-
         super().__attrs_post_init__()
 
     def _finishInitialization(self):

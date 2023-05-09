@@ -6,15 +6,15 @@ import numpy as np
 
 import pandas as pd
 import qtawesome as qta
-from qtpy import QtWidgets, QtGui
+from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from .. import MainViewPanel
 from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
 from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.Model.Tools import CalibrationPlate, Pointer
 from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Sample
@@ -100,9 +100,8 @@ class _PoseMetricGroup:
 
 
 @attrs.define
-class NavigatePanel(MainViewPanel):
+class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
-    _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
     _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
@@ -122,9 +121,6 @@ class NavigatePanel(MainViewPanel):
     _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
 
     def __attrs_post_init__(self):
-        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
-        self._wdgt.setAffinities([self._key])
-
         super().__attrs_post_init__()
 
     def canBeEnabled(self) -> tuple[bool, str | None]:
@@ -290,6 +286,8 @@ class NavigatePanel(MainViewPanel):
             self.session.triggerSources.triggerRouter.subscribeToTrigger(
                 receiver=self._triggerReceiver, triggerKey='pulse', exclusive=True)
 
+        self.restoreLayoutIfAvailable()
+
     def _onCurrentTargetChanged(self, newTargetKey: str):
         """
         Called when targetTreeWdgt selection or coordinator currentTarget changes, NOT when attributes of currently selected target change
@@ -423,13 +421,21 @@ class NavigatePanel(MainViewPanel):
         assert key not in self._views
 
         view: NavigationView = View(key=key, dockKeyPrefix=self._key, coordinator=self._coordinator, **kwargs)
+        view.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
         assert view.key not in self._views
         self._views[view.key] = view
+
+        winWidth = 1600  # TODO: get dynamically rather than hardcoding
+
         if viewType == 'TargetingCrosshairs-Y':
             self._wdgt.addDockWidget(view.dock,
                                      location=dw.DockWidgetLocation.OnBottom,
-                                     relativeTo=self._views['Crosshairs-X'].dock)
+                                     relativeTo=self._views['Crosshairs-X'].dock,
+                                     initialOption=dw.InitialLayoutOption(size=QtCore.QSize(
+                                        300, 0))) # round(winWidth * 0.8 / (len(self._views)-1)), 0)))
         else:
-            self._wdgt.addDockWidget(view.dock, location=dw.DockWidgetLocation.OnRight)
+            self._wdgt.addDockWidget(view.dock, location=dw.DockWidgetLocation.OnRight,
+                                 initialOption=dw.InitialLayoutOption(size=QtCore.QSize(
+                                     300, 0))) # round(winWidth * 0.8 / len(self._views)), 0)))
 

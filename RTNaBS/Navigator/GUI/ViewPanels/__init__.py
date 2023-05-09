@@ -7,6 +7,7 @@ import typing as tp
 
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
 from RTNaBS.util.Signaler import Signal
 

@@ -100,6 +100,9 @@ class DockWidget(KDDockWidgets.DockWidget):
         if title is not None:
             self.setTitle(title)
 
+    def isCurrentTab(self) -> bool:
+        return super().isCurrentTab()
+
     def raise_(self):
         super().raise_()
 
@@ -129,6 +132,12 @@ class DockWidget(KDDockWidgets.DockWidget):
 
     def addDockWidgetAsTab(self, dockWidget: DockWidget):
         super().addDockWidgetAsTab(dockWidget)
+
+    def addDockWidgetToContainingWindow(self, dockWidget: DockWidget,
+                                        location: DockWidgetLocation,
+                                        relativeTo: tp.Optional[DockWidget] = None,
+                                        initialOption: tp.Optional[InitialLayoutOption] = None):
+        super().addDockWidgetToContainingWindow(dockWidget, location, relativeTo, initialOption)
 
 
 class MainWindow(KDDockWidgets.MainWindow):
@@ -178,3 +187,42 @@ class MainWindow(KDDockWidgets.MainWindow):
 
     def resize(self, size: QtCore.QSize):
         super().resize(size)
+
+
+class RestoreOption(Enum):
+    RestoreOption_None = KDDockWidgets.RestoreOption.RestoreOption_None
+    RestoreOption_RelativeToMainWindow = KDDockWidgets.RestoreOption.RestoreOption_RelativeToMainWindow
+
+
+@attrs.define(frozen=True)
+class RestoreOptions:
+    relativeToMainWindow: bool = False
+
+    def asOptions(self) -> KDDockWidgets.RestoreOptions:
+        option = KDDockWidgets.RestoreOption.RestoreOption_None
+        if self.relativeToMainWindow:
+            option |= KDDockWidgets.RestoreOption.RestoreOption_RelativeToMainWindow
+        return option
+
+
+class LayoutSaver(KDDockWidgets.LayoutSaver):
+    def __init__(self, options: RestoreOptions = None):
+        if options is None:
+            super().__init__()
+        else:
+            super().__init__(options.asOptions())
+
+    def saveToFile(self, jsonFilename: str) -> bool:
+        return super().saveToFile(jsonFilename)
+
+    def restoreFromFile(self, jsonFilename: str) -> bool:
+        return super().restoreFromFile(jsonFilename)
+
+    def serializeLayout(self) -> bytes:
+        return super().serializeLayout()
+
+    def restoreLayout(self, b: bytes) -> bool:
+        return super().restoreLayout(b)
+
+    def setAffinityNames(self, affinityNames: list[str]) -> None:
+        super().setAffinityNames(affinityNames)

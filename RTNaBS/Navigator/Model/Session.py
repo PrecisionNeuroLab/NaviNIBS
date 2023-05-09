@@ -25,6 +25,7 @@ from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
 from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
 from RTNaBS.Navigator.Model.Triggering import TriggerSources
 from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
+from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayouts
 from RTNaBS.Navigator.Model.Addons import Addons, Addon
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.json import jsonPrettyDumps
@@ -54,6 +55,7 @@ class Session:
     _samples: Samples = attrs.field(factory=Samples)
     _digitizedLocations: DigitizedLocations = attrs.field(factory=DigitizedLocations)
     _triggerSources: TriggerSources = attrs.field(factory=TriggerSources)
+    _dockWidgetLayouts: DockWidgetLayouts = attrs.field(factory=DockWidgetLayouts)
     _addons: Addons = attrs.field(factory=Addons)
 
     _dirtyKeys: tp.Set[str] = attrs.field(init=False, factory=set)  # session info parts that have changed since last save
@@ -100,6 +102,7 @@ class Session:
         self.tools.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
         self.tools.sigPositionsServerInfoChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
         self.triggerSources.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('triggerSources'))
+        self._dockWidgetLayouts.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('dockWidgetLayouts'))
         self.addons.sigItemsChanged.connect(self._onAddonsChanged)
         self.targets.sigItemKeyChanged.connect(self._updateSamplesForNewTargetKey)
         self.targets.sigItemsAboutToChange.connect(self._onTargetsAboutToChange, priority=1)  # use higher priority to make sure we handle adding historical samples before notifying GUIs of this change
@@ -179,6 +182,10 @@ class Session:
     @property
     def triggerSources(self):
         return self._triggerSources
+
+    @property
+    def dockWidgetLayouts(self):
+        return self._dockWidgetLayouts
 
     @property
     def addons(self):
@@ -333,6 +340,14 @@ class Session:
             logger.debug('Writing triggerSources info')
             config['triggerSources'] = self.triggerSources.asList()
             keysToSave.discard('triggerSources')
+
+        if 'dockWidgetLayouts' in keysToSave or not saveDirtyOnly:
+            logger.debug('Writing dockWidgetLayouts info')
+            configFilename_dockWidgetLayouts = autosaveFilenamePrefix + self._sessionConfigFilename + '_DockWidgetLayouts' + '.json'
+            config['dockWidgetLayouts'] = configFilename_dockWidgetLayouts
+            with open(os.path.join(self.unpackedSessionDir, configFilename_dockWidgetLayouts), 'w') as f:
+                f.write(jsonPrettyDumps(self.dockWidgetLayouts.asList()))
+            keysToSave.discard('dockWidgetLayouts')
 
         # TODO: loop through any addons to give them a chance to save to config as needed
 
@@ -549,6 +564,11 @@ class Session:
 
         if 'triggerSources' in config:
             kwargs['triggerSources'] = TriggerSources.fromList(config['triggerSources'])
+
+        if 'dockWidgetLayouts' in config:
+            configFilename_docWidgetLayouts = config['dockWidgetLayouts']
+            with open(os.path.join(unpackedSessionDir, configFilename_docWidgetLayouts), 'r') as f:
+                kwargs['dockWidgetLayouts'] = DockWidgetLayouts.fromList(json.load(f))
 
         if 'addons' in config:
             kwargs['addons'] = Addons.fromList(config['addons'], unpackedSessionDir=unpackedSessionDir)

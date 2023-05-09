@@ -14,6 +14,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import exceptionToStr
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
@@ -21,14 +22,17 @@ from RTNaBS.util.GUI.ErrorDialog import raiseErrorDialog
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 
+if tp.TYPE_CHECKING:
+    from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+
 
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
-class ManageSessionPanel(MainViewPanel):
+@attrs.define(kw_only=True)
+class ManageSessionPanel(MainViewPanelWithDockWidgets):
+    _navigatorGUI: NavigatorGUI
 
-    _wdgt: DockWidgetsContainer = attrs.field(init=False)
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.form-select'))
 
     _autosavePeriod: float = 60  # in sec
@@ -50,9 +54,6 @@ class ManageSessionPanel(MainViewPanel):
     sigClosedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
 
     def __attrs_post_init__(self):
-        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
-        self._wdgt.setAffinities([self._key])
-
         super().__attrs_post_init__()
 
         title = 'File'
@@ -161,8 +162,16 @@ class ManageSessionPanel(MainViewPanel):
         for wdgt in (self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer):
             wdgt.setEnabled(self.session is not None)
 
+    def _updateLayoutsBeforeSave(self):
+        """
+        We don't update serialized layouts on autosaves or other frequent GUI updates, but do want to update
+        right before a manual session save.
+        """
+        self._navigatorGUI.saveLayout()
+
     def _onSaveSessionBtnClicked(self, checked: bool):
         # if 'alt' modifier is pressed during click, then force save all (ignoring dirty flags)
+        self._updateLayoutsBeforeSave()
         if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier:
             self.session.saveToFile(updateDirtyOnly=False)
         else:
@@ -180,6 +189,7 @@ class ManageSessionPanel(MainViewPanel):
                 return
         logger.info('New session filepath: {}'.format(sesFilepath))
         self.session.filepath = sesFilepath
+        self._updateLayoutsBeforeSave()
         self.session.saveToFile()
 
     def _saveSessionToDir(self, sesFilepath: tp.Optional[str] = None):
@@ -193,6 +203,7 @@ class ManageSessionPanel(MainViewPanel):
                 return
         logger.info('New session filepath: {}'.format(sesFilepath))
         self.session.filepath = sesFilepath
+        self._updateLayoutsBeforeSave()
         self.session.unpackedSessionDir = sesFilepath  # this will trigger copy to new destination
         self.session.saveToFile()
 

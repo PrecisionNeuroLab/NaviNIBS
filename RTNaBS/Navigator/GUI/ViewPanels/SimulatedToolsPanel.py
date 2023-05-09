@@ -18,7 +18,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from . import MainViewPanel
+
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
@@ -26,6 +26,7 @@ from RTNaBS.Devices.SimulatedToolPositionsServer import SimulatedToolPositionsSe
 from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.pyvista.PlotInteraction import pickActor, interactivelyMoveActor
 from RTNaBS.util.Signaler import Signal
@@ -40,8 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class SimulatedToolsPanel(MainViewPanel):
-    _wdgt: DockWidgetsContainer = attrs.field(init=False)
+class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.progress-wrench'))
     _dockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
@@ -53,9 +53,6 @@ class SimulatedToolsPanel(MainViewPanel):
     _positionsClient: SimulatedToolPositionsClient = attrs.field(init=False)
 
     def __attrs_post_init__(self):
-        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
-        self._wdgt.setAffinities([self._key])
-
         super().__attrs_post_init__()
 
     def canBeEnabled(self) -> tuple[bool, str | None]:
