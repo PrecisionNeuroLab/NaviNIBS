@@ -193,7 +193,7 @@ class MRISliceView:
             return
 
         # data available, update display
-        logger.debug(f'Updating plot for {self.label} slice (slicePlotMothed={self._slicePlotMethod}')
+        logger.debug(f'Updating plot for {self.label} slice (slicePlotMethod={self._slicePlotMethod}')
 
         if self._sliceOrigin is None:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]

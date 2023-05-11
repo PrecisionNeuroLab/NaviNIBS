@@ -144,6 +144,8 @@ class Target(GenericCollectionDictItem[str]):
         if self._angle == newAngle:
             return
 
+        logger.debug(f'Changing angle from {self._angle} to {newAngle}')
+
         attribsChanging = ['angle', 'coilToMRITransf']
         newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
             session=self.session,
