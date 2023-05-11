@@ -62,7 +62,7 @@ class LSLStreamSelector:
     def selectedStreamKey(self, key: tp.Optional[str]):
         if self._selectedStreamKey == key:
             return
-        logger.debug(f'Selected stream key changed: {key}')
+        logger.info(f'Selected stream key changed: {key}')
         if key not in self._streamKeys:
             self._streamKeys.append(key)
         self._selectedStreamKey = key
@@ -116,4 +116,6 @@ class LSLStreamSelector:
             self.sigSelectedStreamAvailabilityChanged.emit()
 
     def _onComboBoxIndexChanged(self, index: int):
-        self.selectedStreamKey = self._comboBox.itemText(index)
+        newStreamKey = self._comboBox.itemText(index)
+        logger.debug(f'Combo box changed selected stream key from {self._selectedStreamKey} to {newStreamKey}')
+        self.selectedStreamKey = newStreamKey
