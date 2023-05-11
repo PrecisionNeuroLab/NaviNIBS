@@ -1,5 +1,6 @@
 import attrs
 from collections.abc import Sequence, Mapping
+import contextlib
 import logging
 import typing as tp
 from qtpy import QtCore, QtGui, QtWidgets
@@ -124,6 +125,87 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
     @property
     def collectionIsDict(self):
         return hasattr(self._collection, 'keys')
+
+    @property
+    def columns(self):
+        """
+        Note: result may be modified in place within modifyingColumns() context
+        """
+        return self._columns
+
+    @columns.setter
+    def columns(self, columns: list[str]):
+        assert self._pendingChangeType == 'columns', 'Can only modify columns within a modifyingColumns() context'
+        self._columns = columns
+        # validation handled at end of modifyingColumns context
+
+    @property
+    def attrColumns(self):
+        """
+        Note: result may be modified in place within modifyingColumns() context
+        """
+        return self._attrColumns
+
+    @attrColumns.setter
+    def attrColumns(self, attrColumns: list[str]):
+        assert self._pendingChangeType == 'columns', 'Can only modify columns within a modifyingColumns() context'
+        self._attrColumns = attrColumns
+        # validation handled at end of modifyingColumns context
+
+    @property
+    def derivedColumns(self):
+        """
+        Note: result may be modified in place within modifyingColumns() context
+        """
+        return self._derivedColumns
+
+    @derivedColumns.setter
+    def derivedColumns(self, derivedColumns: dict[str, tp.Callable[[K], tp.Any]]):
+        assert self._pendingChangeType == 'columns', 'Can only modify columns within a modifyingColumns() context'
+        self._derivedColumns = derivedColumns
+        # validation handled at end of modifyingColumns context
+
+    # TODO: write other column getter/setters in similar format (asserting modifyingColumns context)
+
+    @contextlib.contextmanager
+    def modifyingColumns(self):
+
+        if self._pendingChangeType:
+            logger.error(f'Previous change still pending: {self._pendingChangeType}')
+            raise RuntimeError
+        self._pendingChangeType = 'columns'
+        self.layoutAboutToBeChanged.emit()
+
+        yield
+
+        unreferencedColumns = set(self._columns)
+        for seq in (self._attrColumns,
+                    self._derivedColumns.keys()):
+            for key in seq:
+                try:
+                    unreferencedColumns.remove(key)
+                except KeyError:
+                    pass
+        if len(unreferencedColumns) > 0:
+            raise ValueError(f'Unreferenced columns: {unreferencedColumns}')
+
+        for seq in (self._attrColumns,
+                    self._derivedColumns.keys(),
+                    self._boolColumns,
+                    self._decoratedColumns,
+                    self._editableColumns,
+                    self._columnLabels.keys(),
+                    self._editableColumnValidators.keys(),
+                    self._derivedColumnSetters.keys(),
+                    self._placeholderNewRowDefaults.keys()):
+            for key in seq:
+                assert key in self._columns, f'{key} not in main columns list'
+
+        assert self._pendingChangeType == 'columns'
+        self.layoutChanged.emit()
+        self._pendingChangeType = None
+
+        self._updateSelection(keys=None, attrKeys=None)
 
     def rowCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
         return len(self._collection) + (1 if self._hasPlaceholderNewRow else 0)
@@ -463,15 +545,18 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
         self._pendingChangeType = None
 
         if doUpdateSelection:
-            if self._isSelectedAttr is not None and (attrKeys is None or self._isSelectedAttr in attrKeys):
-                keysToEmit = keys
-                if keysToEmit is None:
-                    if self.collectionIsDict:
-                        keysToEmit = list(self._collection.keys())
-                    else:
-                        keysToEmit = list(range(len(self._collection)))
-                logger.debug(f'Keys with selection changing: {keysToEmit}')
-                self.sigSelectionChanged.emit(keysToEmit)
+            self._updateSelection(keys=keys, attrKeys=attrKeys)
+
+    def _updateSelection(self, keys: list[str] | None, attrKeys: list[str] | None):
+        if self._isSelectedAttr is not None and (attrKeys is None or self._isSelectedAttr in attrKeys):
+            keysToEmit = keys
+            if keysToEmit is None:
+                if self.collectionIsDict:
+                    keysToEmit = list(self._collection.keys())
+                else:
+                    keysToEmit = list(range(len(self._collection)))
+            logger.debug(f'Keys with selection changing: {keysToEmit}')
+            self.sigSelectionChanged.emit(keysToEmit)
 
     def getCollectionItemIsSelected(self, key: K) -> bool:
         if not self._isSelectedAttr:
