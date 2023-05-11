@@ -18,11 +18,11 @@ from RTNaBS.util.lsl.LSLStreamSelector import LSLStreamSelector
 
 logger = logging.getLogger(__name__)
 
+
 @attrs.define
 class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSource]):
     _title: str = 'LSL trigger settings'
     _triggerSourceKey: str = 'LSLTriggerSource'
-    _minInterTriggerPeriod: float = 0.2  # ignore repeated triggers within this time
 
     _streamSelector: LSLStreamSelector = attrs.field(init=False)
     _inlet: tp.Optional[lsl.StreamInlet] = attrs.field(init=False, default=None)
@@ -45,10 +45,11 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._pollForData))
 
     def _disconnectInlet(self):
-        logger.info(f'Disconnecting from LSL stream')
+        logger.info(f'Disconnecting from LSL stream {self._streamSelector.selectedStreamKey}')
         self._inletConnectedEvent.clear()
         self._inlet.close_stream()
         self._inlet = None
+        logger.debug(f'Disconnected from LSL stream {self._streamSelector.selectedStreamKey}')
         # TODO: maybe start and stop polling task when connecting / disconnecting inlet
 
     def _connectInlet(self):
@@ -68,6 +69,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                                       processing_flags=lsl.proc_ALL,
                                       recover=False)
         self._inletConnectedEvent.set()
+        logger.debug(f'Connected to LSL stream {self._streamSelector.selectedStreamKey}')
 
     async def _pollForData(self):
         while True:
@@ -106,12 +108,18 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                 if action is None:
                     action = self.triggerSource.defaultAction
 
+                metadata = dict(originalType=evtDat)
+                if self.triggerSource.triggerValueIsEpochID:
+                    metadata['epochID'] = evtDat
+                    # TODO: assert that epochID is actually unique (to catch issues where the selected stream
+                    # is actually sending non-unique events rather than unique epochIDs)
+
                 triggerEvt = TriggerEvent(
                     type=action,
                     time=pd.Timestamp.now() + pd.Timedelta(seconds=(evtTime - lsl.local_clock())),  # convert from lsl time to pandas timestamp
-                    metadata=dict(originalType=evtDat)
+                    metadata=metadata
                 )
-                if self._lastTriggerTimePerAction.get(action, None) is not None and (triggerEvt.time - self._lastTriggerTimePerAction[action]).total_seconds() < self._minInterTriggerPeriod:
+                if self._lastTriggerTimePerAction.get(action, None) is not None and (triggerEvt.time - self._lastTriggerTimePerAction[action]).total_seconds() < self.triggerSource.minInterTriggerPeriod:
                     logger.debug('Ignoring trigger that occured too quickly after previous')
                     continue
                 self.triggerSource.trigger(triggerEvt)
@@ -143,9 +151,9 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         if self.session is None:
             # not yet initialized
             return
-        self.triggerSource.streamKey = newKey
         if self._inlet is not None:
             self._disconnectInlet()
+        self.triggerSource.streamKey = newKey
         if self._streamSelector.selectedStreamIsAvailable:
             self._connectInlet()
         else:

@@ -247,7 +247,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         self._triggerReceiver = TriggerReceiver(
             key=self._key,
-            minTimeBetweenEvents=1.1,  # TODO: make this GUI-configurable and config-file-configurable
+            #minTimeBetweenEvents=1.1,  # TODO: make this GUI-configurable and config-file-configurable
         )
         self._triggerReceiver.sigTriggered.connect(self._onReceivedTrigger)
 
@@ -342,9 +342,10 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         self._recordSample(timestamp=pd.Timestamp.now())
 
     def _onReceivedTrigger(self, triggerEvt: TriggerEvent):
-        self._recordSample(timestamp=triggerEvt.time)
+        self._recordSample(timestamp=triggerEvt.time,
+                           metadata=triggerEvt.metadata)
 
-    def _recordSample(self, timestamp: tp.Optional[pd.Timestamp]):
+    def _recordSample(self, timestamp: tp.Optional[pd.Timestamp], metadata: tp.Optional[dict[str, tp.Any]] = None):
         sampleKey = self.session.samples.getUniqueSampleKey(timestamp=timestamp)
         coilToMRITransf = self._coordinator.currentCoilToMRITransform  # may be None if missing a tracker, etc.
 
@@ -358,7 +359,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             timestamp=timestamp,
             coilToMRITransf=coilToMRITransf,
             targetKey=self._coordinator.currentTargetKey,
-            coilKey=self._coordinator.activeCoilKey
+            coilKey=self._coordinator.activeCoilKey,
+            metadata=metadata if metadata is not None else {}
         )
 
         self.session.samples.addItem(sample)
