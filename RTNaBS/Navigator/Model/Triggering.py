@@ -61,7 +61,9 @@ class LSLTriggerSource(TriggerSource):
     type: ClassVar[str] = 'LSLTriggerSource'
     _streamKey: tp.Optional[str] = None
     _triggerEvents: tp.Optional[dict[str, tp.Optional[str]]] = None  # dict mapping of {eventValue: action} on which to trigger
+    _triggerValueIsEpochID: bool = False
     _defaultAction: str = 'pulse'
+    _minInterTriggerPeriod: float = 0.2  # ignore repeated triggers within this time
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -91,8 +93,24 @@ class LSLTriggerSource(TriggerSource):
         self.sigItemChanged.emit(self.key, ['triggerEvents'])
 
     @property
+    def triggerValueIsEpochID(self):
+        return self._triggerValueIsEpochID
+
+    @triggerValueIsEpochID.setter
+    def triggerValueIsEpochID(self, newValue: bool):
+        if self._triggerValueIsEpochID == newValue:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['triggerValueIsEpochID'])
+        self._triggerValueIsEpochID = newValue
+        self.sigItemChanged.emit(self.key, ['triggerValueIsEpochID'])
+
+    @property
     def defaultAction(self):
         return self._defaultAction
+
+    @property
+    def minInterTriggerPeriod(self):
+        return self._minInterTriggerPeriod
 
 
 @attrs.define
@@ -207,6 +225,7 @@ class TriggerReceiver:
 
         self._lastTriggeredEvent = event
         self.sigTriggered.emit(event)
+        logger.debug(f'Triggered {event}')
 
 
 @attrs.define

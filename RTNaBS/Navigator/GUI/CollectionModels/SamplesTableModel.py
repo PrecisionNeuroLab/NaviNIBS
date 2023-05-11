@@ -36,9 +36,29 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
             timestamp='Time'
         )
 
-        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onSamplesAboutToChange)
+        self._collection.sigItemsChanged.connect(self._onSamplesChanged)
 
         super().__attrs_post_init__()
 
-    
+    def _onSamplesAboutToChange(self, keys: list[str] | None, attrKeys: list[str] | None = None):
+        self._onCollectionAboutToChange(keys, attrKeys)
+
+    def _onSamplesChanged(self, keys: list[str] | None, attrKeys: list[str] | None = None):
+        self._onCollectionChanged(keys, attrKeys)
+
+        if attrKeys is None or 'metadata' in attrKeys:
+            # may have added new metadata field, check if we should add a derived column for it
+            sampleKeys = keys
+            if sampleKeys is None:
+                sampleKeys = self._collection.keys()
+            for sampleKey in sampleKeys:
+                sample = self._collection[sampleKey]
+                for metadataKey in sample.metadata.keys():
+                    if metadataKey not in self.derivedColumns:
+                        assert metadataKey not in self.columns
+                        with self.modifyingColumns():
+                            self.derivedColumns[metadataKey] = lambda sampleKey, metadataKey=metadataKey: self._collection[sampleKey].metadata.get(metadataKey, None)
+                            self.columns.append(metadataKey)
+
+

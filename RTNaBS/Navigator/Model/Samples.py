@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import attrs
+import contextlib
 import datetime
 import logging
 import numpy as np
@@ -40,6 +41,13 @@ class Sample(GenericCollectionDictItem[str]):
     _isVisible: bool = True
     _isSelected: bool = False
     _color: tp.Optional[str] = None
+
+    _metadata: dict[str, tp.Any] = attrs.field(factory=dict)
+    """
+    For storing misc metadata, such as information about the trigger event that initiated this sample.
+    
+    Values should be JSON-serializable.
+    """
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -123,6 +131,23 @@ class Sample(GenericCollectionDictItem[str]):
     @property
     def color(self):
         return self._color
+
+    @property
+    def metadata(self):
+        """
+        Note: if needing to modify the result, make sure to do within the `changingMetada context manager, like:
+        ```
+        with sample.changingMetadata() as metadata:
+            metadata['foo'] = 'bar'
+        ```
+        """
+        return self._metadata
+
+    @contextlib.contextmanager
+    def changingMetadata(self):
+        self.sigItemAboutToChange.emit(self.key, ['metadata'])
+        yield self._metadata
+        self.sigItemChanged.emit(self.key, ['metadata'])
 
     def __str__(self):
         return pformat(self.asDict())
