@@ -108,9 +108,9 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                 if action is None:
                     action = self.triggerSource.defaultAction
 
-                metadata = dict(originalType=evtDat)
+                metadata = dict(originalType=int(evtDat))
                 if self.triggerSource.triggerValueIsEpochID:
-                    metadata['epochID'] = evtDat
+                    metadata['epochID'] = int(evtDat)
                     # TODO: assert that epochID is actually unique (to catch issues where the selected stream
                     # is actually sending non-unique events rather than unique epochIDs)
 

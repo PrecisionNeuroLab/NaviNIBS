@@ -12,6 +12,7 @@ from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
+from .ViewLayers.SampleMetadataOrientationsLayer import SampleMetadataOrientationsLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
@@ -111,6 +112,7 @@ class SinglePlotterNavigationView(NavigationView):
         for cls in (
                     MeshSurfaceLayer,
                     SampleOrientationsLayer,
+                    SampleMetadataOrientationsLayer,
                     TargetOrientationsLayer,
                     TargetingTargetCrosshairsLayer,
                     TargetingCoilCrosshairsLayer,
@@ -297,7 +299,25 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         #self._plotter.enable_depth_peeling(2)
 
-        self.addLayer(type='SampleOrientations', key='Samples', layeredPlotterKey='Orientations')
+        if False:
+            self.addLayer(type='SampleOrientations', key='Samples', layeredPlotterKey='Orientations')
+        elif False:
+            self.addLayer(type='SampleMetadataOrientations',
+                          key='SampleVpps',
+                          layeredPlotterKey='Orientations',
+                          metadataKey='Vpp',
+                          metadataScaleFactor=1.e6,
+                          colorbarLabel='Vpp (uV)',
+                          lineWidth=6.)
+        else:
+            self.addLayer(type='SampleMetadataOrientations',
+                          key='SampleVpps_dBmV',
+                          layeredPlotterKey='Orientations',
+                          metadataKey='Vpp_dBmV',
+                          metadataScaleFactor=1.e6,
+                          colorbarLabel='Vpp (dBmV)',
+                          lineWidth=6.)
+
         self.addLayer(type='TargetOrientations', key='Targets', layeredPlotterKey='Orientations')
         self.addLayer(type='TargetingTargetPoints', key='TargetPoints', layeredPlotterKey='Orientations')
         self.addLayer(type='TargetingCoilPoints', key='CoilPoints', layeredPlotterKey='Orientations')
