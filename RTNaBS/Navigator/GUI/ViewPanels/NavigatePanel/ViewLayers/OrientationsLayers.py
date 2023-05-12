@@ -29,8 +29,8 @@ class VisualizedOrientation:
     """
     _orientation: tp.Union[Sample, Target]
     _plotter: pv.Plotter
-    _colorDepthIndicator: str
-    _colorHandleIndicator: str
+    _colorDepthIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
+    _colorHandleIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _opacity: float
     _lineWidth: float
     _style: str
@@ -48,19 +48,47 @@ class VisualizedOrientation:
                 handleLength = 2
                 depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
                 handleLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, -handleLength, 0]]))
+
                 actorKey = self._actorKeyPrefix + 'depthLine'
+
+                if isinstance(self._colorDepthIndicator, tuple):
+                    depthLine[self._colorDepthIndicator[1]] = np.full((depthLine.n_points,), self._colorDepthIndicator[0])
+                    scalars = self._colorDepthIndicator[1]
+                    scalar_bar_args = {'title': self._colorDepthIndicator[1]}
+                    color='k'
+                else:
+                    scalars = None
+                    scalar_bar_args = None
+                    color=self._colorDepthIndicator
+
                 self._actors[actorKey] = addLineSegments(self._plotter,
                                                          depthLine,
                                                          name=actorKey,
-                                                         color=self._colorDepthIndicator,
+                                                         color=color,
+                                                         scalars=scalars,
+                                                         scalar_bar_args=scalar_bar_args,
                                                          width=self._lineWidth,
                                                          opacity=self._opacity)
 
+
                 actorKey = self._actorKeyPrefix + 'handleLine'
+
+                if isinstance(self._colorHandleIndicator, tuple):
+                    handleLine[self._colorHandleIndicator[1]] = np.full((handleLine.n_points,), self._colorHandleIndicator[0])
+                    scalars = self._colorHandleIndicator[1]
+                    scalar_bar_args = {'title': self._colorHandleIndicator[1]}
+                    color='k'
+                else:
+                    scalars = None
+                    scalar_bar_args = None
+                    color=self._colorHandleIndicator
+
                 self._actors[actorKey] = addLineSegments(self._plotter,
                                                          handleLine,
                                                          name=actorKey,
-                                                         color=self._colorHandleIndicator,
+                                                         color=color,
+                                                         scalars=scalars,
+                                                         scalar_bar_args=scalar_bar_args,
                                                          width=self._lineWidth,
                                                          opacity=self._opacity)
 
@@ -96,6 +124,19 @@ class OrientationsLayer(PlotViewLayer):
 
         self._loopTask = asyncio.create_task(self._loop_drawPendingOrientations())
 
+    def _createVisualizedOrientationForSample(self, key: str) -> VisualizedOrientation:
+        isSelected = self.orientations[key].isSelected
+        return VisualizedOrientation(
+            orientation=self.orientations[key],
+            plotter=self._plotter,
+            colorHandleIndicator=self._colorHandleIndicatorSelected if isSelected else self._colorHandleIndicator,
+            colorDepthIndicator=self._colorDepthIndicatorSelected if isSelected else self._colorDepthIndicator,
+            opacity=self._opacity,
+            lineWidth=self._lineWidth,
+            style=self._style,
+            actorKeyPrefix=self._getActorKey(key)
+        )
+
     async def _loop_drawPendingOrientations(self):
         """
         Handle drawing of orientations in async loop here, with a yield to make sure we give
@@ -111,18 +152,8 @@ class OrientationsLayer(PlotViewLayer):
             key = self._pendingOrientationKeys.pop()
 
             if self._orientationIsVisible(key):
-                isSelected = self.orientations[key].isSelected
                 logger.debug(f'Instantiating visualized orientation for {key}')
-                self._visualizedOrientations[key] = VisualizedOrientation(
-                    orientation=self.orientations[key],
-                    plotter=self._plotter,
-                    colorHandleIndicator=self._colorHandleIndicatorSelected if isSelected else self._colorHandleIndicator,
-                    colorDepthIndicator=self._colorDepthIndicatorSelected if isSelected else self._colorDepthIndicator,
-                    opacity=self._opacity,
-                    lineWidth=self._lineWidth,
-                    style=self._style,
-                    actorKeyPrefix=self._getActorKey(key)
-                )
+                self._visualizedOrientations[key] = self._createVisualizedOrientationForSample(key)
                 for actorKey, actor in self._visualizedOrientations[key].actors.items():
                     self._actors[actorKey] = actor
             else:
