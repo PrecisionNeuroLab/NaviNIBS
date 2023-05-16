@@ -17,6 +17,7 @@ from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
 from RTNaBS.util.GUI.QDial import AngleDial
 from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
+from RTNaBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
 
 logger = logging.getLogger(__name__)
 
@@ -365,6 +366,8 @@ class EditTargetWidget:
     _wdgt: QtWidgets.QWidget = attrs.field(factory=lambda: QtWidgets.QGroupBox('Edit target'))
     _scroll: QScrollContainer = attrs.field(init=False)
 
+    _depthOffsetWdgt: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+
     _getNewTargetCoord: tp.Callable[[], tp.Tuple[float, float, float]] | None = attrs.field(default=None)
     """
     Use this to specify a callback for user pressing button to set new target coordinates (e.g. from a cursor in a view outside this widget).
@@ -411,6 +414,15 @@ class EditTargetWidget:
         self._targetComboBox.currentIndexChanged.connect(self._onTargetComboBoxCurrentIndexChanged)
         self._targetsModel.sigSelectionChanged.connect(self._onModelSelectionChanged)
         layout.addRow('Editing target:', self._targetComboBox)
+
+        self._depthOffsetWdgt = QtWidgets.QDoubleSpinBox()
+        preventAnnoyingScrollBehaviour(self._depthOffsetWdgt)
+        self._depthOffsetWdgt.valueChanged.connect(self._onDepthOffsetChangedFromGUI)
+        self._depthOffsetWdgt.setRange(-10, 1000)
+        self._depthOffsetWdgt.setSingleStep(0.1)
+        self._depthOffsetWdgt.setDecimals(1)
+        self._depthOffsetWdgt.setSuffix(' mm')
+        layout.addRow('Depth offset:', self._depthOffsetWdgt)
 
         self._entryCoordWdgt = CoordinateWidget(self._session,
                                                 whichCoord='entry',
@@ -482,9 +494,11 @@ class EditTargetWidget:
         if target is None:
             self._targetComboBox.setCurrentIndex(-1)
             self._handleAngleWdgt.value = 0
+            self._depthOffsetWdgt.setValue(0)
         else:
             self._targetComboBox.setCurrentIndex(self._targetsModel.getIndexFromCollectionItemKey(target.key))
             self._handleAngleWdgt.value = target.angle
+            self._depthOffsetWdgt.setValue(target.depthOffset)
 
     def setEnabled(self, enabled: bool):
         self._wdgt.setEnabled(enabled)
@@ -546,6 +560,9 @@ class EditTargetWidget:
         if attribsChanged is None or 'angle' in attribsChanged:
             self._handleAngleWdgt.value = self.target.angle
 
+        if attribsChanged is None or 'depthOffset' in attribsChanged:
+            self._depthOffsetWdgt.setValue(self.target.depthOffset)
+
     def _onHandleAngleChangedFromGUI(self, newAngle: float):
         logger.info(f'Handle angle changed to {newAngle} degrees')
         if self.target is not None:
@@ -553,5 +570,10 @@ class EditTargetWidget:
                 logger.debug(f'Changing handle angle for {self.target.key} from {self.target.angle} to {newAngle}')
                 self.target.angle = newAngle  # TODO: maybe check if angle (accounting for rounding) actually changed
 
-
+    def _onDepthOffsetChangedFromGUI(self, newDepth: float):
+        logger.info(f'Depth offset changed to {newDepth} mm')
+        if self.target is not None:
+            if round(self.target.depthOffset, 1) != round(newDepth, 1):
+                logger.debug(f'Changing depth offset for {self.target.key} from {self.target.depthOffset} to {newDepth}')
+                self.target.depthOffset = newDepth
 
