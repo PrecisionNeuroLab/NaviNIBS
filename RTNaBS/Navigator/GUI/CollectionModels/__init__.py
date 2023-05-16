@@ -600,6 +600,15 @@ class FilteredCollectionModel(QtCore.QSortFilterProxyModel, CollectionTableModel
 
     def setWhichItemsSelected(self, selectedKeys: list[K]):
         logger.debug(f'setWhichItemsSelected: {selectedKeys}')
+        if True:
+            # keep any keys in full model that were filtered out here still selected
+            selectedKeys = set(selectedKeys)
+            for sourceRow in range(self._proxiedModel.rowCount()):
+                if not self.filterAcceptsRow(sourceRow=sourceRow, sourceParent=QtCore.QModelIndex()):
+                    key = self._proxiedModel.getCollectionItemKeyFromIndex(sourceRow)
+                    if self._proxiedModel.getCollectionItemIsSelected(key=key):
+                        selectedKeys.add(key)
+
         self._proxiedModel.setWhichItemsSelected(selectedKeys)
 
     def _onFullSelectionChanged(self, keys: list[str]):

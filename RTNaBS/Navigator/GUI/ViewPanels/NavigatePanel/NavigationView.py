@@ -314,7 +314,6 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           key='SampleVpps_dBmV',
                           layeredPlotterKey='Orientations',
                           metadataKey='Vpp_dBmV',
-                          metadataScaleFactor=1.e6,
                           colorbarLabel='Vpp (dBmV)',
                           lineWidth=6.)
 

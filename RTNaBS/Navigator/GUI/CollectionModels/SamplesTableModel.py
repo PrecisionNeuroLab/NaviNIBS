@@ -41,6 +41,10 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
 
         super().__attrs_post_init__()
 
+        # simulate a change to initialize metadata columns
+        self._onSamplesAboutToChange(None, None)
+        self._onSamplesChanged(None, None)
+
     def _onSamplesAboutToChange(self, keys: list[str] | None, attrKeys: list[str] | None = None):
         self._onCollectionAboutToChange(keys, attrKeys)
 
