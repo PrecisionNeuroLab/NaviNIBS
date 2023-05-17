@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.progress-wrench'))
-    _dockWidgets: tp.Dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _plotter: BackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
@@ -63,25 +62,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     def _finishInitialization(self):
         super()._finishInitialization()
 
-        def createDockWidget(title: str,
-                             widget: tp.Optional[QtWidgets.QWidget] = None,
-                             layout: tp.Optional[QtWidgets.QLayout] = None):
-            cdw = dw.DockWidget(
-                uniqueName=self._key + title,
-                options=dw.DockWidgetOptions(notClosable=True),
-                title=title,
-                affinities=[self._key]
-            )
-            if widget is None:
-                widget = QtWidgets.QWidget()
-            if layout is not None:
-                widget.setLayout(layout)
-            cdw.setWidget(widget)
-            cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
-            self._dockWidgets[title] = cdw
-            return cdw, widget
-
-        cdw, container = createDockWidget(
+        cdw, container = self._createDockWidget(
             title='Tools tracking status',
         )
         container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
@@ -89,7 +70,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                                                         wdgt=container)
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
-        cdw, container = createDockWidget(
+        cdw, container = self._createDockWidget(
             title='Simulated tool controls',
             layout=QtWidgets.QVBoxLayout()
         )
@@ -119,7 +100,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         if False:
             # (disabled for now, breaks mesh picking)
             self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
-        cdw, container = createDockWidget(
+        cdw, container = self._createDockWidget(
             title='Simulated tools view',
             widget=self._plotter.interactor
         )
@@ -133,6 +114,9 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         self._trackingStatusWdgt.session = self.session
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._onLatestPositionsChanged()
+
+        if True == False:
+            pass
 
     def _onLatestPositionsChanged(self):
         logger.debug(f'{self.__class__.__name__} _onLatestPositionsChanged')

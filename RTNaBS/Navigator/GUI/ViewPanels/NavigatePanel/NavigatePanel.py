@@ -103,7 +103,6 @@ class _PoseMetricGroup:
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
-    _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False)
     _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
@@ -135,26 +134,6 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         if not self.session.subjectRegistration.isRegistered:
             return False, 'Subject not registered'
         return True, None
-
-    def _createDockWidget(self,
-                          title: str,
-                          widget: tp.Optional[QtWidgets.QWidget] = None,
-                          layout: tp.Optional[QtWidgets.QLayout] = None):
-        cdw = dw.DockWidget(
-            uniqueName=self._key + title,
-            options=dw.DockWidgetOptions(notClosable=True),
-            title=title,
-            affinities=[self._key]
-        )
-        if widget is None:
-            widget = QtWidgets.QWidget()
-        if layout is not None:
-            widget.setLayout(layout)
-        # widget.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum)
-        cdw.setWidget(widget)
-        cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
-        self._dockWidgets[title] = cdw
-        return cdw, widget
 
     def _finishInitialization(self):
         super()._finishInitialization()

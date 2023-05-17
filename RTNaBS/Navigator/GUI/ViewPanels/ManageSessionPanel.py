@@ -13,7 +13,6 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from . import MainViewPanel
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import exceptionToStr
 from RTNaBS.util.GUI import DockWidgets as dw
