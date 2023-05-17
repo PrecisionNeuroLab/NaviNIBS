@@ -17,13 +17,13 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from . import MainViewPanel
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from RTNaBS.Devices.SimulatedToolPositionsServer import SimulatedToolPositionsServer
 from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class CameraPanel(MainViewPanel):
+class CameraPanel(MainViewPanelWithDockWidgets):
     """
     For now, assume this will always be connecting to an NDI Polaris camera with PyIGTLink.
 
@@ -76,19 +76,17 @@ class CameraPanel(MainViewPanel):
         if self._cameraFOVSTLPath is None:
             self._cameraFOVSTLPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'data', 'tools', 'PolarisVegaFOV.stl')
 
-        self._wdgt.setLayout(QtWidgets.QHBoxLayout())
-
-        sidebar = QtWidgets.QWidget()
-        sidebar.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
-        self._wdgt.layout().addWidget(sidebar)
-
         self._trackingStatusWdgt = TrackingStatusWidget(session=self._session)
-        sidebar.layout().addWidget(self._trackingStatusWdgt.wdgt)
+        cdw, _ = self._createDockWidget(
+            title='Tracking status',
+            widget=self._trackingStatusWdgt.wdgt)
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
-        container = QtWidgets.QGroupBox('Camera connection')
-        container.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.layout().addWidget(container)
+        cdw, container = self._createDockWidget(
+            title='Camera connection',
+            layout=QtWidgets.QVBoxLayout(),
+        )
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
         self._serverGUIContainer = container
 
@@ -126,7 +124,10 @@ class CameraPanel(MainViewPanel):
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
 
-        self._wdgt.layout().addWidget(self._plotter.interactor)
+        cdw, _ = self._createDockWidget(
+            title='Tracked objects',
+            widget=self._plotter.interactor)
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnRight)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
