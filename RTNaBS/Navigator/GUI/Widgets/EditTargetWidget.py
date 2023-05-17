@@ -360,7 +360,6 @@ class EntryAnglesWidgets:
 
 @attrs.define(kw_only=True)
 class EditTargetWidget:
-    _targetKey: str | None = None
     _session: Session = attrs.field(repr=False)
 
     _wdgt: QtWidgets.QWidget = attrs.field(factory=lambda: QtWidgets.QGroupBox('Edit target'))
@@ -511,7 +510,12 @@ class EditTargetWidget:
 
         menuCurrentTargetIndex = self._targetComboBox.currentIndex()
         if menuCurrentTargetIndex != -1:
-            menuCurrentTargetKey = self._targetsModel.getCollectionItemKeyFromIndex(menuCurrentTargetIndex)
+            try:
+                menuCurrentTargetKey = self._targetsModel.getCollectionItemKeyFromIndex(menuCurrentTargetIndex)
+            except IndexError:
+                # model probably just changed to reduce number of items
+                return  # TODO: determine better behavior to handle this instead of just ignoring
+
             if menuCurrentTargetKey not in changedKeys:
                 return
 
@@ -552,9 +556,14 @@ class EditTargetWidget:
         self.target = target
 
         if not target.isSelected:
-            # newly selected target in combobox is not selected in model,
-            # so assume user doesn't want edit widget to track model selection
-            self._doTrackModelSelectedTarget = False
+            if False:
+                # newly selected target in combobox is not selected in model,
+                # so assume user doesn't want edit widget to track model selection
+                self._doTrackModelSelectedTarget = False
+            else:
+                pass  # temporarily disabled for now due to issue with over-aggressive disabling
+                # of tracking model's selected target (perhaps due to signal emit order?)
+
 
     def _onTargetItemChanged(self, targetKey: str, attribsChanged: list[str] | None = None):
         if attribsChanged is None or 'angle' in attribsChanged:

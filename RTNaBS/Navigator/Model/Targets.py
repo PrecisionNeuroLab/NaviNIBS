@@ -276,6 +276,10 @@ class Target(GenericCollectionDictItem[str]):
         self.sigItemChanged.emit(self.key, ['isSelected'])
 
     @property
+    def color(self):
+        return self._color
+
+    @property
     def session(self):
         return self._session
 

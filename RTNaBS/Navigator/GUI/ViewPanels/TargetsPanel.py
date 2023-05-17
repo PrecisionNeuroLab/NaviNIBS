@@ -17,14 +17,16 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from . import MainViewPanel
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
 from RTNaBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
+from RTNaBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
+from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
+from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
@@ -69,6 +71,19 @@ class VisualizedTarget:
         self._visible = isVisible
 
         self._plotter.render()
+
+    @property
+    def style(self):
+        return self._style
+
+    @style.setter
+    def style(self, style: str):
+        if self._style == style:
+            return
+
+        self.clearActors()
+        self._style = style
+        self.plot()
 
     def plot(self):
         thinWidth = 3
@@ -158,16 +173,31 @@ class VisualizedTarget:
             for actor in self._actors.values():
                 actor.VisibilityOff()
 
+    @property
+    def actors(self):
+        return self._actors
+
+    def clearActors(self):
+        for actor in self._actors.values():
+            self._plotter.remove_actor(actor)
+
+        self._actors.clear()
+
+
 
 @attrs.define
-class TargetsPanel(MainViewPanel):
+class TargetsPanel(MainViewPanelWithDockWidgets):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
+    _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
 
     _editTargetWdgt: EditTargetWidget = attrs.field(init=False)
+    _editGridWdgt: EditGridWidget = attrs.field(init=False)
+
+    _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -184,6 +214,25 @@ class TargetsPanel(MainViewPanel):
         if not self.session.headModel.isSet:
             return False, 'No head model set'
         return True, None
+
+    def _createDockWidget(self,
+                          title: str,
+                          widget: tp.Optional[QtWidgets.QWidget] = None,
+                          layout: tp.Optional[QtWidgets.QLayout] = None):
+        cdw = dw.DockWidget(
+            uniqueName=self._key + title,
+            options=dw.DockWidgetOptions(notClosable=True),
+            title=title,
+            affinities=[self._key]
+        )
+        if widget is None:
+            widget = QtWidgets.QWidget()
+        if layout is not None:
+            widget.setLayout(layout)
+        cdw.setWidget(widget)
+        cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
+        self._dockWidgets[title] = cdw
+        return cdw, widget
 
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
@@ -203,10 +252,12 @@ class TargetsPanel(MainViewPanel):
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
-        container = QtWidgets.QGroupBox('Planned targets')
-        container.setLayout(QtWidgets.QVBoxLayout())
-        container.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Preferred)
-        self._wdgt.layout().addWidget(container)
+        cdw, container = self._createDockWidget(
+            title='Targets',
+            layout=QtWidgets.QVBoxLayout()
+        )
+        container.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
@@ -240,17 +291,45 @@ class TargetsPanel(MainViewPanel):
         self._tableWdgt.sigSelectionChanged.connect(self._onSelectionChanged)
         container.layout().addWidget(self._tableWdgt.wdgt)
 
+        fieldContainer = QtWidgets.QWidget()
+        fieldLayout = QtWidgets.QFormLayout()
+        fieldContainer.setLayout(fieldLayout)
+        container.layout().addWidget(fieldContainer)
+        self._targetDispStyle_comboBox.addItems(['line', 'lines', 'coilLines'])
+        self._targetDispStyle_comboBox.setCurrentIndex(2)
+        self._targetDispStyle_comboBox.currentIndexChanged.connect(self._onTargetDispStyleChanged)
+        fieldLayout.addRow('Target display style:', self._targetDispStyle_comboBox)
+
         self._editTargetWdgt = EditTargetWidget(session=self.session,
+                                                wdgt=QtWidgets.QWidget(),
                                                 getNewTargetCoord=self._getCrosshairCoord,
                                                 setTargetCoordButtonLabel='Set from crosshair position',
                                                 getNewEntryCoord=self._getCrosshairCoord,
                                                 setEntryCoordButtonLabel='Set from crosshair position',
                                                 )
-        container.layout().addWidget(self._editTargetWdgt.wdgt)
+        cdw, _ = self._createDockWidget(
+            title='Edit target',
+            widget=self._editTargetWdgt.wdgt,
+        )
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
 
-        container = QtWidgets.QWidget()
-        container.setLayout(QtWidgets.QGridLayout())
-        self._wdgt.layout().addWidget(container)
+        self._editGridWdgt = EditGridWidget(session=self.session,
+                                            wdgt=QtWidgets.QWidget(),
+                                            )
+        cdw, _ = self._createDockWidget(
+            title='Edit grid',
+            widget=self._editGridWdgt.wdgt,
+        )
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+
+        cdw, container = self._createDockWidget(
+            title='Target views',
+            layout=QtWidgets.QGridLayout()
+        )
+        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnRight)
+
+        # TODO: put each view in its own dockwidget instead of a grid layout so they can be moved around
+
         for iRow, iCol, key in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if key in ('x', 'y', 'z'):
                 self._views[key] = MRISliceView(label=key, normal=self._getRotMatForCoilAxis(key))
@@ -280,6 +359,10 @@ class TargetsPanel(MainViewPanel):
         Used by CoordinateWidgets to set target or entry coord from current crosshair position
         """
         return self._views['3D'].sliceOrigin
+
+    def _onTargetDispStyleChanged(self, index: int):
+        for visualizedTarget in self._targetActors.values():
+            visualizedTarget.style = self._targetDispStyle_comboBox.currentText()
 
     def _onSliceTransformChanged(self, sourceKey: str):
         logger.debug('Slice {} transform changed'.format(sourceKey))
@@ -369,10 +452,7 @@ class TargetsPanel(MainViewPanel):
                     if changedTargetKeys is None:
                         changedTargetKeys = self.session.targets.keys()
 
-                    if viewKey == '3D':
-                        style = 'coilLines'
-                    else:
-                        style = 'lines'
+                    style = self._targetDispStyle_comboBox.currentText()
 
                     for key in changedTargetKeys:
                         try:
@@ -380,7 +460,8 @@ class TargetsPanel(MainViewPanel):
                         except KeyError as e:
                             # previous key no longer in targets
                             if viewKey + key in self._targetActors:
-                                view.plotter.remove_actor(self._targetActors.pop(viewKey + key))
+                                visualizedTarget = self._targetActors.pop(viewKey + key)
+                                visualizedTarget.clearActors()
                         else:
                             logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
                             self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
@@ -415,7 +496,9 @@ class TargetsPanel(MainViewPanel):
         self._tableWdgt.currentCollectionItemKey = targetKey  # select new target
 
     def _onDeleteBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        selectedTargetKeys = self._tableWdgt.selectedCollectionItemKeys
+        for targetKey in selectedTargetKeys:
+            self.session.targets.deleteItem(targetKey)
 
     def _onDuplicateBtnClicked(self, checked: bool):
         raise NotImplementedError()  # TODO
