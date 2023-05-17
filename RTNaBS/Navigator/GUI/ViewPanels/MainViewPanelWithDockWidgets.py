@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class MainViewPanelWithDockWidgets(MainViewPanel):
     _wdgt: DockWidgetsContainer = attrs.field(init=False)
 
+    _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _layoutMayHaveChanged: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     sigAboutToRestoreLayout: Signal = attrs.field(init=False, factory=Signal)
@@ -30,6 +31,25 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
         self._wdgt.setAffinities([self._key])
 
         super().__attrs_post_init__()
+
+    def _createDockWidget(self,
+                          title: str,
+                          widget: tp.Optional[QtWidgets.QWidget] = None,
+                          layout: tp.Optional[QtWidgets.QLayout] = None):
+        cdw = dw.DockWidget(
+            uniqueName=self._key + title,
+            options=dw.DockWidgetOptions(notClosable=True),
+            title=title,
+            affinities=[self._key]
+        )
+        if widget is None:
+            widget = QtWidgets.QWidget()
+        if layout is not None:
+            widget.setLayout(layout)
+        cdw.setWidget(widget)
+        cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
+        self._dockWidgets[title] = cdw
+        return cdw, widget
 
     def restoreLayoutIfAvailable(self) -> bool:
         """

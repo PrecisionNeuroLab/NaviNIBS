@@ -189,7 +189,6 @@ class VisualizedTarget:
 class TargetsPanel(MainViewPanelWithDockWidgets):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
-    _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
@@ -214,25 +213,6 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
         if not self.session.headModel.isSet:
             return False, 'No head model set'
         return True, None
-
-    def _createDockWidget(self,
-                          title: str,
-                          widget: tp.Optional[QtWidgets.QWidget] = None,
-                          layout: tp.Optional[QtWidgets.QLayout] = None):
-        cdw = dw.DockWidget(
-            uniqueName=self._key + title,
-            options=dw.DockWidgetOptions(notClosable=True),
-            title=title,
-            affinities=[self._key]
-        )
-        if widget is None:
-            widget = QtWidgets.QWidget()
-        if layout is not None:
-            widget.setLayout(layout)
-        cdw.setWidget(widget)
-        cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
-        self._dockWidgets[title] = cdw
-        return cdw, widget
 
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
