@@ -71,7 +71,36 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.BackgroundPlotter):
             pass
         pvqt.plotting.BackgroundPlotter.__init__(self, *args, auto_update=auto_update, **kwargs)
 
+        self.frame.setContentsMargins(0, 0, 0, 0)
+
+        #self.enable_anti_aliasing()  # for nice visuals
+
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
+
+    def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
+        """
+        Fix some issues with update_scalar_bar_ranges and handling of all nan values
+        """
+        if scalarBarTitles is None:
+            scalarBarTitles = self.scalar_bars.keys()
+        for scalarBarKey in scalarBarTitles:
+            clims = [np.nan, np.nan]
+
+            for actorKey, actor in self.renderer.actors.items():
+                mapper = actor.GetMapper()
+                if mapper in self.scalar_bars._scalar_bar_mappers[scalarBarKey]:
+                    # note: this works for actors created by add_mesh, but maybe not others
+                    mesh = mapper.GetInput()
+                    thisScalarKey = mapper.GetArrayName()
+                    scalars = pv.utilities.get_array(mesh, thisScalarKey)
+                    if not isinstance(scalars, np.ndarray):
+                        scalars = np.asarray(scalars)
+                    clims = [np.nanmin([clims[0], np.nanmin(scalars)]),
+                             np.nanmax([clims[1], np.nanmax(scalars)])]
+            if np.isnan(clims[0]):
+                clims = [0, 1]
+            for mapper in self._scalar_bars._scalar_bar_mappers[scalarBarKey]:
+                mapper.scalar_range = clims
 
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):

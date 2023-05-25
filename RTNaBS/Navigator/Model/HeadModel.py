@@ -117,12 +117,12 @@ class HeadModel:
     def clearCache(self, which: str):
 
         if which == 'all':
-            allKeys = ('skinSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf', 'eegPositions')  # TODO: add more keys here once implemented
+            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf', 'eegPositions')  # TODO: add more keys here once implemented
             for w in allKeys:
                 self.clearCache(which=w)
             return
 
-        if which in ('skinSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf', 'eegPositions'):
+        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf', 'eegPositions'):
             if getattr(self, '_' + which) is None:
                 return
             setattr(self, '_' + which, None)
@@ -157,7 +157,7 @@ class HeadModel:
     def surfKeys(self):
         # TODO: set this dynamically instead of hardcoded
         # TODO: add others
-        allSurfKeys = ('skinSurf', 'gmSurf')
+        allSurfKeys = ('skinSurf', 'csfSurf', 'gmSurf')
         return allSurfKeys
 
     @property
@@ -174,6 +174,12 @@ class HeadModel:
         if self.isSet and self._gmSimpleSurf is None:
             self.loadCache(which='gmSimpleSurf')
         return self._gmSimpleSurf
+
+    @property
+    def csfSurf(self):
+        if self.isSet and self._csfSurf is None:
+            self.loadCache(which='csfSurf')
+        return self._csfSurf
 
     @property
     def skinSurf(self):
