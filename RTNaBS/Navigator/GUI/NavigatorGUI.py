@@ -5,10 +5,12 @@ import asyncio
 import appdirs
 import attrs
 import contextlib
+import darkdetect
 from datetime import datetime
 import logging
 import os
 import pathlib
+import pyvista as pv
 import pyqtgraph as pg
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
@@ -74,6 +76,14 @@ class NavigatorGUI(RunnableAsApp):
             self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='RTNaBS', appauthor=False), 'InProgressSessions')
 
         self._win.setAffinities(['MainViewPanel'])  # only allow main view panels to dock in this window
+
+        # set pyvista theme according to current colors
+        if darkdetect.isDark():
+            pv.set_plot_theme('dark')
+        else:
+            pv.set_plot_theme('default')
+        pv.global_theme.background = self._win.palette().color(QtGui.QPalette.Base).name()
+        pv.global_theme.font.color = self._win.palette().color(QtGui.QPalette.Text).name()
 
         panel = self._addViewPanel(ManageSessionPanel(key='Manage session',
                                                       session=self._session,
