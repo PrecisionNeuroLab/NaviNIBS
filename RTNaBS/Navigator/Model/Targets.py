@@ -189,6 +189,8 @@ class Target(GenericCollectionDictItem[str]):
     @property
     def entryCoordPlusDepthOffset(self) -> tp.Optional[np.ndarray]:
         if self._entryCoord is None or self._targetCoord is None:
+            if self._coilToMRITransf is not None:
+                return self._coilToMRITransf[:3, 3].T
             return None
         if self._depthOffset is None or self._depthOffset == 0:
             return self._entryCoord

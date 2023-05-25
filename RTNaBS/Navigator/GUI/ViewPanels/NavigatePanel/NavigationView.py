@@ -4,7 +4,7 @@ import attrs
 import logging
 import numpy as np
 import pytransform3d.rotations as ptr
-from qtpy import QtWidgets
+from qtpy import QtWidgets, QtCore
 import typing as tp
 from typing import ClassVar
 
@@ -12,7 +12,7 @@ from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
 from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
 from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
-from .ViewLayers.SampleMetadataOrientationsLayer import SampleMetadataOrientationsLayer
+from .ViewLayers.SampleMetadataOrientationsLayer import SampleMetadataOrientationsLayer, SampleMetadataInterpolatedSurfaceLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
@@ -284,22 +284,40 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         super().__attrs_post_init__()
 
         if self._doShowSkinSurf:
-            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSurf',
+            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSimpleSurf',
                           color='#c9c5c2',
                           layeredPlotterKey='SkinMesh',
                           layerPlotterLayer=0)
 
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
-        self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
+        if True and self._alignCameraTo == 'target':
+            self.addLayer(type='SampleMetadataInterpolatedSurface',
+                          key='Brain',
+                          surfKey='gmSurf',
+                          scalarsOpacityKey=None,
+                          metadataKey='Vpp_dBmV',
+                          colorbarLabel='Vpp (dBmV)',
+                          relevantSampleDepth='intersection')
+        else:
+            self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
         self._plotter.setLayer(1 if self._doShowSkinSurf else 0)
+
+        if False:
+            self.addLayer(type='SampleMetadataInterpolatedSurface',
+                          key='ScalpVpps',
+                          surfKey='csfSurf',
+                          opacity=0.5,
+                          metadataKey='Vpp_dBmV',
+                          colorbarLabel='Vpp (dBmV)',
+                          relevantSampleDepth='intersection')
 
         if self._doParallelProjection:
             self._plotter.camera.enable_parallel_projection()
 
         #self._plotter.enable_depth_peeling(2)
 
-        if False:
+        if True:
             self.addLayer(type='SampleOrientations', key='Samples', layeredPlotterKey='Orientations')
         elif False:
             self.addLayer(type='SampleMetadataOrientations',
