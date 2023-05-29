@@ -4,12 +4,12 @@ import asyncio
 
 import appdirs
 import attrs
-from datetime import datetime
 import logging
 import multiprocessing as mp
 import numpy as np
 import os
 import pathlib
+import time
 
 import pandas as pd
 import shutil
@@ -18,6 +18,7 @@ from typing import ClassVar
 
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
@@ -56,6 +57,24 @@ class TargetingCoordinator:
     _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
     _currentSamplePoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
 
+    _isOnTargetWhenDistErrorUnder: float = 1  # in mm
+    _isOnTargetWhenZAngleErrorUnder: float = 2.  # in deg
+    _isOnTargetWhenHorizAngleErrorUnder: float = 4.  # in deg
+    _isOnTargetWhenZDistErrorUnder: float = 4.  # in mm
+    _isOnTargetMinTime: float = 0.5  # in sec, don't report being on target until after staying on target for at least this long
+    _isOffTargetWhenDistErrorExceeds: float = 2.  # in mm
+    _isOffTargetWhenZAngleErrorExceeds: float = 4.  # in deg
+    _isOffTargetWhenHorizAngleErrorExceeds: float = 8.  # in deg
+    _isOffTargetWhenZDistErrorExceeds: float = 8.  # in mm
+    _isOffTargetMinTime: float = 0.1  # in sec, don't report being off target until after staying off target for at least this long
+    _doMonitorOnTarget: bool = False
+    _monitorOnTargetRate: float = 5.  # in Hz
+    _isOnTarget: bool = attrs.field(init=False, default=False)
+    _onTargetMaybeChangedAtTime: float | None = None
+    _needToCheckIfOnTarget: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _monitorOnTargetTask: asyncio.Task | None = attrs.field(init=False, default=None)
+    sigIsOnTargetChanged: Signal = attrs.field(init=False, factory=Signal)  # only emitted when doMonitorOnTarget is True and isOnTarget changes
+
     sigActiveCoilKeyChanged: Signal = attrs.field(init=False, factory=Signal)
     sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
     """
@@ -88,9 +107,14 @@ class TargetingCoordinator:
             sample=self._session.samples[self._currentSampleKey] if self._currentSampleKey is not None else None
         )
 
+        self.sigCurrentTargetChanged.connect(lambda: self._needToCheckIfOnTarget.set())
+
         if self._activeCoilKey is not None:
             self._session.tools[self._activeCoilKey].sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
             self._session.tools[self._activeCoilKey].sigItemChanged.connect(self._onActiveCoilToolChanged)
+
+        if self._doMonitorOnTarget:
+            self._startMonitoringOnTarget()
 
     def _onActiveCoilToolKeyChanged(self, oldKey: str, newKey: str):
         logger.info(f'Recording active coil key change from {oldKey} to {newKey}')
@@ -138,6 +162,115 @@ class TargetingCoordinator:
         self._currentCoilToMRITransform = None  # clear any previously cached value
         self.sigCurrentCoilPositionChanged.emit()
         self.sigCurrentSubjectPositionChanged.emit()
+        self._needToCheckIfOnTarget.set()
+
+    async def _loop_monitorOnTarget(self):
+        while True:
+            await self._needToCheckIfOnTarget.wait()
+            self._checkIfOnTarget()
+            await asyncio.sleep(1/self._monitorOnTargetRate)
+
+    def _checkIfOnTarget(self):
+        if not self._doMonitorOnTarget:
+            return
+
+        self._needToCheckIfOnTarget.clear()
+
+        if self._isOnTarget:
+            # previously on target
+            isStillOnTarget = True
+            if isStillOnTarget:
+                depthAngleError = self._currentPoseMetrics.getDepthAngleError()
+                if np.isnan(depthAngleError) or abs(depthAngleError) > self._isOffTargetWhenZAngleErrorExceeds:
+                    isStillOnTarget = False
+
+            if isStillOnTarget:
+                horizAngleError = self._currentPoseMetrics.getHorizAngleError()
+                if np.isnan(horizAngleError) or abs(horizAngleError) > self._isOffTargetWhenHorizAngleErrorExceeds:
+                    isStillOnTarget = False
+
+            if isStillOnTarget:
+                horizDistError = self._currentPoseMetrics.getTargetErrorAtCoil()
+                if np.isnan(horizDistError) or abs(horizDistError) > self._isOffTargetWhenDistErrorExceeds:
+                    isStillOnTarget = False
+
+            if isStillOnTarget:
+                depthDistError = self._currentPoseMetrics.getDepthOffsetError()
+                if np.isnan(depthDistError) or abs(depthDistError) > self._isOffTargetWhenZDistErrorExceeds:
+                    isStillOnTarget = False
+
+            if self._onTargetMaybeChangedAtTime is not None:
+                if isStillOnTarget:
+                    self._onTargetMaybeChangedAtTime = None
+                else:
+                    currentTime = time.time()
+                    if currentTime - self._onTargetMaybeChangedAtTime > self._isOffTargetMinTime:
+                        self._onTargetMaybeChangedAtTime = None
+                        self._isOnTarget = False
+                        logger.debug(f'isOnTarget: {self._isOnTarget}')
+                        self.sigIsOnTargetChanged.emit()
+
+            elif not isStillOnTarget:
+                self._onTargetMaybeChangedAtTime = time.time()
+                if self._isOffTargetMinTime > 0:
+                    pass # don't report change yet, not sure if this is an erroneous measure
+                else:
+                    self._isOnTarget = False
+                    logger.debug(f'isOnTarget: {self._isOnTarget}')
+                    self.sigIsOnTargetChanged.emit()
+
+            else:
+                pass  # still on target
+
+        else:
+            # not previously on target
+            isStillOffTarget = False
+            if not isStillOffTarget:
+                depthAngleError = self._currentPoseMetrics.getDepthAngleError()
+                if np.isnan(depthAngleError) or abs(depthAngleError) > self._isOnTargetWhenZAngleErrorUnder:
+                    isStillOffTarget = True
+
+            if not isStillOffTarget:
+                horizAngleError = self._currentPoseMetrics.getHorizAngleError()
+                if np.isnan(horizAngleError) or abs(horizAngleError) > self._isOnTargetWhenHorizAngleErrorUnder:
+                    isStillOffTarget = True
+
+            if not isStillOffTarget:
+                horizDistError = self._currentPoseMetrics.getTargetErrorAtCoil()
+                if np.isnan(horizDistError) or abs(horizDistError) > self._isOnTargetWhenDistErrorUnder:
+                    isStillOffTarget = True
+
+            if not isStillOffTarget:
+                depthDistError = self._currentPoseMetrics.getDepthOffsetError()
+                if np.isnan(depthDistError) or abs(depthDistError) > self._isOnTargetWhenZDistErrorUnder:
+                    isStillOffTarget = True
+
+            if self._onTargetMaybeChangedAtTime is not None:
+                if isStillOffTarget:
+                    self._onTargetMaybeChangedAtTime = None
+                else:
+                    currentTime = time.time()
+                    if currentTime - self._onTargetMaybeChangedAtTime > self._isOnTargetMinTime:
+                        self._onTargetMaybeChangedAtTime = None
+                        self._isOnTarget = True
+                        logger.debug(f'isOnTarget: {self._isOnTarget}')
+                        self.sigIsOnTargetChanged.emit()
+
+            elif not isStillOffTarget:
+                self._onTargetMaybeChangedAtTime = time.time()
+                if self._isOnTargetMinTime > 0:
+                    pass  # don't report change yet, wait to be stable on target
+                else:
+                    self._isOnTarget = True
+                    logger.debug(f'isOnTarget: {self._isOnTarget}')
+                    self.sigIsOnTargetChanged.emit()
+
+            else:
+                pass  # still off target
+
+        if self._onTargetMaybeChangedAtTime is not None:
+            self._needToCheckIfOnTarget.set()  # check back again soon, even if tool positions didn't change
+
 
     @property
     def session(self):
@@ -244,6 +377,37 @@ class TargetingCoordinator:
             self._currentCoilToMRITransform = coilToMRITransform
 
         return self._currentCoilToMRITransform
+
+    @property
+    def doMonitorOnTarget(self):
+        return self._doMonitorOnTarget
+
+    @doMonitorOnTarget.setter
+    def doMonitorOnTarget(self, doMonitor: bool):
+        if doMonitor == self._doMonitorOnTarget:
+            return
+        self._doMonitorOnTarget = doMonitor
+        if doMonitor:
+            self._startMonitoringOnTarget()
+        else:
+            self._stopMonitoringOnTarget()
+
+    @property
+    def isOnTarget(self):
+        assert self._doMonitorOnTarget
+        if self._needToCheckIfOnTarget.is_set():
+            # check immediately to make sure we don't give outdated information
+            self._checkIfOnTarget()
+        return self._isOnTarget
+
+    def _startMonitoringOnTarget(self):
+        assert self._monitorOnTargetTask is None
+        self._monitorOnTargetTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_monitorOnTarget))
+
+    def _stopMonitoringOnTarget(self):
+        assert self._monitorOnTargetTask is not None
+        self._monitorOnTargetTask.cancel()
+        self._monitorOnTargetTask = None
 
     def _onSessionTargetKeyAboutToChange(self, fromKey: str, toKey: str):
         if self._currentTargetKey == fromKey:
