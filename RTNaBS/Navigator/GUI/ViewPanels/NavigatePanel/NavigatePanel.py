@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import attrs
 import logging
 import numpy as np
@@ -18,6 +19,7 @@ from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainVie
 from RTNaBS.Navigator.Model.Tools import CalibrationPlate, Pointer
 from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Sample
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
@@ -44,9 +46,11 @@ class _PoseMetricGroup:
     _calculator: tp.Optional[PoseMetricCalculator] = None
     _indicators: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
     _hasInitialized: bool = attrs.field(init=False, default=False)
+    _needsUpdateEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _updateRateLimit: float = 2  # in Hz
 
     def __attrs_post_init__(self):
-        pass
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_keepUpdated))
 
     @property
     def calculatorKey(self):
@@ -85,12 +89,22 @@ class _PoseMetricGroup:
             assert len(poseMetrics) == len(self._indicators)
             assert all(poseMetric.label in self._indicators for poseMetric in poseMetrics)
 
-        self._calculator.sigCacheReset.connect(self._update)
+        self._calculator.sigCacheReset.connect(self._updateSoon)
 
         self._update()
 
+    def _updateSoon(self):
+        self._needsUpdateEvent.set()
+
+    async def _loop_keepUpdated(self):
+        while True:
+            await self._needsUpdateEvent.wait()
+            self._update()
+            await asyncio.sleep(1/self._updateRateLimit)
+
     def _update(self):
         logger.debug(f'Updating pose metric indicators for {self._title}')
+        self._needsUpdateEvent.clear()
         poseMetrics = [poseMetric for poseMetric in self._calculator.supportedMetrics if poseMetric.doShowByDefault]
         for poseMetric in poseMetrics:
             wdgt = self._indicators[poseMetric.label]
