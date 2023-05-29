@@ -30,6 +30,7 @@ class ToolPositionsServer:
     _latestPositions: tp.Dict[str, tp.Optional[TimestampedToolPosition]] = attrs.field(init=False, factory=dict)
     _publishingLatestLock: asyncio.Condition = attrs.field(init=False, factory=asyncio.Condition)
     _publishPending: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _publishRateLimit: float = 10.  # in Hz
 
     _pubSocket: azmq.Socket = attrs.field(init=False)
     _connector: ZMQConnectorServer = attrs.field(init=False)
@@ -59,11 +60,11 @@ class ToolPositionsServer:
     async def _publishLatestPositionsLoop(self):
         while True:
             await self._publishPending.wait()
-            await asyncio.sleep(0.1)  # rate limit
+            await asyncio.sleep(1/self._publishRateLimit)  # rate limit
             async with self._publishingLatestLock:
                 logger.debug('Publishing latest positions')
-                self._pubSocket.send_json({key: (val.asDict() if val is not None else None) for key, val in self._latestPositions.items()})
                 self._publishPending.clear()
+                self._pubSocket.send_json({key: (val.asDict() if val is not None else None) for key, val in self._latestPositions.items()})
 
     async def recordNewPosition(self, key: str, position: TimestampedToolPosition | dict):
         if isinstance(position, dict):
