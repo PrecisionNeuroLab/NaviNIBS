@@ -263,29 +263,40 @@ class SampleMetadataInterpolatedSurfaceLayer(MeshSurfaceLayer):
         for iSample, sample in enumerate(includeSamples):
             values[iSample] = sample.metadata.get(self._metadataKey, np.nan)
 
-        pointCloud = pv.PointSet(coords)
-        pointCloud[self._scalarsKey] = values
+        if True:
+            # remove samples with nan values
+            indices = np.where(np.isnan(values))
+            if len(indices) > 0:
+                coords = np.delete(coords, indices, axis=0)
+                values = np.delete(values, indices, axis=0)
 
-        self._mesh.clear_data()  # not sure why this is necessary, but otherwise the interpolation doesn't work
-        logger.debug(f'Interpolating point cloud values {self._metadataKey} onto surface {self._surfKey}')
-        tmpMesh = self._mesh.interpolate(pointCloud,
-                                            null_value=np.nan,
-                                            sharpness=self._kernelSharpness,
-                                            radius=self._kernelRadius
-                                            )
-
-        if self._scalarsKey not in tmpMesh.point_data:
-            # this can happen if all interpolated values were nan
+        if len(coords) == 0:
+            # nothing to interpolate
             newVals = np.full((self._mesh.n_points,), np.nan)
         else:
-            newVals = tmpMesh[self._scalarsKey]
+
+            pointCloud = pv.PointSet(coords)
+            pointCloud[self._scalarsKey] = values
+
+            self._mesh.clear_data()  # not sure why this is necessary, but otherwise the interpolation doesn't work
+            logger.debug(f'Interpolating point cloud values {self._metadataKey} onto surface {self._surfKey}')
+            tmpMesh = self._mesh.interpolate(pointCloud,
+                                                null_value=np.nan,
+                                                sharpness=self._kernelSharpness,
+                                                radius=self._kernelRadius
+                                                )
+            logger.debug(f'Done interpolating')
+
+            if self._scalarsKey not in tmpMesh.point_data:
+                # this can happen if all interpolated values were nan
+                newVals = np.full((self._mesh.n_points,), np.nan)
+            else:
+                newVals = tmpMesh[self._scalarsKey]
 
         if self._scalarsKey not in self._mesh.point_data:
             self._mesh[self._scalarsKey] = newVals
         else:
             self._mesh[self._scalarsKey][:] = newVals  # update existing array
-        logger.debug(f'Done interpolating')
-        # note: behind the scenes, this should not have actually copied the _mesh, just saved to the scalar field _scalarsKey
 
         if self._scalarsOpacityKey is not None:
             # set opacity to 0 for nan values
