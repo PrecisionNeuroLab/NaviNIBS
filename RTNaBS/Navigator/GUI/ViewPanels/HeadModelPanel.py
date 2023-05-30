@@ -73,7 +73,7 @@ class HeadModelPanel(MainViewPanel):
             if key in ('x', 'y', 'z'):
                 self._views[key] = SurfSliceView(normal=key)
             elif key == '3D':
-                self._views[key] = Surf3DView(normal=key)
+                self._views[key] = Surf3DView(normal=key, surfOpacity=1)
             else:
                 raise NotImplementedError()
 

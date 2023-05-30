@@ -26,11 +26,12 @@ class MRISliceView:
 
     _slicePlotMethod: str = 'cameraClippedVolume'
 
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: BackgroundPlotter = attrs.field(init=False, default=None)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
 
     _backgroundColor: str = '#000000'
+    _opacity: float = 1.
 
     sigSliceOriginChanged: Signal = attrs.field(init=False, factory=Signal)
     sigNormalChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -41,11 +42,12 @@ class MRISliceView:
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._plotter.set_background(self._backgroundColor)
+        if self._plotter is None:
+            self._plotter = BackgroundPlotter(
+                show=False,
+                app=QtWidgets.QApplication.instance()
+            )
+            self._plotter.set_background(self._backgroundColor)
 
         self.updateView()
 
@@ -92,6 +94,7 @@ class MRISliceView:
         if array_equalish(newVal, self._sliceOrigin):
             # no change
             return
+        logger.debug(f'Slice origin changed from {self._sliceOrigin} to {newVal}')
         self._sliceOrigin = newVal
         self.sigSliceOriginChanged.emit()
         self.sigSliceTransformChanged.emit()
@@ -138,7 +141,7 @@ class MRISliceView:
             self.sigNormalChanged.emit()
 
     def _onSlicePointChanged(self):
-        pos = self._plotter.picked_point
+        pos = self.plotter.picked_point
         logger.debug('Slice point changed: {} {}'.format(self.label, pos))
         if True:
             # ignore any out-of-plane offset that can be caused by slice rendering differences
@@ -193,7 +196,7 @@ class MRISliceView:
             return
 
         # data available, update display
-        logger.debug(f'Updating plot for {self.label} slice (slicePlotMethod={self._slicePlotMethod}')
+        logger.debug(f'Updating plot for {self.label} slice (slicePlotMethod={self._slicePlotMethod})')
 
         if self._sliceOrigin is None:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
@@ -201,14 +204,15 @@ class MRISliceView:
 
         if not self._plotterInitialized:
             logger.debug('Initializing plot for {} slice'.format(self.label))
-            self._plotter.enable_parallel_projection()
-            self._plotter.enable_point_picking(left_clicking=True,
+            self.plotter.enable_parallel_projection()
+            self.plotter.enable_point_picking(left_clicking=True,
                                                show_message=False,
                                                show_point=False,
+                                               pickable_window=True,
                                                callback=lambda newPt: self._onSlicePointChanged())
-            self._plotter.enable_image_style()
+            self.plotter.enable_image_style()
             for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
-                self._plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
+                self.plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
@@ -220,7 +224,7 @@ class MRISliceView:
                                    reset_camera=False
                                    )
             if isinstance(self._normal, str):
-                self._plotter.camera_position = 'xyz'.replace(self._normal, '')
+                self.plotter.camera_position = 'xyz'.replace(self._normal, '')
             else:
                 raise NotImplementedError()  # TODO
 
@@ -235,9 +239,16 @@ class MRISliceView:
                                          name='MRI',
                                          mapper='gpu',
                                          clim=self._clim,
+                                         scalar_bar_args=dict(
+                                             title='',
+                                             color='white',
+                                             vertical=True,
+                                         ),
+                                         opacity=[0, self._opacity, self._opacity],
                                          cmap='gray',
                                          render=False,
                                          reset_camera=False)
+
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
@@ -281,7 +292,7 @@ class MRISliceView:
         else:
             offsetDir = self._normal @ np.asarray([0, 0, 1])  # TODO: double check
         if True:
-            self._plotter.camera.position = offsetDir * self._cameraOffsetDist + self._sliceOrigin
+            self.plotter.camera.position = offsetDir * self._cameraOffsetDist + self._sliceOrigin
         else:
             # hack to prevent resetting clipping range due to pyvista implementation quirk
             tmp = self._plotter.camera._renderer
@@ -289,21 +300,22 @@ class MRISliceView:
             self._plotter.camera.position = offsetDir * 100 + self._sliceOrigin
             self._plotter.camera._renderer = tmp
 
-        self._plotter.camera.focal_point = self._sliceOrigin
+        self.plotter.camera.focal_point = self._sliceOrigin
         if isinstance(self._normal, str):
             upDir = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
             if self._normal == 'y':
                 upDir *= -1
         else:
             upDir = self._normal @ np.asarray([0, 1, 0])
-        self._plotter.camera.up = upDir
+        self.plotter.camera.up = upDir
         if self._slicePlotMethod == 'cameraClippedVolume':
-            self._plotter.camera.clipping_range = (self._cameraOffsetDist * 0.98, self._cameraOffsetDist + 1.02)
-        self._plotter.camera.parallel_scale = self._cameraOffsetDist
+            self.plotter.camera.clipping_range = (self._cameraOffsetDist * 0.98, self._cameraOffsetDist * 1.02)
+
+        self.plotter.camera.parallel_scale = self._cameraOffsetDist
 
         self._plotterInitialized = True
 
-        self._plotter.render()
+        self.plotter.render()
 
 
 @attrs.define
@@ -343,11 +355,16 @@ class MRI3DView(MRISliceView):
             logger.debug('Initializing 3D plot')
             self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
                                      scalars='MRI',
+                                     scalar_bar_args=dict(
+                                         title='',
+                                         color='white',
+                                         vertical=True,
+                                     ),
                                      name='vol',
                                      clim=self._clim,
                                      cmap='gray',
                                      mapper='gpu',
-                                     opacity=[0, 1, 1],
+                                     opacity=[0, self._opacity, self._opacity],
                                      shade=False)
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
@@ -371,4 +388,4 @@ class MRI3DView(MRISliceView):
 
         self._plotterInitialized = True
 
-        self._plotter.render()
+        self.plotter.render()
