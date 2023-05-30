@@ -19,7 +19,7 @@ import typing as tp
 
 from . import MainViewPanel
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient, TimestampedToolPosition
-from RTNaBS.Navigator.GUI.EditWindows.CoilCalibrationWindow import CoilCalibrationWindow
+from RTNaBS.Navigator.GUI.EditWindows.CoilCalibrationWindow import CoilCalibrationWithPlateWindow
 from RTNaBS.Navigator.GUI.EditWindows.PointerCalibrationWindow import PointerCalibrationWindow
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
@@ -332,6 +332,9 @@ class ToolWidget:
         else:
             self.redraw(toRedraw)
 
+    def close(self):
+        self._tool.sigItemChanged.disconnect(self._onToolChanged)
+        self.wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
 
     @staticmethod
     def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:
@@ -360,7 +363,7 @@ class CoilToolWidget(ToolWidget):
         btn.clicked.connect(lambda _: self._calibrate())
 
     def _calibrate(self):
-        CoilCalibrationWindow(
+        CoilCalibrationWithPlateWindow(
             parent=self._wdgt,
             toolKeyToCalibrate=self._tool.key,
             session=self._session
@@ -384,7 +387,7 @@ class PointerToolWidget(ToolWidget):
 
     def _calibrateWithPlate(self):
         # TODO: add extra arg to specify that pointer will be rotated 90 deg (tangential to calibration plate instead of perpendicular)
-        CoilCalibrationWindow(
+        CoilCalibrationWithPlateWindow(
             parent=self._wdgt,
             toolKeyToCalibrate=self._tool.key,
             session=self._session
@@ -492,7 +495,7 @@ class ToolsPanel(MainViewPanel):
         currentToolKey = self._tblWdgt.currentCollectionItemKey
         # TODO: if possible, only update specific fields rather than fully recreating widget
         if self._toolWdgt is not None:
-            self._toolWdgt.wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
+            self._toolWdgt.close()
             self._toolWdgt = None
 
         if currentToolKey is None:
