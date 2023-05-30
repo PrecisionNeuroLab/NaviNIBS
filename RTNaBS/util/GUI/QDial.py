@@ -46,6 +46,7 @@ class AngleDial:
     _qdial: _CustomQDial = attrs.field(init=False)
     _numericField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
     _container: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
+    _maxDialHeight: int | None = 100
 
     _layout: QtWidgets.QBoxLayout | None = None
 
@@ -77,6 +78,8 @@ class AngleDial:
         self._qdial.valueChanged.connect(self._onDialValueChanged)
         self._qdial.sliderMoved.connect(self._onDialValueMoved)
         self._qdial.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        if self._maxDialHeight is not None:
+            self._qdial.setMaximumHeight(self._maxDialHeight)
         self._layout.addWidget(self._qdial)
 
         self._numericField = QtWidgets.QDoubleSpinBox()
