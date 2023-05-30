@@ -26,6 +26,23 @@ def _launch_pick_event(interactor, event):
     picker.Pick(click_x, click_y, click_z, renderer)
 
 
+def set_mouse_event_for_picking(plotter: pv.BasePlotter, eventKey: str):
+    """
+    To be called after pyvista plotter.enable_*_picking(), allowing for
+    picking to be triggered by alternate mouse events, such as left double click instead of single press
+    :param eventKey: can be any relevant vtk event, e.g. 'LeftButtonPressEvent', 'RightButtonPressEvent'.
+    :return: None
+
+    Unfortunately, pyvista / Qt interactions mean that some events never reach VTK and so won't work here.
+    For example, double click events don't work without some extra interactor modifications (see https://discourse.vtk.org/t/why-single-click-works-but-double-click-does-not/3599)
+    """
+
+    plotter.iren.interactor.AddObserver(
+        eventKey,
+        functools.partial(pv.utilities.helpers.try_callback, _launch_pick_event),
+    )
+
+
 async def pickActor(plotter: pv.Plotter,
                     show: bool = False,
                     show_message: tp.Union[bool, str] = True,
