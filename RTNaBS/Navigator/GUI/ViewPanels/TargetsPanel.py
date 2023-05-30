@@ -316,6 +316,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
             elif key == '3D':
                 self._views[key] = Surf3DView(label=key, normal=np.eye(3),
                                               activeSurf=self._surfKeys,
+                                              pickableSurfs=[self._surfKeys[0]],  # assuming surfKeys are [gm, skin], make only gm pickable
                                               cameraOffsetDist=50,
                                               surfOpacity=[0.8, 0.5])
             else:
@@ -371,7 +372,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
     def _onSelectionChanged(self, keys: list[str]):
         for widget in self._enabledOnlyWhenTargetSelected:
-            logger.debug(f"{'Disabling' if len(keys)==0 is None else 'Enabling'} {widget}")
+            logger.debug(f"{'Disabling' if len(keys)==0 else 'Enabling'} {widget}")
             widget.setEnabled(len(keys)>0)
 
     def _onCurrentTargetChanged(self, targetKey: str | None):
