@@ -49,20 +49,22 @@ class SurfSliceView(MRISliceView):
 
     def __attrs_post_init__(self):
 
-        self._primaryPlotter = PrimaryLayeredPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance(),
-            doAutoAdjustCameraClippingRange=False,
-        )
-
-        self._primaryPlotter.set_background(self._backgroundColor)
-
         if self._doLayeredPlotters:
+            self._primaryPlotter = PrimaryLayeredPlotter(
+                show=False,
+                app=QtWidgets.QApplication.instance(),
+                doAutoAdjustCameraClippingRange=False,
+            )
             self._plotter = self._primaryPlotter.addLayeredPlotter(key='MRISlice', layer=0)
             self._surfPlotter = self._primaryPlotter.addLayeredPlotter(key='SurfSlice', layer=1)
         else:
+            self._primaryPlotter = BackgroundPlotter(
+                show=False,
+                app=QtWidgets.QApplication.instance(),
+            )
             self._plotter = self._primaryPlotter
             self._surfPlotter = self._primaryPlotter
+        self._primaryPlotter.set_background(self._backgroundColor)
 
         super().__attrs_post_init__()
         if self._session is not None:
@@ -159,10 +161,13 @@ class Surf3DView(SurfSliceView):
 
     _doLayeredPlotters: bool = False
 
+    _pickableSurfs: list[str] | None = None
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._primaryPlotter.doAutoAdjustCameraClippingRange = True
+        if self._doLayeredPlotters:
+            self._primaryPlotter.doAutoAdjustCameraClippingRange = True
 
     def updateView(self):
 
@@ -226,7 +231,6 @@ class Surf3DView(SurfSliceView):
                     self._surfPlotInitialized = True
 
                     self.plotter.reset_camera()
-                    self.plotter.camera.zoom(4)
 
             self._surfPlotActors.extend(actors)
 
@@ -264,10 +268,13 @@ class Surf3DView(SurfSliceView):
 
         if True:
             # ray trace to find point closest to camera
-            if isinstance(self._activeSurf, str):
-                surfKeys = [self._activeSurf]
+            if self._pickableSurfs is None:
+                if isinstance(self._activeSurf, str):
+                    surfKeys = [self._activeSurf]
+                else:
+                    surfKeys = self._activeSurf
             else:
-                surfKeys = self._activeSurf
+                surfKeys = self._pickableSurfs
 
             newPos = None
 

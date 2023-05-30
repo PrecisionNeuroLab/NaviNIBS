@@ -31,7 +31,7 @@ class MRISliceView:
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
 
     _backgroundColor: str = '#000000'
-    _opacity: float = 1.
+    _opacity: float = 0.5
 
     sigSliceOriginChanged: Signal = attrs.field(init=False, factory=Signal)
     sigNormalChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -48,6 +48,8 @@ class MRISliceView:
                 app=QtWidgets.QApplication.instance()
             )
             self._plotter.set_background(self._backgroundColor)
+
+        _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
 
         self.updateView()
 
@@ -221,8 +223,7 @@ class MRISliceView:
                                    name='slice',
                                    cmap='gray',
                                    render=False,
-                                   reset_camera=False
-                                   )
+                                   reset_camera=False)
             if isinstance(self._normal, str):
                 self.plotter.camera_position = 'xyz'.replace(self._normal, '')
             else:
@@ -258,6 +259,14 @@ class MRISliceView:
             crosshairAxes = 'xy'  # will be transformed below
         centerGapLength = 10  # TODO: scale by image size
 
+        offsetDir = np.zeros((3,))
+        if isinstance(self._normal, str):
+            offsetDir['xyz'.index(self._normal)] = 1
+            if self._normal == 'y':
+                offsetDir *= -1  # reverse direction for coronal slice to match L/R of other views
+        else:
+            offsetDir = self._normal @ np.asarray([0, 0, 1])  # TODO: double check
+
         for axis in crosshairAxes:
             mask = np.zeros((1, 3))
             mask[0, 'xyz'.index(axis)] = 1
@@ -268,11 +277,16 @@ class MRISliceView:
                 else:
                     pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask
                     width = 2
+
                 if isinstance(self._normal, str):
                     pts += self._sliceOrigin
                 else:
                     viewToWorldTransf = composeTransform(self._normal, self._sliceOrigin)
                     pts = applyTransform(viewToWorldTransf, pts)
+
+                if True:
+                    # add z offset to make sure crosshairs appear above other actors
+                    pts -= offsetDir * (self._cameraOffsetDist * 0.02)
 
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
@@ -284,13 +298,7 @@ class MRISliceView:
                     pts_pv = pv.lines_from_points(pts)
                     line.GetMapper().SetInputData(pts_pv)
 
-        offsetDir = np.zeros((3,))
-        if isinstance(self._normal, str):
-            offsetDir['xyz'.index(self._normal)] = 1
-            if self._normal == 'y':
-                offsetDir *= -1  # reverse direction for coronal slice to match L/R of other views
-        else:
-            offsetDir = self._normal @ np.asarray([0, 0, 1])  # TODO: double check
+
         if True:
             self.plotter.camera.position = offsetDir * self._cameraOffsetDist + self._sliceOrigin
         else:
