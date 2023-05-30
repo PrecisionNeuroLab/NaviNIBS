@@ -161,8 +161,9 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
 class PrimaryLayeredPlotter(BackgroundPlotter):
 
     _secondaryPlotters: dict[str, SecondaryLayeredPlotter]
+    _doAutoAdjustCameraClippingRange: bool
 
-    def __init__(self, *args, rendererLayer: int = 0, **kwargs):
+    def __init__(self, *args, rendererLayer: int = 0, doAutoAdjustCameraClippingRange: bool = True, **kwargs):
         self._secondaryPlotters = dict()
 
         BackgroundPlotter.__init__(self, *args, **kwargs)
@@ -170,12 +171,26 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
         for renderer in self.renderers:
             renderer.SetLayer(rendererLayer)
 
+        self._doAutoAdjustCameraClippingRange = doAutoAdjustCameraClippingRange
+
         # disable auto-adjust of camera clipping since it fails with multiple renderers
         self.iren.interactor.GetInteractorStyle().AutoAdjustCameraClippingRangeOff()
 
     @property
     def secondaryPlotters(self):
         return self._secondaryPlotters
+
+    @property
+    def doAutoAdjustCameraClippingRange(self):
+        return self._doAutoAdjustCameraClippingRange
+
+    @doAutoAdjustCameraClippingRange.setter
+    def doAutoAdjustCameraClippingRange(self, value: bool):
+        if value == self._doAutoAdjustCameraClippingRange:
+            return
+        self._doAutoAdjustCameraClippingRange = value
+        if value:
+            self.render()
 
     def setLayer(self, layer: int):
         for renderer in self.renderers:
@@ -198,8 +213,9 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
             plotter.resumeRendering()
 
     def _renderNow(self):
-        logger.debug('Setting camera clipping range')
-        self.reset_camera_clipping_range()
+        if self._doAutoAdjustCameraClippingRange:
+            logger.debug('Setting camera clipping range')
+            self.reset_camera_clipping_range()
         super()._renderNow()
 
     def render(self, doRenderSecondaryPlotters: bool = True, doRenderImmediately: bool = False):
@@ -218,25 +234,42 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
         # NOTE: apply this to primary plotter only; if want to enable depth peeling in
         #  secondary plotters, then need to call enable_depth_peeling for each separately
 
+    def reset_camera(self):
+        bounds = self._getSharedBounds()
+        super().reset_camera(bounds=bounds)
+        for plotter in self._secondaryPlotters.values():
+            plotter.reset_camera(bounds=bounds)
+
+    def _getSharedBounds(self) -> list[float]:
+        # manually calculate bounds collectively from primary and secondary plotters
+        bounds = np.asarray(self.bounds).reshape((3, 2)).T
+        for plotter in self.secondaryPlotters.values():
+            thisBounds = np.asarray(plotter.bounds).reshape((3, 2)).T
+            bounds[0, :] = np.minimum(bounds[0, :], thisBounds[0, :])
+            bounds[1, :] = np.maximum(bounds[1, :], thisBounds[1, :])
+
+        bounds[0, :] = bounds[0, :] - (bounds[1, :] - bounds[0, :])
+        bounds[1, :] = bounds[1, :] + (bounds[1, :] - bounds[0, :])
+
+        return bounds.T.reshape((6,)).tolist()
+
     def reset_camera_clipping_range(self):
         if False:
             super().reset_camera_clipping_range()
             for plotter in self.secondaryPlotters.values():
                 plotter.reset_camera_clipping_range(doIncludeMainPlotter=False)
         else:
-            # manually calculate bounds collectively from primary and secondary plotters
-            bounds = np.asarray(self.bounds).reshape((3,2)).T
-            for plotter in self.secondaryPlotters.values():
-                thisBounds = np.asarray(plotter.bounds).reshape((3,2)).T
-                bounds[0, :] = np.minimum(bounds[0, :], thisBounds[0, :])
-                bounds[1, :] = np.maximum(bounds[1, :], thisBounds[1, :])
+            bounds = self._getSharedBounds()
 
-            bounds[0, :] = bounds[0, :] - (bounds[1, :] - bounds[0, :])
-            bounds[1, :] = bounds[1, :] + (bounds[1, :] - bounds[0, :])
-
-            self.renderer.ResetCameraClippingRange(*bounds.T.reshape((6,)).tolist())
+            self.renderer.ResetCameraClippingRange(*bounds)
 
             # for plotter in self.secondaryPlotters.values():
             #     plotter.renderer.ResetCameraClippingRange(*bounds.T.reshape((6,)).tolist())
 
             logger.debug(f'Camera clipping range: {self.renderer.camera.clipping_range}')
+
+    def set_camera_clipping_range(self, range):
+        # TODO: verify whether this is actually needed
+        super().camera.clipping_range = range
+        for plotter in self.secondaryPlotters.values():
+            plotter.camera.clipping_range = range
