@@ -18,6 +18,7 @@ import typing as tp
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.pyvista.plotting import PrimaryLayeredPlotter, SecondaryLayeredPlotter, BackgroundPlotter
+from RTNaBS.util.pyvista.PlotInteraction import set_mouse_event_for_picking
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import composeTransform, applyTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -184,6 +185,13 @@ class Surf3DView(SurfSliceView):
             return  # prev line will have triggered its own update
 
         if not self._surfPlotInitialized and self.session is not None:
+
+            self.plotter.enable_parallel_projection()
+            self.plotter.enable_point_picking(show_message=False,
+                                              show_point=False,
+                                              pickable_window=True,
+                                              callback=lambda newPt: self._onSlicePointChanged())
+            set_mouse_event_for_picking(self.plotter, 'RightButtonPressEvent')
 
             if isinstance(self._activeSurf, str):
                 surfKeys = [self._activeSurf]
