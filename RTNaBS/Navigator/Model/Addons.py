@@ -270,7 +270,7 @@ class Addons(GenericCollection[str, Addon]):
 
     def asList(self, unpackedSessionDir: str) -> tp.List[str]:
         addonSessionConfigFilenames = []
-        for addonKey, addon in self.addons.items():
+        for addonKey, addon in self.items():
             configFilename_addon = addon.writeConfig(unpackedSessionDir)
             addonSessionConfigFilenames.append(configFilename_addon)
         return addonSessionConfigFilenames

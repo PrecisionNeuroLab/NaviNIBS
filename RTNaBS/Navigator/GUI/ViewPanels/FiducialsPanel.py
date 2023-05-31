@@ -130,6 +130,8 @@ class FiducialsPanel(MainViewPanel):
         for key, view in self._views.items():
             view.session = self.session
 
+        self._onPlannedFiducialsChanged()
+
     def _onTblCellDoubleClicked(self, row: int, col: int):
         coord = list(self.session.subjectRegistration.fiducials.values())[row].plannedCoord
         if coord is not None:
@@ -153,8 +155,13 @@ class FiducialsPanel(MainViewPanel):
             if coord is not None:
                 coords[iFid, :] = coord
 
-        if self._hasInitialized:
+        if self._hasInitialized or self._isInitializing:
             for viewKey, view in self._views.items():
+                if len(coords) == 0:
+                    if viewKey in self._fiducialActors:
+                        view.plotter.remove_actor(self._fiducialActors.pop(viewKey), reset_camera=False, render=False)
+                    continue
+
                 if viewKey == '3D':
                     self._fiducialActors[viewKey] = view.plotter.add_point_labels(
                         name='plannedFiducials',
@@ -166,7 +173,7 @@ class FiducialsPanel(MainViewPanel):
                         shape=None,
                         render_points_as_spheres=True,
                         reset_camera=False,
-                        render=True
+                        render=False
                     )
                 else:
                     self._fiducialActors[viewKey] = view.plotter.add_points(
@@ -177,10 +184,12 @@ class FiducialsPanel(MainViewPanel):
                         point_size=15,
                         render_points_as_spheres=True,
                         reset_camera=False,
-                        render=True
+                        render=False
                     )
 
-                view.plotter.render()
+                view.updateView()
+        else:
+            logger.debug('Not yet initialized/ing, skipping fiducials update')
 
     def _onHeadModelUpdated(self, whatChanged: str):
         if whatChanged is not None and whatChanged != self._surfKey:

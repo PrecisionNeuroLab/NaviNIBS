@@ -36,7 +36,14 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
 
         self._wdgt.setLayout(QtWidgets.QFormLayout())
 
-        self._streamSelector = LSLStreamSelector(selectedStreamKey=self.triggerSource.streamKey)
+        if self.triggerSource is None:
+            # create new empty LSL trigger source
+            self.session.triggerSources.addItem(LSLTriggerSource(key=self._triggerSourceKey))
+            assert self.triggerSource is not None
+
+        initialSelectedStreamKey = self.triggerSource.streamKey
+
+        self._streamSelector = LSLStreamSelector(selectedStreamKey=initialSelectedStreamKey)
         self._streamSelector.sigSelectedStreamKeyChanged.connect(self._onSelectedStreamKeyChanged)
         self._streamSelector.sigSelectedStreamAvailabilityChanged.connect(self._onSelectedStreamAvailabilityChanged)
 

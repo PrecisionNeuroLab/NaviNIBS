@@ -164,7 +164,9 @@ class VisualizedTarget:
                                                               point_size=10.,
                                                               render_points_as_spheres=True,
                                                               label=self._target.key,
-                                                              name=self._target.key + 'target')
+                                                              name=self._target.key + 'target',
+                                                              reset_camera=False,
+                                                              render=False)
 
         else:
             raise NotImplementedError()
@@ -292,6 +294,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
             widget=self._editTargetWdgt.wdgt,
         )
         self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        cdw_editTarget = cdw
 
         self._editGridWdgt = EditGridWidget(session=self.session,
                                             wdgt=QtWidgets.QWidget(),
@@ -300,7 +303,11 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
             title='Edit grid',
             widget=self._editGridWdgt.wdgt,
         )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        if False:
+            self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        else:
+            cdw_editTarget.addDockWidgetAsTab(cdw)
+            cdw_editTarget.raise_()
 
         cdw, container = self._createDockWidget(
             title='Target views',

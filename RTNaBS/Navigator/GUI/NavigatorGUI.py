@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class NavigatorGUI(RunnableAsApp):
-    _appName: str = 'RTNaBS Navigator GUI'
+    _appName: str = 'NaviNIBS Navigator GUI'
     _theme: str = 'auto'  # auto, light, or dark
 
     _sesFilepath: tp.Optional[str] = None  # only used to load session on startup
@@ -73,7 +73,7 @@ class NavigatorGUI(RunnableAsApp):
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
-            self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='RTNaBS', appauthor=False), 'InProgressSessions')
+            self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
 
         self._win.setAffinities(['MainViewPanel'])  # only allow main view panels to dock in this window
 
@@ -244,7 +244,7 @@ class NavigatorGUI(RunnableAsApp):
             logging.getLogger('').removeHandler(self._logFileHandler)
             self._logFileHandler = None
         self._logFileHandler = logging.FileHandler(
-            filename=os.path.join(session.unpackedSessionDir, 'RTNaBS_Log.txt'),
+            filename=os.path.join(session.unpackedSessionDir, 'NaviNIBS_Log.txt'),
         )
         self._logFileHandler.setFormatter(logging.Formatter(
             fmt='%(asctime)s.%(msecs)03d  %(process)6d %(filename)20s %(lineno)4d %(levelname)5s: %(message)s',

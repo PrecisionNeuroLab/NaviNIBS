@@ -34,6 +34,8 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _tableView: QtWidgets.QTableView = attrs.field(init=False, factory=QtWidgets.QTableView)
     _model: tp.Optional[TM] = attrs.field(init=False, default=None)
 
+    _doAdjustSizeToContents: bool = True
+
     sigCurrentItemChanged: Signal = attrs.field(init=False, factory=lambda: Signal((K,)))
     """
     Includes key (or index) of newly selected item.
@@ -53,7 +55,8 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def __attrs_post_init__(self):
         self._tableView.setSelectionBehavior(self._tableView.SelectRows)
         self._tableView.setSelectionMode(self._tableView.ExtendedSelection)
-        self._tableView.setSizeAdjustPolicy(self._tableView.AdjustToContents)
+        if self._doAdjustSizeToContents:
+            self._tableView.setSizeAdjustPolicy(self._tableView.AdjustToContents)
         if self._session is not None:
             self._onSessionSet()
 
@@ -123,7 +126,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         selItems = self._tableView.selectedIndexes()
         selRows = [item.row() for item in selItems]
         selRows = list(dict.fromkeys(selRows))  # remove duplicates, keep order stable
-        return [self._model.getCollectionItemKeyFromIndex(selRow) for selRow in selRows]
+        return [self._model.getCollectionItemKeyFromIndex(selRow) for selRow in selRows if selRow < self._model.rowCount()]
 
     def _onTableCurrentChanged(self):
         logger.debug('Current item changed')

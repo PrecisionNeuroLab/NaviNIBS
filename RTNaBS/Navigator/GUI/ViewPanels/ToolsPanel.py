@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 
 import appdirs
 import attrs
-from datetime import datetime
 import json
 import logging
 import numpy as np
@@ -209,6 +209,8 @@ class ToolWidget:
                 setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
                 self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
 
+            self._toolSpacePlotter.reset_camera()
+
         if whatToRedraw is None or 'tracker' in whatToRedraw:
             actorKey = 'tracker'
             if actorKey in self._toolSpaceActors:
@@ -245,6 +247,9 @@ class ToolWidget:
                     self._toolSpaceActors[actorKey] = actor
                     setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
                     self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+
+            self._trackerSpacePlotter.reset_camera()
+
 
     @property
     def wdgt(self):
@@ -355,12 +360,26 @@ class ToolWidget:
 class CoilToolWidget(ToolWidget):
     _tool: CoilTool
 
+    _lastCalibratedAtLabel: QtWidgets.QLabel = attrs.field(init=False)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        self._lastCalibratedAtLabel = QtWidgets.QLabel('')
+        self._formLayout.addRow('Last calibrated at', self._lastCalibratedAtLabel)
+        self._updateLastCalibratedAt()
 
         btn = QtWidgets.QPushButton('Calibrate coil...')
         self._formLayout.addRow('', btn)
         btn.clicked.connect(lambda _: self._calibrate())
+
+    def _updateLastCalibratedAt(self):
+        historyTimes = [datetime.strptime(x, '%y%m%d%H%M%S.%f') for x in self._tool.toolToTrackerTransfHistory.keys()]
+        if len(historyTimes) == 0:
+            self._lastCalibratedAtLabel.setText('Never')
+        else:
+            lastCalibratedAt = historyTimes[-1]  # assume last in list is most recent
+            self._lastCalibratedAtLabel.setText(lastCalibratedAt.strftime('%Y-%m-%d %H:%M:%S'))
 
     def _calibrate(self):
         CoilCalibrationWithPlateWindow(
@@ -368,6 +387,10 @@ class CoilToolWidget(ToolWidget):
             toolKeyToCalibrate=self._tool.key,
             session=self._session
         ).show()
+
+    def _onToolChanged(self, toolKey: str, attribsChanged: list[str] | None = None):
+        super()._onToolChanged(toolKey=toolKey, attribsChanged=attribsChanged)
+        self._updateLastCalibratedAt()
 
 
 @attrs.define
@@ -440,17 +463,21 @@ class ToolsPanel(MainViewPanel):
         btnContainer.setLayout(QtWidgets.QGridLayout())
         container.layout().addWidget(btnContainer)
 
+        btn = QtWidgets.QPushButton('Import tool settings from file...')
+        btn.clicked.connect(self._onImportToolsBtnClicked)
+        btnContainer.layout().addWidget(btn, 0, 0, 1, 3)
+
         btn = QtWidgets.QPushButton('Add')
         btn.clicked.connect(self._onAddBtnClicked)
-        btnContainer.layout().addWidget(btn, 0, 0)
+        btnContainer.layout().addWidget(btn, 1, 0)
 
         btn = QtWidgets.QPushButton('Duplicate')
         btn.clicked.connect(self._onDuplicateBtnClicked)
-        btnContainer.layout().addWidget(btn, 0, 1)
+        btnContainer.layout().addWidget(btn, 1, 1)
 
         btn = QtWidgets.QPushButton('Delete')
         btn.clicked.connect(self._onDeleteBtnClicked)
-        btnContainer.layout().addWidget(btn, 0, 2)
+        btnContainer.layout().addWidget(btn, 1, 2)
 
         self._tblWdgt = ToolsTableWidget(session=self.session)
         self._tblWdgt.sigCurrentItemChanged.connect(lambda *args: self._updateSelectedToolWdgt())
@@ -490,6 +517,18 @@ class ToolsPanel(MainViewPanel):
     def _onTblCurrentCellChanged(self, key: str):
         self._updateSelectedToolWdgt()
 
+    def _onImportToolsBtnClicked(self, checked: bool):
+        newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
+                                                               'Select tools file to import',
+                                                               os.path.dirname(self.session.filepath),
+                                                               'json (*.json);; NaviNIBS (*.navinibs)')
+
+        if len(newFilepath) == 0:
+            logger.warning('Import cancelled')
+            return
+
+        self.session.mergeFromFile(filepath=newFilepath, sections=['tools'])
+
     def _updateSelectedToolWdgt(self):
         logger.debug('Updating selected tool widget')
         currentToolKey = self._tblWdgt.currentCollectionItemKey
@@ -513,7 +552,7 @@ class ToolsPanel(MainViewPanel):
 
     def _onAddBtnClicked(self, checked: bool):
         logger.info('Add tool btn clicked')
-        self.session.tools.addToolFromDict(dict(key=makeStrUnique('Tool', self.session.tools.keys()), usedFor='coil'))
+        self.session.tools.addItemFromDict(dict(key=makeStrUnique('Tool', self.session.tools.keys()), usedFor='coil'))
 
     def _onDuplicateBtnClicked(self, checked: bool):
         logger.info('Duplicate tool btn clicked')
@@ -522,12 +561,13 @@ class ToolsPanel(MainViewPanel):
         self.session.tools.addToolFromDict(toolDict)
 
     def _onDeleteBtnClicked(self, checked: bool):
-        key = self._tblWdgt.currentCollectionItemKey
-        if key is None:
-            # no tool selected
-            return
-        logger.info('Deleting {} tool'.format(key))
-        self.session.tools.deleteTool(key=key)
+        keysToDelete = self._tblWdgt.selectedCollectionItemKeys
+        for key in keysToDelete:
+            if key is None:
+                # no tool selected
+                continue
+            logger.info('Deleting {} tool'.format(key))
+            self.session.tools.deleteItem(key=key)
 
 
 

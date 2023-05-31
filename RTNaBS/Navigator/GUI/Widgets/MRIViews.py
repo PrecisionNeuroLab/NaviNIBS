@@ -28,6 +28,7 @@ class MRISliceView:
 
     _plotter: BackgroundPlotter = attrs.field(init=False, default=None)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
+    _plotterPickerInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
 
     _backgroundColor: str = '#000000'
@@ -204,7 +205,7 @@ class MRISliceView:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
             return  # prev line will have triggered its own update
 
-        if not self._plotterInitialized:
+        if not self._plotterPickerInitialized:
             logger.debug('Initializing plot for {} slice'.format(self.label))
             self.plotter.enable_parallel_projection()
             self.plotter.enable_point_picking(left_clicking=True,
@@ -215,6 +216,7 @@ class MRISliceView:
             self.plotter.enable_image_style()
             for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
                 self.plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
+            self._plotterPickerInitialized = True
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
@@ -374,6 +376,7 @@ class MRI3DView(MRISliceView):
                                      mapper='gpu',
                                      opacity=[0, self._opacity, self._opacity],
                                      shade=False)
+            self.plotter.reset_camera()
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size

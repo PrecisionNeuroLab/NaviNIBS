@@ -155,7 +155,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._onSessionInfoChanged()
 
     def _getNewInProgressSessionDir(self) -> str:
-        return os.path.join(self._inProgressBaseDir, 'RTNaBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
+        return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
         for wdgt in (self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer):

@@ -104,6 +104,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         self._serverAddressEdit = QtWidgets.QLineEdit()
         formLayout.addRow('Server addr', self._serverAddressEdit)
+        self._serverAddressEdit.textChanged.connect(self._onServerAddressTextChanged)
 
         btn = QtWidgets.QPushButton('Start server' if self._positionsServerProc is not None else 'Stop server')
         btn.clicked.connect(self._onStartStopServerClicked)
@@ -202,6 +203,9 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         else:
             # stop server
             self._stopPositionsServer()
+
+    def _onServerAddressTextChanged(self, newVal: str):
+        pass  # TODO: if changed, apply edits to ToolPositionsServerInfo
 
     def _onClientIsConnectedChanged(self):
         if not self._hasInitialized and not self.isInitializing:

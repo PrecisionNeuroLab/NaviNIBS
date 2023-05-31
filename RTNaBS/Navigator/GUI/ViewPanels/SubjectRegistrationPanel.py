@@ -277,7 +277,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         sidebar = QtWidgets.QWidget()
         sidebar.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
+        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
         self._wdgt.layout().addWidget(sidebar)
 
         self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
@@ -324,7 +324,10 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         self._fidTblWdgt = RegistrationFiducialsTableWidget()
         self._fidTblWdgt.sigSelectionChanged.connect(self._onSelectedFiducialsChanged)
+        self._fidTblWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         fiducialsBox.layout().addWidget(self._fidTblWdgt.wdgt)
+
+        # TODO: separate fiducials and samples into an adjustable splitter
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
@@ -354,8 +357,9 @@ class SubjectRegistrationPanel(MainViewPanel):
         btn.setEnabled(False)
         self._clearHeadPtsBtn = btn
 
-        self._headPtsTblWdgt = HeadPointsTableWidget()
+        self._headPtsTblWdgt = HeadPointsTableWidget(doAdjustSizeToContents=False)
         self._headPtsTblWdgt.sigSelectionChanged.connect(self._onSelectedHeadPointsChanged)
+        self._headPtsTblWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
 
         headPtsBox.layout().addWidget(self._headPtsTblWdgt.wdgt)
 
@@ -421,8 +425,6 @@ class SubjectRegistrationPanel(MainViewPanel):
             positionsClient=self._positionsClient,
         )
         sidebar.layout().addWidget(self._pointerDistanceReadouts.wdgt)
-
-        sidebar.layout().addStretch()
 
         self._plotter = BackgroundPlotter(
             show=False,
