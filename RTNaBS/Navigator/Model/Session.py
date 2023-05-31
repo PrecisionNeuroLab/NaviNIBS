@@ -473,11 +473,17 @@ class Session:
 
         _, ext = os.path.splitext(filepath)
 
+        if sections is not None:
+            sections = sections.copy()
+
         if ext == '.json':
-            if sections == ['targets']:
-                with open(filepath, 'r') as f:
-                    d = json.load(f)
-                # TODO: validate against schema
+            with open(filepath, 'r') as f:
+                d = json.load(f)
+            # TODO: validate against schema
+
+            if sections is None or 'targets' in sections:
+                if sections is not None:
+                    sections.remove('targets')
                 if isinstance(d, dict):
                     assert 'targets' in d, 'Targets to import/merge should be in json with "targets" as a field in a root-level dict'
                     newTargets = Targets.fromList(d['targets'])
@@ -485,8 +491,20 @@ class Session:
                     assert isinstance(d, list)
                     newTargets = Targets.fromList(d)
                 self.targets.merge(newTargets)
-            else:
-                raise NotImplementedError()
+
+            if sections is None or 'tools' in sections:
+                if sections is not None:
+                    sections.remove('tools')
+                if isinstance(d, dict):
+                    assert 'tools' in d, 'Tools to import/merge should be in json with "tools" as a field in a root-level dict'
+                    newTools = Tools.fromList(d['tools'])
+                else:
+                    assert isinstance(d, list)
+                    newTools = Tools.fromList(d)
+                self.tools.merge(newTools)
+
+            if sections is not None and len(sections) > 0:
+                raise NotImplementedError('Merging of sections {} not implemented yet'.format(sections))
         else:
             raise NotImplementedError()  # TODO: implement more general merging of .rtnabs files
 
@@ -583,4 +601,4 @@ class Session:
 
     @classmethod
     def getTempUnpackDir(cls):
-        return tempfile.TemporaryDirectory(prefix='RTNaBSSession_').name
+        return tempfile.TemporaryDirectory(prefix='NaviNIBSSession_').name

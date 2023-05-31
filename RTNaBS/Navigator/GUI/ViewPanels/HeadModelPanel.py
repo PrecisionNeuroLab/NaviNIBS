@@ -122,6 +122,9 @@ class HeadModelPanel(MainViewPanel):
                 selectKey = 'gmSurf'
             self._activeSurfWidget.setCurrentItem(self._activeSurfWidget.findItems(selectKey, QtCore.Qt.MatchExactly)[0])
 
+        for key, view in self._views.items():
+            view.updateView()
+
     def _onSurfSelectionChanged(self):
         selected = self._activeSurfWidget.selectedItems()
         if len(selected) == 0:
