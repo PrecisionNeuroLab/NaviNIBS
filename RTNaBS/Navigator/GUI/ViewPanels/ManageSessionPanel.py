@@ -38,6 +38,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
     _inProgressBaseDir: tp.Optional[str] = None
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _saveShortcut: QtWidgets.QShortcut = attrs.field(init=False)
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveToDirBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -95,6 +96,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         btn.clicked.connect(self._onSaveSessionBtnClicked)
         container.layout().addWidget(btn)
         self._saveBtn = btn
+
+        self._saveShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.Save, self._navigatorGUI._win, None, None, QtCore.Qt.ApplicationShortcut)
+        self._saveShortcut.activated.connect(self._onSaveSessionShortcutActivated)
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit-outline'), text='Save session to dir...')
         btn.clicked.connect(lambda checked: self._saveSessionToDir())
@@ -176,6 +180,13 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         else:
             self.session.saveToFile()
 
+    def _onSaveSessionShortcutActivated(self):
+        self._updateLayoutsBeforeSave()
+        if QtWidgets.QApplication.keyboardModifiers() == QtCore.Qt.AltModifier:
+            self.session.saveToFile(updateDirtyOnly=False)
+        else:
+            self.session.saveToFile()
+
     def _saveSessionToFile(self, sesFilepath: tp.Optional[str] = None):
         if sesFilepath is None:
             prevFilepath = self.session.filepath
@@ -230,13 +241,17 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             sesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
                                                                 'Create new session file',
                                                                 dir,
-                                                                'Session file (*.rtnabs)')
+                                                                'Session folder (*.navinibsdir);; Session file (*.navinibs)')
             if len(sesFilepath) == 0:
                 logger.info('Browse new session cancelled')
                 return
         logger.info('New session filepath: {}'.format(sesFilepath))
 
-        session = Session.createNew(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+        if sesFilepath.endswith('.navinibsdir'):
+            unpackedSessionDir = sesFilepath
+        else:
+            unpackedSessionDir = self._getNewInProgressSessionDir()
+        session = Session.createNew(filepath=sesFilepath, unpackedSessionDir=unpackedSessionDir)
         self.sigAboutToFinishLoadingSession.emit(session)
         self.session = session
         self.sigLoadedSession.emit(self.session)
