@@ -138,7 +138,11 @@ class CoordinateWidget:
 
             # assume one decimal point is sufficient for any coordinate system
             # (works for integer or mm units, not m units...)
-            coordTxt = json.dumps(np.around(coord, decimals=1).tolist())
+            if False:
+                coordTxt = json.dumps(np.around(coord, decimals=1).tolist())
+                # note: this sometimes has floating point precision errors such that many more decimal places are shown
+            else:
+                coordTxt = '[' + ', '.join([f'{c:.2f}' for c in coord]) + ']'
 
             self._coordInSysWdgts[key].setText(coordTxt)
 
