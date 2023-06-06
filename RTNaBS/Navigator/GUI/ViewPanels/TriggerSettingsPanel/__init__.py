@@ -13,8 +13,6 @@ from .HotkeyTriggerSourceSettingsWidget import HotkeyTriggerSourceSettingsWidget
 from .. import MainViewPanel
 from RTNaBS.Navigator.Model.Triggering import TriggerEvent
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from .LSLTriggerSourceSettingsWidget import LSLTriggerSourceSettingsWidget
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
 
@@ -45,7 +43,7 @@ class TriggerSettingsPanel(MainViewPanelWithDockWidgets):
 
         assert self._lslSettings is None, 'Updating with new session not implemented'
         self._lslSettings = LSLTriggerSourceSettingsWidget(dockKey=self._key, session=self.session)
-        self._wdgt.addDockWidget(self._lslSettings.cdw, dw.DockWidgetLocation.OnLeft)
+        self._wdgt.addDock(self._lslSettings.dock, position='left')
 
         assert len(self._hotkeySettings) == 0, 'Updating with new session not implemented'
         for triggerSourceKey, triggerSource in self.session.triggerSources.items():
@@ -56,7 +54,7 @@ class TriggerSettingsPanel(MainViewPanelWithDockWidgets):
                     dockKey=self._key,
                     session=self.session
                 )
-                self._wdgt.addDockWidget(self._hotkeySettings[triggerSourceKey].cdw, dw.DockWidgetLocation.OnRight)
+                self._wdgt.addDock(self._hotkeySettings[triggerSourceKey].dock, position='right')
 
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()

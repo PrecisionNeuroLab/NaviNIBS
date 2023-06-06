@@ -39,7 +39,7 @@ class RunnableAsApp:
             theme = self._theme
             if theme == 'auto':
                 import darkdetect
-                if darkdetect.isDark():
+                if darkdetect.isDark() and False:
                     theme = 'dark'
                 else:
                     theme = 'light'

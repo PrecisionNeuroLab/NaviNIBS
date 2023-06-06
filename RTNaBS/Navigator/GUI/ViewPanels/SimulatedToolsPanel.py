@@ -31,8 +31,6 @@ from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.pyvista.PlotInteraction import pickActor, interactivelyMoveActor
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
@@ -62,20 +60,20 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     def _finishInitialization(self):
         super()._finishInitialization()
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Tools tracking status',
         )
         container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
         self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
                                                         wdgt=container)
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
+        self._wdgt.addDock(dock, position='left')
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Simulated tool controls',
             layout=QtWidgets.QVBoxLayout()
         )
         container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        self._wdgt.addDock(dock, position='bottom')
 
         btn = QtWidgets.QPushButton('Clear all positions')
         btn.clicked.connect(lambda checked: self.clearAllPositions())
@@ -100,11 +98,11 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         if False:
             # (disabled for now, breaks mesh picking)
             self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Simulated tools view',
             widget=self._plotter.interactor
         )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnRight)
+        self._wdgt.addDock(dock, position='right')
 
         self._positionsClient = SimulatedToolPositionsClient(
             serverHostname=self.session.tools.positionsServerInfo.hostname,

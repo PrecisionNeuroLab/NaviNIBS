@@ -6,7 +6,7 @@ import attrs
 from qtpy import QtWidgets
 
 from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.GUI import DockWidgets as dw
+from RTNaBS.util.GUI.Dock import Dock
 
 
 TS = tp.TypeVar('TS')   # TriggerSource class (e.g. LSLTriggerSource) referenced by a settings widget
@@ -16,23 +16,24 @@ TS = tp.TypeVar('TS')   # TriggerSource class (e.g. LSLTriggerSource) referenced
 class TriggerSourceSettingsWidget(tp.Generic[TS]):
     _dockKey: str
     _title: str
-    _cdw: dw.DockWidget = attrs.field(init=False)
+
+    _dock: Dock = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(factory=QtWidgets.QWidget)
     _triggerSourceKey: str
     _session: Session = attrs.field(repr=False)
 
     def __attrs_post_init__(self):
-        self._cdw = dw.DockWidget(
-            uniqueName=self._dockKey + self._title,
-            options=dw.DockWidgetOptions(notClosable=True),
+        self._dock = Dock(
+            name=self._dockKey + self._title,
+            closable=False,
             title=self._title,
             affinities=[self._dockKey]
         )
-        self._cdw.setWidget(self._wdgt)
+        self._dock.addWidget(self._wdgt)
 
     @property
-    def cdw(self):
-        return self._cdw
+    def dock(self):
+        return self._dock
 
     @property
     def session(self):
