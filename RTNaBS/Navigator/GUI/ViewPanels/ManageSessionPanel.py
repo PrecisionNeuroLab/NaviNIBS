@@ -15,8 +15,7 @@ import typing as tp
 
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import exceptionToStr
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
+from RTNaBS.util.GUI.Dock import Dock, DockArea
 from RTNaBS.util.GUI.ErrorDialog import raiseErrorDialog
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
@@ -42,9 +41,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveToDirBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _fileDW: dw.DockWidget = attrs.field(init=False)
+    _fileDW: Dock = attrs.field(init=False)
     _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
-    _infoDW: dw.DockWidget = attrs.field(init=False)
+    _infoDW: Dock = attrs.field(init=False)
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
     _autosaveTask: asyncio.Task = attrs.field(init=False)
@@ -57,18 +56,19 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         super().__attrs_post_init__()
 
         title = 'File'
-        cdw = dw.DockWidget(
-            uniqueName=self._key + title,
-            options=dw.DockWidgetOptions(notClosable=True),
+        dock = Dock(
+            name=self._key + title,
+            closable=False,
             title=title,
             affinities=[self._key])
-        self._fileDW = cdw
+        self._fileDW = dock
         container = QtWidgets.QWidget()
         self._fileContainer = container
         container.setLayout(QtWidgets.QVBoxLayout())
         container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
-        cdw.setWidget(container)
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
+        dock.addWidget(container)
+        dock.setStretch(1, 10)
+        self._wdgt.addDock(dock, position='left')
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
         btn.clicked.connect(lambda checked: self._createNewSession())
@@ -120,16 +120,16 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         container.layout().addStretch()
 
         title = 'Info'
-        cdw = dw.DockWidget(
-            uniqueName=self._key + title,
-            options=dw.DockWidgetOptions(notClosable=True),
+        dock = Dock(
+            name=self._key + title,
+            closable=False,
             title=title,
             affinities=[self._key])
-        self._wdgt.addDockWidget(cdw, location=dw.DockWidgetLocation.OnRight)
-        self._infoDW = cdw
+        self._wdgt.addDock(dock, position='right')
+        self._infoDW = dock
         container = QtWidgets.QWidget()
         self._infoContainer = container
-        cdw.setWidget(container)
+        dock.addWidget(container)
         container.setLayout(QtWidgets.QFormLayout())
 
         wdgt = QtWidgets.QLineEdit()

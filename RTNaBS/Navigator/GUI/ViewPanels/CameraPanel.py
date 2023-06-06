@@ -28,8 +28,6 @@ from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidg
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
@@ -76,17 +74,20 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         if self._cameraFOVSTLPath is None:
             self._cameraFOVSTLPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'data', 'tools', 'PolarisVegaFOV.stl')
 
-        self._trackingStatusWdgt = TrackingStatusWidget(session=self._session)
-        cdw, _ = self._createDockWidget(
+        self._trackingStatusWdgt = TrackingStatusWidget(session=self._session, wdgt=QtWidgets.QWidget())
+        dock, _ = self._createDockWidget(
             title='Tracking status',
             widget=self._trackingStatusWdgt.wdgt)
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
+        dock.setStretch(1, 10)
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+        self._wdgt.addDock(dock, position='left')
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Camera connection',
             layout=QtWidgets.QVBoxLayout(),
         )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        dock.setStretch(1, 10)
+        self._wdgt.addDock(dock, position='bottom')
 
         self._serverGUIContainer = container
 
@@ -125,10 +126,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
 
-        cdw, _ = self._createDockWidget(
+        dock, _ = self._createDockWidget(
             title='Tracked objects',
             widget=self._plotter.interactor)
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnRight)
+        self._wdgt.addDock(dock, position='right')
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()

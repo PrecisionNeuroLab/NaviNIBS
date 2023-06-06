@@ -9,8 +9,7 @@ import typing as tp
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
+from RTNaBS.util.GUI.Dock import Dock, DockArea
 from RTNaBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
@@ -18,17 +17,17 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class MainViewPanelWithDockWidgets(MainViewPanel):
-    _wdgt: DockWidgetsContainer = attrs.field(init=False)
+    _wdgt: DockArea = attrs.field(init=False)
 
-    _dockWidgets: dict[str, dw.DockWidget] = attrs.field(init=False, factory=dict)
+    _dockWidgets: dict[str, Dock] = attrs.field(init=False, factory=dict)
     _layoutMayHaveChanged: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     sigAboutToRestoreLayout: Signal = attrs.field(init=False, factory=Signal)
     sigRestoredLayout: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
-        self._wdgt = DockWidgetsContainer(uniqueName=self._key)
-        self._wdgt.setAffinities([self._key])
+        self._wdgt = DockArea(affinities=[self._key])
+        self._wdgt.setContentsMargins(2, 2, 2, 2)
 
         super().__attrs_post_init__()
 
@@ -36,20 +35,19 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
                           title: str,
                           widget: tp.Optional[QtWidgets.QWidget] = None,
                           layout: tp.Optional[QtWidgets.QLayout] = None):
-        cdw = dw.DockWidget(
-            uniqueName=self._key + title,
-            options=dw.DockWidgetOptions(notClosable=True),
-            title=title,
-            affinities=[self._key]
-        )
+
+        dock = Dock(name=self._key + title,
+                   title=title,
+                   closable=False,
+                   affinities=[self._key])
+
         if widget is None:
             widget = QtWidgets.QWidget()
         if layout is not None:
             widget.setLayout(layout)
-        cdw.setWidget(widget)
-        cdw.__childWidget = widget  # monkey-patch reference to child, since setWidget doesn't seem to claim ownernship
-        self._dockWidgets[title] = cdw
-        return cdw, widget
+        dock.addWidget(widget)
+        self._dockWidgets[title] = dock
+        return dock, widget
 
     def restoreLayoutIfAvailable(self) -> bool:
         """
@@ -61,14 +59,14 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
             return False
 
         layout = self.session.dockWidgetLayouts.get(self._key, None)
-        if layout is None or layout.layout is None:
+        if layout is None or layout.state is None:
             return False
 
         assert layout.affinities == [self._key]
 
         logger.debug(f'About to restore layout for {self._key}')
         self.sigAboutToRestoreLayout.emit()
-        layout.restoreLayout(wdgt=self._wdgt)
+        self._wdgt.restoreState(layout.state)
         logger.debug(f'Restored layout for {self._key}')
         self.sigRestoredLayout.emit()
         return True
@@ -83,6 +81,6 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
                 affinities=[self._key])
             self.session.dockWidgetLayouts.addItem(layout)
 
-        layout.saveLayout()
+        layout.state = self._wdgt.saveState()
 
 

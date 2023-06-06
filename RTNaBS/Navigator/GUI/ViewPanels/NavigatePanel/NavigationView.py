@@ -19,7 +19,7 @@ from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingT
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
 from RTNaBS.util.Transforms import applyTransform, composeTransform
-import RTNaBS.util.GUI.DockWidgets as dw
+from RTNaBS.util.GUI.Dock import Dock
 from RTNaBS.util.pyvista.plotting import PrimaryLayeredPlotter
 
 logger = logging.getLogger(__name__)
@@ -37,17 +37,21 @@ class NavigationView:
 
     _dockKeyPrefix: str = ''
 
-    _dock: dw.DockWidget = attrs.field(init=False)
+    _dock: Dock = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
+    _contextMenu: QtWidgets.QMenu = attrs.field(init=False)
 
     _layers: tp.Dict[str, ViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
-        self._dock = dw.DockWidget(uniqueName=self._dockKeyPrefix + self._key, affinities=[self._dockKeyPrefix])
+        self._dock = Dock(
+            name=self._dockKeyPrefix + self._key,
+            affinities=[self._dockKeyPrefix])
 
         self._wdgt = QtWidgets.QWidget()
-        self._dock.setWidget(self._wdgt)
+        self._wdgt.setContentsMargins(0, 0, 0, 0)
+        self._dock.addWidget(self._wdgt)
 
         self._wdgt.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
@@ -101,6 +105,7 @@ class SinglePlotterNavigationView(NavigationView):
         super().__attrs_post_init__()
 
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
+        self._wdgt.layout().setContentsMargins(0, 0, 0, 0)
 
         self._plotter = PrimaryLayeredPlotter(
             show=False,

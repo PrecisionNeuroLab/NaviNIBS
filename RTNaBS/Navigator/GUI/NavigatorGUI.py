@@ -19,8 +19,7 @@ import typing as tp
 
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
+from RTNaBS.util.GUI.Dock import Dock, DockArea
 from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
@@ -56,8 +55,7 @@ class NavigatorGUI(RunnableAsApp):
 
     _session: tp.Optional[Session] = None
 
-    _Win: tp.Callable[..., MainWindowWithDocksAndCloseSignal] = attrs.field(init=False)
-    _win: MainWindowWithDocksAndCloseSignal = attrs.field(init=False)
+    _rootDockArea: DockArea = attrs.field(init=False)
 
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
 
@@ -68,17 +66,17 @@ class NavigatorGUI(RunnableAsApp):
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
-        self._Win = lambda: MainWindowWithDocksAndCloseSignal(self._appName, options=dw.MainWindowOptions(hasCentralFrame=True))  # use our own main window instead of RunnableApp's for supporting docking
-
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
             self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
 
-        self._win.setAffinities(['MainViewPanel'])  # only allow main view panels to dock in this window
+        self._rootDockArea = DockArea(affinities=['MainViewPanel'])
+        self._rootDockArea.setContentsMargins(2, 2, 2, 2)
+        self._win.setCentralWidget(self._rootDockArea)
 
         # set pyvista theme according to current colors
-        if darkdetect.isDark():
+        if darkdetect.isDark() and False:
             pv.set_plot_theme('dark')
         else:
             pv.set_plot_theme('default')
@@ -99,7 +97,7 @@ class NavigatorGUI(RunnableAsApp):
 
         self._addViewPanel(FiducialsPanel(session=self._session))
 
-        self._addViewPanel(CoordinateSystemsPanel(session=self._session))
+        #self._addViewPanel(CoordinateSystemsPanel(session=self._session))
         # TODO: set up transforms widget
 
         self._addViewPanel(TargetsPanel(session=self._session))
@@ -109,7 +107,7 @@ class NavigatorGUI(RunnableAsApp):
         self._addViewPanel(ToolsPanel(session=self._session))
 
         # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
-        #self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
+        # self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
         self._addViewPanel(TriggerSettingsPanel(session=self._session))
 
@@ -139,7 +137,7 @@ class NavigatorGUI(RunnableAsApp):
 
     def _addViewPanel(self, panel: MainViewPanel) -> MainViewPanel:
         logger.info(f'Adding view panel {panel.key}')
-        self._win.addDockWidgetAsTab(panel.dockWdgt)
+        self._rootDockArea.addDock(panel.dockWdgt, position='below')
         self._mainViewPanels[panel.key] = panel
         if isinstance(panel, MainViewPanelWithDockWidgets):
             panel.sigAboutToRestoreLayout.connect(self._onAboutToRestorePanelLayout)
@@ -148,16 +146,17 @@ class NavigatorGUI(RunnableAsApp):
 
     def _saveRootLayout(self):
         # save root layout
-        #return  # TODO: debug, delete
-        layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
+
+        key = 'NavigatorGUI'
+        layout = self.session.dockWidgetLayouts.get(key, None)
         if layout is None:
             layout = DockWidgetLayout(
-                key='NavigatorGUI',
-                affinities=['MainViewPanel'])
-            self.session.dockWidgetLayouts['NavigatorGUI'] = layout
-        assert layout.affinities == ['MainViewPanel']
-        logger.debug(f'Saving root layout when winSize={self._win.size()}')
-        layout.saveLayout()
+                key=key,
+                affinities=['MainViewPanel'],
+            )
+            self.session.dockWidgetLayouts.addItem(layout)
+
+        layout.state = self._rootDockArea.saveState()
 
     def saveLayout(self):
         self._saveRootLayout()
@@ -172,7 +171,7 @@ class NavigatorGUI(RunnableAsApp):
 
         await asyncio.sleep(0.01)
         layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
-        if layout is not None and layout.layout is not None:
+        if layout is not None and layout.state is not None:
 
             async with self._restoringLayoutLock if needsLock else contextlib.nullcontext():
 
@@ -182,16 +181,16 @@ class NavigatorGUI(RunnableAsApp):
                     winSize = self._win.size()
                     logger.debug(f'About to restore root layout when winSize={winSize}')
 
-                    layout.restoreLayout(self._win)
+                    self._rootDockArea.restoreState(layout.state)
 
                 for panel in self.mainViewPanels.values():
                     # catch up with signals that may have been blocked above
                     await asyncio.sleep(0.01)
                     panel.wdgt.updateGeometry()
-                    if panel.dockWdgt.isCurrentTab():
-                        panel.sigPanelShown.emit()
-                    else:
-                        panel.sigPanelHidden.emit()
+                    # if panel.dockWdgt.isCurrentTab():
+                    #     panel.sigPanelShown.emit()
+                    # else:
+                    #     panel.sigPanelHidden.emit()
 
                 await asyncio.sleep(0.01)
                 winSize = self._win.size()
@@ -222,13 +221,20 @@ class NavigatorGUI(RunnableAsApp):
             didRestoreAPanel = False
             for mainViewPanel in self.mainViewPanels.values():
                 if isinstance(mainViewPanel, MainViewPanelWithDockWidgets) and mainViewPanel.hasInitialized:
+                    if hasattr(mainViewPanel, 'finishedAsyncInitialization'):
+                        if True:
+                            if not mainViewPanel.finishedAsyncInitialization.is_set():
+                                continue  # assume it will restore itself when initialized
+                        else:
+                            await mainViewPanel.finishedAsyncInitialization.wait()
+
+                        continue  # TODO: debug, delete
                     if mainViewPanel.restoreLayoutIfAvailable():
                         didRestoreAPanel = True
 
-            if didRestoreAPanel:
+            if didRestoreAPanel and False:
                 # restore root layout again
                 await self._restoreRootLayout(needsLock=False)
-
 
     def _onAppAboutToQuit(self):
         super()._onAppAboutToQuit()
@@ -367,7 +373,10 @@ if __name__ == '__main__':
             if True:
                 #sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test4.rtnabs')
                 # sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
-                sesFilepath = r'D:\KellerLab\ParameterSearch-MEP\MEPParamSearchV3\sub-2438\ses-230207\sub-2438_ses-230207_RTNaBS'
+                # sesFilepath = r'G:\My Drive\KellerLab\RTNaBS\data\sub-2355\ses-230209\sub-2355_ses-230209_RTNaBS'
+                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test9.rtnabsdir')
+                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-demo.navinibsdir')
+                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-cobotDemo.navinibsdir')
             else:
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
                                            'data/TestSession1.rtnabs')

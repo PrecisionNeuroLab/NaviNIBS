@@ -21,8 +21,6 @@ from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
 from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
 
 logger = logging.getLogger(__name__)
@@ -152,23 +150,24 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
     def _finishInitialization(self):
         super()._finishInitialization()
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Tools tracking status',
         )
         self._trackingStatusWdgt = TrackingStatusWidget(wdgt=container,
                                                         hideToolTypes=[CalibrationPlate, Pointer])
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
+        self._wdgt.addDock(dock, position='left')
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
 
         self._targetsTableWdgt = TargetsTableWidget()
         self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
         self._targetsTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         container.layout().addWidget(self._targetsTableWdgt.wdgt)
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Targets',
             widget=self._targetsTableWdgt.wdgt
         )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        self._wdgt.addDock(dock, position='bottom')
 
         poseGroupDicts = [
             dict(title='Current pose metrics', calculatorKey='currentPoseMetrics'),
@@ -176,9 +175,10 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         ]
 
         for poseGroupDict in poseGroupDicts:
-            cdw, container = self._createDockWidget(
+            dock, container = self._createDockWidget(
                 title=poseGroupDict['title'],
             )
+            dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
 
             poseGroup = _PoseMetricGroup(
                 title=poseGroupDict['title'],
@@ -186,14 +186,14 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
                 calculatorKey=poseGroupDict['calculatorKey']
             )
 
-            self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+            self._wdgt.addDock(dock, position='bottom')
 
             self._poseMetricGroups.append(poseGroup)
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Samples',
             layout=QtWidgets.QVBoxLayout())
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+        self._wdgt.addDock(dock, position='bottom')
 
         btnContainer = QtWidgets.QWidget()
         btnContainerLayout = QtWidgets.QGridLayout()
@@ -424,13 +424,9 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         winWidth = 1600  # TODO: get dynamically rather than hardcoding
 
         if viewType == 'TargetingCrosshairs-Y':
-            self._wdgt.addDockWidget(view.dock,
-                                     location=dw.DockWidgetLocation.OnBottom,
-                                     relativeTo=self._views['Crosshairs-X'].dock,
-                                     initialOption=dw.InitialLayoutOption(size=QtCore.QSize(
-                                        300, 0))) # round(winWidth * 0.8 / (len(self._views)-1)), 0)))
+            self._wdgt.addDock(view.dock,
+                               position='bottom',
+                               relativeTo=self._views['Crosshairs-X'].dock)
         else:
-            self._wdgt.addDockWidget(view.dock, location=dw.DockWidgetLocation.OnRight,
-                                 initialOption=dw.InitialLayoutOption(size=QtCore.QSize(
-                                     300, 0))) # round(winWidth * 0.8 / len(self._views)), 0)))
-
+            self._wdgt.addDock(view.dock,
+                               position='right')

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import attrs
 import logging
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.GUI import DockWidgets as dw
-from RTNaBS.util.GUI.DockWidgets.DockWidgetsContainer import DockWidgetsContainer
-from RTNaBS.util.GUI.DockWidgets.MainWindowWithDocksAndCloseSignal import MainWindowWithDocksAndCloseSignal
+from RTNaBS.util.GUI.Dock import Dock, DockArea
 from RTNaBS.util.Signaler import Signal
 
 
@@ -24,7 +23,7 @@ class MainViewPanel:
     _icon: tp.Optional[QtGui.QIcon] = attrs.field(default=None)  # to be set by subclass
 
     _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
-    _dockWdgt: dw.DockWidget = attrs.field(init=False)
+    _dockWdgt: Dock = attrs.field(init=False)
 
     _hasInitialized: bool = attrs.field(init=False, default=False)
     _isInitializing: bool = attrs.field(init=False, default=False)  # True while in the middle of finishing initializing
@@ -35,14 +34,15 @@ class MainViewPanel:
 
     def __attrs_post_init__(self):
         logger.info(f'Initializing {self.__class__.__name__}')
-        self._dockWdgt = dw.DockWidget(self._key, title=self.label)
-        self._dockWdgt.setAffinities(['MainViewPanel'])  # only allow docking with other main view panels
-        self._dockWdgt.setWidget(self._wdgt)
-        if self._icon is not None:
-            self._dockWdgt.setIcon(self._icon)
+        self._dockWdgt = Dock(name=self._key,
+                              title=self.label,
+                              affinities=['MainViewPanel'],
+                              icon=self._icon,
+                              fontSize='14px')
+        self._dockWdgt.addWidget(self._wdgt)
 
-        self._dockWdgt.hidden.connect(self.sigPanelHidden.emit)
-        self._dockWdgt.shown.connect(self.sigPanelShown.emit)
+        self._dockWdgt.sigHidden.connect(self.sigPanelHidden.emit)
+        self._dockWdgt.sigShown.connect(self.sigPanelShown.emit)
 
         self.sigPanelShown.connect(self._onPanelShown)
         self.sigPanelHidden.connect(self._onPanelHidden)
@@ -77,7 +77,7 @@ class MainViewPanel:
 
     @property
     def isVisible(self):
-        return self._dockWdgt.isCurrentTab()
+        return self._dockWdgt.isVisible()
 
     @property
     def hasInitialized(self):

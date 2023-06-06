@@ -26,7 +26,6 @@ from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainVie
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import Actor
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.GUI import DockWidgets as dw
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
@@ -234,12 +233,13 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Targets',
             layout=QtWidgets.QVBoxLayout()
         )
+        dock.setStretch(1, 10)
         container.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnLeft)
+        self._wdgt.addDock(dock, position='left')
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
@@ -289,31 +289,32 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                                                 getNewEntryCoord=self._getCrosshairCoord,
                                                 setEntryCoordButtonLabel='Set from crosshair position',
                                                 )
-        cdw, _ = self._createDockWidget(
+        dock, _ = self._createDockWidget(
             title='Edit target',
             widget=self._editTargetWdgt.wdgt,
         )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
-        cdw_editTarget = cdw
+        dock.setStretch(1, 10)
+        self._wdgt.addDock(dock, position='bottom')
+        dock_editTarget = dock
 
         self._editGridWdgt = EditGridWidget(session=self.session,
                                             wdgt=QtWidgets.QWidget(),
                                             )
-        cdw, _ = self._createDockWidget(
+        dock, _ = self._createDockWidget(
             title='Edit grid',
             widget=self._editGridWdgt.wdgt,
         )
+        dock.setStretch(1, 10)
         if False:
-            self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnBottom)
+            self._wdgt.addDock(dock, position='bottom')
         else:
-            cdw_editTarget.addDockWidgetAsTab(cdw)
-            cdw_editTarget.raise_()
+            self._wdgt.addDock(dock, position='below', relativeTo=dock_editTarget)
 
-        cdw, container = self._createDockWidget(
+        dock, container = self._createDockWidget(
             title='Target views',
             layout=QtWidgets.QGridLayout()
         )
-        self._wdgt.addDockWidget(cdw, dw.DockWidgetLocation.OnRight)
+        self._wdgt.addDock(dock, position='right')
 
         # TODO: put each view in its own dockwidget instead of a grid layout so they can be moved around
 
