@@ -40,6 +40,7 @@ from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define
@@ -274,6 +275,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._redraw(which=['pointerPosition', 'sampleBtns']))
 
         self._wdgt.setLayout(QtWidgets.QHBoxLayout())
+        self._wdgt.layout().setContentsMargins(0, 0, 0, 0)
 
         sidebar = QtWidgets.QWidget()
         sidebar.setLayout(QtWidgets.QVBoxLayout())
@@ -290,6 +292,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
+        btnContainer.layout().setContentsMargins(0, 0, 0, 0)
         fiducialsBox.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Sample fiducial (single)')
@@ -331,6 +334,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
+        btnContainer.layout().setContentsMargins(0, 0, 0, 0)
         fiducialsBox.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Align to sampled fiducials')
@@ -344,6 +348,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
+        btnContainer.layout().setContentsMargins(0, 0, 0, 0)
         headPtsBox.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Sample head point')
@@ -365,6 +370,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         container = QtWidgets.QWidget()
         container.setLayout(QtWidgets.QFormLayout())
+        container.layout().setContentsMargins(0, 0, 0, 0)
         headPtsBox.layout().addWidget(container)
         self._refineWeightsField = QLineEditWithValidationFeedback()
         container.layout().addRow('Refine weights', self._refineWeightsField)
@@ -412,6 +418,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
+        btnContainer.layout().setContentsMargins(0, 0, 0, 0)
         headPtsBox.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Refine with sampled head points')

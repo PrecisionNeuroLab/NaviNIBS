@@ -30,7 +30,7 @@ from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToS
 
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.INFO)
 
 @attrs.define
 class DigitizedLocationsPanel(MainViewPanel):
@@ -198,6 +198,10 @@ class DigitizedLocationsPanel(MainViewPanel):
                                                                'Select montage file to import',
                                                                os.path.dirname(self.session.filepath),
                                                                'xml (*.xml)')
+
+        if len(filepath) == 0:
+            logger.info('Import cancelled')
+            return
 
         self.session.digitizedLocations.loadFromXML(filepath)
 

@@ -118,6 +118,7 @@ class SinglePlotterNavigationView(NavigationView):
                     MeshSurfaceLayer,
                     SampleOrientationsLayer,
                     SampleMetadataOrientationsLayer,
+                    SampleMetadataInterpolatedSurfaceLayer,
                     TargetOrientationsLayer,
                     TargetingTargetCrosshairsLayer,
                     TargetingCoilCrosshairsLayer,
@@ -308,7 +309,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
         self._plotter.setLayer(1 if self._doShowSkinSurf else 0)
 
-        if False:
+        if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='ScalpVpps',
                           surfKey='csfSurf',
