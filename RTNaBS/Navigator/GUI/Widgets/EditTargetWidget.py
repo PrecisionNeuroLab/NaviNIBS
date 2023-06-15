@@ -457,6 +457,7 @@ class EditTargetWidget:
         # children widgets added to layout internally in constructor
 
         self._disableWidgetsWhenNoTarget = [
+            self._depthOffsetWdgt,
             self._targetCoordWdgt.wdgt,
             self._entryCoordWdgt.wdgt,
             self._handleAngleWdgt.wdgt,
