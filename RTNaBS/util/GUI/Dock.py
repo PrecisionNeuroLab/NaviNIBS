@@ -17,9 +17,131 @@ borderColor = '#bbbbbb'
 borderWidth = '2px'
 
 
+class LabelScrollArea(QtWidgets.QScrollArea):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+
+    def sizeHint(self) -> QtCore.QSize:
+        """
+        Modify size hint behavior to prevent scrollbar showing in some situations where the widget could be given more room to grow
+        """
+        sz = self.widget().sizeHint()
+        sz.setWidth(sz.width()+10)
+        return sz
+
+
+class AltTContainer(QtWidgets.QTabWidget, pgdc.TContainer):
+    def __init__(self, area):
+        QtWidgets.QTabWidget.__init__(self)
+        pgdc.Container.__init__(self, area)
+
+        if True:
+
+            r = '5px'
+            if self.parent() is None:
+                palette = self.palette()
+            else:
+                palette = self.parent().palette()
+
+            fg = '#444444'
+            bg = '#dddddd'
+            border = borderColor
+            borderBottom = borderColor
+            thisBorderWidth = '0px'
+
+            fontSize='12px'
+
+            setStyleSheetForInstanceOnly(self.tabBar(), f"""
+                background-color : {bg};
+                color : {fg};
+                border-top-right-radius: {r};
+                border-top-left-radius: {r};
+                border-bottom-right-radius: 0px;
+                border-bottom-left-radius: 0px;
+                border-width: {thisBorderWidth};
+                border-bottom: {thisBorderWidth} solid {borderBottom};
+                border-top: {thisBorderWidth} solid {border};
+                border-left: {thisBorderWidth} solid {border};
+                border-right: {thisBorderWidth} solid {border};
+                padding-left: 1px;
+                padding-right: 1px;
+                font-size: {fontSize};
+                """, selectorSuffix='::tab')
+
+            fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
+            bg = '#bbbbbb'
+            border = borderColor
+            borderBottom = bg
+            thisBorderWidth = borderWidth
+
+            setStyleSheetForInstanceOnly(self.tabBar(), f"""
+                            background-color : {bg};
+                            color : {fg};
+                            border-width: {thisBorderWidth};
+                            border-bottom: {thisBorderWidth} solid {borderBottom};
+                            border-top: {thisBorderWidth} solid {border};
+                            border-left: {thisBorderWidth} solid {border};
+                            border-right: {thisBorderWidth} solid {border};
+                            """,
+                                         selectorSuffix='::tab::selected')
+        else:
+            self.setStyleSheet(f"""
+                QTabBar::tab:selected {{ 
+                  background: #bbbbbb; 
+                }}
+                """)
+
+
+
+    def _insertItem(self, item, index):
+        if not isinstance(item, Dock):
+            raise Exception("Tab containers may hold only docks, not other containers.")
+
+        self.insertTab(index,
+                       item,
+                       item.label.icon.pixmap(),
+                       item.label.text)
+
+    def raiseDock(self, dock):
+        index = self.indexOf(dock)
+        self.setCurrentIndex(index)
+
+
 class TContainer(pgdc.TContainer):
     def __init__(self, area):
-        super().__init__(area)
+        QtWidgets.QWidget.__init__(self)
+        pgdc.Container.__init__(self, area)
+        self.layout = QtWidgets.QGridLayout()
+        self.layout.setSpacing(0)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self.layout)
+
+        self.hTabLayout = QtWidgets.QHBoxLayout()
+        self.hTabBox = QtWidgets.QWidget()
+        self.hTabBox.setLayout(self.hTabLayout)
+        self.hTabLayout.setSpacing(2)
+        self.hTabLayout.setContentsMargins(0, 0, 0, 0)
+
+        if False:
+            self.hTabBoxScroll = LabelScrollArea()
+            setStyleSheetForInstanceOnly(self.hTabBoxScroll, 'background: transparent;')
+            self.hTabBox.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+            self.hTabBoxScroll.setWidgetResizable(True)
+            self.hTabBoxScroll.setWidget(self.hTabBox)
+            self.hTabBoxScroll.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Maximum)
+            self.layout.addWidget(self.hTabBoxScroll, 0, 1)
+        else:
+            self.layout.addWidget(self.hTabBox, 0, 1)
+
+        self.stack = pgdc.StackedWidget(container=self)
+        self.layout.addWidget(self.stack, 1, 1)
+
+        self.setLayout(self.layout)
+        for n in ['count', 'widget', 'indexOf']:
+            setattr(self, n, getattr(self.stack, n))
 
     def _insertItem(self, item, index):
         prevIndex = self.stack.currentIndex()
@@ -117,6 +239,7 @@ class DockLabel(QtWidgets.QFrame):
             self._icon = QtWidgets.QLabel(self)
             self._icon.setPixmap(icon.pixmap(*self._iconSize))
             self.layout().addWidget(self._icon)
+            self._icon.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
 
         self._label = QtWidgets.QLabel(text, self)
         self._label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
@@ -135,6 +258,14 @@ class DockLabel(QtWidgets.QFrame):
     @property
     def dim(self):
         return self._dim
+
+    @property
+    def icon(self):
+        return self._icon
+
+    @property
+    def text(self):
+        return self._label.text()
 
     def setDim(self, d):
         if self.dim != d:
@@ -166,12 +297,16 @@ class DockLabel(QtWidgets.QFrame):
         else:
             palette = self.parent().palette()
         if self.dim:
+            self._label.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
+            self._label.setMinimumWidth(1)
             fg = '#444444'
             bg = '#dddddd'
             border = borderColor
             borderBottom = borderColor
             thisBorderWidth = '0px'
         else:
+            self._label.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
+            self._label.setMinimumWidth(0)
             fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
             bg = '#bbbbbb'
             border = borderColor
@@ -443,7 +578,10 @@ class DockArea(pgd.DockArea, DockDrop):
         elif typ == 'horizontal':
             new = HContainer(self)
         elif typ == 'tab':
-            new = TContainer(self)
+            if True:
+                new = TContainer(self)
+            else:
+                new = AltTContainer(self)
         else:
             raise ValueError("typ must be one of 'vertical', 'horizontal', or 'tab'")
         return new
