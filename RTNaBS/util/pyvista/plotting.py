@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import pyvista as pv
 import pyvistaqt as pvqt
-from qtpy import QtGui, QtCore
+from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 
 
@@ -76,6 +76,23 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.BackgroundPlotter):
         #self.enable_anti_aliasing()  # for nice visuals
 
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
+
+        if True:  # TODO: debug, disable
+            self.interactor.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.ActionsContextMenu)
+            action = QtWidgets.QAction('Export scene to obj', self.interactor)
+            self.interactor.addAction(action)
+            action.triggered.connect(self._onExportToObj)
+
+    def _onExportToObj(self):
+        exportFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self.interactor,
+                                                               'Export scene to obj',
+                                                               '',
+                                                               'obj (*.obj)')
+        if len(exportFilepath) == 0:
+            logger.info('Export cancelled')
+            return
+
+        self.export_obj(exportFilepath)
 
     def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
         """
