@@ -6,6 +6,7 @@ import attrs
 from copy import deepcopy
 from datetime import datetime
 import nibabel as nib
+import jsbeautifier
 import json
 import logging
 import numpy as np
@@ -28,7 +29,6 @@ from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocations, Digiti
 from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayouts
 from RTNaBS.Navigator.Model.Addons import Addons, Addon
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.json import jsonPrettyDumps
 from RTNaBS.util.numpy import array_equalish
 
 
@@ -73,6 +73,8 @@ class Session:
         - Switched fiducial format
     """
     _unpackedSessionDir: tp.Optional[tp.Union[tempfile.TemporaryDirectory, str]] = attrs.field(default=None)
+
+    _beautifier: jsbeautifier.Beautifier | None = attrs.field(init=False, default=None)
 
     sigInfoChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[list[str]])))
     """
@@ -217,6 +219,19 @@ class Session:
 
         self._unpackedSessionDir = newUnpackedSessionDir
 
+    @property
+    def beautifier(self):
+        """
+        Cached instance of json beautifier. This saves some time compared to initializing with each dumps call.
+        """
+
+        if self._beautifier is None:
+            opts = jsbeautifier.default_options()
+            opts.indent_size = 2
+            self._beautifier = jsbeautifier.Beautifier(opts)
+
+        return self._beautifier
+
     def flagKeyAsDirty(self, key: str):
         self._dirtyKeys.add(key)
         self._dirtyKeys_autosave.add(key)
@@ -273,7 +288,7 @@ class Session:
             configFilename_MRI =  autosaveFilenamePrefix + self._sessionConfigFilename + '_MRI' + '.json'
             config['MRI'] = configFilename_MRI
             with open(os.path.join(self.unpackedSessionDir, configFilename_MRI), 'w') as f:
-                f.write(jsonPrettyDumps(self.MRI.asDict(filepathRelTo=otherPathsRelTo)))
+                f.write(self._prettyJSONDumps(self.MRI.asDict(filepathRelTo=otherPathsRelTo)))
             keysToSave.discard('MRI')
 
         if 'headModel' in keysToSave or not saveDirtyOnly:
@@ -282,7 +297,7 @@ class Session:
             configFilename_headModel = autosaveFilenamePrefix + self._sessionConfigFilename + '_HeadModel' + '.json'
             config['headModel'] = configFilename_headModel
             with open(os.path.join(self.unpackedSessionDir, configFilename_headModel), 'w') as f:
-                f.write(jsonPrettyDumps(self.headModel.asDict(filepathRelTo=otherPathsRelTo)))
+                f.write(self._prettyJSONDumps(self.headModel.asDict(filepathRelTo=otherPathsRelTo)))
             keysToSave.discard('headModel')
 
         if 'coordinateSystems' in keysToSave or not saveDirtyOnly:
@@ -291,7 +306,7 @@ class Session:
             configFilename_coordinateSystems = autosaveFilenamePrefix + self._sessionConfigFilename + '_CoordinateSystems' + '.json'
             config['coordinateSystems'] = configFilename_coordinateSystems
             with open(os.path.join(self.unpackedSessionDir, configFilename_coordinateSystems), 'w') as f:
-                f.write(jsonPrettyDumps(self.coordinateSystems.asList()))
+                f.write(self._prettyJSONDumps(self.coordinateSystems.asList()))
             keysToSave.discard('coordinateSystems')
 
         if 'digitizedLocations' in keysToSave or not saveDirtyOnly:
@@ -300,7 +315,7 @@ class Session:
             configFilename_digitizedLocations = autosaveFilenamePrefix + self._sessionConfigFilename + '_DigitizedLocations' + '.json'
             config['digitizedLocations'] = configFilename_digitizedLocations
             with open(os.path.join(self.unpackedSessionDir, configFilename_digitizedLocations), 'w') as f:
-                f.write(jsonPrettyDumps(self.digitizedLocations.asList()))
+                f.write(self._prettyJSONDumps(self.digitizedLocations.asList()))
             keysToSave.discard('digitizedLocations')
 
         if 'subjectRegistration' in keysToSave or not saveDirtyOnly:
@@ -308,7 +323,7 @@ class Session:
             configFilename_subjectReg = autosaveFilenamePrefix + self._sessionConfigFilename + '_SubjectRegistration' + '.json'
             config['subjectRegistration'] = configFilename_subjectReg
             with open(os.path.join(self.unpackedSessionDir, configFilename_subjectReg), 'w') as f:
-                f.write(jsonPrettyDumps(self.subjectRegistration.asDict()))
+                f.write(self._prettyJSONDumps(self.subjectRegistration.asDict()))
             # TODO: save contents of potentially larger *History fields to separate file(s)
             keysToSave.discard('subjectRegistration')
 
@@ -317,7 +332,7 @@ class Session:
             configFilename_targets = autosaveFilenamePrefix + self._sessionConfigFilename + '_Targets' + '.json'
             config['targets'] = configFilename_targets
             with open(os.path.join(self.unpackedSessionDir, configFilename_targets), 'w') as f:
-                f.write(jsonPrettyDumps(self.targets.asList()))
+                f.write(self._prettyJSONDumps(self.targets.asList()))
             keysToSave.discard('targets')
 
         if 'samples' in keysToSave or not saveDirtyOnly:
@@ -325,7 +340,7 @@ class Session:
             configFilename_samples = autosaveFilenamePrefix + self._sessionConfigFilename + '_Samples' + '.json'
             config['samples'] = configFilename_samples
             with open(os.path.join(self.unpackedSessionDir, configFilename_samples), 'w') as f:
-                f.write(jsonPrettyDumps(self.samples.asList()))
+                f.write(self._prettyJSONDumps(self.samples.asList()))
             keysToSave.discard('samples')
 
         if 'tools' in keysToSave or not saveDirtyOnly:
@@ -333,7 +348,7 @@ class Session:
             configFilename_tools = autosaveFilenamePrefix + self._sessionConfigFilename + '_Tools' + '.json'
             config['tools'] = configFilename_tools
             with open(os.path.join(self.unpackedSessionDir, configFilename_tools), 'w') as f:
-                f.write(jsonPrettyDumps(self.tools.asList()))
+                f.write(self._prettyJSONDumps(self.tools.asList()))
             keysToSave.discard('tools')
 
         if 'triggerSources' in keysToSave or not saveDirtyOnly:
@@ -346,7 +361,7 @@ class Session:
             configFilename_dockWidgetLayouts = autosaveFilenamePrefix + self._sessionConfigFilename + '_DockWidgetLayouts' + '.json'
             config['dockWidgetLayouts'] = configFilename_dockWidgetLayouts
             with open(os.path.join(self.unpackedSessionDir, configFilename_dockWidgetLayouts), 'w') as f:
-                f.write(jsonPrettyDumps(self.dockWidgetLayouts.asList()))
+                f.write(self._prettyJSONDumps(self.dockWidgetLayouts.asList()))
             keysToSave.discard('dockWidgetLayouts')
 
         # TODO: loop through any addons to give them a chance to save to config as needed
@@ -375,7 +390,7 @@ class Session:
             if False:
                 json.dump(config, f)
             else:
-                f.write(jsonPrettyDumps(config))
+                f.write(self._prettyJSONDumps(config))
             logger.debug('Wrote updated session config')
 
     def _updateSamplesForNewTargetKey(self, fromKey: str, toKey: str):
@@ -440,6 +455,9 @@ class Session:
     def _onAddonsChanged(self, addonKeys: list[str], attribKeys: tp.Optional[list[str]] = None):
         for addonKey in addonKeys:
             self.flagKeyAsDirty(f'addon.{addonKey}')
+
+    def _prettyJSONDumps(self, obj):
+        return self.beautifier.beautify(json.dumps(obj))
 
     def saveToFile(self, updateDirtyOnly: bool = True):
         self.saveToUnpackedDir(saveDirtyOnly=updateDirtyOnly)
