@@ -782,9 +782,6 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
-        if not self.isVisible:
-            return
-
         logger.debug('redraw {}'.format(which))
 
         if isinstance(which, list):
@@ -878,6 +875,9 @@ class SubjectRegistrationPanel(MainViewPanel):
                 self._redraw(which='pointerPosition')
 
             elif which == 'pointerPosition':
+                if not self.isVisible:
+                    return  # don't do frequent updates when not even visible
+
                 for toolOrTracker in ('tool', 'tracker'):
                     actorKey = 'pointer' + '_' + toolOrTracker
 
@@ -926,6 +926,9 @@ class SubjectRegistrationPanel(MainViewPanel):
                 raise NotImplementedError()
 
         elif which == 'subjectTrackerPosition':
+            if not self.isVisible:
+                return  # don't do frequent updates when not even visible
+
             actorKey = 'subjectTracker'
             if actorKey not in self._actors:
                 # subject tracker hasn't been initialized, maybe due to missing information
@@ -947,6 +950,10 @@ class SubjectRegistrationPanel(MainViewPanel):
                 labels.append(label)
                 if fid.plannedCoord is not None:
                     coords[iFid, :] = fid.plannedCoord
+
+            if actorKey in self._actors:
+                self._plotter.remove_actor(self._actors[actorKey])
+                self._actors.pop(actorKey)
 
             self._actors[actorKey] = self._plotter.add_point_labels(
                 name=actorKey,
