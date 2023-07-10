@@ -64,7 +64,7 @@ class MRISliceView:
 
     @property
     def wdgt(self):
-        return self._plotter.interactor
+        return self._plotter
 
     @property
     def plotter(self):

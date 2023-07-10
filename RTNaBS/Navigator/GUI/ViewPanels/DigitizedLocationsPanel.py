@@ -126,7 +126,7 @@ class DigitizedLocationsPanel(MainViewPanel):
             app=QtWidgets.QApplication.instance()
         )
         self._plotter.enable_depth_peeling(4)
-        self._wdgt.layout().addWidget(self._plotter.interactor)
+        self._wdgt.layout().addWidget(self._plotter)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()

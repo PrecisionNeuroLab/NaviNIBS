@@ -73,7 +73,7 @@ class SurfSliceView(MRISliceView):
 
     @MRISliceView.wdgt.getter
     def wdgt(self) -> QtWidgets.QWidget:
-        return self._primaryPlotter.interactor
+        return self._primaryPlotter
 
     @MRISliceView.plotter.getter
     def plotter(self) -> PrimaryLayeredPlotter:

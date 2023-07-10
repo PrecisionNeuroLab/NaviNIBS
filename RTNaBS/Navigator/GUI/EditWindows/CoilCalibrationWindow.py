@@ -130,6 +130,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             self._session.tools[self._toolKeyToCalibrate].toolToTrackerTransf = self._pendingNewTransf
             logger.info('Saved {} calibration: {}'.format(self._toolKeyToCalibrate, self.toolToCalibrate.toolToTrackerTransf))
 
+        self._plotter.close()
+
     def _resetCamera(self):
         self._plotter.camera.focal_point = (0, 0, 0)
         self._plotter.camera.position = (0, 0, 700)

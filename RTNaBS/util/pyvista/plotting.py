@@ -56,35 +56,48 @@ class _DelayedPlotter:
             self._needsRender.set()
 
 
-class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.BackgroundPlotter):
+class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor):
     """
-    Same as inherited pvqt.BackgroundPlotter, but batches multiple render calls together with an async coroutine
-
-    Also set default background color based on app palette
+    Similar to pvqt.BackgroundPlotter, with a few key differences:
+    - This batches multiple render calls together with an async coroutine
+    - This sets default background color based on app palette
+    - This doesn't include some of the "extra" functionality in pvqt.BackgroundPlotter related to
+        toolbars and single-plotter-per-window management.
     """
 
-    def __init__(self, *args, auto_update: float = 0.01, **kwargs):
+    def __init__(self, *args,
+                 auto_update: float = 0.01,
+                 **kwargs):
         _DelayedPlotter.__init__(self, **{key: val for key, val in kwargs.items() if key in ('minRenderPeriod',)})
         try:
             kwargs.pop('minRenderPeriod')
         except KeyError:
             pass
-        pvqt.plotting.BackgroundPlotter.__init__(self, *args, auto_update=auto_update, **kwargs)
 
-        self.frame.setContentsMargins(0, 0, 0, 0)
+        if True:  # TODO: delete once no callers provide these kwargs
+            # for legacy compatibility, drop any kwargs expected by pvqt.BackgroundPlotter but not by pvqt.plotting.QtInteractor
+            for key in ('app', 'show'):
+                try:
+                    kwargs.pop(key)
+                except KeyError:
+                    pass
+
+        pvqt.plotting.QtInteractor.__init__(self, *args,
+                                                 auto_update=auto_update,
+                                                 **kwargs)
 
         #self.enable_anti_aliasing()  # for nice visuals
 
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
 
-        if True:  # TODO: debug, disable
-            self.interactor.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.ActionsContextMenu)
-            action = QtWidgets.QAction('Export scene to obj', self.interactor)
-            self.interactor.addAction(action)
+        if False:  # TODO: debug, disable
+            self.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.ActionsContextMenu)
+            action = QtWidgets.QAction('Export scene to obj', self)
+            self.addAction(action)
             action.triggered.connect(self._onExportToObj)
 
     def _onExportToObj(self):
-        exportFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self.interactor,
+        exportFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self,
                                                                'Export scene to obj',
                                                                '',
                                                                'obj (*.obj)')
@@ -119,6 +132,12 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.BackgroundPlotter):
             for mapper in self._scalar_bars._scalar_bar_mappers[scalarBarKey]:
                 mapper.scalar_range = clims
 
+    def closeEvent(self, evt):
+        toRet = super().closeEvent(evt)
+        self.close()
+        self.Finalize()  # suggested by https://discourse.vtk.org/t/wglmakecurrent-failed-in-makecurrent-after-closed-a-window-with-two-vtk-widget/5899/2
+        return toRet
+
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
     _mainPlotter: PrimaryLayeredPlotter
@@ -151,6 +170,8 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
 
         for renderer in self.renderers:
             renderer.SetLayer(rendererLayer)
+
+        self.iren = None
 
     @property
     def rendererLayer(self):
@@ -290,3 +311,8 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
         super().camera.clipping_range = range
         for plotter in self.secondaryPlotters.values():
             plotter.camera.clipping_range = range
+
+    def close(self):
+        for plotter in self.secondaryPlotters.values():
+            plotter.close()
+        super().close()
