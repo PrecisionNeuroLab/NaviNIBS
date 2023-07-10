@@ -128,7 +128,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         dock, _ = self._createDockWidget(
             title='Tracked objects',
-            widget=self._plotter.interactor)
+            widget=self._plotter)
         self._wdgt.addDock(dock, position='right')
 
         if self.session is not None:

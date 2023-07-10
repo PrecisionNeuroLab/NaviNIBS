@@ -100,7 +100,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
             self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
         dock, container = self._createDockWidget(
             title='Simulated tools view',
-            widget=self._plotter.interactor
+            widget=self._plotter
         )
         self._wdgt.addDock(dock, position='right')
 

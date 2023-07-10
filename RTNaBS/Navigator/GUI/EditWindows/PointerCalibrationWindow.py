@@ -389,6 +389,8 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
             self._session.tools[self._toolKeyToCalibrate].toolToTrackerTransf = self._pendingNewTransf
             logger.info('Saved {} calibration: {}'.format(self._toolKeyToCalibrate, self.toolToCalibrate.toolToTrackerTransf))
 
+        self._plotter.close()
+
     def _onLatestPositionsChanged(self):
         super()._onLatestPositionsChanged()
         if self.toolToCalibrate.isActive and self._positionsClient.getLatestTransf(self._toolKeyToCalibrate, None) is not None:
@@ -422,5 +424,4 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
                 for actor in self._liveVisual.actors.values():
                     actor.SetVisibility(False)
                 self._plotter.render()
-
 
