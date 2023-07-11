@@ -197,6 +197,10 @@ class _PointerDistanceReadouts:
                     closestDist = dist
                     whichFidClosest = whichFid
 
+        if False:
+            # TODO: debug, delete
+            whichFidClosest = list(sampledFiducialCoords.keys())[-1]
+
         if closestDist > 50:
             # don't show any fiducial distance feedback if not close to any fiducials
             whichFidClosest = None

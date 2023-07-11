@@ -211,7 +211,7 @@ def estimateAligningTransform(ptsA: np.ndarray, ptsB: np.ndarray, method: str = 
             pc_mov = simpleicp.PointCloud(ptsA, columns=('x', 'y', 'z'))
             icp = simpleicp.SimpleICP()
             icp.add_point_clouds(pc_fix, pc_mov)
-            H, X_mov_transformed, rigid_body_transformation_params = icp.run(**runKwargs)
+            H, X_mov_transformed, rigid_body_transformation_params, _ = icp.run(**runKwargs)
 
             return H
 
