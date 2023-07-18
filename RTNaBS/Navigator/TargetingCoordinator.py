@@ -363,7 +363,12 @@ class TargetingCoordinator:
                                                                                  None)
             coilToTrackerTransf = self._session.tools[self.activeCoilKey].toolToTrackerTransf
 
-            if coilToTrackerTransf is None or coilTrackerToCameraTransf is None or subjectTrackerToCameraTransf is None:
+            subjectTrackerToMRITransf = self._session.subjectRegistration.trackerToMRITransf
+
+            if coilToTrackerTransf is None \
+                    or coilTrackerToCameraTransf is None \
+                    or subjectTrackerToCameraTransf is None\
+                    or subjectTrackerToMRITransf is None:
                 # cannot compute valid position
                 return None
 
@@ -371,7 +376,7 @@ class TargetingCoordinator:
                 coilToTrackerTransf,
                 coilTrackerToCameraTransf,
                 invertTransform(subjectTrackerToCameraTransf),
-                self._session.subjectRegistration.trackerToMRITransf
+                subjectTrackerToMRITransf
             ])
 
             self._currentCoilToMRITransform = coilToMRITransform
