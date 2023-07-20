@@ -6,42 +6,37 @@ authors = ["Chris Cline <chriscline@users.noreply.github.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.11"
-pyzmq = "^22.3.0"
-attrs = "^21.4.0"
-numpy = "^1.22.3"
-PySide6 = "6.2.4"
-pyqtgraph = "^0.12.4"
-pyvista = "^0.34.0"
-#vtk = [
-#    #{ markers = "sys_platform == 'darwin'", file = "data/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_universal2.whl"},
-#    { markers = "sys_platform == 'darwin'", url = "https://wheels.pyvista.org/vtk-9.1.0.dev0-cp310-cp310-macosx_12_0_x86_64.whl#sha256=5f464ebecb114ab57a042708d1ffb1069531034d9f715da2c1d8bde53054dee7"},
-#    { markers = "sys_platform == 'win32'", url = "https://wheels.pyvista.org/vtk-9.1.0.dev0-cp310-cp310-win_amd64.whl#sha256=cede5251ba3c22f4255af18bb360d64b4fba5c285a4224c2fd3a08f3a5f3ba15"}
-#]
-QtPy = "^2.0.1"
-matplotlib = "^3.5.1"
+python = ">=3.10,<3.12"
+pyzmq = "^25.1.0"
+attrs = "^23.1.0"
+numpy = "^1.25.1"
+PySide6 = "^6.5.1.1"
+pyqtgraph = "^0.13.3"
+pyvista = "^0.40.1"
+QtPy = "^2.3.1"
+matplotlib = "^3.7.2"
 QtAwesome = "^1.1.1"
 appdirs = "^1.4.4"
-nibabel = "^3.2.2"
-pytransform3d = "^1.13.0"
-pandas = "^1.4.2"
-pyvistaqt = "^0.9.0"
-pyigtl = "^0.1.0"
+nibabel = "^5.1.0"
+pytransform3d = "^3.2.0"
+pandas = "^2.0.3"
+pyvistaqt = "^0.11.0"
+pyigtl = "^0.3.1"
 jsbeautifier = "^1.14.6"
 pylsl = "^1.16.0"
 scikit-spatial = "^6.4.1"
 simpleicp = "^2.0.12"
-pytest-asyncio = "^0.19.0"
+pytest-asyncio = "^0.21.1"
 pytest-pycharm = "^0.7.0"
-nitransforms = {git = "https://github.com/nipy/nitransforms.git"}
+nitransforms = "^23.0.1"
 keyboard = {git = "https://github.com/chriscline/keyboard.git"}
-darkdetect = "^0.7.1"
+darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
-pytest = "^7.2.2"
 aioconsole = "^0.6.1"
 
 [tool.poetry.dev-dependencies]
-pytest = "^7.1.1"
+pytest = "^7.4.0"
+setuptools = "^68.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

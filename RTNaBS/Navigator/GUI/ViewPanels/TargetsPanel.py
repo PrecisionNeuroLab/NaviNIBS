@@ -137,6 +137,7 @@ class VisualizedTarget:
             for wing, dir in (('wing1', 1.), ('wing2', -1.)):
                 pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
                 self._actors[wing] = self._plotter.add_lines(pts_wing,
+                                                             connected=True,
                                                              color=self._color,
                                                              width=thinWidth,
                                                              label=self._target.key,

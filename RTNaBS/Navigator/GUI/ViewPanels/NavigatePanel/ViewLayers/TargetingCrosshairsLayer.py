@@ -89,7 +89,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
             offsetLines = self._getCrosshairLineSegments(radius=self._offsetRadius, zOffset=zOffset)
 
-            depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
+            depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
 
             self._actors[actorKey] = addLineSegments(self._plotter,
                                                      concatenateLineSegments([lines, offsetLines, depthLine]),
@@ -154,7 +154,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         theta = np.linspace(0, 2 * np.pi, numPts)
         points[:, 0] = radius * np.cos(theta)
         points[:, 1] = radius * np.sin(theta)
-        return pv.utilities.lines_from_points(points)
+        return pv.lines_from_points(points)
 
     @classmethod
     def _getCrosshairLineSegments(cls,
@@ -165,12 +165,12 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         circle = cls._getCircleLines(radius=radius, numPts=numPtsInCircle)
         relNotchLength = 0.2
         # TODO: check signs and directions
-        topNotch = pv.utilities.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1 - relNotchLength), 0]]))
-        botNotch = pv.utilities.lines_from_points(
+        topNotch = pv.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1 - relNotchLength), 0]]))
+        botNotch = pv.lines_from_points(
             np.asarray([[0, -radius * (1 + relNotchLength), 0], [0, -radius * (1 - relNotchLength), 0]]))
-        leftNotch = pv.utilities.lines_from_points(
+        leftNotch = pv.lines_from_points(
             np.asarray([[-radius, 0, 0], [-radius * (1 - relNotchLength), 0, 0]]))
-        rightNotch = pv.utilities.lines_from_points(np.asarray([[radius, 0, 0], [radius * (1 - relNotchLength), 0, 0]]))
+        rightNotch = pv.lines_from_points(np.asarray([[radius, 0, 0], [radius * (1 - relNotchLength), 0, 0]]))
 
         lines = concatenateLineSegments([circle, botNotch, topNotch, leftNotch, rightNotch])
 

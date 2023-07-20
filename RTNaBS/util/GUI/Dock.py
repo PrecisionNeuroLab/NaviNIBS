@@ -369,12 +369,12 @@ class DockDrop(pgdd.DockDrop):
     def dragEnterEvent(self, ev):
         src = ev.source()
         if isinstance(src, Dock):
-            if isinstance(self, DockArea):
+            if isinstance(self.dndWidget, DockArea):
                 existingAffinities: set = set()
-                for dock in self.docks.values():
+                for dock in self.dndWidget.docks.values():
                     existingAffinities |= set(dock.affinities if dock.affinities is not None else [None])
-            elif isinstance(self, Dock):
-                existingAffinities: set = set(self.affinities if self.affinities is not None else [None])
+            elif isinstance(self.dndWidget, Dock):
+                existingAffinities: set = set(self.dndWidget.affinities if self.dndWidget.affinities is not None else [None])
             else:
                 raise NotImplementedError
 
@@ -395,7 +395,7 @@ class DockDrop(pgdd.DockDrop):
             ev.ignore()
 
 
-class Dock(pgd.Dock, DockDrop):
+class Dock(pgd.Dock):
     _affinities: list[str] | None = None
 
     sigFocused: Signal
@@ -411,7 +411,7 @@ class Dock(pgd.Dock, DockDrop):
         # completely override parent class init to specify different DockDrop class
 
         QtWidgets.QWidget.__init__(self)
-        DockDrop.__init__(self)
+        self.dockdrop = DockDrop(self)
         self._container = None
         self._name = name
         self.area = area
@@ -440,7 +440,7 @@ class Dock(pgd.Dock, DockDrop):
         self.widgets = []
         self.currentRow = 0
         # self.titlePos = 'top'
-        self.raiseOverlay()
+        self.dockdrop.raiseOverlay()
         self.hStyle = f"""
         Dock > QWidget {{
             border: {borderWidth} solid {borderColor};
@@ -496,16 +496,16 @@ class Dock(pgd.Dock, DockDrop):
         return self._affinities
 
     def dragEnterEvent(self, *args):
-        DockDrop.dragEnterEvent(self, *args)
+        self.dockdrop.dragEnterEvent(*args)
 
     def dragMoveEvent(self, *args):
-        DockDrop.dragMoveEvent(self, *args)
+        self.dockdrop.dragMoveEvent(*args)
 
     def dragLeaveEvent(self, *args):
-        DockDrop.dragLeaveEvent(self, *args)
+        self.dockdrop.dragLeaveEvent(*args)
 
     def dropEvent(self, *args):
-        DockDrop.dropEvent(self, *args)
+        self.dockdrop.dropEvent(*args)
 
     def raiseDock(self):
         if self.container() is not None and self.container().type() == 'tab':
@@ -520,7 +520,7 @@ class Dock(pgd.Dock, DockDrop):
         self.sigShown.emit()
 
 
-class DockArea(pgd.DockArea, DockDrop):
+class DockArea(pgd.DockArea):
     # noinspection PyMissingConstructor
 
     _affinities: list[str] | None = None
@@ -530,14 +530,15 @@ class DockArea(pgd.DockArea, DockDrop):
 
         pgdc.Container.__init__(self, self)
         QtWidgets.QWidget.__init__(self, parent=parent)
-        DockDrop.__init__(self, allowedAreas=['left', 'right', 'top', 'bottom'])
+        self.dockdrop = DockDrop(self)
+        self.dockdrop.removeAllowedArea('center')
         self.layout = QtWidgets.QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         self.setLayout(self.layout)
         self.docks = weakref.WeakValueDictionary()
         self.topContainer = None
-        self.raiseOverlay()
+        self.dockdrop.raiseOverlay()
         self.temporary = temporary
         self.tempAreas = []
         self.home = home
@@ -561,16 +562,16 @@ class DockArea(pgd.DockArea, DockDrop):
                     break
 
     def dragEnterEvent(self, *args):
-        DockDrop.dragEnterEvent(self, *args)
+        self.dockdrop.dragEnterEvent(*args)
 
     def dragMoveEvent(self, *args):
-        DockDrop.dragMoveEvent(self, *args)
+        self.dockdrop.dragMoveEvent(*args)
 
     def dragLeaveEvent(self, *args):
-        DockDrop.dragLeaveEvent(self, *args)
+        self.dockdrop.dragLeaveEvent(*args)
 
     def dropEvent(self, *args):
-        DockDrop.dropEvent(self, *args)
+        self.dockdrop.dropEvent(*args)
 
     def makeContainer(self, typ):
         if typ == 'vertical':

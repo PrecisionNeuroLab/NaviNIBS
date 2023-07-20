@@ -708,8 +708,8 @@ class SubjectRegistrationPanel(MainViewPanel):
         commonKeys = validPlannedFidKeys & validSampledFidKeys
         assert len(commonKeys) >= 3
 
-        plannedPts_mriSpace = np.vstack(subReg.fiducials[key].plannedCoord for key in commonKeys)
-        sampledPts_subSpace = np.vstack(subReg.fiducials[key].sampledCoord for key in commonKeys)
+        plannedPts_mriSpace = np.vstack([subReg.fiducials[key].plannedCoord for key in commonKeys])
+        sampledPts_subSpace = np.vstack([subReg.fiducials[key].sampledCoord for key in commonKeys])
 
         alignmentWeights = np.asarray([subReg.fiducials[key].alignmentWeight for key in commonKeys])
 

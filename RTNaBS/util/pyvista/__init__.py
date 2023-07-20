@@ -1,6 +1,6 @@
 import numpy as np
 import pyvista as pv
-from pyvista.plotting.mapper import make_mapper
+from pyvista.plotting.mapper import DataSetMapper
 import typing as tp
 
 Actor = pv._vtk.vtkActor
@@ -37,8 +37,7 @@ def addLineSegments(plotter: pv.BasePlotter, lines: pv.PolyData,
     assert isinstance(lines, pv.PolyData)
 
     # Create mapper and add lines
-    mapper = make_mapper(pv._vtk.vtkDataSetMapper)
-    mapper.SetInputData(lines)
+    mapper = DataSetMapper(lines)
 
     if scalars is None:
         assert scalar_bar_args is None
@@ -114,8 +113,8 @@ def addLineSegments(plotter: pv.BasePlotter, lines: pv.PolyData,
 
 def concatenateLineSegments(lineSegmentGroups: tp.Iterable[pv.PolyData]) -> pv.PolyData:
     poly = pv.PolyData()
-    poly.points = np.vstack(group.points for group in lineSegmentGroups)
-    cells = np.vstack(group.lines.reshape((-1, 3)) for group in lineSegmentGroups)
+    poly.points = np.vstack([group.points for group in lineSegmentGroups])
+    cells = np.vstack([group.lines.reshape((-1, 3)) for group in lineSegmentGroups])
     offset_points = 0
     offset_lines = 0
     for iGroup, group in enumerate(lineSegmentGroups):
