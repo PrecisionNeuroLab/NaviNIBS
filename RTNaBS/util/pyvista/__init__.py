@@ -6,6 +6,15 @@ import typing as tp
 Actor = pv._vtk.vtkActor
 
 
+if False:
+    from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+    DefaultBackgroundPlotter = BackgroundPlotter
+    EmbeddedRemotePlotter = None  # for callers to easily check if DefaultBackgroundPlotter is EmbeddedRemotePlotter
+else:
+    from RTNaBS.util.pyvista.RemotePlotting import EmbeddedRemotePlotter
+    DefaultBackgroundPlotter = EmbeddedRemotePlotter
+
+
 def setActorUserTransform(actor: Actor, transf: np.ndarray):
     t = pv._vtk.vtkTransform()
     t.SetMatrix(pv.vtkmatrix_from_array(transf))
