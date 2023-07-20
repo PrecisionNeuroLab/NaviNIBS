@@ -46,8 +46,8 @@ class VisualizedOrientation:
                 # depth axis line plus small handle orientation indicator
                 zOffset = -20
                 handleLength = 2
-                depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
-                handleLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, -handleLength, 0]]))
+                depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
+                handleLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, -handleLength, 0]]))
 
                 actorKey = self._actorKeyPrefix + 'depthLine'
 

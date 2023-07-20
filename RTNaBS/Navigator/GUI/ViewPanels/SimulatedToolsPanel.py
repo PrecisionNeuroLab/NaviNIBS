@@ -11,7 +11,6 @@ import numpy as np
 import os
 import pathlib
 import pyvista as pv
-import pyvista._vtk as vtk
 import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
@@ -222,7 +221,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         self._currentlyMovingActor = pickedKey
 
         # move
-        def onNewTransf(transf: vtk.vtkTransform):
+        def onNewTransf(transf: pv._vtk.vtkTransform):
             prevTransf = pickedActor.GetUserTransform()
             logger.debug('onNewTransf')
             # back out any tool-specific transforms and send updated transf to simulated tool position server

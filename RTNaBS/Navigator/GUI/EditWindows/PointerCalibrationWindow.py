@@ -42,8 +42,8 @@ class VisualizedOrientation:
             case 'linesPlusEndpoint':
                 zOffset = 20
                 handleLength = 2
-                depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
-                handleLine = pv.utilities.lines_from_points(np.asarray([[0, 0, zOffset], [0, -handleLength, zOffset]]))
+                depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
+                handleLine = pv.lines_from_points(np.asarray([[0, 0, zOffset], [0, -handleLength, zOffset]]))
                 actorKey = self._actorKeyPrefix + 'depthLine'
                 self._actors[actorKey] = addLineSegments(self._plotter,
                                                          depthLine,

@@ -58,6 +58,7 @@ class TargetingAngleErrorLayer(PlotViewLayer):
             pts_line = np.linspace([0, 0, 0], [1, 1, 1], self._numArcSegments + 1)
 
             self._actors[actorKey] = self._plotter.add_lines(pts_line,
+                                                             connected=True,
                                                              color=self._color,
                                                              width=self._lineWidth,
                                                              name=actorKey)
@@ -113,4 +114,4 @@ class TargetingAngleErrorLayer(PlotViewLayer):
         theta = np.linspace(startAngle, endAngle, numPts)
         points[:, xyDims[0]] = radius * np.cos(theta)
         points[:, xyDims[1]] = radius * np.sin(theta)
-        return pv.utilities.lines_from_points(points)
+        return pv.lines_from_points(points)
