@@ -156,9 +156,10 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                             if actorKey not in self._actors:
                                 # initialize graphic
                                 mesh = getattr(tool, toolOrTracker + 'Surf')
+                                meshColor = '#2222ff' if len(mesh.array_names) == 0 else None
                                 self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                       color='#2222ff' if len(mesh.array_names) == 0 else None,
-                                                       rgb=True,
+                                                       color=meshColor,
+                                                       rgb=meshColor is None,
                                                        opacity=0.8,
                                                        name=actorKey)
 
