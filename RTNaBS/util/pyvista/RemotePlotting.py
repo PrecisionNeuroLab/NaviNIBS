@@ -199,6 +199,9 @@ class _RemotePlotManager(_RemotePlotManagerBase):
             resp = await self._reqSock.recv_pyobj()
             assert resp == 'ack'
 
+        if True:
+            self.initPlotter()
+
         while True:
             logger.debug('Awaiting msg')
             if isinstance(self._repSock, mpc.PipeConnection):
@@ -486,7 +489,7 @@ class EmbeddedRemotePlotter(QtWidgets.QWidget):
         else:
             RemotePlotterApp = _RemotePlotterAppNoAsync
         self.remoteProc = mp.Process(target=RemotePlotterApp.createAndRun,
-                                     #daemon=True,
+                                     daemon=True,
                                      kwargs=procKwargs)
 
         self.remoteProc.start()
@@ -542,7 +545,7 @@ class EmbeddedRemotePlotter(QtWidgets.QWidget):
             self._embedWdgt = QtWidgets.QWidget.createWindowContainer(self._embedWin, parent=self)
 
         layout.removeWidget(tempWdgt)
-        del tempWdgt
+        tempWdgt.deleteLater()
         layout.addWidget(self._embedWdgt)
 
         if isinstance(self._reqSocket, mpc.PipeConnection):
@@ -599,7 +602,7 @@ class EmbeddedRemotePlotter(QtWidgets.QWidget):
             while True:
                 try:
                     resp = socket.recv_pyobj(flags=zmq.NOBLOCK)
-                except zmq.ZMQError:
+                except zmq.error.Again:
                     # no message available
                     QtWidgets.QApplication.instance().processEvents()
                     time.sleep(0.001)

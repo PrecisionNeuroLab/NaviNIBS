@@ -215,7 +215,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     opacity=0.5,
-                    rgb=True
+                    rgb=meshColor is None
                 )
                 setActorUserTransform(self._calibrationPlateToolActor, calibPlate.toolStlToToolTransf)
                 needsRender = True
@@ -234,7 +234,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     opacity=0.5,
-                    rgb=True
+                    rgb=meshColor is None
                 )
                 setActorUserTransform(self._calibrationPlateTrackerActor, concatenateTransforms([
                     calibPlate.trackerStlToTrackerTransf,
@@ -300,7 +300,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     opacity=0.5,
-                    rgb=True
+                    rgb=meshColor is None
                 )
                 doResetCamera = True
 
@@ -317,7 +317,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     opacity=0.5,
-                    rgb=True
+                    rgb=meshColor is None
                 )
                 doResetCamera = True
 

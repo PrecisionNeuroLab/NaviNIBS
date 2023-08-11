@@ -39,7 +39,7 @@ def set_mouse_event_for_picking(plotter: pv.BasePlotter, eventKey: str):
 
     plotter.iren.interactor.AddObserver(
         eventKey,
-        functools.partial(pv.utilities.helpers.try_callback, _launch_pick_event),
+        functools.partial(pv.core.utilities.misc.try_callback, _launch_pick_event),
     )
 
 
@@ -135,7 +135,7 @@ async def pickActor(plotter: pv.Plotter,
     if left_clicking:
         leftClickObserver = plotter.iren.interactor.AddObserver(
             "LeftButtonPressEvent",
-            functools.partial(pv.utilities.helpers.try_callback, _launch_pick_event),
+            functools.partial(pv.core.utilities.misc.try_callback, _launch_pick_event),
         )
     else:
         leftClickObserver = None
