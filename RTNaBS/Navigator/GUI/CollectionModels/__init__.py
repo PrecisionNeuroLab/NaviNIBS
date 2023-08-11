@@ -369,7 +369,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
             case QtCore.Qt.CheckStateRole:
                 if colKey in self._boolColumns:
                     if colKey in self._attrColumns:
-                        isChecked = value == QtCore.Qt.CheckState.Checked
+                        isChecked = value == QtCore.Qt.CheckState.Checked.value
                         itemKey = self.getCollectionItemKeyFromIndex(index.row())
                         if self._isSelectedAttr is None:
                             lastSelectedKeys = self._lastSelectedKeys
