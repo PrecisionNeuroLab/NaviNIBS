@@ -5,12 +5,15 @@ import typing as tp
 
 Actor = pv._vtk.vtkActor
 
-
-if False:
+# test if running on mac
+import platform
+isMac = platform.system() == 'Darwin'
+if False or isMac:
     from RTNaBS.util.pyvista.plotting import BackgroundPlotter
     DefaultBackgroundPlotter = BackgroundPlotter
     EmbeddedRemotePlotter = None  # for callers to easily check if DefaultBackgroundPlotter is EmbeddedRemotePlotter
 else:
+    # note: mac does not support remote plotting via qt window embeddeding
     from RTNaBS.util.pyvista.RemotePlotting import EmbeddedRemotePlotter
     DefaultBackgroundPlotter = EmbeddedRemotePlotter
 

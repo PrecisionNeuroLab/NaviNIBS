@@ -25,14 +25,16 @@ from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsCl
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, EmbeddedRemotePlotter
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define
@@ -45,8 +47,6 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _key: str = 'Camera'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
 
-    _cameraFOVSTLPath: str = None
-
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
@@ -56,9 +56,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _serverGUIContainer: QtWidgets.QGroupBox = attrs.field(init=False)
 
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
-    _ignoredKeys: tp.List[str] = attrs.field(init=False, factory=list)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -70,9 +69,6 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
     def _finishInitialization(self):
         super()._finishInitialization()
-
-        if self._cameraFOVSTLPath is None:
-            self._cameraFOVSTLPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'data', 'tools', 'PolarisVegaFOV.stl')
 
         self._trackingStatusWdgt = TrackingStatusWidget(session=self._session, wdgt=QtWidgets.QWidget())
         dock, _ = self._createDockWidget(
@@ -114,22 +110,27 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         container.layout().addStretch()
 
-        self._positionsClient = ToolPositionsClient()
-        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
-        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._plotter.enable_depth_peeling(4)
-
-        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
+    async def _finishInitialization_async(self):
+        self._plotter = DefaultBackgroundPlotter()
 
         dock, _ = self._createDockWidget(
             title='Tracked objects',
             widget=self._plotter)
         self._wdgt.addDock(dock, position='right')
+
+        if isinstance(self._plotter, EmbeddedRemotePlotter):
+            await self._plotter.isReadyEvent.wait()
+
+        self._positionsClient = ToolPositionsClient()
+        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
+
+        if isinstance(DefaultBackgroundPlotter, EmbeddedRemotePlotter):
+            self._plotter.enable_depth_peeling(4)
+
+        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
@@ -244,6 +245,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                 continue
 
             for actorKey in actorKeysForTool:
+                logger.debug(f'actorKey: {actorKey}')
+
                 doShow = False
                 for toolOrTracker in ('tracker', 'tool'):
                     if actorKey == (key + '_' + toolOrTracker):
@@ -273,7 +276,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                                     self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                                                     color=meshColor,
                                                                                     opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                    rgb=True,
+                                                                                    rgb=meshColor is None,
                                                                                     name=actorKey)
                                     doResetCamera = True
 
@@ -311,7 +314,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                         self._plotter.render()
 
         if doResetCamera:
-            self._plotter.reset_camera()
+            pass #self._plotter.reset_camera()
 
     def close(self):
         if self._positionsServerProc is not None:

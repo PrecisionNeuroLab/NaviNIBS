@@ -59,19 +59,19 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     def _finishInitialization(self):
         super()._finishInitialization()
 
-        dock, container = self._createDockWidget(
-            title='Tools tracking status',
-        )
-        container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
-        self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
-                                                        wdgt=container)
+        self._trackingStatusWdgt = TrackingStatusWidget(session=self._session, wdgt=QtWidgets.QWidget())
+        dock, _ = self._createDockWidget(
+            title='Tracking status',
+            widget=self._trackingStatusWdgt.wdgt)
+        dock.setStretch(1, 10)
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.addDock(dock, position='left')
 
         dock, container = self._createDockWidget(
             title='Simulated tool controls',
             layout=QtWidgets.QVBoxLayout()
         )
-        container.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
+        dock.setStretch(1, 10)
         self._wdgt.addDock(dock, position='bottom')
 
         btn = QtWidgets.QPushButton('Clear all positions')
@@ -90,9 +90,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
 
         logger.debug(f'Preparing background plotter')
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance())
+        self._plotter = BackgroundPlotter()
         self._plotter.enable_depth_peeling(3)
         if False:
             # (disabled for now, breaks mesh picking)
@@ -112,16 +110,33 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._onLatestPositionsChanged()
 
+        self._session.tools.sigItemsChanged.connect(self._onToolsChanged)
+
         if True == False:
             pass
 
-    def _onLatestPositionsChanged(self):
-        logger.debug(f'{self.__class__.__name__} _onLatestPositionsChanged')
+    def _onToolsChanged(self, toolKeysChanged: tp.List[str], changedAttribs: tp.Optional[list[str]] = None):
+        didRemove = False
+        for key, tool in self.session.tools.items():
+            actorKeysForTool = [key + '_tracker', key + '_tool']
+            for actorKey in actorKeysForTool:
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(self._actors[actorKey])
+                    self._actors.pop(actorKey)
+                    didRemove = True
 
+        if didRemove:
+            self._onLatestPositionsChanged()
+
+    def _onLatestPositionsChanged(self):
         if not self._hasInitialized and not self.isInitializing:
             return
 
+        doResetCamera = False
+
         for key, tool in self.session.tools.items():
+            if True == False:
+                logger.debug('TODO: delete')
             actorKeysForTool = [key + '_tracker', key + '_tool']
             if isinstance(tool, SubjectTracker):
                 actorKeysForTool.append(key + '_subject')
@@ -134,69 +149,92 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                 continue
 
             for actorKey in actorKeysForTool:
-                canShow = False
+                logger.debug(f'actorKey: {actorKey}')
+
+                if actorKey == self._currentlyMovingActor:
+                    # don't update position of currently moving actor to avoid "flickering"
+                    continue
+
+                doShow = False
                 for toolOrTracker in ('tracker', 'tool'):
-                    if actorKey == key + '_' + toolOrTracker:
-                        if self._currentlyMovingActor is not None and actorKey == self._currentlyMovingActor:
-                            continue  # don't update here since interactive update code will handle this actor position during move
-                        if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
-                            if toolOrTracker == 'tool':
-                                toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
-                            elif toolOrTracker == 'tracker':
-                                toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
-                            else:
-                                raise NotImplementedError()
-                            if toolOrTrackerStlToTrackerTransf is not None:
-                                canShow = True
+                    if actorKey == (key + '_' + toolOrTracker):
+                        if getattr(tool, 'doRender' + toolOrTracker.capitalize()) is False:
+                            doShow = False
                         else:
-                            # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
-                            canShow = False
+                            if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
+                                if toolOrTracker == 'tool':
+                                    toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
+                                elif toolOrTracker == 'tracker':
+                                    toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
+                                else:
+                                    raise NotImplementedError()
+                                if toolOrTrackerStlToTrackerTransf is not None:
+                                    doShow = True
 
-                        if canShow:
-                            if actorKey not in self._actors:
-                                # initialize graphic
-                                mesh = getattr(tool, toolOrTracker + 'Surf')
-                                meshColor = '#2222ff' if len(mesh.array_names) == 0 else None
-                                self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                       color=meshColor,
-                                                       rgb=meshColor is None,
-                                                       opacity=0.8,
-                                                       name=actorKey)
+                                if actorKey not in self._actors:
+                                    # initialize graphic
+                                    mesh = getattr(tool, toolOrTracker + 'Surf')
+                                    meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                    meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
+                                    if meshColor is None:
+                                        if len(mesh.array_names) > 0:
+                                            meshColor = None  # use color from surf file
+                                        else:
+                                            meshColor = '#2222ff'  # default color if nothing else provided
+                                    self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
+                                                                                    color=meshColor,
+                                                                                    opacity=1.0 if meshOpacity is None else meshOpacity,
+                                                                                    rgb=meshColor is None,
+                                                                                    name=actorKey)
+                                    doResetCamera = True
 
-                            # apply transform to existing actor
-                            setActorUserTransform(self._actors[actorKey],
-                                                  concatenateTransforms([
-                                                      toolOrTrackerStlToTrackerTransf,
-                                                      self._positionsClient.getLatestTransf(key)
-                                                  ]))
-                            self._plotter.render()
+                                # apply transform to existing actor
+                                setActorUserTransform(self._actors[actorKey],
+                                                      concatenateTransforms([
+                                                          toolOrTrackerStlToTrackerTransf,
+                                                          self._positionsClient.getLatestTransf(key)
+                                                      ]))
+                                self._plotter.render()
+                            else:
+                                # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
+                                doShow = False
 
                 if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
                     if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
-                        canShow = True
+                        doShow = True
                         if actorKey not in self._actors:
                             self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
                                                                             color='#d9a5b2',
                                                                             opacity=0.8,
                                                                             name=actorKey)
+                            doResetCamera = True
 
                         setActorUserTransform(self._actors[actorKey],
                                               self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
                         self._plotter.render()
 
                 if actorKey in self._actors:
-                    if canShow and not self._actors[actorKey].GetVisibility():
+                    if doShow and not self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOn()
                         self._plotter.render()
-                    elif not canShow and self._actors[actorKey].GetVisibility():
+                    elif not doShow and self._actors[actorKey].GetVisibility():
                         self._actors[actorKey].VisibilityOff()
                         self._plotter.render()
+
+        if doResetCamera:
+            pass  # self._plotter.reset_camera()
 
     def clearAllPositions(self):
         raise NotImplementedError  # TODO
 
     def zeroAllPositions(self):
         for key, tool in self.session.tools.items():
+            if True:
+                # only zero positions for tools that don't have positions defined relative to another tool
+                pos = self._positionsClient.latestPositions.get(key, None)
+                if pos is not None and pos.relativeTo is not None:
+                    continue
+
             self._positionsClient.setNewPosition(key=key, transf=np.eye(4))
 
     async def selectAndMoveTool(self):
@@ -228,13 +266,28 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
             # back out any tool-specific transforms and send updated transf to simulated tool position server
             transf = pv.array_from_vtkmatrix(transf.GetMatrix())
             if pickedKey.endswith('_tool'):
-                # transf = trackerToWorldTransf @ toolToTrackerTransf @ toolStlToToolTransf
-                newTrackerToWorldTransf = transf @ invertTransform(pickedTool.toolToTrackerTransf @ pickedTool.toolStlToToolTransf)
-                logger.debug('Setting new simulated position')
-                self._positionsClient.setNewPosition(key=pickedTool.key, transf=newTrackerToWorldTransf)
-                logger.debug('Done setting new simulated position')
+                # transf is toolStlToWorldTransf
+                newTrackerToWorldTransf = concatenateTransforms([
+                    invertTransform(concatenateTransforms([
+                        pickedTool.toolStlToToolTransf,
+                        pickedTool.toolToTrackerTransf
+                    ])),
+                    transf,
+                ])
+            elif pickedKey.endswith('_tracker'):
+                # transf is trackerStlToWorldTransf
+                newTrackerToWorldTransf = concatenateTransforms([
+                    invertTransform(pickedTool.trackerStlToTrackerTransf),
+                    transf,
+                ])
             else:
-                raise NotImplementedError(f'Support for moving {pickedKey} not yet implemented')
+                msg = f'Support for moving {pickedKey} not yet implemented'
+                logger.error(msg)
+                raise NotImplementedError(msg)
+
+            logger.debug('Setting new simulated position')
+            self._positionsClient.setNewPosition(key=pickedTool.key, transf=newTrackerToWorldTransf)
+            logger.debug('Done setting new simulated position')
 
         await interactivelyMoveActor(plotter=self._plotter, actor=pickedActor, onNewTransf=onNewTransf)
 
