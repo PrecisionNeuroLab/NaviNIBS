@@ -703,6 +703,12 @@ class EmbeddedRemotePlotter(QtWidgets.QWidget):
     def add_lines(self, *args, **kwargs):
         return self._remotePlotterCall('add_lines', *args, **kwargs)
 
+    def add_points(self, *args, **kwargs):
+        return self._remotePlotterCall('add_points', *args, **kwargs)
+
+    def add_point_labels(self, *args, **kwargs):
+        return self._remotePlotterCall('add_point_labels', *args, **kwargs)
+
     def enable_depth_peeling(self, *args, **kwargs):
         return self._remotePlotterCall('enable_depth_peeling', *args, **kwargs)
 
