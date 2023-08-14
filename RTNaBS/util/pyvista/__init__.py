@@ -11,11 +11,12 @@ isMac = platform.system() == 'Darwin'
 if False or isMac:
     from RTNaBS.util.pyvista.plotting import BackgroundPlotter
     DefaultBackgroundPlotter = BackgroundPlotter
-    EmbeddedRemotePlotter = None  # for callers to easily check if DefaultBackgroundPlotter is EmbeddedRemotePlotter
+    RemotePlotterProxy = None  # for callers to easily check if DefaultBackgroundPlotter is RemotePlotterProxy
 else:
     # note: mac does not support remote plotting via qt window embeddeding
-    from RTNaBS.util.pyvista.RemotePlotting import EmbeddedRemotePlotter
-    DefaultBackgroundPlotter = EmbeddedRemotePlotter
+    from RTNaBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePlotterProxy
+
+    DefaultBackgroundPlotter = RemotePlotterProxy
 
 
 def setActorUserTransform(actor: Actor, transf: np.ndarray):

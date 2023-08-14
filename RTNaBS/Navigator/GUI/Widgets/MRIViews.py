@@ -13,7 +13,7 @@ from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import composeTransform, applyTransform
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, EmbeddedRemotePlotter
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class MRISliceView:
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._finish_init))
 
     async def _finish_init(self):
-        if isinstance(self._plotter, EmbeddedRemotePlotter):
+        if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()
 
         self._plotter.set_background(self._backgroundColor)
@@ -211,7 +211,7 @@ class MRISliceView:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
             return  # prev line will have triggered its own update
 
-        if isinstance(self._plotter, EmbeddedRemotePlotter) and not self._plotter.isReadyEvent.is_set():
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # plotter not available yet
             return
 
@@ -228,7 +228,7 @@ class MRISliceView:
                 if False:
                     self.plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
                 else:
-                    if isinstance(self.plotter, EmbeddedRemotePlotter):
+                    if isinstance(self.plotter, RemotePlotterProxy):
                         pass  # TODO: add support for connecting this event
                     else:
                         self.plotter.iren.add_observer(event, lambda obj, event: self._onMouseEvent(obj,event))
@@ -377,7 +377,7 @@ class MRI3DView(MRISliceView):
                                                                          1))[:-1]
             return  # prev line will have triggered its own update
 
-        if isinstance(self._plotter, EmbeddedRemotePlotter) and not self._plotter.isReadyEvent.is_set():
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # plotter not ready
             return
 

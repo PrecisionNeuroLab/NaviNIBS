@@ -26,14 +26,14 @@ from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import setActorUserTransform, Actor
+from RTNaBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, EmbeddedRemotePlotter
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
@@ -151,6 +151,8 @@ class ToolWidget:
         self._wdgt.layout().addWidget(plotContainer)
 
         self._toolSpacePlotter = DefaultBackgroundPlotter()
+        # TODO: make sure these plotters (when RemotePlotterProxies) are appropriately terminated when switching between tools
+        # TODO: ideally actually repurpose previous RemotePlotter when switching between tools to avoid unnecessary process init times
 
         plotterContainer = QtWidgets.QGroupBox('Tool-space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
@@ -169,10 +171,10 @@ class ToolWidget:
         self.redraw()
 
     async def  _finishInitialization_async(self):
-        if isinstance(self._toolSpacePlotter, EmbeddedRemotePlotter):
+        if isinstance(self._toolSpacePlotter, RemotePlotterProxy):
             await self._toolSpacePlotter.isReadyEvent.wait()
 
-        if isinstance(self._trackerSpacePlotter, EmbeddedRemotePlotter):
+        if isinstance(self._trackerSpacePlotter, RemotePlotterProxy):
             await self._trackerSpacePlotter.isReadyEvent.wait()
 
         self._toolSpacePlotter.enable_depth_peeling(2)
@@ -182,10 +184,10 @@ class ToolWidget:
 
     def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
 
-        if isinstance(self._toolSpacePlotter, EmbeddedRemotePlotter) and not self._toolSpacePlotter.isReadyEvent.is_set():
+        if isinstance(self._toolSpacePlotter, RemotePlotterProxy) and not self._toolSpacePlotter.isReadyEvent.is_set():
             return
 
-        if isinstance(self._trackerSpacePlotter, EmbeddedRemotePlotter) and not self._trackerSpacePlotter.isReadyEvent.is_set():
+        if isinstance(self._trackerSpacePlotter, RemotePlotterProxy) and not self._trackerSpacePlotter.isReadyEvent.is_set():
             return
 
         if whatToRedraw is None or 'tool' in whatToRedraw:

@@ -26,12 +26,11 @@ from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTrack
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import Actor, setActorUserTransform
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, EmbeddedRemotePlotter
-
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -120,14 +119,14 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             widget=self._plotter)
         self._wdgt.addDock(dock, position='right')
 
-        if isinstance(self._plotter, EmbeddedRemotePlotter):
+        if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()
 
         self._positionsClient = ToolPositionsClient()
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
         self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
 
-        if isinstance(DefaultBackgroundPlotter, EmbeddedRemotePlotter):
+        if isinstance(DefaultBackgroundPlotter, RemotePlotterProxy):
             self._plotter.enable_depth_peeling(4)
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
