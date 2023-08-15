@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import attrs
 import logging
 import numpy as np
@@ -18,6 +19,7 @@ from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Transforms import applyTransform, composeTransform
 from RTNaBS.util.GUI.Dock import Dock
 from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
@@ -90,7 +92,7 @@ class NavigationView:
 
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
-    _plotter: PrimaryLayeredPlotter = attrs.field(init=False)
+    _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
     """
@@ -107,11 +109,8 @@ class SinglePlotterNavigationView(NavigationView):
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
         self._wdgt.layout().setContentsMargins(0, 0, 0, 0)
 
-        self._plotter = PrimaryLayeredPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._wdgt.layout().addWidget(self._plotter.interactor)
+        self._plotter = DefaultPrimaryLayeredPlotter()
+        self._wdgt.layout().addWidget(self._plotter)
 
         self._layerLibrary = {}
         for cls in (
@@ -128,6 +127,12 @@ class SinglePlotterNavigationView(NavigationView):
                     TargetingAngleErrorLayer,
                     ):
             self._layerLibrary[cls.type] = cls
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
@@ -232,18 +237,38 @@ class SinglePlotterNavigationView(NavigationView):
         self._plotter.render()
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
-                 layerPlotterLayer: tp.Optional[int] = None, **kwargs):
+                 plotterLayer: tp.Optional[int] = None, **kwargs):
+        """
+        Note: layer is added aynchronously later, to support delayed plotter initialization
+        """
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._addLayer_async,
+                                                           type=type,
+                                                           key=key,
+                                                           layeredPlotterKey=layeredPlotterKey,
+                                                           plotterLayer=plotterLayer,
+                                                           **kwargs
+                                                           ))
+
+    async def _addLayer_async(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
+                              plotterLayer: tp.Optional[int] = None, **kwargs):
+
+
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
         cls = self._layerLibrary[type]
         assert key not in self._layers
         if layeredPlotterKey is None:
             plotter = self._plotter
+            if plotterLayer is not None:
+                plotter.setLayer(plotterLayer)
         else:
             if layeredPlotterKey in self._plotter.secondaryPlotters:
                 plotter = self._plotter.secondaryPlotters[layeredPlotterKey]
-                if layerPlotterLayer is not None:
-                    assert plotter.rendererLayer == layerPlotterLayer
+                if plotterLayer is not None:
+                    assert plotter.rendererLayer == plotterLayer
             else:
-                plotter = self._plotter.addLayeredPlotter(key=layeredPlotterKey, layer=layerPlotterLayer)
+                plotter = self._plotter.addLayeredPlotter(key=layeredPlotterKey, layer=plotterLayer)
                 logger.debug(f'Added renderer layer {layeredPlotterKey} #{plotter.rendererLayer}')
 
         self._layers[key] = cls(key=key, **kwargs,
@@ -254,6 +279,11 @@ class SinglePlotterNavigationView(NavigationView):
         plotter.render()
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not yet ready
+            return
+
         super()._redraw(which=which)
 
         if not isinstance(which, str):
@@ -293,7 +323,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSimpleSurf',
                           color='#c9c5c2',
                           layeredPlotterKey='SkinMesh',
-                          layerPlotterLayer=0)
+                          plotterLayer=0)
 
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
@@ -307,7 +337,8 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           relevantSampleDepth='intersection')
         else:
             self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
-        self._plotter.setLayer(1 if self._doShowSkinSurf else 0)
+
+        plotLayer = 1 if self._doShowSkinSurf else 0
 
         if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
@@ -316,12 +347,8 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           opacity=0.5,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
-                          relevantSampleDepth='intersection')
-
-        if self._doParallelProjection:
-            self._plotter.camera.enable_parallel_projection()
-
-        #self._plotter.enable_depth_peeling(2)
+                          relevantSampleDepth='intersection',
+                          plotterLayer=plotLayer)
 
         if True:
             self.addLayer(type='SampleOrientations', key='Samples', layeredPlotterKey='Orientations')
@@ -408,6 +435,15 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           radius=12,
                           xyDims=xyDims,
                           layeredPlotterKey='TargetingError')
+
+    async def _finishInitialization_async(self):
+        await super()._finishInitialization_async()
+
+        if self._doParallelProjection:
+            self._plotter.camera.enable_parallel_projection()
+
+        #self._plotter.enable_depth_peeling(2)
+
 
 
 @attrs.define

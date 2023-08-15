@@ -10,7 +10,7 @@ import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
             depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
 
-            self._actors[actorKey] = addLineSegments(self._plotter,
+            self._actors[actorKey] = self._plotter.addLineSegments(
                                                      concatenateLineSegments([lines, offsetLines, depthLine]),
                                                      name=actorKey,
                                                      color=self._color,

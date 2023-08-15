@@ -42,6 +42,15 @@ class RemoteActorProxy:
     def GetMapper(self):
         return RemoteMapper(self)
 
+    def SetVisibility(self, visibility: bool):
+        return self.plotter._remoteActorCall(self, 'SetVisibility', visibility)
+
+    def VisibilityOn(self):
+        return self.plotter._remoteActorCall(self, 'VisibilityOn')
+
+    def VisibilityOff(self):
+        return self.plotter._remoteActorCall(self, 'VisibilityOff')
+
 
 @attrs.define
 class RemoteCameraProxy:
@@ -94,6 +103,9 @@ class RemoteCameraProxy:
     @view_angle.setter
     def view_angle(self, value):
         self._plotter._remoteCameraSet('view_angle', value)
+
+    def enable_parallel_projection(self):
+        self._plotter._remoteCameraCall('enable_parallel_projection')
 
 
 class RemotePlotterProxyBase:
@@ -232,11 +244,17 @@ class RemotePlotterProxyBase:
     def add_lines(self, *args, **kwargs):
         return self._remotePlotterCall('add_lines', *args, **kwargs)
 
+    def addLineSegments(self, *args, **kwargs):
+        return self._remotePlotterCall('addLineSegments', *args, **kwargs)
+
     def add_points(self, *args, **kwargs):
         return self._remotePlotterCall('add_points', *args, **kwargs)
 
     def add_point_labels(self, *args, **kwargs):
         return self._remotePlotterCall('add_point_labels', *args, **kwargs)
+
+    def addIrenStyleClassObserver(self, *args, **kwargs):
+        return self._remotePlotterCall('addIrenStyleClassObserver', *args, **kwargs)
 
     def enable_depth_peeling(self, *args, **kwargs):
         return self._remotePlotterCall('enable_depth_peeling', *args, **kwargs)
@@ -256,6 +274,9 @@ class RemotePlotterProxyBase:
     def set_camera_clipping_range(self, *args, **kwargs):
         return self._remotePlotterCall('set_camera_clipping_range', *args, **kwargs)
 
+    def reset_camera_clipping_range(self, *args, **kwargs):
+        return self._remotePlotterCall('reset_camera_clipping_range', *args, **kwargs)
+
     def add_axes_at_origin(self, *args, **kwargs):
         return self._remotePlotterCall('add_axes_at_origin', *args, **kwargs)
 
@@ -270,6 +291,12 @@ class RemotePlotterProxyBase:
 
     def remove_actor(self, *args, **kwargs):
         return self._remotePlotterCall('remove_actor', *args, **kwargs)
+
+    def pauseRendering(self):
+        return self._remotePlotterCall('pauseRendering')
+
+    def resumeRendering(self):
+        return self._remotePlotterCall('resumeRendering')
 
 
 class RemotePlotterProxy(QtWidgets.QWidget, RemotePlotterProxyBase):

@@ -28,16 +28,16 @@ from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTableWi
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
 from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
-from RTNaBS.util.pyvista import Actor, setActorUserTransform
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util import exceptionToStr
+from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
-
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -248,7 +248,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     _clearHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _refineWeightsField: QLineEditWithValidationFeedback = attrs.field(init=False)
     _refineWithHeadpointsBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
     _pointerDistanceReadouts: _PointerDistanceReadouts = attrs.field(init=False)
 
@@ -437,12 +437,16 @@ class SubjectRegistrationPanel(MainViewPanel):
         )
         sidebar.layout().addWidget(self._pointerDistanceReadouts.wdgt)
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._plotter.enable_depth_peeling(4)
+        self._plotter = DefaultBackgroundPlotter()
         self._wdgt.layout().addWidget(self._plotter)
+
+        asyncio.create_task(asyncTryAndRaiseDialogOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._plotter.enable_depth_peeling(4)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
@@ -787,6 +791,10 @@ class SubjectRegistrationPanel(MainViewPanel):
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
         logger.debug('redraw {}'.format(which))
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not ready yet
+            return
 
         if isinstance(which, list):
             for subWhich in which:
