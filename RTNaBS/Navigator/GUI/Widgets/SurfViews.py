@@ -17,7 +17,12 @@ import typing as tp
 
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.util.pyvista import Actor
-from RTNaBS.util.pyvista.plotting import PrimaryLayeredPlotter, SecondaryLayeredPlotter, BackgroundPlotter
+from RTNaBS.util.pyvista import (
+    DefaultBackgroundPlotter,
+    DefaultPrimaryLayeredPlotter,
+    DefaultSecondaryLayeredPlotter,
+    RemotePlotterProxy
+)
 from RTNaBS.util.pyvista.PlotInteraction import set_mouse_event_for_picking
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import composeTransform, applyTransform
@@ -36,9 +41,9 @@ class SurfSliceView(MRISliceView):
     _slicePlotMethod: str = 'cameraClippedVolume'
 
     _doLayeredPlotters: bool = True
-    _primaryPlotter: PrimaryLayeredPlotter = attrs.field(init=False)
-    _plotter: SecondaryLayeredPlotter | None = attrs.field(init=False)  # replace parent classes' plotter with layered plotter
-    _surfPlotter: SecondaryLayeredPlotter = attrs.field(init=False)
+    _primaryPlotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False, default=None)
+    _plotter: DefaultSecondaryLayeredPlotter | None = attrs.field(init=False, default=None)  # replace parent classes' plotter with layered plotter
+    _surfPlotter: DefaultSecondaryLayeredPlotter = attrs.field(init=False)
 
     _opacity: float = 0.5
 
@@ -49,26 +54,39 @@ class SurfSliceView(MRISliceView):
 
     def __attrs_post_init__(self):
 
+        if self._primaryPlotter is None:
+            if self._doLayeredPlotters:
+                self._primaryPlotter = DefaultPrimaryLayeredPlotter(
+                    doAutoAdjustCameraClippingRange=False,
+                )
+                self._plotter = self._primaryPlotter  # will be replaced with secondary plot layer during async init
+            else:
+                self._primaryPlotter = DefaultBackgroundPlotter()
+                self._plotter = self._primaryPlotter
+
+
+        else:
+            pass  # presumably initialized by subclass
+
+        super().__attrs_post_init__()
+
+        if self._session is not None:
+            self._session.headModel.sigDataChanged.connect(self._onHeadModelDataChanged)
+
+    async def _finish_init(self):
+        if isinstance(self._primaryPlotter, RemotePlotterProxy):
+            await self._primaryPlotter.isReadyEvent.wait()
+
         if self._doLayeredPlotters:
-            self._primaryPlotter = PrimaryLayeredPlotter(
-                show=False,
-                app=QtWidgets.QApplication.instance(),
-                doAutoAdjustCameraClippingRange=False,
-            )
             self._plotter = self._primaryPlotter.addLayeredPlotter(key='MRISlice', layer=0)
             self._surfPlotter = self._primaryPlotter.addLayeredPlotter(key='SurfSlice', layer=1)
         else:
-            self._primaryPlotter = BackgroundPlotter(
-                show=False,
-                app=QtWidgets.QApplication.instance(),
-            )
-            self._plotter = self._primaryPlotter
             self._surfPlotter = self._primaryPlotter
+
+        await super()._finish_init()
+
         self._primaryPlotter.set_background(self._backgroundColor)
 
-        super().__attrs_post_init__()
-        if self._session is not None:
-            self._session.headModel.sigDataChanged.connect(self._onHeadModelDataChanged)
         self._surfPlotter.enable_depth_peeling(8)
 
     @MRISliceView.wdgt.getter
@@ -76,7 +94,7 @@ class SurfSliceView(MRISliceView):
         return self._primaryPlotter
 
     @MRISliceView.plotter.getter
-    def plotter(self) -> PrimaryLayeredPlotter:
+    def plotter(self) -> DefaultPrimaryLayeredPlotter:
         return self._primaryPlotter
 
     @property
@@ -112,6 +130,10 @@ class SurfSliceView(MRISliceView):
     def updateView(self):
 
         super().updateView()
+
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
 
         if isinstance(self._activeSurf, str):
             surfKeys = [self._activeSurf]
@@ -164,12 +186,20 @@ class Surf3DView(SurfSliceView):
     _pickableSurfs: list[str] | None = None
 
     def __attrs_post_init__(self):
+        if self._doLayeredPlotters:
+            self._primaryPlotter = DefaultPrimaryLayeredPlotter(
+                doAutoAdjustCameraClippingRange=True,
+            )
+        else:
+            pass  # let superclass initialize plotter
+
         super().__attrs_post_init__()
 
-        if self._doLayeredPlotters:
-            self._primaryPlotter.doAutoAdjustCameraClippingRange = True
-
     def updateView(self):
+
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
 
         if self.session is None or self.session.MRI.data is None:
             # no data available
@@ -191,12 +221,17 @@ class Surf3DView(SurfSliceView):
 
         if not self._surfPlotInitialized and self.session is not None:
 
-            self.plotter.enable_parallel_projection()
-            self.plotter.enable_point_picking(show_message=False,
-                                              show_point=False,
-                                              pickable_window=True,
-                                              callback=lambda newPt: self._onSlicePointChanged())
-            set_mouse_event_for_picking(self.plotter, 'RightButtonPressEvent')
+            if not self._plotterPickerInitialized:
+                self.plotter.enable_parallel_projection()
+                self.plotter.enable_point_picking(show_message=False,
+                                                  show_point=False,
+                                                  pickable_window=True,
+                                                  callback=lambda newPt: self._onSlicePointChanged())
+                if isinstance(self.plotter, RemotePlotterProxy):
+                    pass  # TODO: enable right button press response for remote plotter
+                else:
+                    set_mouse_event_for_picking(self.plotter, 'RightButtonPressEvent')
+                self._plotterPickerInitialized = True
 
             if isinstance(self._activeSurf, str):
                 surfKeys = [self._activeSurf]

@@ -20,7 +20,7 @@ from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
 from RTNaBS.util.Transforms import applyTransform, composeTransform
 from RTNaBS.util.GUI.Dock import Dock
-from RTNaBS.util.pyvista.plotting import PrimaryLayeredPlotter
+from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 #plotLogger.setLevel(logging.DEBUG)

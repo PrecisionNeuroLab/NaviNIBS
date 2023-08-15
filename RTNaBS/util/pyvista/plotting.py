@@ -196,6 +196,18 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
             super().reset_camera_clipping_range()
 
 
+class CustomRenderWindowInteractor(pv.RenderWindowInteractor):
+    """
+    Some quirks for layered plotter setup require us to override some behavior in pyvista's RenderWindowInteractor
+    """
+
+    def get_event_subplot_loc(self):
+        # fix picking behavior for layered plotters
+
+        # assume no subplots
+        return 0, 0
+
+
 class PrimaryLayeredPlotter(BackgroundPlotter):
 
     _secondaryPlotters: dict[str, SecondaryLayeredPlotter]
@@ -229,6 +241,20 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
         self._doAutoAdjustCameraClippingRange = value
         if value:
             self.render()
+
+    def _setup_interactor(self, off_screen: bool) -> None:
+        # override superclass to use custom RenderWindowInteractor
+        if off_screen:
+            self.iren: tp.Any = None
+        else:
+            self.iren = CustomRenderWindowInteractor(
+                self, interactor=self.ren_win.GetInteractor()
+            )
+            self.iren.interactor.RemoveObservers(
+                "MouseMoveEvent"
+            )  # slows window update?
+            self.iren.initialize()
+            self.enable_trackball_style()
 
     def setLayer(self, layer: int):
         for renderer in self.renderers:
