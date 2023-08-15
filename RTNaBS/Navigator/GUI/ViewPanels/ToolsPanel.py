@@ -59,6 +59,7 @@ class ToolWidget:
     _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _toolSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
     _trackerSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
@@ -170,7 +171,7 @@ class ToolWidget:
 
         self.redraw()
 
-    async def  _finishInitialization_async(self):
+    async def _finishInitialization_async(self):
         if isinstance(self._toolSpacePlotter, RemotePlotterProxy):
             await self._toolSpacePlotter.isReadyEvent.wait()
 
@@ -180,14 +181,13 @@ class ToolWidget:
         self._toolSpacePlotter.enable_depth_peeling(2)
         self._trackerSpacePlotter.enable_depth_peeling(2)
 
+        self._finishedAsyncInit.set()
+
         self.redraw()
 
     def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
 
-        if isinstance(self._toolSpacePlotter, RemotePlotterProxy) and not self._toolSpacePlotter.isReadyEvent.is_set():
-            return
-
-        if isinstance(self._trackerSpacePlotter, RemotePlotterProxy) and not self._trackerSpacePlotter.isReadyEvent.is_set():
+        if not self._finishedAsyncInit.is_set():
             return
 
         if whatToRedraw is None or 'tool' in whatToRedraw:

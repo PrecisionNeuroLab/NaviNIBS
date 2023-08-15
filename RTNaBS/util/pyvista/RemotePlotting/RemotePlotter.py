@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import typing as tp
+from typing import ClassVar
 
 import attrs
 import numpy as np
@@ -21,7 +22,7 @@ from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 from RTNaBS.util.pyvista.RemotePlotting import ActorRef
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+#logger.setLevel(logging.INFO)
 
 
 @attrs.define
@@ -47,8 +48,8 @@ class RemotePlotManagerBase:
     _plotterKwargs: dict = attrs.field(factory=dict)
 
     _actorManager: ActorManager = attrs.field(init=False, factory=ActorManager)
-    _Plotter: tp.ClassVar
-    _plotter: RemotePlotter | None = attrs.field(init=False, default=None)
+    _Plotter: ClassVar
+    _plotter: RemotePlotter | None = attrs.field(default=None)
 
     def __attrs_post_init__(self):
         pass
@@ -56,6 +57,7 @@ class RemotePlotManagerBase:
     def initPlotter(self):
         # don't do this automatically to allow deferred widget instantiation
         assert self._plotter is None
+
         logger.info('Initializing plotter')
         self._plotter = self._Plotter(*self._plotterArgs,
                                        #parent=self._parentLayout.parentWidget(),
@@ -66,6 +68,75 @@ class RemotePlotManagerBase:
     @property
     def plotter(self):
         return self._plotter
+
+    async def _handleMsg(self, msg):
+        """
+        :return: response to message
+        """
+        if not isinstance(msg, tuple):
+            raise NotImplementedError('Unexpected message format')
+
+        match msg[0]:
+            case 'noop':
+                return 'ack'
+
+            case 'getWinID':
+                if True:
+                    win = self._parentLayout.parentWidget().window()
+                else:
+                    win = self._plotter.window()
+                return win.winId()
+
+            case 'showWindow':
+                if True:
+                    win = self._parentLayout.parentWidget().window()
+                else:
+                    win = self._plotter.window()
+
+                if self._plotter is None:
+                    # assume everything else is now ready and we should instantiate plotter
+                    self.initPlotter()
+
+                win.show()
+                return 'ack'
+
+            case 'plotterGet':
+                assert isinstance(msg[1], str)
+                assert len(msg) == 4 and len(msg[2]) == 0 and len(msg[3]) == 0
+                return getattr(self._plotter, msg[1])
+
+            case 'callPlotterMethod':
+                return self._callPlotMethod(msg[1:])
+
+            case 'callActorMethod':
+                return self._callActorMethod(msg[1], msg[2:])
+
+            case 'callActorMapperMethod':
+                result = self._callActorMapperMethod(msg[1], msg[2:])
+
+            case 'cameraGet':
+                assert isinstance(msg[1], str)
+                assert len(msg) == 4 and len(msg[2]) == 0 and len(msg[3]) == 0
+                return getattr(self._plotter.camera, msg[1])
+
+            case 'cameraSet':
+                assert isinstance(msg[1], str)
+                assert len(msg) == 4
+                assert len(msg[2]) == 1
+                assert len(msg[3]) == 0
+                setattr(self._plotter.camera, msg[1], msg[2][0])
+                return None
+
+            case 'cameraCall':
+                return self._callCameraMethod(msg[1:])
+
+            case 'queryProperty':
+                assert isinstance(msg[1], str)
+                self._queryProperty(msg[1])
+                return None
+
+            case _:
+                raise NotImplementedError(f'Unexpected message type: {msg[0]}')
 
     def _queryProperty(self, key: str) -> None:
         """
@@ -146,11 +217,7 @@ class RemotePlotManagerBase:
         raise NotImplementedError  # to be implemented by subclass
 
 
-class RemotePlotter(BackgroundPlotter):
-    def __init__(self, *args, **kwargs):
-        BackgroundPlotter.__init__(self, *args,
-                                   **kwargs)
-
+class RemotePlotterMixin:
     def setActorUserTransform(self, actor: Actor, transform: np.ndarray):
         # convert from numpy array to vtkTransform
         t = pv._vtk.vtkTransform()
@@ -159,12 +226,18 @@ class RemotePlotter(BackgroundPlotter):
         actor.SetUserTransform(t)
 
 
+class RemotePlotter(BackgroundPlotter, RemotePlotterMixin):
+    def __init__(self, *args, **kwargs):
+        BackgroundPlotter.__init__(self, *args, **kwargs)
+        RemotePlotterMixin.__init__(self)
+
+
 @attrs.define(kw_only=True)
 class RemotePlotManager(RemotePlotManagerBase):
     _reqPort: int
     _repPort: int | None = None
     _addr: str = '127.0.0.1'
-    _Plotter: tp.ClassVar = RemotePlotter
+    _Plotter: ClassVar = RemotePlotter
     _ctx: azmq.Context = attrs.field(init=False, factory=azmq.Context)
     _reqSock: azmq.Socket = attrs.field(init=False)
     _repSock: azmq.Socket = attrs.field(init=False)
@@ -200,127 +273,13 @@ class RemotePlotManager(RemotePlotManagerBase):
             msg = await self._repSock.recv_pyobj()
             logger.debug(f'Received msg: {msg}')
 
-            async def sendResponse(response):
-                await self._repSock.send_pyobj(response)
+            try:
+                resp = await self._handleMsg(msg)
+            except Exception as e:
+                logger.exception(f'Exception while handling msg {msg}: {exceptionToStr(e)}')
+                resp = e
 
-            if not isinstance(msg, tuple):
-                await sendResponse(NotImplementedError('Unexpected message format'))
-                continue
-
-            match msg[0]:
-                case 'noop':
-                    await sendResponse('ack')
-
-                case 'getWinID':
-                    if True:
-                        win = self._parentLayout.parentWidget().window()
-                    else:
-                        win = self._plotter.window()
-                    await sendResponse(win.winId())
-
-                case 'showWindow':
-                    if True:
-                        win = self._parentLayout.parentWidget().window()
-                    else:
-                        win = self._plotter.window()
-
-                    if self._plotter is None:
-                        # assume everything else is now ready and we should instantiate plotter
-                        self.initPlotter()
-
-                    win.show()
-                    await sendResponse('ack')
-
-                case 'plotterGet':
-                    try:
-                        assert isinstance(msg[1], str)
-                        assert len(msg) == 4 and len(msg[2]) == 0 and len(msg[3]) == 0
-                        result = getattr(self._plotter, msg[1])
-                    except Exception as e:
-                        logger.error(f'Error getting plotter attribute: {exceptionToStr(e)}')
-                        await sendResponse(e)
-                    else:
-                        await sendResponse(result)
-
-                case 'callPlotterMethod':
-                    try:
-                        result = self._callPlotMethod(msg[1:])
-
-                    except Exception as e:
-                        logger.error(f'Error calling plot method {msg[0]}: {exceptionToStr(e)}')
-                        await sendResponse(e)
-
-                    else:
-                        await sendResponse(result)
-
-                case 'callActorMethod':
-                    try:
-                        assert isinstance(msg[1], ActorRef)
-                        result = self._callActorMethod(msg[1], msg[2:])
-
-                    except Exception as e:
-                        logger.error(f'Error calling actor method: {exceptionToStr(e)}')
-                        await sendResponse(e)
-
-                    else:
-                        await sendResponse(result)
-
-                case 'callActorMapperMethod':
-                    try:
-                        assert isinstance(msg[1], ActorRef)
-                        result = self._callActorMapperMethod(msg[1], msg[2:])
-                    except Exception as e:
-                        logger.error(f'Error calling actor mapper method: {exceptionToStr(e)}')
-                        await sendResponse(e)
-                    else:
-                        await sendResponse(result)
-
-                case 'cameraGet':
-                    try:
-                        assert isinstance(msg[1], str)
-                        assert len(msg) == 4 and len(msg[2]) == 0 and len(msg[3]) == 0
-                        result = getattr(self._plotter.camera, msg[1])
-                    except Exception as e:
-                        logger.error(f'Error getting camera property: {exceptionToStr(e)}')
-                        await sendResponse(e)
-
-                    else:
-                        await sendResponse(result)
-
-                case 'cameraSet':
-                    try:
-                        assert isinstance(msg[1], str)
-                        assert len(msg) == 4
-                        assert len(msg[2]) == 1
-                        assert len(msg[3]) == 0
-                        setattr(self._plotter.camera, msg[1], msg[2][0])
-                    except Exception as e:
-                        logger.error(f'Error setting camera property: {exceptionToStr(e)}')
-                        await sendResponse(e)
-                    else:
-                        await sendResponse(None)
-
-                case 'cameraCall':
-                    try:
-                        result = self._callCameraMethod(msg[1:])
-                    except Exception as e:
-                        logger.error(f'Error calling camera method: {exceptionToStr(e)}')
-                        await sendResponse(e)
-                    else:
-                        await sendResponse(result)
-
-                case 'queryProperty':
-                    try:
-                        assert isinstance(msg[1], str)
-                        self._queryProperty(msg[1])
-                    except Exception as e:
-                        logger.error(f'Error querying property: {exceptionToStr(e)}')
-                        await sendResponse(e)
-                    else:
-                        await sendResponse(None)
-
-                case _:
-                    raise NotImplementedError(f'Unexpected message type: {msg[0]}')
+            await self._repSock.send_pyobj(resp)
 
     def _executeCallback(self, callbackKey: str, *args, **kwargs):
         logger.debug(f'Queuing async task for callback {callbackKey}')
@@ -340,7 +299,7 @@ class RemotePlotterApp(RunnableAsApp):
     _appName: str = 'RemotePlotter'
     _plotterKwargs: dict = attrs.field(factory=dict)
 
-    _plotManager: RemotePlotManager = attrs.field(init=False)
+    _plotManager: RemotePlotManager = attrs.field(init=False, default=None)
     _rootWdgt: QtWidgets.QWidget = attrs.field(init=False)
     _debugTimer: QtCore.QTimer = attrs.field(init=False)
 
@@ -351,11 +310,6 @@ class RemotePlotterApp(RunnableAsApp):
         wdgt.setLayout(QtWidgets.QVBoxLayout())
         wdgt.layout().setContentsMargins(0, 0, 0, 0)
 
-        self._plotManager = RemotePlotManager(reqPort=self._reqPort,
-                                              repPort=self._repPort,
-                                              parentLayout=wdgt.layout(),
-                                              plotterKwargs=self._plotterKwargs)
-
         self._win.setCentralWidget(wdgt)
 
         flags = self._win.windowFlags()
@@ -363,3 +317,12 @@ class RemotePlotterApp(RunnableAsApp):
         flags |= QtCore.Qt.MSWindowsFixedSizeDialogHint
         flags |= QtCore.Qt.SubWindow
         self._win.setWindowFlags(flags)
+
+        self._initPlotManager()
+
+    def _initPlotManager(self):
+        assert self._plotManager is None
+        self._plotManager = RemotePlotManager(reqPort=self._reqPort,
+                                              repPort=self._repPort,
+                                              parentLayout=self._rootWdgt.layout(),
+                                              plotterKwargs=self._plotterKwargs)

@@ -18,7 +18,7 @@ from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
+@attrs.define
 class MRISliceView:
     _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
@@ -37,6 +37,8 @@ class MRISliceView:
     _backgroundColor: str = '#000000'
     _opacity: float = 0.5
 
+    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     sigSliceOriginChanged: Signal = attrs.field(init=False, factory=Signal)
     sigNormalChanged: Signal = attrs.field(init=False, factory=Signal)
     sigSliceTransformChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -46,7 +48,10 @@ class MRISliceView:
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 
-        self._plotter = DefaultBackgroundPlotter()
+        if self._plotter is None:
+            self._plotter = DefaultBackgroundPlotter()
+        else:
+            pass  # presumably was initialized by subclass
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._finish_init))
 
@@ -57,6 +62,8 @@ class MRISliceView:
         self._plotter.set_background(self._backgroundColor)
 
         _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
+
+        self._finishedAsyncInit.set()
 
         self.updateView()
 
@@ -211,7 +218,7 @@ class MRISliceView:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
             return  # prev line will have triggered its own update
 
-        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+        if not self._finishedAsyncInit.is_set():
             # plotter not available yet
             return
 
@@ -377,7 +384,7 @@ class MRI3DView(MRISliceView):
                                                                          1))[:-1]
             return  # prev line will have triggered its own update
 
-        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+        if not self._finishedAsyncInit.is_set():
             # plotter not ready
             return
 

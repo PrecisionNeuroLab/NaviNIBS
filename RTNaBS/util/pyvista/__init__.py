@@ -9,14 +9,19 @@ Actor = pv._vtk.vtkActor
 import platform
 isMac = platform.system() == 'Darwin'
 if False or isMac:
-    from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+    from RTNaBS.util.pyvista.plotting import BackgroundPlotter, PrimaryLayeredPlotter, SecondaryLayeredPlotter
     DefaultBackgroundPlotter = BackgroundPlotter
-    RemotePlotterProxy = None  # for callers to easily check if DefaultBackgroundPlotter is RemotePlotterProxy
+    RemotePlotterProxy = type('__None')  # for callers to easily check if DefaultBackgroundPlotter is RemotePlotterProxy
+    DefaultPrimaryLayeredPlotter = PrimaryLayeredPlotter
+    DefaultSecondaryLayeredPlotter = SecondaryLayeredPlotter
 else:
     # note: mac does not support remote plotting via qt window embeddeding
     from RTNaBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePlotterProxy
+    from RTNaBS.util.pyvista.RemotePlotting.RemoteLayeredPlotterProxies import RemotePrimaryLayeredPlotterProxy, RemoteSecondaryLayeredPlotterProxy
 
     DefaultBackgroundPlotter = RemotePlotterProxy
+    DefaultPrimaryLayeredPlotter = RemotePrimaryLayeredPlotterProxy
+    DefaultSecondaryLayeredPlotter = RemoteSecondaryLayeredPlotterProxy
 
 
 def setActorUserTransform(actor: Actor, transf: np.ndarray):
