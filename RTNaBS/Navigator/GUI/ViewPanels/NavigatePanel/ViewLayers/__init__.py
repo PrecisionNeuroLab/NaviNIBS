@@ -12,8 +12,8 @@ from typing import ClassVar
 
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import TargetingCoordinator
 from RTNaBS.util import classproperty
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class ViewLayer:
 
 @attrs.define
 class PlotViewLayer(ViewLayer):
-    _plotter: BackgroundPlotter  # note that this one plotter may be shared between multiple ViewLayers
+    _plotter: DefaultBackgroundPlotter  # note that this one plotter may be shared between multiple ViewLayers
     _plotInSpace: str = 'MRI'
 
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
@@ -48,6 +48,10 @@ class PlotViewLayer(ViewLayer):
         self._redraw('all')
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # remote plotter not ready yet
+            return
 
         #logger.debug('redraw {}'.format(which))
 

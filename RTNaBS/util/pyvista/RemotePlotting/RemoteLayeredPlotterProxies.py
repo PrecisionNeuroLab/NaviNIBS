@@ -11,16 +11,22 @@ from RTNaBS.util.pyvista.RemotePlotting.RemoteLayeredPlotter import RemoteLayere
 class RemoteSecondaryLayeredPlotterProxy(RemotePlotterProxyBase):
     _mainPlotter: RemotePrimaryLayeredPlotterProxy
     _layerKey: str
+    _rendererLayer: int
 
     def __init__(self,
                  mainPlotter: RemotePrimaryLayeredPlotterProxy,
                  layerKey: str,
-                 **kwargs):
+                 rendererLayer: int):
         RemotePlotterProxyBase.__init__(self)
         self._layerKey = layerKey
         self._mainPlotter = mainPlotter
+        self._rendererLayer = rendererLayer
 
         self._isReady.set()  # no async init needed for secondary plotter
+
+    @property
+    def rendererLayer(self):
+        return self._rendererLayer
 
     async def _sendReqAndRecv_async(self, msg):
         return await self._mainPlotter._sendReqAndRecv_async(msg, layerKey=self._layerKey)
@@ -37,6 +43,10 @@ class RemotePrimaryLayeredPlotterProxy(RemotePlotterProxy):
         RemotePlotterProxy.__init__(self, **kwargs)
 
         self._secondaryPlotters = dict()
+
+    @property
+    def secondaryPlotters(self):
+        return self._secondaryPlotters
 
     def _startRemoteProc(self, procKwargs, **kwargs):
         assert self.remoteProc is None
@@ -59,7 +69,7 @@ class RemotePrimaryLayeredPlotterProxy(RemotePlotterProxy):
 
         assert key not in self._secondaryPlotters
         # add as a remote plotter
-        self._remotePlotterCall('addLayeredPlotter', key=key, layer=layer)
+        layer = self._remotePlotterCall('addLayeredPlotter', key=key, layer=layer)
         # add as a proxy
         self._secondaryPlotters[key] = RemoteSecondaryLayeredPlotterProxy(
             mainPlotter=self,
@@ -68,4 +78,5 @@ class RemotePrimaryLayeredPlotterProxy(RemotePlotterProxy):
 
         return self._secondaryPlotters[key]
 
-
+    def setLayer(self, layer: int):
+        return self._remotePlotterCall('setLayer', layer=layer)

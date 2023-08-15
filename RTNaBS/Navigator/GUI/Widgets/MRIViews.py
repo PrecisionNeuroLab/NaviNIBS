@@ -178,7 +178,7 @@ class MRISliceView:
         pos = self._sliceOrigin + offset
         self.sliceOrigin = pos
 
-    def _onMouseEvent(self, obj, event):
+    def _onMouseEvent(self, _, event):
         # TODO: check if `obj` has any info about scroll speed to scroll with larger increment
 
         if event == 'MouseWheelForwardEvent':
@@ -232,13 +232,9 @@ class MRISliceView:
                                                callback=lambda newPt: self._onSlicePointChanged())
             self.plotter.enable_image_style()
             for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
-                if False:
-                    self.plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
-                else:
-                    if isinstance(self.plotter, RemotePlotterProxy):
-                        pass  # TODO: add support for connecting this event
-                    else:
-                        self.plotter.iren.add_observer(event, lambda obj, event: self._onMouseEvent(obj,event))
+                self.plotter.addIrenStyleClassObserver(
+                    event=event,
+                    callback=lambda obj, event: self._onMouseEvent(obj,event))
             self._plotterPickerInitialized = True
 
         if self._slicePlotMethod == 'slicedSurface':

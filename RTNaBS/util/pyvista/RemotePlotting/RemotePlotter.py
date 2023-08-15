@@ -205,6 +205,7 @@ class RemotePlotManagerBase:
 
         # convert any Actors to ActorRefs
         if isinstance(result, (Actor,
+                               vtkmodules.vtkRenderingCore.vtkActor2D,
                                vtkmodules.vtkRenderingAnnotation.vtkAxesActor,
                                pv._vtk.vtkVolume)):
             # Actor is not pickleable, so convert to an ActorRef

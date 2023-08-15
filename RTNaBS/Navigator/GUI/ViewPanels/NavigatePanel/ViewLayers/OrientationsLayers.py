@@ -12,7 +12,7 @@ from typing import ClassVar
 from . import PlotViewLayer
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class VisualizedOrientation:
                     scalar_bar_args = None
                     color=self._colorDepthIndicator
 
-                self._actors[actorKey] = addLineSegments(self._plotter,
+                self._actors[actorKey] = self._plotter.addLineSegments(
                                                          depthLine,
                                                          name=actorKey,
                                                          color=color,
@@ -83,7 +83,7 @@ class VisualizedOrientation:
                     scalar_bar_args = None
                     color=self._colorHandleIndicator
 
-                self._actors[actorKey] = addLineSegments(self._plotter,
+                self._actors[actorKey] = self._plotter.addLineSegments(
                                                          handleLine,
                                                          name=actorKey,
                                                          color=color,

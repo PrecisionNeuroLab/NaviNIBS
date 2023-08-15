@@ -14,7 +14,7 @@ class RemoteSecondaryLayeredPlotter(SecondaryLayeredPlotter, RP.RemotePlotterMix
 
 class RemotePrimaryLayeredPlotter(PrimaryLayeredPlotter, RP.RemotePlotterMixin):
 
-    _createSecondaryPlotter: tp.Callable[..., SecondaryLayeredPlotter] = RemoteSecondaryLayeredPlotter
+    _createSecondaryPlotter: tp.Callable[..., RemoteSecondaryLayeredPlotter] = RemoteSecondaryLayeredPlotter
     """
     This allows creator to specify a different function to instantiate secondary plotters.
     First two arguments will be key and layer, and the rest will kwargs for the plotter.
@@ -27,12 +27,14 @@ class RemotePrimaryLayeredPlotter(PrimaryLayeredPlotter, RP.RemotePlotterMixin):
         PrimaryLayeredPlotter.__init__(self, *args, **kwargs)
         RP.RemotePlotterMixin.__init__(self)
 
-    def addLayeredPlotter(self, key: str, layer: tp.Optional[int] = None) -> None:
+    def addLayeredPlotter(self, key: str, layer: tp.Optional[int] = None) -> int:
+        """
+        Note: this returns int layer rather than the plotter itself, unlike superclass
+        """
         assert key not in self._secondaryPlotters
         self._secondaryPlotters[key] = self._createSecondaryPlotter(
             key, layer, mainPlotter=self, rendererLayer=layer)
-        # note: unlike superclass, we don't return the created plotter, assuming
-        # that the primary manager will handle it
+        return self._secondaryPlotters[key].rendererLayer
 
 
 @attrs.define
@@ -58,7 +60,7 @@ class RemotePrimaryLayeredPlotManager(RP.RemotePlotManager):
 
     def _createSecondaryPlot(self, key: str, layer: int | None, **kwargs) -> SecondaryLayeredPlotter:
         self._secondaryPlotManagers[key] = RemoteSecondaryLayeredPlotManager(
-            plotter=SecondaryLayeredPlotter(**kwargs),
+            plotter=RemoteSecondaryLayeredPlotter(**kwargs),
             parentLayout=self._parentLayout,
         )
         return self._secondaryPlotManagers[key].plotter

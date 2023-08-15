@@ -20,7 +20,6 @@ from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget

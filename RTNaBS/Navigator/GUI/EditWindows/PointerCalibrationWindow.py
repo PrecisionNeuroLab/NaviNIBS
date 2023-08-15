@@ -12,7 +12,7 @@ import typing as tp
 
 from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
@@ -45,7 +45,7 @@ class VisualizedOrientation:
                 depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
                 handleLine = pv.lines_from_points(np.asarray([[0, 0, zOffset], [0, -handleLength, zOffset]]))
                 actorKey = self._actorKeyPrefix + 'depthLine'
-                self._actors[actorKey] = addLineSegments(self._plotter,
+                self._actors[actorKey] = self._plotter.addLineSegments(
                                                          depthLine,
                                                          name=actorKey,
                                                          color=self._colorDepthIndicator,
@@ -53,7 +53,7 @@ class VisualizedOrientation:
                                                          opacity=self._opacity)
 
                 actorKey = self._actorKeyPrefix + 'handleLine'
-                self._actors[actorKey] = addLineSegments(self._plotter,
+                self._actors[actorKey] = self._plotter.addLineSegments(
                                                          handleLine,
                                                          name=actorKey,
                                                          color=self._colorHandleIndicator,
