@@ -20,7 +20,7 @@ from RTNaBS.util.pyvista.RemotePlotting import ActorRef
 from RTNaBS.util.pyvista.RemotePlotting.RemotePlotter import RemotePlotterApp
 
 logger = logging.getLogger(__name__)
-#logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define(frozen=True)

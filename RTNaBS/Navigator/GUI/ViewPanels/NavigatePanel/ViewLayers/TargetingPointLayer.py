@@ -37,8 +37,8 @@ class TargetingPointLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='all'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePosition']))
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='all'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updatePosition']))
 
     def _getCoord(self, orientation: str, depth: tp.Union[str, ProjectionSpecification]) -> tp.Optional[np.ndarray]:
         return self._coordinator.getTargetingCoord(orientation=orientation, depth=depth)
