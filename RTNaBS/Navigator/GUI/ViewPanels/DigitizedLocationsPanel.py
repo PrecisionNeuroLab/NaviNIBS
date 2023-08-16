@@ -25,12 +25,13 @@ from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
 
 @attrs.define
 class DigitizedLocationsPanel(MainViewPanel):
@@ -44,7 +45,7 @@ class DigitizedLocationsPanel(MainViewPanel):
     _clearSampleLocationBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _deleteLocationBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _newLocationFromPointerBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
     _positionsClient: tp.Optional[ToolPositionsClient] = attrs.field(init=False, default=None)
     _tblWdgt: DigitizedLocationsTableWidget = attrs.field(init=False)
@@ -121,15 +122,19 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         sidebar.layout().addStretch()
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._plotter.enable_depth_peeling(4)
+        self._plotter = DefaultBackgroundPlotter()
         self._wdgt.layout().addWidget(self._plotter)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
+
+    async def _finishInitialization_async(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._plotter.enable_depth_peeling(4)
+
+        self._redraw(which='all')
 
     def _onSessionSet(self):
         super()._onSessionSet()
@@ -248,6 +253,10 @@ class DigitizedLocationsPanel(MainViewPanel):
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
         if not self.isVisible:
+            return
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not yet ready
             return
 
         logger.debug('redraw {}'.format(which))

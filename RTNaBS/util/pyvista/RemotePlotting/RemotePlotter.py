@@ -80,6 +80,10 @@ class RemotePlotManagerBase:
             case 'noop':
                 return 'ack'
 
+            case 'quit':
+                asyncio.create_task(self._closeAfterDelay())
+                return 'ack'
+
             case 'getWinID':
                 if True:
                     win = self._parentLayout.parentWidget().window()
@@ -216,6 +220,10 @@ class RemotePlotManagerBase:
 
     def _executeCallback(self, callbackKey: str, *args, **kwargs):
         raise NotImplementedError  # to be implemented by subclass
+
+    async def _closeAfterDelay(self):
+        await asyncio.sleep(0.1)
+        self._parentLayout.parentWidget().window().close()
 
 
 class RemotePlotterMixin:
