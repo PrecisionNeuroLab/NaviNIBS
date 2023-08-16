@@ -30,8 +30,8 @@ class TargetingErrorLineLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='updatePosition'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePosition']))
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='updatePosition'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updatePosition']))
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)

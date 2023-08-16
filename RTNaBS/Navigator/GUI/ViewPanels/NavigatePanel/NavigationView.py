@@ -22,6 +22,7 @@ from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Transforms import applyTransform, composeTransform
 from RTNaBS.util.GUI.Dock import Dock
+from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ Transform = np.ndarray
 
 
 @attrs.define
-class NavigationView:
+class NavigationView(QueuedRedrawMixin):
     _key: str
     _type: ClassVar[str]
     _coordinator: TargetingCoordinator
@@ -47,6 +48,8 @@ class NavigationView:
     _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._dock = Dock(
             name=self._dockKeyPrefix + self._key,
             affinities=[self._dockKeyPrefix])
@@ -65,13 +68,19 @@ class NavigationView:
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         logger.debug('redraw {}'.format(which))
 
+        super()._redraw(which=which)
+
         if which is None:
             which = 'all'
+            self._redraw(which=which)
+            return
 
         if not isinstance(which, str):
             for subWhich in which:
                 self._redraw(which=subWhich)
             return
+
+        # subclass should handle the rest
 
     @property
     def key(self):
@@ -145,11 +154,11 @@ class SinglePlotterNavigationView(NavigationView):
 
     def _onCurrentTargetChanged(self):
         if self._alignCameraTo.startswith('target'):
-            self._alignCamera()
+            self._queueRedraw(which='camera')
 
     def _onCurrentCoilPositionChanged(self):
         if self._alignCameraTo.startswith('coil'):
-            self._alignCamera()
+            self._queueRedraw(which='camera')
 
     @staticmethod
     def _getExtraRotationForToAlignCamera(rotSuffix: str) -> np.ndarray:
@@ -300,7 +309,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         elif which == 'layers':
             for layer in self._layers.values():
-                layer._redraw()
+                layer._queueRedraw(which='all')
 
         else:
             raise NotImplementedError

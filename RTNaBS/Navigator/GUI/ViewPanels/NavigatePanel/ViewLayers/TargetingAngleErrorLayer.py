@@ -36,8 +36,8 @@ class TargetingAngleErrorLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='updateAngle'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updateAngle']))
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='updateAngle'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updateAngle']))
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
