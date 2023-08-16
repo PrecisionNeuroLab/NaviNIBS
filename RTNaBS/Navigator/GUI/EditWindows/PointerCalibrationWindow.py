@@ -11,9 +11,10 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
 
     _pendingNewTransf: tp.Optional[np.ndarray] = attrs.field(init=False, default=None)  # result of calibration, not yet saved to tool
 
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _liveVisual: tp.Optional[VisualizedOrientation] = attrs.field(init=False, default=None)
     _sampleVisuals_orig: list[VisualizedOrientation] = attrs.field(init=False, factory=list)
     _sampleVisuals_pending: list[VisualizedOrientation] = attrs.field(init=False, factory=list)
@@ -152,10 +153,7 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
         splitRight.setLayout(QtWidgets.QVBoxLayout())
         splitter.addWidget(splitRight)
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
+        self._plotter = DefaultBackgroundPlotter()
         splitRight.layout().addWidget(self._plotter)
 
         if len(self._samples) > 0:
@@ -221,6 +219,26 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
         self.sigFinished.connect(self._onDialogFinished)
 
         self._wdgt.resize(QtCore.QSize(1000, 800))
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for btn in (
+            self._deleteLastSampleBtn,
+            self._acquireSampleBtn,
+            self._calibrateBtn,
+            self._revertBtn,
+        ):
+            btn.setEnabled(False)
+
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._deleteLastSampleBtn.setEnabled(len(self._samples) > 0)
+        self._calibrateBtn.setEnabled(len(self._samples) > 2)
+        self._revertBtn.setEnabled(self._pendingNewTransf is not None)
+
+        self._onLatestPositionsChanged()
 
     def _onDeleteLastSampleClicked(self):
         if len(self._samples) > 0:
@@ -392,6 +410,10 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
         self._plotter.close()
 
     def _onLatestPositionsChanged(self):
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not ready yet
+            return
+
         super()._onLatestPositionsChanged()
         if self.toolToCalibrate.isActive and self._positionsClient.getLatestTransf(self._toolKeyToCalibrate, None) is not None:
             self._acquireSampleBtn.setEnabled(True)

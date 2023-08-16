@@ -299,7 +299,7 @@ class RemotePlotterProxyBase:
         return self._remotePlotterCall('resumeRendering')
 
 
-class RemotePlotterProxy(QtWidgets.QWidget, RemotePlotterProxyBase):
+class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
     """
     There are issues with instantiating multiple pyvista BackgroundPlotters in the same
     process, related to opengl window binding and threaded render contexts. To work around
@@ -314,10 +314,12 @@ class RemotePlotterProxy(QtWidgets.QWidget, RemotePlotterProxyBase):
      adapted by the caller.
     """
 
-    def __init__(self, **kwargs):
-
-        QtWidgets.QWidget.__init__(self)
+    def __init__(self, parent=None, **kwargs):
         RemotePlotterProxyBase.__init__(self)
+        QtWidgets.QWidget.__init__(self, parent=parent)
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
+                           QtWidgets.QSizePolicy.Policy.Expanding)
 
         ctx = zmq.Context()
         actx = azmq.Context()
@@ -362,6 +364,7 @@ class RemotePlotterProxy(QtWidgets.QWidget, RemotePlotterProxyBase):
 
         tempWdgt = QtWidgets.QLabel()
         tempWdgt.setText('Initializing plotter...')
+        tempWdgt.setAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter | QtCore.Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(tempWdgt)
 
         logger.debug('Waiting for remote to start up')
@@ -433,6 +436,13 @@ class RemotePlotterProxy(QtWidgets.QWidget, RemotePlotterProxyBase):
             return RemotePlotterProxyBase.render(self)
         else:
             return QtWidgets.QWidget.render(self, *args, **kwargs)
+
+    def close(self):
+        logger.info('Closing')
+        self._sendReqAndRecv(('quit',))
+        self._socketLoopTask.cancel()
+        self.remoteProc.terminate()
+        super().close()
 
 
 @attrs.define(frozen=True)

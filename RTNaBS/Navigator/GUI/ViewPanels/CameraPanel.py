@@ -109,15 +109,16 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         container.layout().addStretch()
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
-
-    async def _finishInitialization_async(self):
         self._plotter = DefaultBackgroundPlotter()
 
         dock, _ = self._createDockWidget(
             title='Tracked objects',
             widget=self._plotter)
         self._wdgt.addDock(dock, position='right')
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
 
         if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()

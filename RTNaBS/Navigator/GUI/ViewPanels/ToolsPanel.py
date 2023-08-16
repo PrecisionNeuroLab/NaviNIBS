@@ -151,7 +151,7 @@ class ToolWidget:
         plotContainer.setLayout(QtWidgets.QHBoxLayout())
         self._wdgt.layout().addWidget(plotContainer)
 
-        self._toolSpacePlotter = DefaultBackgroundPlotter()
+        self._toolSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
         # TODO: make sure these plotters (when RemotePlotterProxies) are appropriately terminated when switching between tools
         # TODO: ideally actually repurpose previous RemotePlotter when switching between tools to avoid unnecessary process init times
 
@@ -160,7 +160,7 @@ class ToolWidget:
         plotterContainer.layout().addWidget(self._toolSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        self._trackerSpacePlotter = DefaultBackgroundPlotter()
+        self._trackerSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
 
         plotterContainer = QtWidgets.QGroupBox('Tracker-space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
@@ -370,7 +370,9 @@ class ToolWidget:
 
     def close(self):
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
-        self.wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
+        self._toolSpacePlotter.close()
+        self._trackerSpacePlotter.close()
+        self._wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
 
     @staticmethod
     def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:

@@ -8,9 +8,10 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter, PrimaryLayeredPlotter, SecondaryLayeredPlotter
+from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, DefaultSecondaryLayeredPlotter, RemotePlotterProxy
 
 
 logger = logging.getLogger(__name__)
@@ -26,9 +27,9 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
 
     _instructions: QtWidgets.QTextEdit = attrs.field(init=False)
 
-    _plotter: PrimaryLayeredPlotter = attrs.field(init=False)
-    _plotterUpperLayer: SecondaryLayeredPlotter = attrs.field(init=False)
-    _plotterLowerLayer: SecondaryLayeredPlotter = attrs.field(init=False)
+    _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
+    _plotterUpperLayer: DefaultSecondaryLayeredPlotter = attrs.field(init=False)
+    _plotterLowerLayer: DefaultSecondaryLayeredPlotter = attrs.field(init=False)
 
     _coilToolActor: Actor | None = attrs.field(init=False, default=None)
     _coilTrackerActor: Actor | None = attrs.field(init=False, default=None)
@@ -71,14 +72,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         splitRight.setLayout(QtWidgets.QVBoxLayout())
         splitter.addWidget(splitRight)
 
-        self._plotter = PrimaryLayeredPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
+        self._plotter = DefaultPrimaryLayeredPlotter()
         splitRight.layout().addWidget(self._plotter)
-
-        self._plotterUpperLayer = self._plotter.addLayeredPlotter(key='AxesIndicators', layer=1)
-        self._plotterLowerLayer = self._plotter.addLayeredPlotter(key='Meshes', layer=0)
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QHBoxLayout())
@@ -101,6 +96,18 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         self.sigFinished.connect(self._onDialogFinished)
 
         self._wdgt.resize(QtCore.QSize(1000, 1200))
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._plotterUpperLayer = self._plotter.addLayeredPlotter(key='AxesIndicators', layer=1)
+        self._plotterLowerLayer = self._plotter.addLayeredPlotter(key='Meshes', layer=0)
+
+        self._onLatestPositionsChanged()
 
     def calibrate(self):
         # TODO: spin-wait positions client to make sure we have most up-to-date information
@@ -133,6 +140,10 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         self._plotter.close()
 
     def _resetCamera(self):
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not yet ready
+            return
+
         self._plotter.camera.focal_point = (0, 0, 0)
         self._plotter.camera.position = (0, 0, 700)
         self._plotter.camera.up = (0, 1, 0)
@@ -141,6 +152,11 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         self._plotter.render()
 
     def _onLatestPositionsChanged(self):
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not yet ready
+            return
+
         needsRender = False
         doResetCamera = False
 
