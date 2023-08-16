@@ -349,7 +349,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         self.remoteProc.start()
 
     async def _sendReqAndRecv_async(self, msg):
-        async with self._areqLock:  # caller should have acquired lock
+        async with self._areqLock:
             self._areqSocket.send_pyobj(msg)
             return await self._areqSocket.recv_pyobj()
 
@@ -437,11 +437,16 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         else:
             return QtWidgets.QWidget.render(self, *args, **kwargs)
 
-    def close(self):
+    async def close_async(self):
         logger.info('Closing')
-        self._sendReqAndRecv(('quit',))
+        await self._isReady.wait()
+        await self._sendReqAndRecv_async(('quit',))
         self._socketLoopTask.cancel()
         self.remoteProc.terminate()
+
+    def close(self):
+        logger.info('Closing')
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self.close_async))
         super().close()
 
 
