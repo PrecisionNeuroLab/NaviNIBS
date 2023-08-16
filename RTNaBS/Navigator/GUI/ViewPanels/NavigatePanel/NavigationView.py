@@ -336,6 +336,8 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
+        plotLayer = 1 if self._doShowSkinSurf else 0
+
         if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='Brain',
@@ -345,9 +347,10 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           colorbarLabel='Vpp (dBmV)',
                           relevantSampleDepth='intersection')
         else:
-            self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf')
+            self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf',
+                          plotterLayer=plotLayer)
 
-        plotLayer = 1 if self._doShowSkinSurf else 0
+        plotLayer += 1
 
         if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',

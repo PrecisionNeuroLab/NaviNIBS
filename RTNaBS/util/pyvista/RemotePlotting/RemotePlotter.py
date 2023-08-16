@@ -22,7 +22,7 @@ from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 from RTNaBS.util.pyvista.RemotePlotting import ActorRef
 
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define
