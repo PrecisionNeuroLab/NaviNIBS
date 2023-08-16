@@ -218,7 +218,7 @@ class SampleOrientationsLayer(OrientationsLayer):
                 self._coordinator.session.samples[key].isSelected)
 
     def _onSamplesChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
-        self._redraw(which='orientations', changedOrientationKeys=changedKeys)
+        self._queueRedraw(which='orientations', changedOrientationKeys=changedKeys)
 
 
 @attrs.define
@@ -247,4 +247,4 @@ class TargetOrientationsLayer(OrientationsLayer):
                 self._coordinator.session.targets[key].isSelected)
 
     def _onTargetsChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
-        self._redraw(which='orientations', changedOrientationKeys=changedKeys)
+        self._queueRedraw(which='orientations', changedOrientationKeys=changedKeys)

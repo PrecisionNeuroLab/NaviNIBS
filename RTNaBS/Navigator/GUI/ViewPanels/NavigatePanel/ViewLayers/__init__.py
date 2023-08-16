@@ -49,7 +49,8 @@ class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
-        super().__attrs_post_init__()
+        ViewLayer.__attrs_post_init__(self)
+        QueuedRedrawMixin.__attrs_post_init__(self)
         self._redraw('all')
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):

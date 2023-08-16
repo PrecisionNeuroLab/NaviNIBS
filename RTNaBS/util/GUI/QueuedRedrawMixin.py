@@ -1,9 +1,12 @@
 import asyncio
 import attrs
+import logging
 import typing as tp
 
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 @attrs.define(slots=False, kw_only=True)
 class QueuedRedrawMixin:
@@ -12,7 +15,7 @@ class QueuedRedrawMixin:
     Especially useful for queueing redraws spawned by Qt events but that we want to handle
     in async loop, and for reducing redundant redraws.
     """
-    _redrawQueue: list[str] = attrs.field(init=False, factory=list)
+    _redrawQueue: list[str | tuple[str, dict]] = attrs.field(init=False, factory=list)
     _redrawQueueModified: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
@@ -21,18 +24,25 @@ class QueuedRedrawMixin:
     async def _loop_queuedRedraw(self):
         while True:
             await self._redrawQueueModified.wait()
-            self._redrawQueueModified.clear()
-            if len(self._redrawQueue) > 0:
+            while len(self._redrawQueue) > 0:
                 toRedraw = self._redrawQueue.pop(0)
-                self._redraw(which=toRedraw)
+                logger.debug(f'Dequeuing redraw for {self.__class__.__name__} {toRedraw}')
+                if isinstance(toRedraw, str):
+                    self._redraw(which=toRedraw)
+                else:
+                    # tuple of (which, kwargs)
+                    assert len(toRedraw) == 2
+                    self._redraw(which=toRedraw[0], **toRedraw[1])
+            self._redrawQueueModified.clear()
+            await asyncio.sleep(0.05)  # rate limit  # TODO: make this a parameter
 
-    def _queueRedraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None):
+    def _queueRedraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
         if which is None:
             which = 'all'
 
         if not isinstance(which, str):
             for subWhich in which:
-                self._queueRedraw(which=subWhich)
+                self._queueRedraw(which=subWhich, **kwargs)
             return
 
         if which == 'all':
@@ -44,14 +54,23 @@ class QueuedRedrawMixin:
                 return  # don't need to add duplicate to queue
                 # (assumes order of redraws doesn't matter)
 
-        self._redrawQueue.append(which)
+        if len(kwargs) == 0:
+            queueKey = which
+        else:
+            queueKey = (which, kwargs)
+        logger.debug(f'Queueing redraw for {self.__class__.__name__} {queueKey}')
+        self._redrawQueue.append(queueKey)
         self._redrawQueueModified.set()
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None):
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
         if isinstance(which, str):
             # since we're redrawing now, can remove this from the queue
+            if len(kwargs)==0:
+                queueKey = which
+            else:
+                queueKey = (which, kwargs)
             try:
-                self._redrawQueue.remove(which)
+                self._redrawQueue.remove(queueKey)
             except ValueError:
                 pass
             else:
