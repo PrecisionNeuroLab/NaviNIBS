@@ -166,11 +166,12 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         didRemove = False
         for key, tool in self.session.tools.items():
             actorKeysForTool = [key + '_tracker', key + '_tool']
-            for actorKey in actorKeysForTool:
-                if actorKey in self._actors:
-                    self._plotter.remove_actor(self._actors[actorKey])
-                    self._actors.pop(actorKey)
-                    didRemove = True
+            with self._plotter.allowNonblockingCalls():
+                for actorKey in actorKeysForTool:
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(self._actors[actorKey])
+                        self._actors.pop(actorKey)
+                        didRemove = True
 
         if didRemove:
             self._onLatestPositionsChanged()
@@ -239,9 +240,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
             if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
                 # no valid position available
-                for actorKey in actorKeysForTool:
-                    if actorKey in self._actors and self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOff()
+                with self._plotter.allowNonblockingCalls():
+                    for actorKey in actorKeysForTool:
+                        if actorKey in self._actors and self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOff()
                 continue
 
             for actorKey in actorKeysForTool:
@@ -280,13 +282,14 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                                                                                     name=actorKey)
                                     doResetCamera = True
 
-                                # apply transform to existing actor
-                                setActorUserTransform(self._actors[actorKey],
-                                                      concatenateTransforms([
-                                                          toolOrTrackerStlToTrackerTransf,
-                                                          self._positionsClient.getLatestTransf(key)
-                                                      ]))
-                                self._plotter.render()
+                                with self._plotter.allowNonblockingCalls():
+                                    # apply transform to existing actor
+                                    setActorUserTransform(self._actors[actorKey],
+                                                          concatenateTransforms([
+                                                              toolOrTrackerStlToTrackerTransf,
+                                                              self._positionsClient.getLatestTransf(key)
+                                                          ]))
+                                    self._plotter.render()
                             else:
                                 # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
                                 doShow = False
@@ -301,20 +304,24 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                                                                             name=actorKey)
                             doResetCamera = True
 
-                        setActorUserTransform(self._actors[actorKey],
-                                              self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
-                        self._plotter.render()
+                        with self._plotter.allowNonblockingCalls():
+                            setActorUserTransform(self._actors[actorKey],
+                                                  self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                            self._plotter.render()
 
                 if actorKey in self._actors:
-                    if doShow and not self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOn()
-                        self._plotter.render()
-                    elif not doShow and self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOff()
-                        self._plotter.render()
+                    with self._plotter.allowNonblockingCalls():
+                        if doShow and not self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOn()
+                            self._plotter.render()
+                        elif not doShow and self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOff()
+                            self._plotter.render()
 
         if doResetCamera:
-            pass #self._plotter.reset_camera()
+            if False:
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.reset_camera()
 
     def close(self):
         if self._positionsServerProc is not None:

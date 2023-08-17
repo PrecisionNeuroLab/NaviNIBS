@@ -245,11 +245,13 @@ class RemotePlotter(BackgroundPlotter, RemotePlotterMixin):
 class RemotePlotManager(RemotePlotManagerBase):
     _reqPort: int
     _repPort: int | None = None
+    _pullPort: int | None = None
     _addr: str = '127.0.0.1'
     _Plotter: ClassVar = RemotePlotter
     _ctx: azmq.Context = attrs.field(init=False, factory=azmq.Context)
     _reqSock: azmq.Socket = attrs.field(init=False)
     _repSock: azmq.Socket = attrs.field(init=False)
+    _pullSock: azmq.Socket = attrs.field(init=False)
     _reqLock: asyncio.Lock = attrs.field(init=False, factory=asyncio.Lock)
     _socketLoopTask: asyncio.Task = attrs.field(init=False)
 
@@ -265,21 +267,44 @@ class RemotePlotManager(RemotePlotManagerBase):
         else:
             self._repSock.bind(f'tcp://{self._addr}:{self._repPort}')
 
+        self._pullSock = self._ctx.socket(zmq.PULL)
+        if self._pullPort is None:
+            self._pullPort = self._pullSock.bind_to_random_port(f'tcp://{self._addr}')
+        else:
+            self._pullSock.bind(f'tcp://{self._addr}:{self._pullPort}')
+
         self._socketLoopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._socketLoop))
 
     async def _socketLoop(self):
 
         async with self._reqLock:
-            await self._reqSock.send_pyobj(('repPort', self._repPort))
+            await self._reqSock.send_pyobj(('ports', dict(rep=self._repPort,
+                                                          pull=self._pullPort)))
             resp = await self._reqSock.recv_pyobj()
             assert resp == 'ack'
 
         if True:
             self.initPlotter()
 
+        poller = azmq.Poller()
+        poller.register(self._pullSock, zmq.POLLIN)
+        poller.register(self._repSock, zmq.POLLIN)
         while True:
             logger.debug('Awaiting msg')
-            msg = await self._repSock.recv_pyobj()
+            socks = dict(await poller.poll())
+            if self._pullSock in socks:
+                # note: this ordering has the effect of emptying pull queue before checking rep
+                # queue, which is what we want to deplete all pending non-blocking requests before
+                # we respond to a blocking request (which was presumably sent later by
+                # the single client)
+                msg = await self._pullSock.recv_pyobj()
+                replyOnSock = None  # push-pull is unidirectional (nonblocking command, no return)
+            elif self._repSock in socks:
+                msg = await self._repSock.recv_pyobj()
+                replyOnSock = self._repSock
+            else:
+                raise NotImplementedError
+
             logger.debug(f'Received msg: {msg}')
 
             try:
@@ -288,7 +313,10 @@ class RemotePlotManager(RemotePlotManagerBase):
                 logger.exception(f'Exception while handling msg {msg}: {exceptionToStr(e)}')
                 resp = e
 
-            await self._repSock.send_pyobj(resp)
+            if replyOnSock is not None:
+                await replyOnSock.send_pyobj(resp)
+            else:
+                logger.debug('Non-blocking request complete, dropping response: {resp}')
 
     def _executeCallback(self, callbackKey: str, *args, **kwargs):
         logger.debug(f'Queuing async task for callback {callbackKey}')

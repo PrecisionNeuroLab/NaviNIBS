@@ -114,18 +114,19 @@ class TargetingCrosshairsLayer(PlotViewLayer):
             if self._plotInSpace != 'MRI':
                 raise NotImplementedError()  # TODO: add necessary transforms for plotting in other spaces below
 
-            if self._targetOrCoil == 'target':
-                currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
-                setActorUserTransform(actor, currentTargetToMRITransform)
+            with self._plotter.allowNonblockingCalls():
+                if self._targetOrCoil == 'target':
+                    currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
+                    setActorUserTransform(actor, currentTargetToMRITransform)
 
-            elif self._targetOrCoil == 'coil':
-                currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
-                setActorUserTransform(actor, currentCoilToMRITransform)
+                elif self._targetOrCoil == 'coil':
+                    currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+                    setActorUserTransform(actor, currentCoilToMRITransform)
 
-            else:
-                raise NotImplementedError()
+                else:
+                    raise NotImplementedError()
 
-            self._plotter.render()
+                self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected redraw which: {}'.format(which))
