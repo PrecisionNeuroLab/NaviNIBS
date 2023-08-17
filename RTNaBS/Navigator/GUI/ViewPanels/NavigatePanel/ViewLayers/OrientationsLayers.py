@@ -12,6 +12,7 @@ from typing import ClassVar
 from . import PlotViewLayer
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
@@ -28,7 +29,7 @@ class VisualizedOrientation:
     re-instantiate for any changes as needed
     """
     _orientation: tp.Union[Sample, Target]
-    _plotter: pv.Plotter
+    _plotter: DefaultBackgroundPlotter
     _colorDepthIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _colorHandleIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _opacity: float
@@ -95,8 +96,9 @@ class VisualizedOrientation:
             case _:
                 raise NotImplementedError(f'Unexpected style: {self._style}')
 
-        for actor in self._actors.values():
-            setActorUserTransform(actor, self._orientation.coilToMRITransf)
+        with self._plotter.allowNonblockingCalls():
+            for actor in self._actors.values():
+                setActorUserTransform(actor, self._orientation.coilToMRITransf)
 
     @property
     def actors(self):

@@ -82,27 +82,31 @@ class TargetingAngleErrorLayer(PlotViewLayer):
                                            xyDims=self._xyDims,
                                            radius=self._radius,
                                            numPts=self._numArcSegments+1)
-                actor.GetMapper().SetInputData(pts_pv)
+                with self._plotter.allowNonblockingCalls():
+                    actor.GetMapper().SetInputData(pts_pv)
 
-                if self._plotOnTargetOrCoil == 'target':
-                    currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
-                    setActorUserTransform(actor, currentTargetToMRITransform)
+                    if self._plotOnTargetOrCoil == 'target':
+                        currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
+                        setActorUserTransform(actor, currentTargetToMRITransform)
 
-                elif self._plotOnTargetOrCoil == 'coil':
-                    currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
-                    setActorUserTransform(actor, currentCoilToMRITransform)
+                    elif self._plotOnTargetOrCoil == 'coil':
+                        currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+                        setActorUserTransform(actor, currentCoilToMRITransform)
 
-                else:
-                    raise NotImplementedError
+                    else:
+                        raise NotImplementedError
 
                 if not actor.GetVisibility():
-                    actor.VisibilityOn()
+                    with self._plotter.allowNonblockingCalls():
+                        actor.VisibilityOn()
 
             else:
                 if actor.GetVisibility():
-                    actor.VisibilityOff()
+                    with self._plotter.allowNonblockingCalls():
+                        actor.VisibilityOff()
 
-            self._plotter.render()
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.render()
         else:
             raise NotImplementedError(f'Unexpected redraw which: {which}')
 

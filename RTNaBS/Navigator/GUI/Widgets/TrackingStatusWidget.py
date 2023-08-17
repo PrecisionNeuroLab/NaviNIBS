@@ -27,6 +27,8 @@ class TrackingStatusWidget:
 
     _toolWdgts: tp.Dict[str, ToolStatusWidget] = attrs.field(init=False, factory=dict)
 
+    _prevHadTransf: dict[str, bool] = attrs.field(init=False, factory=dict)
+
     def __attrs_post_init__(self):
         if self._wdgt is None:
             self._wdgt = QtWidgets.QGroupBox('Tools tracking status')
@@ -102,8 +104,15 @@ class TrackingStatusWidget:
                 assert toolKey not in self._toolWdgts
                 continue
 
-            wdgt = self._toolWdgts[toolKey]
-            if self._positionsClient.getLatestTransf(toolKey, None) is not None:
-                wdgt.icon = qta.icon('mdi6.circle', color='blue')
-            else:
-                wdgt.icon = qta.icon('mdi6.help-circle', color='red')
+            hasTransf = self._positionsClient.getLatestTransf(toolKey, None) is not None
+
+            if self._prevHadTransf.get(toolKey, None) in (None, ~hasTransf):
+                # only update icon if status changed
+                wdgt = self._toolWdgts[toolKey]
+                if hasTransf:
+                    wdgt.icon = qta.icon('mdi6.circle', color='blue')
+                else:
+                    wdgt.icon = qta.icon('mdi6.help-circle', color='red')
+                self._prevHadTransf[toolKey] = hasTransf
+
+

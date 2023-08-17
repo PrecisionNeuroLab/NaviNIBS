@@ -34,6 +34,9 @@ class RemoteSecondaryLayeredPlotterProxy(RemotePlotterProxyBase):
     def _sendReqAndRecv(self, msg):
         return self._mainPlotter._sendReqAndRecv(msg, layerKey=self._layerKey)
 
+    def _sendReqNonblocking(self, msg) -> None:
+        self._mainPlotter._sendReqNonblocking(msg, layerKey=self._layerKey)
+
 
 class RemotePrimaryLayeredPlotterProxy(RemotePlotterProxy):
 
@@ -64,6 +67,10 @@ class RemotePrimaryLayeredPlotterProxy(RemotePlotterProxy):
         # add plotter layer key to msg
         msg = (layerKey, *msg)
         return super()._sendReqAndRecv(msg)
+
+    def _sendReqNonblocking(self, msg, layerKey: str | None = '__primary'):
+        msg = (layerKey, *msg)
+        return super()._sendReqNonblocking(msg)
 
     def addLayeredPlotter(self, key: str, layer: int | None = None) -> RemoteSecondaryLayeredPlotterProxy:
 

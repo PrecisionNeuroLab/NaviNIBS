@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 import logging
 import multiprocessing as mp
 import time
@@ -23,33 +24,51 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-@attrs.define(frozen=True)
+@attrs.define
 class RemoteActorProxy:
-    actorID: str
-    plotter: RemotePlotterProxyBase
+    _actorID: str
+    _plotter: RemotePlotterProxyBase
+
+    _mapper: RemoteMapper | None = attrs.field(init=False, default=None)
+    _visibility: bool | None = attrs.field(init=False, default=None)
+
+    @property
+    def actorID(self):
+        return self._actorID
+
+    @property
+    def plotter(self):
+        return self._plotter
 
     def SetUserTransform(self, transform: vtkmodules.vtkCommonTransforms.vtkTransform):
 
         # convert to ndarray since vtkTransform is not pickleable
         transform_ndarray = pv.array_from_vtkmatrix(transform.GetMatrix())
 
-        return self.plotter.setActorUserTransform(self, transform_ndarray)
+        return self._plotter.setActorUserTransform(self, transform_ndarray)
 
     def GetVisibility(self) -> bool:
-        import time
-        return self.plotter._remoteActorCall(self, 'GetVisibility')
+        if self._visibility is None:
+            with self._plotter.disallowNonblockingCalls():
+                self._visibility = self._plotter._remoteActorCall(self, 'GetVisibility')
+        return self._visibility  # by using cached version, we assume we will be the only one to ever change visibility
 
     def GetMapper(self):
-        return RemoteMapper(self)
+        if self._mapper is None:
+            self._mapper = RemoteMapper(self)
+        return self._mapper
 
     def SetVisibility(self, visibility: bool):
-        return self.plotter._remoteActorCall(self, 'SetVisibility', visibility)
+        self._visibility = visibility
+        return self._plotter._remoteActorCall(self, 'SetVisibility', visibility)
 
     def VisibilityOn(self):
-        return self.plotter._remoteActorCall(self, 'VisibilityOn')
+        self._visibility = True
+        return self._plotter._remoteActorCall(self, 'VisibilityOn')
 
     def VisibilityOff(self):
-        return self.plotter._remoteActorCall(self, 'VisibilityOff')
+        self._visibility = False
+        return self._plotter._remoteActorCall(self, 'VisibilityOff')
 
 
 @attrs.define
@@ -111,6 +130,9 @@ class RemoteCameraProxy:
 class RemotePlotterProxyBase:
     _camera: RemoteCameraProxy | None = None
 
+    _doQueueCallsAndReturnImmediately: bool = False
+    _queuedCalls: list[tuple[str, str, tuple, dict | None, tuple]]
+
     @attrs.define
     class CallbackRegistry:
         _callbacks: dict[str, tp.Callable] = attrs.field(factory=dict)
@@ -134,6 +156,8 @@ class RemotePlotterProxyBase:
 
         self._isReady = asyncio.Event()
 
+        self._queuedCalls = []
+
     @property
     def picked_point(self):
         return self._remotePlotterGet('picked_point')
@@ -145,13 +169,37 @@ class RemotePlotterProxyBase:
             self._camera = RemoteCameraProxy(plotter=self)
         return self._camera
 
+    @contextmanager
+    def allowNonblockingCalls(self):
+        """
+        Within this context, most commands will be pushed out to remote for execution, and we won't wait for the return value (i.e. we will immediately return None).
+
+        Some commands may still block.
+
+        Multiple calls are guaranteed to be executed in order by the remote plotter. If multiple non-blocking calls are made right before a blocking call, the blocking call will block until all preceding non-blocking calls are complete before starting.
+        """
+        prevVal = self._doQueueCallsAndReturnImmediately
+        self._doQueueCallsAndReturnImmediately = True
+        yield
+        self._doQueueCallsAndReturnImmediately = prevVal
+
+    @contextmanager
+    def disallowNonblockingCalls(self):
+        prevVal = self._doQueueCallsAndReturnImmediately
+        self._doQueueCallsAndReturnImmediately = False
+        yield
+        self._doQueueCallsAndReturnImmediately = prevVal
+
     async def _sendReqAndRecv_async(self, msg):
         raise NotImplementedError  # to be implemented by subclass
 
     def _sendReqAndRecv(self, msg):
         raise NotImplementedError  # to be implemented by subclass
 
-    def _remoteCall(self, cmdKey, fnStr, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+    def _sendReqNonblocking(self, msg) -> None:
+        raise NotImplementedError  # to be implemented by subclass
+
+    def _remoteCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
         if kwargs is None:
             kwargs = dict()
 
@@ -172,10 +220,14 @@ class RemotePlotterProxyBase:
             callbackKey = self._callbackRegistry.register(callbackFn)
             kwargs['callback'] = callbackKey
 
-        resp = self._sendReqAndRecv((cmdKey, *cmdArgs, fnStr, args, kwargs))
-        logger.debug(f'Waiting for response to {fnStr}')
+        if self._doQueueCallsAndReturnImmediately:
+            self._sendReqNonblocking((cmdKey, *cmdArgs, fnStr, args, kwargs))
+            return None
+        else:
+            resp = self._sendReqAndRecv((cmdKey, *cmdArgs, fnStr, args, kwargs))
+            logger.debug(f'Waiting for response to {fnStr}')
 
-        return self._handleResp(fnStr, resp)
+            return self._handleResp(fnStr, resp)
 
     def _handleResp(self, label, resp):
         logger.debug(f'{label} response: {resp}')
@@ -328,6 +380,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
         self._reqSocket = ctx.socket(zmq.REQ)
         self._areqSocket = actx.socket(zmq.REQ)
+        self._pushSocket = ctx.socket(zmq.PUSH)
         # connect these later
         self._areqLock = asyncio.Lock()
 
@@ -357,6 +410,10 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         self._reqSocket.send_pyobj(msg)
         return self._waitForResp(self._reqSocket)
 
+    def _sendReqNonblocking(self, msg):
+        self._pushSocket.send_pyobj(msg)
+        return None
+
     async def _socketLoop(self):
         layout = QtWidgets.QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -370,15 +427,16 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         logger.debug('Waiting for remote to start up')
         msg = await self._repSocket.recv_pyobj()
         assert isinstance(msg, tuple)
-        # first message sent should be remote's repPort
-        assert msg[0] == 'repPort'
-        repPort = msg[1]
-        logger.debug(f'Got remote repPort: {repPort}')
+        # first message sent should be remote's repPort and pullPort
+        assert msg[0] == 'ports'
+        portsDict = msg[1]
+        logger.debug(f'Got remote ports: {portsDict}')
 
         self._repSocket.send_pyobj('ack')
 
-        self._reqSocket.connect(f'tcp://localhost:{repPort}')
-        self._areqSocket.connect(f'tcp://localhost:{repPort}')
+        self._reqSocket.connect(f'tcp://localhost:{portsDict["rep"]}')
+        self._areqSocket.connect(f'tcp://localhost:{portsDict["rep"]}')
+        self._pushSocket.connect(f'tcp://localhost:{portsDict["pull"]}')
 
         # get win ID and reparent remote window
         winID = await self._sendReqAndRecv_async(('getWinID',))

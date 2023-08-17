@@ -26,7 +26,7 @@ from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
-#plotLogger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)
 
 
 Transform = np.ndarray
@@ -66,7 +66,7 @@ class NavigationView(QueuedRedrawMixin):
         raise NotImplementedError()  # should be implemented by subclass
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
-        logger.debug('redraw {}'.format(which))
+        #logger.debug(f'redraw {which}')
 
         super()._redraw(which=which)
 
@@ -205,7 +205,8 @@ class SinglePlotterNavigationView(NavigationView):
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
-                        cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf @ extraTransf, cameraPts)
+                        cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf @ extraTransf, cameraPts,
+                                                   doStrictCheck=False)
                     else:
                         raise NoValidCameraPoseAvailable()
                 else:
@@ -235,15 +236,17 @@ class SinglePlotterNavigationView(NavigationView):
 
         except NoValidCameraPoseAvailable:
             #logger.debug('No camera pose available')
-            self._plotter.reset_camera_clipping_range()
-            self._plotter.render()
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.reset_camera_clipping_range()
+                self._plotter.render()
             return  # TODO: change display to indicate view is out-of-date / invalid
 
-        self._plotter.camera.focal_point = cameraPts[0, :]
-        self._plotter.camera.position = cameraPts[1, :]
-        self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
-        self._plotter.reset_camera_clipping_range()
-        self._plotter.render()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.camera.focal_point = cameraPts[0, :]
+            self._plotter.camera.position = cameraPts[1, :]
+            self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
+            self._plotter.reset_camera_clipping_range()
+            self._plotter.render()
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
                  plotterLayer: tp.Optional[int] = None, **kwargs):

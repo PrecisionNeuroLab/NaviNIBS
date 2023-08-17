@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import attrs
+from contextlib import contextmanager
 import logging
 import numpy as np
 import pyvista as pv
@@ -183,6 +184,7 @@ class PlotterImprovementsMixin:
 
         # Add to renderer
         self.add_actor(actor, reset_camera=reset_camera, name=name, pickable=False)
+        self.render()
         return actor
 
 
@@ -250,6 +252,22 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
         # not passing first arg when calling callback
         # (all for easier implementation with remote plotters)
         return self.iren._style_class.AddObserver(event, lambda _, event: callback(None, event))
+
+    @contextmanager
+    def allowNonblockingCalls(self):
+        """
+        For now, this is does nothing. Is here for interface compatibility with RemotePlotterProxy that may be used instead.
+        :return:
+        """
+        yield
+
+    @contextmanager
+    def disallowNonblockingCalls(self):
+        """
+        For now, this is does nothing. Is here for interface compatibility with RemotePlotterProxy that may be used instead.
+        :return:
+        """
+        yield
 
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovementsMixin):

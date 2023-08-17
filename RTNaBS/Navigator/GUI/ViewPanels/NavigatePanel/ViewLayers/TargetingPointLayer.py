@@ -74,16 +74,17 @@ class TargetingPointLayer(PlotViewLayer):
 
             coord = self._getCoord(orientation=self._orientation, depth=self._depth)
 
-            if coord is None:
-                # no valid pose available
-                if actor.GetVisibility():
-                    actor.VisibilityOff()
+            with self._plotter.allowNonblockingCalls():
+                if coord is None:
+                    # no valid pose available
+                    if actor.GetVisibility():
+                        actor.VisibilityOff()
+                        self._plotter.render()
+                else:
+                    if not actor.GetVisibility():
+                        actor.VisibilityOn()
+                    setActorUserTransform(actor, composeTransform(np.eye(3), coord))
                     self._plotter.render()
-            else:
-                setActorUserTransform(actor, composeTransform(np.eye(3), coord))
-                if not actor.GetVisibility():
-                    actor.VisibilityOn()
-                self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected redraw which: {}'.format(which))

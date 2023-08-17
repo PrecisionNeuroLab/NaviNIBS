@@ -7,13 +7,19 @@ from . import exceptionToStr
 
 logger = logging.getLogger(__name__)
 
+_T = tp.TypeVar('_T')
+
+
+async def _wrap_awaitable(aw: tp.Awaitable[_T]) -> _T:
+    return await aw
+
 
 async def asyncWaitWithCancel(
         aws: tp.Iterable[tp.Awaitable],
         timeout: float | None = None,
         return_when=asyncio.ALL_COMPLETED) -> tuple[set[asyncio.Task], set[asyncio.Task]]:
 
-    done, pending = await asyncio.wait(aws, timeout=timeout, return_when=return_when)
+    done, pending = await asyncio.wait([asyncio.create_task(_wrap_awaitable(aw)) for aw in aws], timeout=timeout, return_when=return_when)
     for task in pending:
         task.cancel()
     cancelled = pending
