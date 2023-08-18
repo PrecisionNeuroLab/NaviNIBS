@@ -17,6 +17,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
@@ -24,7 +25,7 @@ from RTNaBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from RTNaBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import makeStrUnique
-from RTNaBS.util.pyvista import Actor
+from RTNaBS.util.pyvista import Actor, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -85,6 +86,10 @@ class VisualizedTarget:
         self.plot()
 
     def plot(self):
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not ready yet
+            return
+
         thinWidth = 3
         thickWidth = 6
         if self._style == 'line':
@@ -344,6 +349,15 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
         self._onTargetsChanged()
 
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for view in self._views.values():
+            if isinstance(view.plotter, RemotePlotterProxy):
+                await view.plotter.isReadyEvent.wait()
+
+        self._onTargetsChanged()
+
     def _getCrosshairCoord(self) -> np.ndarray:
         """
         Used by CoordinateWidgets to set target or entry coord from current crosshair position
@@ -415,6 +429,12 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
         if not self._hasInitialized and not self._isInitializing:
             return
+
+        # TODO: move this below to only delay visualization initialization, not target table, etc.
+        for view in self._views.values():
+            if isinstance(view.plotter, RemotePlotterProxy) and not view.plotter.isReadyEvent.is_set():
+                # plotter not ready yet
+                return
 
         logger.debug(f'Targets changed. Updating tree view and plots.\nchangedTargetKeys={changedTargetKeys}, \nchangedTargetAttrs={changedTargetAttrs}')
 
