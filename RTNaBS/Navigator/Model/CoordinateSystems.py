@@ -98,10 +98,10 @@ class AffineTransformedCoordinateSystem(CoordinateSystem):
         self.__transfWorldToThis = None
 
     def transformFromWorldToThis(self, coords: np.ndarray) -> np.ndarray:
-        return applyTransform(self.transfWorldToThis, coords, doStrictCheck=False)
+        return applyTransform(self.transfWorldToThis, coords, doCheck=False)
 
     def transformFromThisToWorld(self, coords: np.ndarray) -> np.ndarray:
-        return applyTransform(self.transfThisToWorld, coords, doStrictCheck=False)
+        return applyTransform(self.transfThisToWorld, coords, doCheck=False)
 
 
 @attrs.define(kw_only=True)
