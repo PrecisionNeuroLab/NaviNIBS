@@ -156,10 +156,18 @@ class NonlinearTransformedCoordinateSystem(CoordinateSystem):
         self._transfWorldToThis = None
 
     def transformFromWorldToThis(self, coords: np.ndarray) -> np.ndarray:
-        return self.transfWorldToThis.map(coords)
+        res = self.transfWorldToThis.map(coords)
+        if res.ndim > coords.ndim:
+            assert coords.ndim == 1
+            res = res.flatten()
+        return res
 
     def transformFromThisToWorld(self, coords: np.ndarray) -> np.ndarray:
-        return self.transfThisToWorld.map(coords)
+        res = self.transfThisToWorld.map(coords)
+        if res.ndim > coords.ndim:
+            assert coords.ndim == 1
+            res = res.flatten()
+        return res
 
 
 @attrs.define
