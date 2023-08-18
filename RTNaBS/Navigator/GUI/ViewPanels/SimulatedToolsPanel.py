@@ -35,6 +35,7 @@ from RTNaBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define
@@ -149,7 +150,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                 continue
 
             for actorKey in actorKeysForTool:
-                logger.debug(f'actorKey: {actorKey}')
+                #logger.debug(f'actorKey: {actorKey}')
 
                 if actorKey == self._currentlyMovingActor:
                     # don't update position of currently moving actor to avoid "flickering"

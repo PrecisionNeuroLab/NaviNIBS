@@ -350,8 +350,8 @@ class EntryAnglesWidgets:
 
         pivotedCoilToMRITransf = concatenateTransforms([coilToPivotSpaceTransf, pivotTransf, invertTransform(coilToPivotSpaceTransf), prepivotTargetCoilToMRITransf])
 
-        self._target.entryCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset]))
-        self._target.targetCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset - entryToTargetDist]))
+        self._target.entryCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset]), doCheck=False)
+        self._target.targetCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset - entryToTargetDist]), doCheck=False)
 
     def _onTargetItemChanged(self, targetKey: str, attribsChanged: list[str] | None = None):
         if attribsChanged is None or any(x in attribsChanged for x in

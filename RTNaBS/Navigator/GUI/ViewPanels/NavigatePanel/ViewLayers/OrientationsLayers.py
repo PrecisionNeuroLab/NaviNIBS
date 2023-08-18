@@ -188,8 +188,9 @@ class OrientationsLayer(PlotViewLayer):
 
             for key in changedOrientationKeys:
                 if key in self._visualizedOrientations:
-                    for actorKey in self._visualizedOrientations.pop(key).actors:
-                        self._plotter.remove_actor(self._actors.pop(actorKey))
+                    with self._plotter.allowNonblockingCalls():
+                        for actorKey in self._visualizedOrientations.pop(key).actors:
+                            self._plotter.remove_actor(self._actors.pop(actorKey))
 
                 self._pendingOrientationKeys.add(key)
                 self._hasPendingOrientations.set()  # tell orientation drawing loop to check for new key(s) to draw

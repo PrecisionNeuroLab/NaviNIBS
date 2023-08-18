@@ -39,6 +39,15 @@ class _DelayedPlotter:
     def resumeRendering(self):
         self._renderingNotPaused.set()
 
+    @contextmanager
+    def renderingPaused(self):
+        prevNotPaused = self._renderingNotPaused.is_set()
+        if not prevNotPaused:
+            self.pauseRendering()
+        yield
+        if prevNotPaused:
+            self.resumeRendering()
+
     def _renderNow(self):
         self._needsRender.clear()
         logger.debug('Rendering')

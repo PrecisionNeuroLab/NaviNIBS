@@ -292,31 +292,39 @@ class RemotePlotManager(RemotePlotManagerBase):
         while True:
             logger.debug('Awaiting msg')
             socks = dict(await poller.poll())
-            if self._pullSock in socks:
-                # note: this ordering has the effect of emptying pull queue before checking rep
-                # queue, which is what we want to deplete all pending non-blocking requests before
-                # we respond to a blocking request (which was presumably sent later by
-                # the single client)
-                msg = await self._pullSock.recv_pyobj()
-                replyOnSock = None  # push-pull is unidirectional (nonblocking command, no return)
-            elif self._repSock in socks:
-                msg = await self._repSock.recv_pyobj()
-                replyOnSock = self._repSock
-            else:
-                raise NotImplementedError
+            with self.plotter.renderingPaused():
+                while len(socks) > 0:
+                    if self._pullSock in socks:
+                        # note: this ordering has the effect of emptying pull queue before checking rep
+                        # queue, which is what we want to deplete all pending non-blocking requests before
+                        # we respond to a blocking request (which was presumably sent later by
+                        # the single client)
+                        msg = await self._pullSock.recv_pyobj()
+                        replyOnSock = None  # push-pull is unidirectional (nonblocking command, no return)
+                    elif self._repSock in socks:
+                        msg = await self._repSock.recv_pyobj()
+                        replyOnSock = self._repSock
+                    else:
+                        raise NotImplementedError
 
-            logger.debug(f'Received msg: {msg}')
+                    logger.debug(f'Received msg: {msg}')
 
-            try:
-                resp = await self._handleMsg(msg)
-            except Exception as e:
-                logger.exception(f'Exception while handling msg {msg}: {exceptionToStr(e)}')
-                resp = e
+                    try:
+                        resp = await self._handleMsg(msg)
+                    except Exception as e:
+                        logger.exception(f'Exception while handling msg {msg}: {exceptionToStr(e)}')
+                        resp = e
 
-            if replyOnSock is not None:
-                await replyOnSock.send_pyobj(resp)
-            else:
-                logger.debug('Non-blocking request complete, dropping response: {resp}')
+                    if replyOnSock is not None:
+                        await replyOnSock.send_pyobj(resp)
+                    else:
+                        logger.debug('Non-blocking request complete, dropping response: {resp}')
+
+                    if True:
+                        # wait to render until after processed all pending requests
+                        socks = dict(await poller.poll(timeout=0))
+                    else:
+                        socks = dict()
 
     def _executeCallback(self, callbackKey: str, *args, **kwargs):
         logger.debug(f'Queuing async task for callback {callbackKey}')

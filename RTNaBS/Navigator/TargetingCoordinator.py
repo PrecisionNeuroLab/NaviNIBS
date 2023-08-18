@@ -490,7 +490,7 @@ class TargetingCoordinator:
                         if transf is None:
                             coilCoord = None
                         else:
-                            coilCoord = applyTransform(transf, np.asarray([0, 0, 0]))
+                            coilCoord = applyTransform(transf, np.asarray([0, 0, 0]), doCheck=False)
                     case _:
                         raise NotImplementedError
                 return coilCoord
@@ -516,7 +516,8 @@ class TargetingCoordinator:
                                 targetCoord = applyTransform(
                                     transf, np.asarray([0, 0, -np.linalg.norm(
                                         self.currentTarget.entryCoordPlusDepthOffset \
-                                        - self.currentTarget.targetCoord)]))
+                                        - self.currentTarget.targetCoord)]),
+                                    doCheck=False)
                     case _:
                         raise NotImplementedError
                 return targetCoord

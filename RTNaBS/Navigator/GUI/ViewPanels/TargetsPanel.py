@@ -394,7 +394,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
         extraTransf = np.eye(4)
         if True:
             # align at target depth
-            extraTransf[:3, 3] = applyTransform(invertTransform(target.coilToMRITransf), target.targetCoord)
+            extraTransf[:3, 3] = applyTransform(invertTransform(target.coilToMRITransf), target.targetCoord, doCheck=False)
         else:
             # align at coil depth
             pass

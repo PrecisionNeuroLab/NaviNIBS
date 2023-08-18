@@ -315,7 +315,7 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
 
             sampledEndpoints = np.full((len(self._samples), 3), np.nan)
             for iS, sample in enumerate(self._samples):
-                sampledEndpoints[iS, :] = applyTransform([uncalibratedToCalibratedTransf, sample], np.asarray([0, 0, 0]))
+                sampledEndpoints[iS, :] = applyTransform([uncalibratedToCalibratedTransf, sample], np.asarray([0, 0, 0]), doCheck=False)
 
             meanEndpoint = trim_mean(sampledEndpoints, 0.1, axis=0)
 

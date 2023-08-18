@@ -8,6 +8,7 @@ from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 @attrs.define(slots=False, kw_only=True)
 class QueuedRedrawMixin:
     """
@@ -24,6 +25,7 @@ class QueuedRedrawMixin:
     async def _loop_queuedRedraw(self):
         while True:
             await self._redrawQueueModified.wait()
+            await asyncio.sleep(0.01)  # rate limit  # TODO: make this a parameter
             while len(self._redrawQueue) > 0:
                 toRedraw = self._redrawQueue.pop(0)
                 logger.debug(f'Dequeuing redraw for {self.__class__.__name__} {toRedraw}')
@@ -34,9 +36,14 @@ class QueuedRedrawMixin:
                     assert len(toRedraw) == 2
                     self._redraw(which=toRedraw[0], **toRedraw[1])
             self._redrawQueueModified.clear()
-            await asyncio.sleep(0.05)  # rate limit  # TODO: make this a parameter
+            await asyncio.sleep(0.01)  # rate limit  # TODO: make this a parameter
 
     def _queueRedraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
+
+        if False:  # TODO: debug, delete or set to False
+            self._redraw(which=which, **kwargs)
+            return
+
         if which is None:
             which = 'all'
 
