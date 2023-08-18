@@ -194,7 +194,8 @@ class DigitizedLocationsPanel(MainViewPanel):
                                                        pointerToCameraTransf,
                                                        invertTransform(subjectTrackerToCameraTransf),
                                                        subjectTrackerToMRITransf],
-                                               np.zeros((3,)))
+                                               np.zeros((3,)),
+                                               doCheck=False)
 
         return pointerCoord_MRISpace
 

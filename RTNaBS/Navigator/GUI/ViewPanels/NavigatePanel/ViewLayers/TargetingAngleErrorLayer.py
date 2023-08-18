@@ -26,7 +26,7 @@ class TargetingAngleErrorLayer(PlotViewLayer):
     _radius: float = 7.5
     _multiplier: float = 1.
 
-    _numArcSegments: int = 180  # TODO: check whether this needs to be reduced to improve render performance
+    _numArcSegments: int = 90  # TODO: check whether this needs to be reduced to improve render performance
 
     _angleMetric: str = 'Depth angle error'
     _angleOffset: float = -np.pi / 2

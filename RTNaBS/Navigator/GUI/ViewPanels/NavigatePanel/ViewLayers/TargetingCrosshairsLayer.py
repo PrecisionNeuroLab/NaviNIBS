@@ -53,8 +53,9 @@ class TargetingCrosshairsLayer(PlotViewLayer):
             actorKey = self._getActorKey('crosshair')
             if actorKey in self._actors:
                 actor = self._actors.pop(actorKey)
-                self._plotter.remove_actor(actor)
-                self._plotter.render()
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.remove_actor(actor)
+                    self._plotter.render()
 
         elif which == 'crosshairVisibility':
             actorKey = self._getActorKey('crosshair')

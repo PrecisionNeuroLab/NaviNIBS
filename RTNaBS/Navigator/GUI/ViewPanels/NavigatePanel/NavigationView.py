@@ -206,7 +206,7 @@ class SinglePlotterNavigationView(NavigationView):
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
                         cameraPts = applyTransform(self._coordinator.currentTarget.coilToMRITransf @ extraTransf, cameraPts,
-                                                   doStrictCheck=False)
+                                                   doCheck=False)
                     else:
                         raise NoValidCameraPoseAvailable()
                 else:
@@ -225,7 +225,7 @@ class SinglePlotterNavigationView(NavigationView):
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentCoilToMRITransform is not None:
-                        cameraPts = applyTransform(self._coordinator.currentCoilToMRITransform @ extraTransf, cameraPts)
+                        cameraPts = applyTransform(self._coordinator.currentCoilToMRITransform @ extraTransf, cameraPts, doCheck=False)
                     else:
                         raise NoValidCameraPoseAvailable()
                 else:
