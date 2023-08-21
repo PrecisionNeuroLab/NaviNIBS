@@ -196,6 +196,18 @@ class PlotterImprovementsMixin:
         self.render()
         return actor
 
+    def add_axes_marker(self,
+                           total_length: tuple[float, float, float] | None = None,
+                           reset_camera: bool = False,
+                           **kwargs) -> Actor:
+        actor = pv.create_axes_marker(**kwargs)
+        if total_length is not None:
+            actor.SetTotalLength(*total_length)
+
+        self.add_actor(actor, reset_camera=reset_camera, pickable=False)
+
+        return actor
+
 
 class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImprovementsMixin):
     """

@@ -23,6 +23,7 @@ from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocation
 from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from RTNaBS.util import makeStrUnique
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
@@ -124,6 +125,8 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         self._plotter = DefaultBackgroundPlotter()
         self._wdgt.layout().addWidget(self._plotter)
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
@@ -253,14 +256,14 @@ class DigitizedLocationsPanel(MainViewPanel):
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
-        if not self.isVisible:
-            return
-
         if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # plotter not yet ready
             return
 
         logger.debug('redraw {}'.format(which))
+
+        if not self.isVisible:
+                return
 
         if isinstance(which, list):
             for subWhich in which:
@@ -395,11 +398,11 @@ class DigitizedLocationsPanel(MainViewPanel):
                 # subject tracker hasn't been initialized, maybe due to missing information
                 return
 
-            setActorUserTransform(
-                self._actors[actorKey],
-                self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.trackerStlToTrackerTransf
-            )
-            self._plotter.render()
+            with self._plotter.allowNonblockingCalls():
+                setActorUserTransform(
+                    self._actors[actorKey],
+                    self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.trackerStlToTrackerTransf
+                )
 
         elif which == 'initSampledLocations':
 
@@ -446,4 +449,6 @@ class DigitizedLocationsPanel(MainViewPanel):
         else:
             raise NotImplementedError('Unexpected redraw key: {}'.format(which))
 
-        self._plotter.render()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.render()
+

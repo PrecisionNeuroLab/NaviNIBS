@@ -41,6 +41,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
     _calibrateBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _revertBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
+    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     # TODO: add error metrics
 
     # TODO: add checkboxes to optionally hide some actors
@@ -107,6 +109,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         self._plotterUpperLayer = self._plotter.addLayeredPlotter(key='AxesIndicators', layer=1)
         self._plotterLowerLayer = self._plotter.addLayeredPlotter(key='Meshes', layer=0)
 
+        self._finishedAsyncInit.set()
+
         self._onLatestPositionsChanged()
 
     def calibrate(self):
@@ -153,7 +157,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
 
     def _onLatestPositionsChanged(self):
 
-        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+        if not self._finishedAsyncInit.is_set():
             # plotter not yet ready
             return
 
@@ -205,15 +209,14 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     needsRender = True
 
         if self._calibrationPlateAxesActor is None:
-            self._calibrationPlateAxesActor = pv.create_axes_marker(
+            self._calibrationPlateAxesActor = self._plotterUpperLayer.add_axes_marker(
                 xlabel='Ref X\n',
                 ylabel='Ref Y\n',
                 zlabel='',
                 label_size=(0.1, 0.1),
                 line_width=3,
+                total_length=(50, 50, 50)
             )
-            self._calibrationPlateAxesActor.SetTotalLength(50, 50, 50)
-            self._plotterUpperLayer.add_actor(self._calibrationPlateAxesActor)
             # no transform needed here
             needsRender = True
             doResetCamera = True
@@ -293,14 +296,13 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     actor.VisibilityOn()
 
         if self._coilAxesActor is None:
-            self._coilAxesActor = pv.create_axes_marker(
+            self._coilAxesActor = self._plotterUpperLayer.add_axes_marker(
                 xlabel='\nCoil X',
                 ylabel='\nCoil Y',
                 zlabel='',
-                label_size=(0.1, 0.1)
+                label_size=(0.1, 0.1),
+                total_length=(50, 50, 50)
             )
-            self._coilAxesActor.SetTotalLength(50, 50, 50)
-            self._plotterUpperLayer.add_actor(self._coilAxesActor)
             doResetCamera = True
 
         if self._coilToolActor is None:
