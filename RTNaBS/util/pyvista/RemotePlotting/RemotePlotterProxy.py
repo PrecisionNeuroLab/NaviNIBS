@@ -305,6 +305,9 @@ class RemotePlotterProxyBase:
     def add_point_labels(self, *args, **kwargs):
         return self._remotePlotterCall('add_point_labels', *args, **kwargs)
 
+    def add_axes_marker(self, *args, **kwargs):
+        return self._remotePlotterCall('add_axes_marker', *args, **kwargs)
+
     def addIrenStyleClassObserver(self, *args, **kwargs):
         return self._remotePlotterCall('addIrenStyleClassObserver', *args, **kwargs)
 
