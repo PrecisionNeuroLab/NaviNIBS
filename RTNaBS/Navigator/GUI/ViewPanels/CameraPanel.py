@@ -25,14 +25,15 @@ from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsCl
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.util.pyvista import Actor, setActorUserTransform
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
-
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 @attrs.define
@@ -45,8 +46,6 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _key: str = 'Camera'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
 
-    _cameraFOVSTLPath: str = None
-
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
@@ -56,9 +55,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _serverGUIContainer: QtWidgets.QGroupBox = attrs.field(init=False)
 
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
-    _ignoredKeys: tp.List[str] = attrs.field(init=False, factory=list)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -70,9 +68,6 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
     def _finishInitialization(self):
         super()._finishInitialization()
-
-        if self._cameraFOVSTLPath is None:
-            self._cameraFOVSTLPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'data', 'tools', 'PolarisVegaFOV.stl')
 
         self._trackingStatusWdgt = TrackingStatusWidget(session=self._session, wdgt=QtWidgets.QWidget())
         dock, _ = self._createDockWidget(
@@ -114,22 +109,28 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         container.layout().addStretch()
 
-        self._positionsClient = ToolPositionsClient()
-        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
-        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
-
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._plotter.enable_depth_peeling(4)
-
-        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
+        self._plotter = DefaultBackgroundPlotter()
 
         dock, _ = self._createDockWidget(
             title='Tracked objects',
             widget=self._plotter)
         self._wdgt.addDock(dock, position='right')
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._positionsClient = ToolPositionsClient()
+        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
+
+        if isinstance(DefaultBackgroundPlotter, RemotePlotterProxy):
+            self._plotter.enable_depth_peeling(4)
+
+        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
@@ -165,11 +166,12 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         didRemove = False
         for key, tool in self.session.tools.items():
             actorKeysForTool = [key + '_tracker', key + '_tool']
-            for actorKey in actorKeysForTool:
-                if actorKey in self._actors:
-                    self._plotter.remove_actor(self._actors[actorKey])
-                    self._actors.pop(actorKey)
-                    didRemove = True
+            with self._plotter.allowNonblockingCalls():
+                for actorKey in actorKeysForTool:
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(self._actors[actorKey])
+                        self._actors.pop(actorKey)
+                        didRemove = True
 
         if didRemove:
             self._onLatestPositionsChanged()
@@ -238,12 +240,15 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
             if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
                 # no valid position available
-                for actorKey in actorKeysForTool:
-                    if actorKey in self._actors and self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOff()
+                with self._plotter.allowNonblockingCalls():
+                    for actorKey in actorKeysForTool:
+                        if actorKey in self._actors and self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOff()
                 continue
 
             for actorKey in actorKeysForTool:
+                logger.debug(f'actorKey: {actorKey}')
+
                 doShow = False
                 for toolOrTracker in ('tracker', 'tool'):
                     if actorKey == (key + '_' + toolOrTracker):
@@ -273,17 +278,18 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                                     self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                                                     color=meshColor,
                                                                                     opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                    rgb=True,
+                                                                                    rgb=meshColor is None,
                                                                                     name=actorKey)
                                     doResetCamera = True
 
-                                # apply transform to existing actor
-                                setActorUserTransform(self._actors[actorKey],
-                                                      concatenateTransforms([
-                                                          toolOrTrackerStlToTrackerTransf,
-                                                          self._positionsClient.getLatestTransf(key)
-                                                      ]))
-                                self._plotter.render()
+                                with self._plotter.allowNonblockingCalls():
+                                    # apply transform to existing actor
+                                    setActorUserTransform(self._actors[actorKey],
+                                                          concatenateTransforms([
+                                                              toolOrTrackerStlToTrackerTransf,
+                                                              self._positionsClient.getLatestTransf(key)
+                                                          ]))
+                                    self._plotter.render()
                             else:
                                 # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
                                 doShow = False
@@ -298,20 +304,24 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                                                                             name=actorKey)
                             doResetCamera = True
 
-                        setActorUserTransform(self._actors[actorKey],
-                                              self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
-                        self._plotter.render()
+                        with self._plotter.allowNonblockingCalls():
+                            setActorUserTransform(self._actors[actorKey],
+                                                  self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                            self._plotter.render()
 
                 if actorKey in self._actors:
-                    if doShow and not self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOn()
-                        self._plotter.render()
-                    elif not doShow and self._actors[actorKey].GetVisibility():
-                        self._actors[actorKey].VisibilityOff()
-                        self._plotter.render()
+                    with self._plotter.allowNonblockingCalls():
+                        if doShow and not self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOn()
+                            self._plotter.render()
+                        elif not doShow and self._actors[actorKey].GetVisibility():
+                            self._actors[actorKey].VisibilityOff()
+                            self._plotter.render()
 
         if doResetCamera:
-            self._plotter.reset_camera()
+            if False:
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.reset_camera()
 
     def close(self):
         if self._positionsServerProc is not None:

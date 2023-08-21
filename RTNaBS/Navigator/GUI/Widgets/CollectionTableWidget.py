@@ -53,10 +53,10 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     """
 
     def __attrs_post_init__(self):
-        self._tableView.setSelectionBehavior(self._tableView.SelectRows)
-        self._tableView.setSelectionMode(self._tableView.ExtendedSelection)
+        self._tableView.setSelectionBehavior(self._tableView.SelectionBehavior.SelectRows)
+        self._tableView.setSelectionMode(self._tableView.SelectionMode.ExtendedSelection)
         if self._doAdjustSizeToContents:
-            self._tableView.setSizeAdjustPolicy(self._tableView.AdjustToContents)
+            self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
         if self._session is not None:
             self._onSessionSet()
 
@@ -79,7 +79,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._onSessionSet()
 
     def _onSessionSet(self):
-        self._model = self._Model(self._session)
+        self._model = self._Model(session=self._session)
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)

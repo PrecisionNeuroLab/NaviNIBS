@@ -215,7 +215,7 @@ class SampleMetadataInterpolatedSurfaceLayer(MeshSurfaceLayer):
                     if target.entryCoordPlusDepthOffset is None or target.entryCoord is None:
                         continue
                     coilToEntryDepth = np.linalg.norm(target.entryCoordPlusDepthOffset - target.entryCoord)
-                    coords[iSample, :] = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToEntryDepth]))
+                    coords[iSample, :] = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToEntryDepth]), doCheck=False)
 
             case 'intersection':
                 for iSample, sample in enumerate(includeSamples):
@@ -230,7 +230,7 @@ class SampleMetadataInterpolatedSurfaceLayer(MeshSurfaceLayer):
                     if sample.coilToMRITransf is None:
                         continue
                     rayPoints_coilSpace = np.asarray([[0, 0, 0,], [0, 0, -100]])
-                    rayPoints_mriSpace = applyTransform(sample.coilToMRITransf, rayPoints_coilSpace)
+                    rayPoints_mriSpace = applyTransform(sample.coilToMRITransf, rayPoints_coilSpace, doCheck=False)
 
                     intersectionPoints, intersectionCells = self._mesh.ray_trace(
                         origin=rayPoints_mriSpace[0, :],
@@ -252,7 +252,7 @@ class SampleMetadataInterpolatedSurfaceLayer(MeshSurfaceLayer):
                     if target.entryCoordPlusDepthOffset is None or target.targetCoord is None:
                         continue
                     coilToTargetDepth = np.linalg.norm(target.entryCoordPlusDepthOffset - target.targetCoord)
-                    coords[iSample, :] = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToTargetDepth]))
+                    coords[iSample, :] = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToTargetDepth]), doCheck=False)
 
             case _:
                 raise NotImplementedError

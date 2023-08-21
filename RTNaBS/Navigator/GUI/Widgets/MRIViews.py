@@ -1,3 +1,5 @@
+import asyncio
+
 import attrs
 import logging
 import numpy as np
@@ -7,15 +9,16 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from RTNaBS.Navigator.Model.Session import Session
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import composeTransform, applyTransform
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 
 
-@attrs.define()
+@attrs.define
 class MRISliceView:
     _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
@@ -26,13 +29,15 @@ class MRISliceView:
 
     _slicePlotMethod: str = 'cameraClippedVolume'
 
-    _plotter: BackgroundPlotter = attrs.field(init=False, default=None)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False, default=None)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
     _plotterPickerInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
 
     _backgroundColor: str = '#000000'
     _opacity: float = 0.5
+
+    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     sigSliceOriginChanged: Signal = attrs.field(init=False, factory=Signal)
     sigNormalChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -44,13 +49,21 @@ class MRISliceView:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
 
         if self._plotter is None:
-            self._plotter = BackgroundPlotter(
-                show=False,
-                app=QtWidgets.QApplication.instance()
-            )
-            self._plotter.set_background(self._backgroundColor)
+            self._plotter = DefaultBackgroundPlotter()
+        else:
+            pass  # presumably was initialized by subclass
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finish_init))
+
+    async def _finish_init(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._plotter.set_background(self._backgroundColor)
 
         _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
+
+        self._finishedAsyncInit.set()
 
         self.updateView()
 
@@ -165,7 +178,7 @@ class MRISliceView:
         pos = self._sliceOrigin + offset
         self.sliceOrigin = pos
 
-    def _onMouseEvent(self, obj, event):
+    def _onMouseEvent(self, _, event):
         # TODO: check if `obj` has any info about scroll speed to scroll with larger increment
 
         if event == 'MouseWheelForwardEvent':
@@ -205,6 +218,10 @@ class MRISliceView:
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
             return  # prev line will have triggered its own update
 
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
+
         if not self._plotterPickerInitialized:
             logger.debug('Initializing plot for {} slice'.format(self.label))
             self.plotter.enable_parallel_projection()
@@ -215,7 +232,9 @@ class MRISliceView:
                                                callback=lambda newPt: self._onSlicePointChanged())
             self.plotter.enable_image_style()
             for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
-                self.plotter.iren._style_class.AddObserver(event, lambda obj, event: self._onMouseEvent(obj,event))
+                self.plotter.addIrenStyleClassObserver(
+                    event=event,
+                    callback=lambda obj, event: self._onMouseEvent(obj,event))
             self._plotterPickerInitialized = True
 
         if self._slicePlotMethod == 'slicedSurface':
@@ -360,6 +379,10 @@ class MRI3DView(MRISliceView):
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape) / 2,
                                                                          1))[:-1]
             return  # prev line will have triggered its own update
+
+        if not self._finishedAsyncInit.is_set():
+            # plotter not ready
+            return
 
         if not self._plotterInitialized:
             logger.debug('Initializing 3D plot')

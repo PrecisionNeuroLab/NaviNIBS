@@ -10,7 +10,7 @@ import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,8 @@ class TargetingCrosshairsLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='initCrosshair'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePositions', 'crosshairVisibility']))
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='initCrosshair'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updatePositions', 'crosshairVisibility']))
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
@@ -53,8 +53,9 @@ class TargetingCrosshairsLayer(PlotViewLayer):
             actorKey = self._getActorKey('crosshair')
             if actorKey in self._actors:
                 actor = self._actors.pop(actorKey)
-                self._plotter.remove_actor(actor)
-                self._plotter.render()
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.remove_actor(actor)
+                    self._plotter.render()
 
         elif which == 'crosshairVisibility':
             actorKey = self._getActorKey('crosshair')
@@ -89,9 +90,9 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
             offsetLines = self._getCrosshairLineSegments(radius=self._offsetRadius, zOffset=zOffset)
 
-            depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
+            depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
 
-            self._actors[actorKey] = addLineSegments(self._plotter,
+            self._actors[actorKey] = self._plotter.addLineSegments(
                                                      concatenateLineSegments([lines, offsetLines, depthLine]),
                                                      name=actorKey,
                                                      color=self._color,
@@ -114,18 +115,19 @@ class TargetingCrosshairsLayer(PlotViewLayer):
             if self._plotInSpace != 'MRI':
                 raise NotImplementedError()  # TODO: add necessary transforms for plotting in other spaces below
 
-            if self._targetOrCoil == 'target':
-                currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
-                setActorUserTransform(actor, currentTargetToMRITransform)
+            with self._plotter.allowNonblockingCalls():
+                if self._targetOrCoil == 'target':
+                    currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
+                    setActorUserTransform(actor, currentTargetToMRITransform)
 
-            elif self._targetOrCoil == 'coil':
-                currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
-                setActorUserTransform(actor, currentCoilToMRITransform)
+                elif self._targetOrCoil == 'coil':
+                    currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+                    setActorUserTransform(actor, currentCoilToMRITransform)
 
-            else:
-                raise NotImplementedError()
+                else:
+                    raise NotImplementedError()
 
-            self._plotter.render()
+                self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected redraw which: {}'.format(which))
@@ -154,7 +156,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         theta = np.linspace(0, 2 * np.pi, numPts)
         points[:, 0] = radius * np.cos(theta)
         points[:, 1] = radius * np.sin(theta)
-        return pv.utilities.lines_from_points(points)
+        return pv.lines_from_points(points)
 
     @classmethod
     def _getCrosshairLineSegments(cls,
@@ -165,12 +167,12 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         circle = cls._getCircleLines(radius=radius, numPts=numPtsInCircle)
         relNotchLength = 0.2
         # TODO: check signs and directions
-        topNotch = pv.utilities.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1 - relNotchLength), 0]]))
-        botNotch = pv.utilities.lines_from_points(
+        topNotch = pv.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1 - relNotchLength), 0]]))
+        botNotch = pv.lines_from_points(
             np.asarray([[0, -radius * (1 + relNotchLength), 0], [0, -radius * (1 - relNotchLength), 0]]))
-        leftNotch = pv.utilities.lines_from_points(
+        leftNotch = pv.lines_from_points(
             np.asarray([[-radius, 0, 0], [-radius * (1 - relNotchLength), 0, 0]]))
-        rightNotch = pv.utilities.lines_from_points(np.asarray([[radius, 0, 0], [radius * (1 - relNotchLength), 0, 0]]))
+        rightNotch = pv.lines_from_points(np.asarray([[radius, 0, 0], [radius * (1 - relNotchLength), 0, 0]]))
 
         lines = concatenateLineSegments([circle, botNotch, topNotch, leftNotch, rightNotch])
 

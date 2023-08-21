@@ -350,8 +350,8 @@ class EntryAnglesWidgets:
 
         pivotedCoilToMRITransf = concatenateTransforms([coilToPivotSpaceTransf, pivotTransf, invertTransform(coilToPivotSpaceTransf), prepivotTargetCoilToMRITransf])
 
-        self._target.entryCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset]))
-        self._target.targetCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset - entryToTargetDist]))
+        self._target.entryCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset]), doCheck=False)
+        self._target.targetCoord = applyTransform(pivotedCoilToMRITransf, np.asarray([0, 0, -self._target.depthOffset - entryToTargetDist]), doCheck=False)
 
     def _onTargetItemChanged(self, targetKey: str, attribsChanged: list[str] | None = None):
         if attribsChanged is None or any(x in attribsChanged for x in
@@ -412,7 +412,7 @@ class EditTargetWidget:
         self._scroll.scrollArea.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                               QtWidgets.QSizePolicy.Preferred)
 
-        self._targetsModel = FullTargetsTableModel(self._session)
+        self._targetsModel = FullTargetsTableModel(session=self._session)
         self._targetComboBox.setModel(self._targetsModel)
         self._targetComboBox.currentIndexChanged.connect(self._onTargetComboBoxCurrentIndexChanged)
         self._targetsModel.sigSelectionChanged.connect(self._onModelSelectionChanged)

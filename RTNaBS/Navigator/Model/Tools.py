@@ -100,7 +100,7 @@ class Tool(GenericCollectionDictItem[str]):
         if self._label == newLabel:
             return
         self.sigItemAboutToChange.emit(self._key, ['label'])
-        self._usedFor = newLabel
+        self._label = newLabel
         self.sigItemChanged.emit(self._key, ['label'])
 
     @property

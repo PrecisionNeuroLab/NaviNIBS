@@ -5,6 +5,7 @@ import typing as tp
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
 from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
 from RTNaBS.util.Transforms import applyTransform
+from RTNaBS.util.pyvista.dataset import find_closest_point
 
 
 @attrs.define(slots=False)
@@ -36,8 +37,8 @@ class HeadPointsTableModel(CollectionTableModel[int, HeadPoints, HeadPoint]):
         pt = self._collection[index]
         if self._session.subjectRegistration.trackerToMRITransf is None:
             return ''
-        pt_MRISpace = applyTransform(self._session.subjectRegistration.trackerToMRITransf, pt)
-        closestPtIndex = self._session.headModel.skinSurf.find_closest_point(pt_MRISpace)
+        pt_MRISpace = applyTransform(self._session.subjectRegistration.trackerToMRITransf, pt, doCheck=False)
+        closestPtIndex = find_closest_point(self._session.headModel.skinSurf, pt_MRISpace)
         closestPt = self._session.headModel.skinSurf.points[closestPtIndex, :]
         dist = np.linalg.norm(closestPt - pt_MRISpace)
         # TODO: improvie dist estimation by allowing for nearest point to be between mesh vertices

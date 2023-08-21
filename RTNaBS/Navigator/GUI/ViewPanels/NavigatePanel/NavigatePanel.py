@@ -22,6 +22,7 @@ from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -297,7 +298,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         for view in self._views.values():
             if isinstance(view, SinglePlotterNavigationView):
-                view.plotter.resumeRendering()
+                if not isinstance(view.plotter, RemotePlotterProxy) or view.plotter.isReadyEvent.is_set():
+                    view.plotter.resumeRendering()
 
     def _onPanelHidden(self):
         super()._onPanelHidden()
@@ -306,7 +308,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
             for view in self._views.values():
                 if isinstance(view, SinglePlotterNavigationView):
-                    view.plotter.pauseRendering()
+                    if not isinstance(view.plotter, RemotePlotterProxy) or view.plotter.isReadyEvent.is_set():
+                        view.plotter.pauseRendering()
 
     def _onSamplesChanged(self, changesKeys: list[str], changedAttribs: tp.Optional[list[str]] = None):
         if changedAttribs is None or 'isVisible' in changedAttribs:

@@ -37,8 +37,8 @@ class TargetingPointLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='all'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePosition']))
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='all'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updatePosition']))
 
     def _getCoord(self, orientation: str, depth: tp.Union[str, ProjectionSpecification]) -> tp.Optional[np.ndarray]:
         return self._coordinator.getTargetingCoord(orientation=orientation, depth=depth)
@@ -74,16 +74,17 @@ class TargetingPointLayer(PlotViewLayer):
 
             coord = self._getCoord(orientation=self._orientation, depth=self._depth)
 
-            if coord is None:
-                # no valid pose available
-                if actor.GetVisibility():
-                    actor.VisibilityOff()
+            with self._plotter.allowNonblockingCalls():
+                if coord is None:
+                    # no valid pose available
+                    if actor.GetVisibility():
+                        actor.VisibilityOff()
+                        self._plotter.render()
+                else:
+                    if not actor.GetVisibility():
+                        actor.VisibilityOn()
+                    setActorUserTransform(actor, composeTransform(np.eye(3), coord))
                     self._plotter.render()
-            else:
-                setActorUserTransform(actor, composeTransform(np.eye(3), coord))
-                if not actor.GetVisibility():
-                    actor.VisibilityOn()
-                self._plotter.render()
 
         else:
             raise NotImplementedError('Unexpected redraw which: {}'.format(which))

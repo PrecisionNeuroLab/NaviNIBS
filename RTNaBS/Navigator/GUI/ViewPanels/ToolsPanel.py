@@ -25,14 +25,17 @@ from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidg
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
 from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
 from RTNaBS.util import makeStrUnique
-from RTNaBS.util.pyvista import setActorUserTransform, Actor
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from RTNaBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +57,9 @@ class ToolWidget:
     _toolToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _toolStlToToolTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
-    _toolSpacePlotter: BackgroundPlotter = attrs.field(init=False)
-    _trackerSpacePlotter: BackgroundPlotter = attrs.field(init=False)
+    _toolSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
     _trackerSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
@@ -147,29 +151,44 @@ class ToolWidget:
         plotContainer.setLayout(QtWidgets.QHBoxLayout())
         self._wdgt.layout().addWidget(plotContainer)
 
-        self._toolSpacePlotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._toolSpacePlotter.enable_depth_peeling(2)
+        self._toolSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
+        # TODO: make sure these plotters (when RemotePlotterProxies) are appropriately terminated when switching between tools
+        # TODO: ideally actually repurpose previous RemotePlotter when switching between tools to avoid unnecessary process init times
+
         plotterContainer = QtWidgets.QGroupBox('Tool-space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
         plotterContainer.layout().addWidget(self._toolSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        self._trackerSpacePlotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._trackerSpacePlotter.enable_depth_peeling(2)
+        self._trackerSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
+
         plotterContainer = QtWidgets.QGroupBox('Tracker-space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+        self.redraw()
+
+    async def _finishInitialization_async(self):
+        if isinstance(self._toolSpacePlotter, RemotePlotterProxy):
+            await self._toolSpacePlotter.isReadyEvent.wait()
+
+        if isinstance(self._trackerSpacePlotter, RemotePlotterProxy):
+            await self._trackerSpacePlotter.isReadyEvent.wait()
+
+        self._toolSpacePlotter.enable_depth_peeling(2)
+        self._trackerSpacePlotter.enable_depth_peeling(2)
+
+        self._finishedAsyncInit.set()
+
         self.redraw()
 
     def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
+
+        if not self._finishedAsyncInit.is_set():
+            return
 
         if whatToRedraw is None or 'tool' in whatToRedraw:
             actorKey = 'tool'
@@ -177,6 +196,10 @@ class ToolWidget:
                 self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
             if actorKey in self._trackerSpaceActors:
                 self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
+
+            defaultGridKwargs = dict(
+                bold=False,
+            )
 
             if self._tool.toolSurf is not None:
                 meshColor = self._tool.toolColor
@@ -190,24 +213,28 @@ class ToolWidget:
                     name=actorKey,
                     mesh=self._tool.toolSurf,
                     color=meshColor,
-                    rgb=True,
+                    rgb=meshColor is None,
                     opacity=0.8
                 )
                 self._toolSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.toolStlToToolTransf)
-                self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+                self._toolSpacePlotter.show_grid(
+                    color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                    **defaultGridKwargs)
 
             if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
                 actor = self._trackerSpacePlotter.add_mesh(
                     mesh=self._tool.toolSurf,
                     color=meshColor_tool,  # noqa
-                    rgb=True,
+                    rgb=meshColor_tool is None,
                     opacity=0.8,
                     name=actorKey
                 )
                 self._trackerSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
-                self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+                self._trackerSpacePlotter.show_grid(
+                    color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                    **defaultGridKwargs)
 
             self._toolSpacePlotter.reset_camera()
 
@@ -219,6 +246,11 @@ class ToolWidget:
                 self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
 
             if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
+
+                defaultGridKwargs = dict(
+                    bold=False,
+                )
+
                 meshColor = self._tool.trackerColor
                 if meshColor is None:
                     if len(self._tool.trackerSurf.array_names) > 0:
@@ -228,25 +260,29 @@ class ToolWidget:
                 actor = self._trackerSpacePlotter.add_mesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
-                    rgb=True,
+                    rgb=meshColor is None,
                     opacity=0.8,
                     name=actorKey
                 )
                 self._trackerSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
-                self._trackerSpacePlotter.show_grid(color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+                self._trackerSpacePlotter.show_grid(
+                    color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                    **defaultGridKwargs)
 
                 if self._tool.toolToTrackerTransf is not None:
                     actor = self._toolSpacePlotter.add_mesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
-                        rgb=True,
+                        rgb=meshColor is None,
                         opacity=0.8,
                         name=actorKey
                     )
                     self._toolSpaceActors[actorKey] = actor
                     setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
-                    self._toolSpacePlotter.show_grid(color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name())
+                    self._toolSpacePlotter.show_grid(
+                        color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                        **defaultGridKwargs)
 
             self._trackerSpacePlotter.reset_camera()
 
@@ -339,7 +375,9 @@ class ToolWidget:
 
     def close(self):
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
-        self.wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
+        self._toolSpacePlotter.close()
+        self._trackerSpacePlotter.close()
+        self._wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
 
     @staticmethod
     def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:

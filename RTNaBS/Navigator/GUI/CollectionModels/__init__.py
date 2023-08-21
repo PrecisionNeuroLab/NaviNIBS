@@ -18,7 +18,7 @@ C = tp.TypeVar('C', bound=GenericCollection)  # collection type
 CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
 
 
-@attrs.define(slots=False)
+@attrs.define(slots=False, kw_only=True)
 class CollectionTableModelBase(tp.Generic[K, C, CI]):
     _session: Session = attrs.field(repr=False)
 
@@ -29,7 +29,7 @@ class CollectionTableModelBase(tp.Generic[K, C, CI]):
 
 
 @attrs.define(slots=False)
-class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[K, C, CI]):
+class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractTableModel):
     _columns: list[str] = attrs.field(factory=list)
     _attrColumns: list[str] = attrs.field(factory=list)
     _derivedColumns: dict[str, tp.Callable[[K], tp.Any]] = attrs.field(factory=dict)
@@ -324,9 +324,9 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
                         raise KeyError
                     assert isinstance(colVal, bool)
                     if colVal:
-                        return int(QtCore.Qt.Checked)
+                        return int(QtCore.Qt.CheckState.Checked.value)
                     else:
-                        return int(QtCore.Qt.Unchecked)
+                        return int(QtCore.Qt.CheckState.Unchecked.value)
                 else:
                     return None
             case _:
@@ -369,7 +369,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
             case QtCore.Qt.CheckStateRole:
                 if colKey in self._boolColumns:
                     if colKey in self._attrColumns:
-                        isChecked = value == QtCore.Qt.CheckState.Checked
+                        isChecked = value == QtCore.Qt.CheckState.Checked.value
                         itemKey = self.getCollectionItemKeyFromIndex(index.row())
                         if self._isSelectedAttr is None:
                             lastSelectedKeys = self._lastSelectedKeys
@@ -566,7 +566,7 @@ class CollectionTableModel(QtCore.QAbstractTableModel, CollectionTableModelBase[
 
 
 @attrs.define(slots=False)
-class FilteredCollectionModel(QtCore.QSortFilterProxyModel, CollectionTableModelBase[K, C, CI]):
+class FilteredCollectionModel(CollectionTableModelBase[K, C, CI], QtCore.QSortFilterProxyModel):
     """
     Base class for models that filter a collection model, e.g. Targets subset
     """

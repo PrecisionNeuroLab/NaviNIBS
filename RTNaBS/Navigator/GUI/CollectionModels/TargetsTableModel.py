@@ -10,7 +10,7 @@ from RTNaBS.Navigator.GUI.CollectionModels import \
 from RTNaBS.Navigator.Model.Targets import Targets, Target
 
 
-@attrs.define(slots=False)
+@attrs.define(slots=False, kw_only=True)
 class FullTargetsTableModel(CollectionTableModel[str, Targets, Target]):
     _collection: Targets = attrs.field(init=False)
     _isSelectedAttr: str = 'isSelected'
@@ -43,7 +43,7 @@ class FullTargetsTableModel(CollectionTableModel[str, Targets, Target]):
         super().__attrs_post_init__()
 
 
-@attrs.define(slots=False)
+@attrs.define(slots=False, kw_only=True)
 class TargetsTableModel(FilteredCollectionModel[str, Targets, Target]):
     """
     Non-historical targets only
@@ -51,7 +51,7 @@ class TargetsTableModel(FilteredCollectionModel[str, Targets, Target]):
     _proxiedModel: FullTargetsTableModel = attrs.field(init=False)
 
     def __attrs_post_init__(self):
-        self._proxiedModel = FullTargetsTableModel(self._session)
+        self._proxiedModel = FullTargetsTableModel(session=self._session)
         FilteredCollectionModel.__attrs_post_init__(self)
 
     def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:

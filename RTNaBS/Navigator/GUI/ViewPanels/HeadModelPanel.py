@@ -66,6 +66,7 @@ class HeadModelPanel(MainViewPanel):
         self._wdgt.layout().addWidget(containerWdgt)
 
         containerWdgt = QtWidgets.QWidget()
+        containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         containerLayout = QtWidgets.QGridLayout()
         containerWdgt.setLayout(containerLayout)
         self._wdgt.layout().addWidget(containerWdgt)

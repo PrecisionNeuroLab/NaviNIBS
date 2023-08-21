@@ -28,16 +28,17 @@ from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTableWi
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
 from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
-from RTNaBS.util.pyvista import Actor, setActorUserTransform
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util import exceptionToStr
+from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
-
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
+from RTNaBS.util.pyvista.dataset import find_closest_point
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -161,17 +162,17 @@ class _PointerDistanceReadouts:
         pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.toolToTrackerTransf,
                                                        pointerToCameraTransf,
                                                        invertTransform(subjectTrackerToCameraTransf)
-                                                       ], np.zeros((3,)))
+                                                       ], np.zeros((3,)), doCheck=False)
 
         subjectTrackerToMRITransf = self.session.subjectRegistration.trackerToMRITransf
         if subjectTrackerToMRITransf is None:
             # TODO: report NaNS for all distances
             return
 
-        pointerCoord_MRISpace = applyTransform(subjectTrackerToMRITransf, pointerCoord_relToSubTracker)
+        pointerCoord_MRISpace = applyTransform(subjectTrackerToMRITransf, pointerCoord_relToSubTracker, doCheck=False)
 
         # find distance to skin
-        closestPtIndex = self.session.headModel.skinSurf.find_closest_point(pointerCoord_MRISpace)
+        closestPtIndex = find_closest_point(self.session.headModel.skinSurf, pointerCoord_MRISpace)
         closestPt = self.session.headModel.skinSurf.points[closestPtIndex, :]
         dist = np.linalg.norm(closestPt - pointerCoord_MRISpace)
         self._distToSkinReadout.value = dist
@@ -191,7 +192,7 @@ class _PointerDistanceReadouts:
                     continue
                 if whichType == 'sampled':
                     # must do extra coordinate conversion from head tracker space to MRI space
-                    coord = applyTransform(subjectTrackerToMRITransf, coord)
+                    coord = applyTransform(subjectTrackerToMRITransf, coord, doCheck=False)
                 dist = np.linalg.norm(coord - pointerCoord_MRISpace)
                 if dist < closestDist:
                     closestDist = dist
@@ -223,7 +224,7 @@ class _PointerDistanceReadouts:
                 self._distToSampledFidReadout.value = np.nan
             else:
                 # must do extra coordinate conversion from head tracker space to MRI space
-                coord = applyTransform(subjectTrackerToMRITransf, coord)
+                coord = applyTransform(subjectTrackerToMRITransf, coord, doCheck=False)
 
                 self._distToSampledFidReadout.value = np.linalg.norm(coord - pointerCoord_MRISpace)
                 self._distToSampledFidReadout.label = f'Dist to sampled {whichFidClosest}'
@@ -248,7 +249,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     _clearHeadPtsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _refineWeightsField: QLineEditWithValidationFeedback = attrs.field(init=False)
     _refineWithHeadpointsBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _plotter: BackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
     _pointerDistanceReadouts: _PointerDistanceReadouts = attrs.field(init=False)
 
@@ -437,12 +438,16 @@ class SubjectRegistrationPanel(MainViewPanel):
         )
         sidebar.layout().addWidget(self._pointerDistanceReadouts.wdgt)
 
-        self._plotter = BackgroundPlotter(
-            show=False,
-            app=QtWidgets.QApplication.instance()
-        )
-        self._plotter.enable_depth_peeling(4)
+        self._plotter = DefaultBackgroundPlotter()
         self._wdgt.layout().addWidget(self._plotter)
+
+        asyncio.create_task(asyncTryAndRaiseDialogOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        self._plotter.enable_depth_peeling(4)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
@@ -537,7 +542,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         pointerCoord_relToSubTracker = applyTransform([self.session.tools.pointer.toolToTrackerTransf,
                                                        pointerToCameraTransf,
                                                        invertTransform(subjectTrackerToCameraTransf)
-                                                       ], np.zeros((3,)))
+                                                       ], np.zeros((3,)), doCheck=False)
 
         return pointerCoord_relToSubTracker
 
@@ -708,8 +713,8 @@ class SubjectRegistrationPanel(MainViewPanel):
         commonKeys = validPlannedFidKeys & validSampledFidKeys
         assert len(commonKeys) >= 3
 
-        plannedPts_mriSpace = np.vstack(subReg.fiducials[key].plannedCoord for key in commonKeys)
-        sampledPts_subSpace = np.vstack(subReg.fiducials[key].sampledCoord for key in commonKeys)
+        plannedPts_mriSpace = np.vstack([subReg.fiducials[key].plannedCoord for key in commonKeys])
+        sampledPts_subSpace = np.vstack([subReg.fiducials[key].sampledCoord for key in commonKeys])
 
         alignmentWeights = np.asarray([subReg.fiducials[key].alignmentWeight for key in commonKeys])
 
@@ -787,6 +792,10 @@ class SubjectRegistrationPanel(MainViewPanel):
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
         logger.debug('redraw {}'.format(which))
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # plotter not ready yet
+            return
 
         if isinstance(which, list):
             for subWhich in which:
@@ -917,14 +926,15 @@ class SubjectRegistrationPanel(MainViewPanel):
                     else:
                         raise NotImplementedError()
 
-                    setActorUserTransform(
-                        self._actors[actorKey],
-                        concatenateTransforms([
-                            pointerStlToSubjectTrackerTransf,
-                            self.session.subjectRegistration.trackerToMRITransf
-                        ])
-                    )
-                    self._plotter.render()
+                    with self._plotter.allowNonblockingCalls():
+                        setActorUserTransform(
+                            self._actors[actorKey],
+                            concatenateTransforms([
+                                pointerStlToSubjectTrackerTransf,
+                                self.session.subjectRegistration.trackerToMRITransf
+                            ])
+                        )
+                        self._plotter.render()
 
             else:
                 raise NotImplementedError()
@@ -938,11 +948,12 @@ class SubjectRegistrationPanel(MainViewPanel):
                 # subject tracker hasn't been initialized, maybe due to missing information
                 return
 
-            setActorUserTransform(
-                self._actors[actorKey],
-                self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.trackerStlToTrackerTransf
-            )
-            self._plotter.render()
+            with self._plotter.allowNonblockingCalls():
+                setActorUserTransform(
+                    self._actors[actorKey],
+                    self.session.subjectRegistration.trackerToMRITransf @ self.session.tools.subjectTracker.trackerStlToTrackerTransf
+                )
+                self._plotter.render()
 
         elif which == 'initPlannedFids':
 
@@ -1098,4 +1109,5 @@ class SubjectRegistrationPanel(MainViewPanel):
         else:
             raise NotImplementedError('Unexpected redraw key: {}'.format(which))
 
-        self._plotter.render()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.render()

@@ -18,18 +18,18 @@ class TransformValidator(QtGui.QValidator):
             stringToTransform(inputStr)
         except ValueError as e:
             if invalidRegex.search(inputStr):
-                return self.Invalid, inputStr, pos
+                return self.State.Invalid, inputStr, pos
             else:
                 # TODO: add detection other clearly invalid cases
-                return self.Intermediate, inputStr, pos
+                return self.State.Intermediate, inputStr, pos
         else:
-            return self.Acceptable, inputStr, pos
+            return self.State.Acceptable, inputStr, pos
 
 
 class OptionalTransformValidator(TransformValidator):
     def validate(self, inputStr: str, pos: int) -> tp.Tuple[QtGui.QValidator.State, str, int]:
         if len(inputStr.strip()) == 0:
-            return self.Acceptable, inputStr, pos
+            return self.State.Acceptable, inputStr, pos
         else:
             return super().validate(inputStr=inputStr, pos=pos)
 

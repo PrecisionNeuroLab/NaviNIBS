@@ -12,7 +12,8 @@ from typing import ClassVar
 from . import PlotViewLayer
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class VisualizedOrientation:
     re-instantiate for any changes as needed
     """
     _orientation: tp.Union[Sample, Target]
-    _plotter: pv.Plotter
+    _plotter: DefaultBackgroundPlotter
     _colorDepthIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _colorHandleIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _opacity: float
@@ -46,8 +47,8 @@ class VisualizedOrientation:
                 # depth axis line plus small handle orientation indicator
                 zOffset = -20
                 handleLength = 2
-                depthLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
-                handleLine = pv.utilities.lines_from_points(np.asarray([[0, 0, 0], [0, -handleLength, 0]]))
+                depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
+                handleLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, -handleLength, 0]]))
 
                 actorKey = self._actorKeyPrefix + 'depthLine'
 
@@ -61,7 +62,7 @@ class VisualizedOrientation:
                     scalar_bar_args = None
                     color=self._colorDepthIndicator
 
-                self._actors[actorKey] = addLineSegments(self._plotter,
+                self._actors[actorKey] = self._plotter.addLineSegments(
                                                          depthLine,
                                                          name=actorKey,
                                                          color=color,
@@ -83,7 +84,7 @@ class VisualizedOrientation:
                     scalar_bar_args = None
                     color=self._colorHandleIndicator
 
-                self._actors[actorKey] = addLineSegments(self._plotter,
+                self._actors[actorKey] = self._plotter.addLineSegments(
                                                          handleLine,
                                                          name=actorKey,
                                                          color=color,
@@ -95,8 +96,9 @@ class VisualizedOrientation:
             case _:
                 raise NotImplementedError(f'Unexpected style: {self._style}')
 
-        for actor in self._actors.values():
-            setActorUserTransform(actor, self._orientation.coilToMRITransf)
+        with self._plotter.allowNonblockingCalls():
+            for actor in self._actors.values():
+                setActorUserTransform(actor, self._orientation.coilToMRITransf)
 
     @property
     def actors(self):
@@ -186,8 +188,9 @@ class OrientationsLayer(PlotViewLayer):
 
             for key in changedOrientationKeys:
                 if key in self._visualizedOrientations:
-                    for actorKey in self._visualizedOrientations.pop(key).actors:
-                        self._plotter.remove_actor(self._actors.pop(actorKey))
+                    with self._plotter.allowNonblockingCalls():
+                        for actorKey in self._visualizedOrientations.pop(key).actors:
+                            self._plotter.remove_actor(self._actors.pop(actorKey))
 
                 self._pendingOrientationKeys.add(key)
                 self._hasPendingOrientations.set()  # tell orientation drawing loop to check for new key(s) to draw
@@ -218,7 +221,7 @@ class SampleOrientationsLayer(OrientationsLayer):
                 self._coordinator.session.samples[key].isSelected)
 
     def _onSamplesChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
-        self._redraw(which='orientations', changedOrientationKeys=changedKeys)
+        self._queueRedraw(which='orientations', changedOrientationKeys=changedKeys)
 
 
 @attrs.define
@@ -247,4 +250,4 @@ class TargetOrientationsLayer(OrientationsLayer):
                 self._coordinator.session.targets[key].isSelected)
 
     def _onTargetsChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
-        self._redraw(which='orientations', changedOrientationKeys=changedKeys)
+        self._queueRedraw(which='orientations', changedOrientationKeys=changedKeys)

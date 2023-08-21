@@ -37,7 +37,7 @@ class LSLStreamSelector:
 
         self._comboBox = QtWidgets.QComboBox()
         self._comboBox.setEditable(True)
-        self._comboBox.setInsertPolicy(self._comboBox.InsertAtBottom)
+        self._comboBox.setInsertPolicy(self._comboBox.InsertPolicy.InsertAtBottom)
         self._comboBox.currentIndexChanged.connect(self._onComboBoxIndexChanged)
         self._wdgt.layout().addWidget(self._comboBox)
 

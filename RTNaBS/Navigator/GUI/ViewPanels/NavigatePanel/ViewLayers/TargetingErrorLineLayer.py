@@ -30,8 +30,8 @@ class TargetingErrorLineLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._redraw(which='updatePosition'))
-        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._redraw(which=['updatePosition']))
+        self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='updatePosition'))
+        self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updatePosition']))
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
@@ -72,16 +72,19 @@ class TargetingErrorLineLayer(PlotViewLayer):
 
             if not doShow:
                 if actor.GetVisibility():
-                    actor.VisibilityOff()
+                    with self._plotter.allowNonblockingCalls():
+                        actor.VisibilityOff()
                 return
 
             pts_pv = pv.lines_from_points(np.vstack([pt_coil, pt_target]))
-            actor.GetMapper().SetInputData(pts_pv)
 
-            if not actor.GetVisibility():
-                actor.VisibilityOn()
+            with self._plotter.allowNonblockingCalls():
+                actor.GetMapper().SetInputData(pts_pv)
 
-            self._plotter.render()
+                if not actor.GetVisibility():
+                    actor.VisibilityOn()
+
+                self._plotter.render()
         else:
             raise NotImplementedError(f'Unexpected redraw which: {which}')
 

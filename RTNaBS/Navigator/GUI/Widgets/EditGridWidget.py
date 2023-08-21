@@ -60,7 +60,7 @@ class EditGridWidget:
         self._scroll.scrollArea.setSizePolicy(QtWidgets.QSizePolicy.Minimum,
                                               QtWidgets.QSizePolicy.Preferred)
 
-        self._targetsModel = FullTargetsTableModel(self._session)
+        self._targetsModel = FullTargetsTableModel(session=self._session)
         self._targetComboBox.setModel(self._targetsModel)
         self._targetComboBox.setCurrentIndex(-1)
         self._targetComboBox.currentIndexChanged.connect(self._onTargetComboBoxCurrentIndexChanged)
