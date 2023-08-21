@@ -246,6 +246,11 @@ class ToolWidget:
                 self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
 
             if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
+
+                defaultGridKwargs = dict(
+                    bold=False,
+                )
+
                 meshColor = self._tool.trackerColor
                 if meshColor is None:
                     if len(self._tool.trackerSurf.array_names) > 0:
