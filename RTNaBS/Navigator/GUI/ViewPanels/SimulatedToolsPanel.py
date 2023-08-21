@@ -5,6 +5,7 @@ import asyncio
 import appdirs
 import attrs
 from datetime import datetime
+import json
 import logging
 import multiprocessing as mp
 import numpy as np
@@ -15,9 +16,11 @@ import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
+import time
 import typing as tp
 
 
+from RTNaBS.Devices import TimestampedToolPosition
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
@@ -26,6 +29,8 @@ from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsCl
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from RTNaBS.util.json import jsonPrettyDumps
 from RTNaBS.util.pyvista import Actor, setActorUserTransform
 from RTNaBS.util.pyvista.PlotInteraction import pickActor, interactivelyMoveActor
 from RTNaBS.util.Signaler import Signal
@@ -85,6 +90,16 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
 
         btn = QtWidgets.QPushButton('Move tool...')
         btn.clicked.connect(lambda checked: self.selectToolToMove())
+        container.layout().addWidget(btn)
+
+        container.layout().addSpacing(10)
+
+        btn = QtWidgets.QPushButton('Import positions snapshot...')
+        btn.clicked.connect(lambda checked: asyncio.create_task(asyncTryAndLogExceptionOnError(self.importPositionsSnapshot)))
+        container.layout().addWidget(btn)
+
+        btn = QtWidgets.QPushButton('Export positions snapshot...')
+        btn.clicked.connect(lambda checked: self.exportPositionsSnapshot())
         container.layout().addWidget(btn)
 
         container.layout().addStretch()
@@ -237,6 +252,57 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                     continue
 
             self._positionsClient.setNewPosition(key=key, transf=np.eye(4))
+
+    async def importPositionsSnapshot(self, filepath: str | None = None):
+
+        if filepath is None:
+            filepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
+                                                             'Select positions snapshot to import',
+                                                             self.session.unpackedSessionDir,
+                                                             'json (*.json)')
+
+        if len(filepath) == 0:
+            logger.warning('Import cancelled')
+            return
+
+        with open(filepath, 'r') as f:
+            positions: dict[str, dict] = json.load(f)
+
+        for key in positions.keys():
+            positions[key] = TimestampedToolPosition.fromDict(positions[key])
+
+        for key, tsPos in positions.items():
+            tsPos.time = time.time()  # overwrite old time to make this look like a "new" position
+            logger.info('Setting position for ' + key + ' to ' + str(tsPos.transf))
+            await self._positionsClient.recordNewPosition(key=key, position=tsPos)
+
+    def exportPositionsSnapshot(self, filepath: str | None = None,
+                                doIncludeToolsWithRelativePositions: bool = False):
+
+        if filepath is None:
+            filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
+                                                             'Select positions snapshot to export',
+                                                             os.path.join(self.session.unpackedSessionDir,
+                                                                          'SimulatedPositions_' + datetime.today().strftime('%y%m%d%H%M%S')),
+                                                             'json (*.json)')
+
+        if len(filepath) == 0:
+            logger.warning('Export cancelled')
+            return
+
+        positions = {key: tsPos.asDict() for key, tsPos in self._positionsClient.latestPositions.items()}
+
+        if not doIncludeToolsWithRelativePositions:
+            for key in list(positions.keys()):
+                tsPosDict = positions[key]
+                if tsPosDict.get('relativeTo', None) is not None:
+                    del positions[key]
+
+        toWrite = jsonPrettyDumps(positions)
+        with open(filepath, 'w') as f:
+            f.write(toWrite)
+
+        logger.info(f'Exported positions snapshot to {filepath}')
 
     async def selectAndMoveTool(self):
         # start by picking mesh to move
