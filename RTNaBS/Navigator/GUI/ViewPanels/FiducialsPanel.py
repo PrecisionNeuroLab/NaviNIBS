@@ -16,11 +16,13 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import PlanningFiducialsTableWidget
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.pyvista import RemotePlotterProxy
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial
 
@@ -109,6 +111,14 @@ class FiducialsPanel(MainViewPanel):
 
         self._onPlannedFiducialsChanged()
 
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for viewKey, view in self._views.items():
+            if isinstance(view.plotter, RemotePlotterProxy):
+                await view.plotter.isReadyEvent.wait()
+
+        self._onPlannedFiducialsChanged()  # update plot
     def _onSliceOriginChanged(self, sourceKey: str):
         for key, view in self._views.items():
             if key == sourceKey:
@@ -146,6 +156,11 @@ class FiducialsPanel(MainViewPanel):
 
     def _onPlannedFiducialsChanged(self):
         logger.debug('Planned fiducials changed. Updating plots')
+
+        for viewKey, view in self._views.items():
+            if isinstance(view.plotter, RemotePlotterProxy) and not view.plotter.isReadyEvent.is_set():
+                # plotter not ready yet
+                return
 
         labels = []
         coords = np.full((len(self.session.subjectRegistration.fiducials), 3), np.nan)

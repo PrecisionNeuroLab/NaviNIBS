@@ -12,6 +12,7 @@ from RTNaBS.Navigator.Model import Session
 from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, getClosestPointToPointOnMesh
 from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.Navigator.Model.Targets import Target
+from RTNaBS.util.pyvista.dataset import find_closest_point
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform
 
@@ -175,7 +176,7 @@ class PoseMetricCalculator:
                       normal=np.diff(targetLinePts_targetCoilSpace, axis=0).squeeze())
 
         sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
-        sampleLinePts_targetCoilSpace = applyTransform([self._sample.coilToMRITransf, invertTransform(target.coilToMRITransf)], sampleLinePts_sampleCoilSpace)
+        sampleLinePts_targetCoilSpace = applyTransform([self._sample.coilToMRITransf, invertTransform(target.coilToMRITransf)], sampleLinePts_sampleCoilSpace, doCheck=False)
         line = Line(sampleLinePts_targetCoilSpace[0, :].squeeze(), np.diff(sampleLinePts_targetCoilSpace, axis=0).squeeze())
 
         try:
@@ -260,13 +261,13 @@ class PoseMetricCalculator:
     getSampleCoilToCortexDist.cacheKey = 'sampleCoilToCortexDist'
 
     def _getCoilToSurfDist(self, coilToMRITransf: np.ndarray, surf: pv.PolyData) -> float:
-        coilOrigin_MRI = applyTransform(coilToMRITransf, np.zeros((3,)))
+        coilOrigin_MRI = applyTransform(coilToMRITransf, np.zeros((3,)), doCheck=False)
 
         # TODO: maybe use additional constraint to find distance within a small range along coil depth axis
         # (e.g. a small sphere sliding down along the depth axis until reaching cortex)
         # Currently, this may find a closest point at a very oblique angle from coil center if coil is tilted
 
-        closestPtIndex = surf.find_closest_point(coilOrigin_MRI)
+        closestPtIndex = find_closest_point(surf, coilOrigin_MRI)
         closestPt = surf.points[closestPtIndex, :]
 
         if False:
@@ -274,7 +275,7 @@ class PoseMetricCalculator:
             return np.linalg.norm(closestPt - coilOrigin_MRI)
         else:
             # signed distance, where coil -Z axis pointing down to surface is positive offset
-            closestPt_coilSpace = applyTransform(invertTransform(coilToMRITransf), closestPt)
+            closestPt_coilSpace = applyTransform(invertTransform(coilToMRITransf), closestPt, doCheck=False)
             return -1*closestPt_coilSpace[2]
 
     def getTargetErrorInBrain(self, doUseCache: bool = True) -> float:
@@ -356,7 +357,7 @@ class PoseMetricCalculator:
         sampleCoilPt_sampleCoilSpace = np.asarray([0, 0, 0])
         sampleCoilPt_targetCoilSpace = applyTransform(
             [self._sample.coilToMRITransf, invertTransform(target.coilToMRITransf)],
-            sampleCoilPt_sampleCoilSpace)
+            sampleCoilPt_sampleCoilSpace, doCheck=False)
 
         offset = sampleCoilPt_targetCoilSpace[2]
 
@@ -377,11 +378,11 @@ class PoseMetricCalculator:
         target = self._session.targets[self._sample.targetKey]
 
         targetLinePts_targetCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
-        targetLinePts_MRISpace = applyTransform(target.coilToMRITransf, targetLinePts_targetCoilSpace)
+        targetLinePts_MRISpace = applyTransform(target.coilToMRITransf, targetLinePts_targetCoilSpace, doCheck=False)
         targetVector = Vector(np.diff(targetLinePts_MRISpace, axis=0).squeeze())
 
         sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
-        sampleLinePts_MRISpace = applyTransform(self._sample.coilToMRITransf, sampleLinePts_sampleCoilSpace)
+        sampleLinePts_MRISpace = applyTransform(self._sample.coilToMRITransf, sampleLinePts_sampleCoilSpace, doCheck=False)
         sampleVector = Vector(np.diff(sampleLinePts_MRISpace, axis=0).squeeze())
 
         angle = targetVector.angle_between(sampleVector)
@@ -406,7 +407,7 @@ class PoseMetricCalculator:
                 sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
                 sampleLinePts_targetCoilSpace = applyTransform([self._sample.coilToMRITransf,
                                                                 invertTransform(target.coilToMRITransf)],
-                                                                sampleLinePts_sampleCoilSpace)
+                                                                sampleLinePts_sampleCoilSpace, doCheck=False)
 
                 targetVector = Vector(np.diff(targetLinePts_targetCoilSpace[:, [iDim, 2]], axis=0).squeeze())
                 sampleVector = Vector(np.diff(sampleLinePts_targetCoilSpace[:, [iDim, 2]], axis=0).squeeze())
@@ -414,7 +415,8 @@ class PoseMetricCalculator:
             case 'coil':
                 targetLinePts_targetCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
                 targetLinePts_sampleCoilSpace = applyTransform([target.coilToMRITransf,
-                                                               invertTransform(self._sample.coilToMRITransf)], targetLinePts_targetCoilSpace)
+                                                               invertTransform(self._sample.coilToMRITransf)],
+                                                               targetLinePts_targetCoilSpace, doCheck=False)
 
                 sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, 0, 1]])
 
@@ -477,7 +479,7 @@ class PoseMetricCalculator:
         sampleLinePts_sampleCoilSpace = np.asarray([[0, 0, 0], [0, -1, 0]])
         sampleLinePts_targetCoilSpace = applyTransform(
             [self._sample.coilToMRITransf, invertTransform(target.coilToMRITransf)],
-            sampleLinePts_sampleCoilSpace)
+            sampleLinePts_sampleCoilSpace, doCheck=False)
 
         targetHandleVector2D_targetCoilSpace = Vector([0, -1])
         sampleHandleVector2D_targetCoilSpace = Vector(np.diff(sampleLinePts_targetCoilSpace[:, 0:2], axis=0).squeeze())
@@ -514,7 +516,7 @@ class PoseMetricCalculator:
             pt_gm = self.getClosestPointToCoilOnGM()
             closestPt_skin = self.getClosestPointToCoilOnSkin()
         else:
-            pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
+            pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]), doCheck=False)
             closestPt_skin = self.getClosestPointToSampleCortexDepthOnSkin()
 
         if closestPt_skin is None or pt_gm is None:
@@ -522,7 +524,9 @@ class PoseMetricCalculator:
 
         # find ideal normal by defining line through these two points
         idealNormal = Vector(closestPt_skin - pt_gm)
-        actualNormal = Vector(np.diff(applyTransform(self._sample.coilToMRITransf, np.asarray([[0, 0, -1], [0, 0, 0,]])), axis=0).squeeze())
+        actualNormal = Vector(np.diff(applyTransform(self._sample.coilToMRITransf,
+                                                     np.asarray([[0, 0, -1], [0, 0, 0,]]),
+                                                     doCheck=False), axis=0).squeeze())
 
         angle = idealNormal.angle_between(actualNormal)
 
@@ -572,7 +576,7 @@ class PoseMetricCalculator:
 
         return getClosestPointToPointOnMesh(session=self._session,
                                             whichMesh='skinSurf',
-                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
+                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,)), doCheck=False))
 
     getClosestPointToCoilOnSkin.cacheKey = 'closestPointToCoilOnSkin'
 
@@ -585,7 +589,7 @@ class PoseMetricCalculator:
 
         return getClosestPointToPointOnMesh(session=self._session,
                                             whichMesh='gmSurf',
-                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,))))
+                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,)), doCheck=False))
 
     getClosestPointToCoilOnGM.cacheKey = 'closestPointToCoilOnGM'
 
@@ -600,7 +604,7 @@ class PoseMetricCalculator:
         if np.isnan(coilToCortexDist):
             return None
 
-        point_MRISpace = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
+        point_MRISpace = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]), doCheck=False)
 
         return getClosestPointToPointOnMesh(session=self._session,
                                             whichMesh='skinSurf',
@@ -617,7 +621,7 @@ class PoseMetricCalculator:
         if np.isnan(coilToCortexDist):
             return np.nan
 
-        pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]))
+        pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]), doCheck=False)
         closestPt_skin = self.getClosestPointToSampleCortexDepthOnSkin()
 
         if closestPt_skin is None:
@@ -625,7 +629,7 @@ class PoseMetricCalculator:
 
         # find ideal normal by defining line through these two points
         idealNormalPts_mriSpace = np.vstack([pt_gm, closestPt_skin])
-        idealNormalPts_coilSpace = applyTransform(invertTransform(self._sample.coilToMRITransf), idealNormalPts_mriSpace)
+        idealNormalPts_coilSpace = applyTransform(invertTransform(self._sample.coilToMRITransf), idealNormalPts_mriSpace, doCheck=False)
         idealNormal = Vector(np.diff(idealNormalPts_coilSpace[:, [iDim, 2]], axis=0).squeeze())
         actualNormal = Vector([0, 1])
 

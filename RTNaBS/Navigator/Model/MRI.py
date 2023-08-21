@@ -27,7 +27,7 @@ class MRI:
     _filepath: tp.Optional[str] = None
 
     _data: tp.Optional[nib.Nifti1Image] = attrs.field(init=False, default=None)
-    _dataAsUniformGrid: tp.Optional[pv.UniformGrid] = attrs.field(init=False, default=None)
+    _dataAsUniformGrid: tp.Optional[pv.ImageData] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -54,8 +54,8 @@ class MRI:
             else:
                 raise NotImplementedError()
 
-            self._dataAsUniformGrid = pv.UniformGrid(
-                dims=self._data.shape,
+            self._dataAsUniformGrid = pv.ImageData(
+                dimensions=self._data.shape,
                 spacing=gridSpacing,
                 origin=self._data.affine[:-1, 3]
             )

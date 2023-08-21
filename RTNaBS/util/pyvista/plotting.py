@@ -1,12 +1,18 @@
 from __future__ import annotations
 import asyncio
+import attrs
+from contextlib import contextmanager
 import logging
 import numpy as np
 import pyvista as pv
+from pyvista.plotting.mapper import DataSetMapper
 import pyvistaqt as pvqt
 from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
+from typing import ClassVar
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from RTNaBS.util.pyvista import Actor
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -25,13 +31,22 @@ class _DelayedPlotter:
 
         self.minRenderPeriod = minRenderPeriod
 
-        self._renderTask = asyncio.create_task(self._renderLoop())
+        self._renderTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._renderLoop))
 
     def pauseRendering(self):
         self._renderingNotPaused.clear()
 
     def resumeRendering(self):
         self._renderingNotPaused.set()
+
+    @contextmanager
+    def renderingPaused(self):
+        prevNotPaused = self._renderingNotPaused.is_set()
+        if not prevNotPaused:
+            self.pauseRendering()
+        yield
+        if prevNotPaused:
+            self.resumeRendering()
 
     def _renderNow(self):
         self._needsRender.clear()
@@ -56,7 +71,145 @@ class _DelayedPlotter:
             self._needsRender.set()
 
 
-class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor):
+
+class PlotterImprovementsMixin:
+    def __init__(self):
+        pass
+
+    def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
+        """
+        Fix some issues with update_scalar_bar_ranges and handling of all nan values
+        """
+        if scalarBarTitles is None:
+            scalarBarTitles = self.scalar_bars.keys()
+        for scalarBarKey in scalarBarTitles:
+            clims = [np.nan, np.nan]
+
+            for actorKey, actor in self.renderer.actors.items():
+                mapper = actor.GetMapper()
+                if mapper in self.scalar_bars._scalar_bar_mappers[scalarBarKey]:
+                    # note: this works for actors created by add_mesh, but maybe not others
+                    mesh = mapper.GetInput()
+                    thisScalarKey = mapper.GetArrayName()
+                    scalars = pv.utilities.get_array(mesh, thisScalarKey)
+                    if not isinstance(scalars, np.ndarray):
+                        scalars = np.asarray(scalars)
+                    clims = [np.nanmin([clims[0], np.nanmin(scalars)]),
+                             np.nanmax([clims[1], np.nanmax(scalars)])]
+            if np.isnan(clims[0]):
+                clims = [0, 1]
+            for mapper in self._scalar_bars._scalar_bar_mappers[scalarBarKey]:
+                mapper.scalar_range = clims
+
+    def addLineSegments(self, lines: pv.PolyData,
+        color = 'w',
+        opacity = 1.,
+        width = 5,
+        reset_camera: bool = False,
+        label = None,
+        name = None,
+        scalar_bar_args: dict | None = None,
+        scalars: str | None = None,
+        show_scalar_bar: bool | None = None,
+        cmap: str | tp.Any | None = None) -> pv.Actor:
+        """
+        Similar to plotter.add_lines but with a few improvements:
+        - Allows `lines` arg to already be pv.PolyData (e.g. to already been passed through `pv.lines_from_points`.) This
+            allows for the possibility of grouping multiple discontinuous line segments into one actor.
+        - Added opacity arg
+        - Added reset_camera arg
+        """
+        assert isinstance(lines, pv.PolyData)
+
+        # Create mapper and add lines
+        mapper = DataSetMapper(lines)
+
+        if scalars is None:
+            assert scalar_bar_args is None
+            rgb_color = pv.colors.Color(color)
+        else:
+            if show_scalar_bar is None:
+                show_scalar_bar = self._theme.show_scalar_bar
+
+            n_colors = 256
+
+            scalar_bar_args = scalar_bar_args.copy()
+            scalar_bar_args.setdefault('n_colors', n_colors)
+            scalar_bar_args['mapper'] = mapper
+
+            nan_color = pv.Color(None, default_opacity=1., default_color=self._theme.nan_color)
+
+            if isinstance(scalars, str):
+                scalars = pv.utilities.helpers.get_array(lines, scalars, preference='points')
+
+            clim = [np.nanmin(scalars), np.nanmax(scalars)]
+
+            if any(np.isnan(x) for x in clim):
+                # autoset clim within set_scalars errors if all values are nan
+                clim = [0, 1]
+
+            mapper.set_scalars(lines,
+                               scalars=scalars,
+                               scalar_bar_args=scalar_bar_args,
+                               rgb=False,
+                               component=None,
+                               preference='points',
+                               interpolate_before_map=True,
+                               _custom_opac=False,
+                               annotations=None,
+                               log_scale=False,
+                               nan_color=nan_color,
+                               above_color=None,
+                               below_color=None,
+                               cmap=cmap,
+                               flip_scalars=False,
+                               opacity=opacity,
+                               categories=False,
+                               n_colors=n_colors,
+                               clim=clim,
+                               theme=self._theme,
+                               show_scalar_bar=show_scalar_bar)
+
+        # Create actor
+        actor = pv._vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetLineWidth(width)
+        actor.GetProperty().EdgeVisibilityOn()
+        if scalars is None:
+            actor.GetProperty().SetEdgeColor(rgb_color.float_rgb)
+            actor.GetProperty().SetColor(rgb_color.float_rgb)
+        actor.GetProperty().LightingOff()
+        actor.GetProperty().SetOpacity(opacity)
+
+        # legend label
+        if label:
+            if not isinstance(label, str):
+                raise TypeError('Label must be a string')
+            addr = actor.GetAddressAsString("")
+            self.renderer._labels[addr] = [lines, label, rgb_color]
+
+        if show_scalar_bar and scalars is not None:
+            self.add_scalar_bar(**scalar_bar_args)
+
+        # Add to renderer
+        self.add_actor(actor, reset_camera=reset_camera, name=name, pickable=False)
+        self.render()
+        return actor
+
+    def add_axes_marker(self,
+                           total_length: tuple[float, float, float] | None = None,
+                           reset_camera: bool = False,
+                           **kwargs) -> Actor:
+        actor = pv.create_axes_marker(**kwargs)
+        if total_length is not None:
+            actor.SetTotalLength(*total_length)
+
+        self.add_actor(actor, reset_camera=reset_camera, pickable=False)
+
+        return actor
+
+
+class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImprovementsMixin):
     """
     Similar to pvqt.BackgroundPlotter, with a few key differences:
     - This batches multiple render calls together with an async coroutine
@@ -66,7 +219,7 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor):
     """
 
     def __init__(self, *args,
-                 auto_update: float = 0.01,
+                 auto_update: float = 0.0,
                  **kwargs):
         _DelayedPlotter.__init__(self, **{key: val for key, val in kwargs.items() if key in ('minRenderPeriod',)})
         try:
@@ -96,6 +249,8 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor):
             self.addAction(action)
             action.triggered.connect(self._onExportToObj)
 
+        PlotterImprovementsMixin.__init__(self)
+
     def _onExportToObj(self):
         exportFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self,
                                                                'Export scene to obj',
@@ -107,39 +262,36 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor):
 
         self.export_obj(exportFilepath)
 
-    def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
-        """
-        Fix some issues with update_scalar_bar_ranges and handling of all nan values
-        """
-        if scalarBarTitles is None:
-            scalarBarTitles = self.scalar_bars.keys()
-        for scalarBarKey in scalarBarTitles:
-            clims = [np.nan, np.nan]
-
-            for actorKey, actor in self.renderer.actors.items():
-                mapper = actor.GetMapper()
-                if mapper in self.scalar_bars._scalar_bar_mappers[scalarBarKey]:
-                    # note: this works for actors created by add_mesh, but maybe not others
-                    mesh = mapper.GetInput()
-                    thisScalarKey = mapper.GetArrayName()
-                    scalars = pv.utilities.get_array(mesh, thisScalarKey)
-                    if not isinstance(scalars, np.ndarray):
-                        scalars = np.asarray(scalars)
-                    clims = [np.nanmin([clims[0], np.nanmin(scalars)]),
-                             np.nanmax([clims[1], np.nanmax(scalars)])]
-            if np.isnan(clims[0]):
-                clims = [0, 1]
-            for mapper in self._scalar_bars._scalar_bar_mappers[scalarBarKey]:
-                mapper.scalar_range = clims
-
     def closeEvent(self, evt):
         toRet = super().closeEvent(evt)
         self.close()
         self.Finalize()  # suggested by https://discourse.vtk.org/t/wglmakecurrent-failed-in-makecurrent-after-closed-a-window-with-two-vtk-widget/5899/2
         return toRet
 
+    def addIrenStyleClassObserver(self, *, event: str, callback: tp.Callable):
+        # shortcut alias for self.iren._style_class.AddObserver, with kwargs instead of args, and
+        # not passing first arg when calling callback
+        # (all for easier implementation with remote plotters)
+        return self.iren._style_class.AddObserver(event, lambda _, event: callback(None, event))
 
-class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
+    @contextmanager
+    def allowNonblockingCalls(self):
+        """
+        For now, this is does nothing. Is here for interface compatibility with RemotePlotterProxy that may be used instead.
+        :return:
+        """
+        yield
+
+    @contextmanager
+    def disallowNonblockingCalls(self):
+        """
+        For now, this is does nothing. Is here for interface compatibility with RemotePlotterProxy that may be used instead.
+        :return:
+        """
+        yield
+
+
+class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovementsMixin):
     _mainPlotter: PrimaryLayeredPlotter
     _rendererLayer: int
 
@@ -173,6 +325,8 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
 
         self.iren = None
 
+        PlotterImprovementsMixin.__init__(self)
+
     @property
     def rendererLayer(self):
         return self._rendererLayer
@@ -194,6 +348,18 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter):
             self._mainPlotter.reset_camera_clipping_range()
         else:
             super().reset_camera_clipping_range()
+
+
+class CustomRenderWindowInteractor(pv.RenderWindowInteractor):
+    """
+    Some quirks for layered plotter setup require us to override some behavior in pyvista's RenderWindowInteractor
+    """
+
+    def get_event_subplot_loc(self):
+        # fix picking behavior for layered plotters
+
+        # assume no subplots
+        return 0, 0
 
 
 class PrimaryLayeredPlotter(BackgroundPlotter):
@@ -229,6 +395,20 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
         self._doAutoAdjustCameraClippingRange = value
         if value:
             self.render()
+
+    def _setup_interactor(self, off_screen: bool) -> None:
+        # override superclass to use custom RenderWindowInteractor
+        if off_screen:
+            self.iren: tp.Any = None
+        else:
+            self.iren = CustomRenderWindowInteractor(
+                self, interactor=self.ren_win.GetInteractor()
+            )
+            self.iren.interactor.RemoveObservers(
+                "MouseMoveEvent"
+            )  # slows window update?
+            self.iren.initialize()
+            self.enable_trackball_style()
 
     def setLayer(self, layer: int):
         for renderer in self.renderers:

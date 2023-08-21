@@ -20,7 +20,6 @@ from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, addLineSegments, concatenateLineSegments
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -496,7 +495,7 @@ class TargetingCoordinator:
                         if transf is None:
                             coilCoord = None
                         else:
-                            coilCoord = applyTransform(transf, np.asarray([0, 0, 0]))
+                            coilCoord = applyTransform(transf, np.asarray([0, 0, 0]), doCheck=False)
                     case _:
                         raise NotImplementedError
                 return coilCoord
@@ -522,7 +521,8 @@ class TargetingCoordinator:
                                 targetCoord = applyTransform(
                                     transf, np.asarray([0, 0, -np.linalg.norm(
                                         self.currentTarget.entryCoordPlusDepthOffset \
-                                        - self.currentTarget.targetCoord)]))
+                                        - self.currentTarget.targetCoord)]),
+                                    doCheck=False)
                     case _:
                         raise NotImplementedError
                 return targetCoord

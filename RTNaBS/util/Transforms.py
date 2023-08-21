@@ -24,13 +24,33 @@ def decomposeTransform(A2B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return R, T
 
 
-def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.ndarray, doStrictCheck: bool = True) -> np.ndarray:
+def _pttTransform_noCheck(A2B: np.ndarray, PA: np.ndarray) -> np.ndarray:
+    """
+    Adapted from ptt.transform but bypassing check for speed
+    """
+    PA = np.asarray(PA)
+
+    if PA.ndim == 1:
+        return np.dot(A2B, PA)
+
+    if PA.ndim == 2:
+        return np.dot(PA, A2B.T)
+
+    raise ValueError("Cannot transform array with more than 2 dimensions")
+
+
+def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]],
+                   pts: np.ndarray,
+                   doCheck: bool = True,
+                   doStrictCheck: bool = True) -> np.ndarray:
     """
     Apply 4x4 transform(s) to a set of points
     :param A2B: single 4x4 transform, or iterable of 4x4 transforms. If multiple, will apply in reversed order, so that
         `applyTransform([space1ToSpace2Transf, space2TransfToSpace3Transf], pts)` correctly transforms from space1 to space3
         as might be expected with `space2TransfToSpace3Transf @ space1ToSpace2Transf @ augmentedPts`
     :param pts: Nx3 points. Or can be in shape (3,) and will return transformed points with same shape.
+    :param: doCheck: whether to check that transform is valid
+    :param: doStrictCheck: whether raise error if transform is not valid
     :return: transformed points
     """
     if pts.ndim == 1:
@@ -43,13 +63,20 @@ def applyTransform(A2B: tp.Union[np.ndarray, tp.Iterable[np.ndarray]], pts: np.n
     if not isinstance(A2B, np.ndarray):
         A2B = concatenateTransforms(A2B)
 
-    result = ptt.transform(A2B, ptt.vectors_to_points(pts), strict_check=doStrictCheck)[:, 0:3]
+    if not doCheck:
+        # adapt ptt.transform here since it doesn't allow bypassing check
+        result = _pttTransform_noCheck(A2B, ptt.vectors_to_points(pts))[:, 0:3]
+    else:
+        result = ptt.transform(A2B, ptt.vectors_to_points(pts), strict_check=doStrictCheck)[:, 0:3]
     if didInsertAxis:
         result = result[0, :]
     return result
 
 
-def applyDirectionTransform(A2B: np.ndarray, dirs: np.ndarray, doStrictCheck: bool = True) -> np.ndarray:
+def applyDirectionTransform(A2B: np.ndarray,
+                            dirs: np.ndarray,
+                            doCheck: bool = True,
+                            doStrictCheck: bool = True) -> np.ndarray:
     if dirs.ndim == 1:
         didInsertAxis = True
         dirs = dirs[np.newaxis, :]
@@ -60,7 +87,10 @@ def applyDirectionTransform(A2B: np.ndarray, dirs: np.ndarray, doStrictCheck: bo
     if not isinstance(A2B, np.ndarray):
         A2B = concatenateTransforms(A2B)
 
-    result = ptt.transform(A2B, ptt.vectors_to_directions(dirs), strict_check=doStrictCheck)[:, 0:3]
+    if not doCheck:
+        result = _pttTransform_noCheck(A2B, ptt.vectors_to_directions(dirs))[:, 0:3]
+    else:
+        result = ptt.transform(A2B, ptt.vectors_to_directions(dirs), strict_check=doStrictCheck)[:, 0:3]
     if didInsertAxis:
         result = result[0, :]
     return result

@@ -58,6 +58,7 @@ class MRIPanel(MainViewPanel):
         self._filepathWdgt = wdgt
 
         containerWdgt = QtWidgets.QWidget()
+        containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         containerLayout = QtWidgets.QGridLayout()
         containerWdgt.setLayout(containerLayout)
         self._wdgt.layout().addWidget(containerWdgt)

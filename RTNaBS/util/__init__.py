@@ -20,14 +20,15 @@ def exceptionToStr(e: Exception) -> str:
     for trace in trace_back:
         stack_trace += "File : %s , Line : %d, Func.Name : %s, Message : %s\n" % (trace[0], trace[1], trace[2], trace[3])
 
-    eStr += "Exception type : %s\n" % ex_type.__name__
+    if ex_type is not None:
+        eStr += "Exception type : %s\n" % ex_type.__name__
     eStr += "Exception message : %s\n" % ex_value
     eStr += "Stack trace : %s\n" % stack_trace
 
     return eStr
 
 
-def makeStrUnique(baseStr: str, existingStrs: tp.List[str], delimiter: str = '_') -> str:
+def makeStrUnique(baseStr: str, existingStrs: tp.Iterable[str], delimiter: str = '_') -> str:
     count = 1
     uniqueStr = baseStr
 

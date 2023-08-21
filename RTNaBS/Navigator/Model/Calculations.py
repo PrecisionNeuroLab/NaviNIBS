@@ -11,6 +11,7 @@ import typing as tp
 if tp.TYPE_CHECKING:
     from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
+from RTNaBS.util.pyvista.dataset import find_closest_point
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def getClosestPointToPointOnMesh(session: Session, whichMesh: str, point_MRISpac
     assert isinstance(surf, pv.PolyData)
 
     # find closest point to coil on surf
-    closestPtIndex = surf.find_closest_point(point_MRISpace)
+    closestPtIndex = find_closest_point(surf, point_MRISpace)
     closestPt = surf.points[closestPtIndex, :]
 
     return closestPt
@@ -67,7 +68,7 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
         # TODO: use MNI transform to get midline points instead of assuming MRI is already aligned
         raise NotImplementedError
 
-    coilLoc_stdSpace = applyTransform([coilToMRITransf, MRIToStdTransf], np.asarray([0, 0, 0]))
+    coilLoc_stdSpace = applyTransform([coilToMRITransf, MRIToStdTransf], np.asarray([0, 0, 0]), doCheck=False)
 
     iDir = np.argmax(np.abs(coilLoc_stdSpace))
     match iDir:
@@ -126,18 +127,18 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
     if targetCoord is None:
         # estimate targetCoord from prevCoilToMRITransf
         coilOrigin_coilSpace = np.asarray([0, 0, 0])
-        coilOrigin_MRISpace = applyTransform(prevCoilToMRITransf, coilOrigin_coilSpace)
+        coilOrigin_MRISpace = applyTransform(prevCoilToMRITransf, coilOrigin_coilSpace, doCheck=False)
         pt_gm = getClosestPointToPointOnMesh(session=session,
                                              whichMesh='gmSurf',
                                              point_MRISpace=coilOrigin_MRISpace)
         # estimate gm pt by projecting same distance down coilToMRITransf depth axis
         coilToCortexDist = np.linalg.norm(coilOrigin_MRISpace - pt_gm)
         target_coilSpace = np.asarray([0, 0, -coilToCortexDist])
-        targetCoord = applyTransform(prevCoilToMRITransf, target_coilSpace)
+        targetCoord = applyTransform(prevCoilToMRITransf, target_coilSpace, doCheck=False)
 
     if entryCoord is None:
         coilOrigin_coilSpace = np.asarray([0, 0, 0])
-        coilOrigin_MRISpace = applyTransform(prevCoilToMRITransf, coilOrigin_coilSpace)
+        coilOrigin_MRISpace = applyTransform(prevCoilToMRITransf, coilOrigin_coilSpace, doCheck=False)
         entryCoord = coilOrigin_MRISpace
 
     if angle is None:
@@ -156,7 +157,7 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
     coilToMRITransf = np.eye(4)
     coilToMRITransf[:3, :3] = ptr.matrix_from_axis_angle(np.append(vec_rotAxis, -rotAngle))  # TODO: double check sign
     coilToMRITransf[:3, 3] = entryCoord
-    coilToMRITransf[:3, 3] = applyTransform(coilToMRITransf, np.asarray([0, 0, depthOffset]))
+    coilToMRITransf[:3, 3] = applyTransform(coilToMRITransf, np.asarray([0, 0, depthOffset]), doCheck=False)
 
     # determine how much to rotate coil handle to get desired angle from midline
     refDir1_MRI, refDir2_MRI = calculateMidlineRefDirectionsFromCoilToMRITransf(session, coilToMRITransf)
