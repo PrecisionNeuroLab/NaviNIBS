@@ -87,6 +87,8 @@ class QFileSelectWidget(QtWidgets.QWidget):
             logger.info('Browse cancelled')
             return
 
+        newFilepath = os.path.normpath(newFilepath)
+
         logger.info('Browsed to filepath: {}'.format(newFilepath))
         self.filepath = newFilepath
 
@@ -96,10 +98,11 @@ class QFileSelectWidget(QtWidgets.QWidget):
             return None
         else:
             # convert to always use non-windows file separators for display
-            return self._filepath.replace('\\', '/')
+            return os.path.normpath(self._filepath)
 
     @filepath.setter
     def filepath(self, newFilepath: str):
+        newFilepath = os.path.normpath(newFilepath)
         if newFilepath == self._filepath:
             return
         logger.info('Filepath changed from {} to {}'.format(self._filepath, newFilepath))
@@ -116,6 +119,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     @showRelativeTo.setter
     def showRelativeTo(self, newPath: tp.Optional[str]):
+        newPath = os.path.normpath(newPath)
         if self._showRelativeTo == newPath:
             return
         self._showRelativeTo = newPath

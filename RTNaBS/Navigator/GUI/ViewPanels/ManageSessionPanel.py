@@ -269,6 +269,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return
+
+        sesFilepath = os.path.normpath(sesFilepath)
+
         logger.info('Load session filepath: {}'.format(sesFilepath))
 
         try:
@@ -323,6 +326,8 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 logger.info('Browse existing session cancelled')
                 return
 
+        fromSesFilepath = os.path.normpath(fromSesFilepath)
+
         logger.info('Load session filepath: {}'.format(fromSesFilepath))
 
         if toSesFilepath is None:
@@ -331,6 +336,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             if len(sesFilepath) == 0:
                 logger.info('Browse clone session cancelled')
                 return
+
+        toSesFilepath = os.path.normpath(toSesFilepath)
+
         logger.info('Cloned session filepath: {}'.format(toSesFilepath))
 
         logger.debug('Copying session from {} to {}'.format(fromSesFilepath, toSesFilepath))
