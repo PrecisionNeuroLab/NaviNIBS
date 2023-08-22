@@ -34,6 +34,7 @@ keyboard = {git = "https://github.com/chriscline/keyboard.git"}
 darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
 aioconsole = "^0.6.1"
+xmltodict = "^0.13.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.4.0"
