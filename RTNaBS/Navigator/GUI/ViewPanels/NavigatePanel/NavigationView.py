@@ -106,8 +106,10 @@ class SinglePlotterNavigationView(NavigationView):
     _alignCameraTo: tp.Optional[str] = None
     """
     None to use default camera perspective; 'target' to align camera space to target space, etc.
-    Can also specify 'target-Y' to look at from along typical coil handle axis, or 'TargetX' to look at from other direction
+    Can also specify 'target-Y' to look at from along typical coil handle axis, or 'Target+X' to look at from other direction
+    Can also specify something like 'tool-<toolKey>+X' to look at from along tool X axis
     """
+    _doParallelProjection: bool = False
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)
@@ -146,6 +148,9 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
+
+        if self._doParallelProjection:
+            self._plotter.camera.enable_parallel_projection()
 
         self._redraw('all')
 
@@ -232,6 +237,33 @@ class SinglePlotterNavigationView(NavigationView):
                         raise NoValidCameraPoseAvailable()
                 else:
                     raise NotImplementedError()
+
+            elif self._alignCameraTo.startswith('tool-'):
+                if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
+                    extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[-2:])
+                    extraTransf = composeTransform(extraRot)
+                    toolKey = self._alignCameraTo[len('tool-'):-2]
+                else:
+                    extraTransf = np.eye(4)
+                    toolKey = self._alignCameraTo[len('tool-'):]
+
+                trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(toolKey, None)
+
+                if trackerToWorldTransf is None:
+                    # missing information
+                    raise NoValidCameraPoseAvailable
+
+                if self._plotInSpace == 'MRI':
+                    raise NotImplementedError  # TODO
+
+                elif self._plotInSpace == 'World':
+                    toolToTrackerTransf = self._coordinator.session.tools[toolKey].toolToTrackerTransf
+
+                    if toolToTrackerTransf is None:
+                        # missing information
+                        raise NoValidCameraPoseAvailable
+
+                    cameraPts = applyTransform(trackerToWorldTransf @ toolToTrackerTransf @ extraTransf, cameraPts, doCheck=False)
 
             else:
                  raise NotImplementedError()
@@ -335,7 +367,6 @@ class SinglePlotterNavigationView(NavigationView):
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
     _alignCameraTo: str = 'target'
-    _doParallelProjection: bool = False
     _doShowSkinSurf: bool = False
     _doShowHandleAngleError: bool = False
     _doShowTargetTangentialAngleError: bool = False
@@ -487,9 +518,6 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
     async def _finishInitialization_async(self):
         await super()._finishInitialization_async()
-
-        if self._doParallelProjection:
-            self._plotter.camera.enable_parallel_projection()
 
         #self._plotter.enable_depth_peeling(2)
 

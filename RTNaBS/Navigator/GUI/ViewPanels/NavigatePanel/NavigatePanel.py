@@ -21,6 +21,7 @@ from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Sample
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
+from RTNaBS.util.GUI.Dock import Dock
 from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
@@ -383,40 +384,44 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             assert len(self._views) > 0
             raise NotImplementedError()  # TODO: clear any previous views from dock and self._views
 
-        self.addView(key='Crosshairs', viewType='TargetingCrosshairs')
-        self.addView(key='Crosshairs-X', viewType='TargetingCrosshairs-X')
-        self.addView(key='Crosshairs-Y', viewType='TargetingCrosshairs-Y')
+        self.addView(key='Crosshairs', View='TargetingCrosshairs')
+        self.addView(key='Crosshairs-X', View='TargetingCrosshairs-X')
+        self.addView(key='Crosshairs-Y', View='TargetingCrosshairs-Y')
 
         # TODO: set up other default views
 
         self._hasInitializedNavigationViews = True
 
-    def addView(self, key: str, viewType: str, **kwargs):
-
-        match viewType:
-            case 'TargetingCrosshairs':
-                View = TargetingCrosshairsView
-                kwargs.setdefault('doShowHandleAngleError', True)
-            case 'TargetingCrosshairs-X':
-                View = TargetingCrosshairsView
-                kwargs.setdefault('doParallelProjection', True)
-                kwargs.setdefault('alignCameraTo', 'coil+X')
-                kwargs.setdefault('doShowSkinSurf', True)
-                kwargs.setdefault('doShowTargetTangentialAngleError', True)
-                kwargs.setdefault('doShowScalpTangentialAngleError', True)
-            case 'TargetingCrosshairs-Y':
-                View = TargetingCrosshairsView
-                kwargs.setdefault('doParallelProjection', True)
-                kwargs.setdefault('alignCameraTo', 'coil-Y')
-                kwargs.setdefault('doShowSkinSurf', True)
-                kwargs.setdefault('doShowTargetTangentialAngleError', True)
-                kwargs.setdefault('doShowScalpTangentialAngleError', True)
-
-            case _:
-                raise NotImplementedError('Unexpected viewType: {}'.format(viewType))
+    def addView(self, key: str, View: str | tp.Callable[[...], NavigationView],
+                position: str | None = None,
+                positionRelativeTo: Dock | None = None,
+                **kwargs):
 
         # TODO: maybe add optional code here to generate unique key using input as a base key
         assert key not in self._views
+
+        if isinstance(View, str):
+            match View:
+                case 'TargetingCrosshairs':
+                    View = TargetingCrosshairsView
+                    kwargs.setdefault('doShowHandleAngleError', True)
+                case 'TargetingCrosshairs-X':
+                    View = TargetingCrosshairsView
+                    kwargs.setdefault('doParallelProjection', True)
+                    kwargs.setdefault('alignCameraTo', 'coil+X')
+                    kwargs.setdefault('doShowSkinSurf', True)
+                    kwargs.setdefault('doShowTargetTangentialAngleError', True)
+                    kwargs.setdefault('doShowScalpTangentialAngleError', True)
+                case 'TargetingCrosshairs-Y':
+                    View = TargetingCrosshairsView
+                    kwargs.setdefault('doParallelProjection', True)
+                    kwargs.setdefault('alignCameraTo', 'coil-Y')
+                    kwargs.setdefault('doShowSkinSurf', True)
+                    kwargs.setdefault('doShowTargetTangentialAngleError', True)
+                    kwargs.setdefault('doShowScalpTangentialAngleError', True)
+
+                case _:
+                    raise NotImplementedError('Unexpected viewType: {}'.format(View))
 
         view: NavigationView = View(key=key, dockKeyPrefix=self._key, coordinator=self._coordinator, **kwargs)
         view.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
@@ -424,14 +429,19 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         assert view.key not in self._views
         self._views[view.key] = view
 
-        if viewType == 'TargetingCrosshairs-Y':
+        if View == 'TargetingCrosshairs-Y':
+            # TODO: use position and positionRelativeTo if either/both specified
             self._wdgt.addDock(view.dock,
                                position='right',
                                relativeTo=self._views['Crosshairs-X'].dock)
-        elif viewType == 'TargetingCrosshairs-X':
+        elif View == 'TargetingCrosshairs-X':
+            # TODO: use position and positionRelativeTo if either/both specified
             self._wdgt.addDock(view.dock,
                                position='bottom',
                                relativeTo=self._views['Crosshairs'].dock)
         else:
+            if position is None:
+                position = 'right'
             self._wdgt.addDock(view.dock,
-                               position='right')
+                               position=position,
+                               relativeTo=positionRelativeTo)
