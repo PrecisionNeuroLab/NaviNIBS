@@ -189,6 +189,7 @@ class ToolMeshSurfaceLayer(PlotViewLayer):
                     with self._plotter.allowNonblockingCalls():
                         if actor.GetVisibility():
                             actor.SetVisibility(False)
+                        self._plotter.render()
 
         else:
             raise NotImplementedError
@@ -280,6 +281,7 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
                         with self._plotter.allowNonblockingCalls():
                             if actor.GetVisibility():
                                 actor.SetVisibility(False)
+                                self._plotter.render()
 
                 case _:
                     raise NotImplementedError

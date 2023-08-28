@@ -104,6 +104,7 @@ class SinglePlotterNavigationView(NavigationView):
     _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
+    _cameraDist: float = 200
     """
     None to use default camera perspective; 'target' to align camera space to target space, etc.
     Can also specify 'target-Y' to look at from along typical coil handle axis, or 'Target+X' to look at from other direction
@@ -193,8 +194,7 @@ class SinglePlotterNavigationView(NavigationView):
             pass
 
         try:
-            cameraDist = 200
-            cameraPts = np.asarray([[0, 0, 0], [0, 0, cameraDist], [0, 1, 0]])  # focal point, position, and up respectively
+            cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist], [0, 1, 0]])  # focal point, position, and up respectively
 
             if self._alignCameraTo is None:
                 pass
@@ -281,7 +281,7 @@ class SinglePlotterNavigationView(NavigationView):
             self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
             if True:
                 # force fixed zoom in parallel camera views
-                self.plotter.camera.parallel_scale = cameraDist / 2
+                self.plotter.camera.parallel_scale = self._cameraDist / 2
 
             if False:
                 # force fixed zoom in perspective camera views
@@ -289,7 +289,7 @@ class SinglePlotterNavigationView(NavigationView):
 
             if self._alignCameraTo[-1] in 'XY' and False:
                 # orthogonal view, clip camera
-                self._plotter.camera.clipping_range = (cameraDist-0.1, cameraDist+0.1)
+                self._plotter.camera.clipping_range = (self._cameraDist-0.1, self._cameraDist+0.1)
             else:
                 self._plotter.reset_camera_clipping_range()
             self._plotter.render()
