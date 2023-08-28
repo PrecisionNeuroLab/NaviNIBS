@@ -115,7 +115,7 @@ class ToolWidget:
             filepath=self._tool.trackerStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             showRelativePrefix=self._tool.filepathsRelToKey,
-            extFilters='STL (*.stl)',
+            extFilters='STL (*.stl); PLY (*.ply)',
             browseCaption='Choose 3D model for tracker visualization'
         )
         self._trackerStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onTrackerStlFilepathEdited())
@@ -126,7 +126,7 @@ class ToolWidget:
             filepath=self._tool.toolStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             showRelativePrefix=self._tool.filepathsRelToKey,
-            extFilters='STL (*.stl)',
+            extFilters='STL (*.stl); PLY (*.ply)',
             browseCaption='Choose 3D model for tool visualization'
         )
         self._toolStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onToolStlFilepathEdited())
@@ -178,8 +178,10 @@ class ToolWidget:
         if isinstance(self._trackerSpacePlotter, RemotePlotterProxy):
             await self._trackerSpacePlotter.isReadyEvent.wait()
 
-        self._toolSpacePlotter.enable_depth_peeling(2)
-        self._trackerSpacePlotter.enable_depth_peeling(2)
+        for plotter in (self._toolSpacePlotter, self._trackerSpacePlotter):
+            with plotter.allowNonblockingCalls():
+                plotter.enable_parallel_projection()
+                plotter.enable_depth_peeling(2)
 
         self._finishedAsyncInit.set()
 
