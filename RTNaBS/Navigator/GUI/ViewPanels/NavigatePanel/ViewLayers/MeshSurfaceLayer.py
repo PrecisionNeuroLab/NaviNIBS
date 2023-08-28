@@ -140,30 +140,50 @@ class ToolMeshSurfaceLayer(PlotViewLayer):
                     case _:
                         raise NotImplementedError
 
-                if self._plotInSpace != 'MRI':
-                    raise NotImplementedError
-
-                trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=self._toolKey, default=None)
                 doHide = True
-                if trackerToWorldTransf is not None:
-                    subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.key, None)
-                    if subjectTrackerToWorldTransf is not None:
-                        subjectTrackerToMRITransf = self._coordinator.session.subjectRegistration.trackerToMRITransf
-                        if subjectTrackerToMRITransf is not None:
-                            # we have enough info to assemble valid transf
+
+                match self._plotInSpace:
+                    case 'MRI':
+                        trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=self._toolKey, default=None)
+                        if trackerToWorldTransf is not None:
+                            subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.key, None)
+                            if subjectTrackerToWorldTransf is not None:
+                                subjectTrackerToMRITransf = self._coordinator.session.subjectRegistration.trackerToMRITransf
+                                if subjectTrackerToMRITransf is not None:
+                                    # we have enough info to assemble valid transf
+                                    doHide = False
+
+                                    surfToMRITransf = concatenateTransforms([
+                                        toolOrTrackerStlToTrackerTransf,
+                                        trackerToWorldTransf,
+                                        invertTransform(subjectTrackerToWorldTransf),
+                                        subjectTrackerToMRITransf,
+                                    ])
+
+                                    with self._plotter.allowNonblockingCalls():
+                                        setActorUserTransform(actor, surfToMRITransf)
+                                        if not actor.GetVisibility():
+                                            actor.SetVisibility(True)
+                                        self._plotter.render()
+
+                    case 'World':
+                        trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=self._toolKey, default=None)
+                        if trackerToWorldTransf is not None:
                             doHide = False
 
-                            surfToMRITransf = concatenateTransforms([
+                            surfToWorldTransf = concatenateTransforms([
                                 toolOrTrackerStlToTrackerTransf,
                                 trackerToWorldTransf,
-                                invertTransform(subjectTrackerToWorldTransf),
-                                subjectTrackerToMRITransf,
                             ])
 
                             with self._plotter.allowNonblockingCalls():
-                                setActorUserTransform(actor, surfToMRITransf)
+                                setActorUserTransform(actor, surfToWorldTransf)
                                 if not actor.GetVisibility():
                                     actor.SetVisibility(True)
+                                self._plotter.render()
+
+                    case _:
+                        raise NotImplementedError
 
                 if doHide:
                     with self._plotter.allowNonblockingCalls():
@@ -183,6 +203,9 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        if self._plotInSpace != 'MRI':
+            self._coordinator.positionsClient.sigLatestPositionsChanged.connect(lambda: self._queueRedraw(which='updatePosition'))
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
@@ -216,13 +239,50 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
             self._redraw('updatePosition')
 
         elif which == 'updatePosition':
-            if self._plotInSpace == 'MRI':
-                if False:
+            match self._plotInSpace:
+                case 'MRI':
+                    if False:
+                        actorKey = self._getActorKey('surf')
+                        transf = np.eye(4)
+                        setActorUserTransform(self._actors[actorKey], transf)
+                        self._plotter.render()
+                    else:
+                        pass  # assume since plotInSpace is always MRI (for now) that we don't need to update anything
+                case 'World':
+
                     actorKey = self._getActorKey('surf')
-                    transf = np.eye(4)
-                    setActorUserTransform(self._actors[actorKey], transf)
-                    self._plotter.render()
-                else:
-                    pass  # assume since plotInSpace is always MRI (for now) that we don't need to update anything
+                    if actorKey not in self._actors:
+                        self._redraw(which='initSurf')
+                        return
+
+                    actor = self._actors[actorKey]
+
+                    doHide = True
+                    subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.key, None)
+                    if subjectTrackerToWorldTransf is not None:
+                        subjectTrackerToMRITransf = self._coordinator.session.subjectRegistration.trackerToMRITransf
+                        if subjectTrackerToMRITransf is not None:
+                            # we have enough info to assemble valid transf
+                            doHide = False
+
+                            surfToWorldTransf = concatenateTransforms([
+                                invertTransform(subjectTrackerToMRITransf),
+                                subjectTrackerToWorldTransf,
+                            ])
+
+                            with self._plotter.allowNonblockingCalls():
+                                setActorUserTransform(actor, surfToWorldTransf)
+                                if not actor.GetVisibility():
+                                    actor.SetVisibility(True)
+                                self._plotter.render()
+
+                    if doHide:
+                        with self._plotter.allowNonblockingCalls():
+                            if actor.GetVisibility():
+                                actor.SetVisibility(False)
+
+                case _:
+                    raise NotImplementedError
+
         else:
             raise NotImplementedError
