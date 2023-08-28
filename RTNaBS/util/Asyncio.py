@@ -14,6 +14,16 @@ async def _wrap_awaitable(aw: tp.Awaitable[_T]) -> _T:
     return await aw
 
 
+async def asyncWait(
+        aws: tp.Iterable[tp.Awaitable],
+        return_when=asyncio.ALL_COMPLETED) -> tuple[set[asyncio.Task], set[asyncio.Task]]:
+    """
+    Similar to asyncio.wait, but allow waiting for coroutines, which was removed from asyncio.wait in 3.11
+    """
+    done, pending = await asyncio.wait([asyncio.create_task(_wrap_awaitable(aw)) for aw in aws], return_when=return_when)
+    return done, pending
+
+
 async def asyncWaitWithCancel(
         aws: tp.Iterable[tp.Awaitable],
         timeout: float | None = None,
