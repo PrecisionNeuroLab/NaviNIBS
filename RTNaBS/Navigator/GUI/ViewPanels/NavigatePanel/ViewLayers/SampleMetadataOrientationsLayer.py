@@ -11,7 +11,7 @@ from typing import ClassVar
 import pyvista as pv
 
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLayers import SampleOrientationsLayer, VisualizedOrientation
-from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
+from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
 
@@ -71,7 +71,7 @@ class SampleMetadataOrientationsLayer(SampleOrientationsLayer):
 
 
 @attrs.define(kw_only=True)
-class SampleMetadataInterpolatedSurfaceLayer(MeshSurfaceLayer):
+class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     _type: ClassVar[str] = 'SampleMetadataInterpolatedSurface'
     _metadataKey: str
     """
