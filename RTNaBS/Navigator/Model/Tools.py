@@ -201,6 +201,7 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.toolStlFilepath:
             return
         logger.info('Changing {} toolStlFilepath to {}'.format(self.key, newFilepath))
+        self._toolSurf = None
         self.sigItemAboutToChange.emit(self.key, ['toolStlFilepath'])
         self._toolStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
         self.sigItemChanged.emit(self.key, ['toolStlFilepath'])
@@ -217,6 +218,7 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.trackerStlFilepath:
             return
         logger.info('Changing {} trackerStlFilepath to {}'.format(self.key, newFilepath))
+        self._trackerSurf = None
         self.sigItemAboutToChange.emit(self.key, ['trackerStlFilepath'])
         self._trackerStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
         self.sigItemChanged.emit(self.key, ['trackerStlFilepath'])
