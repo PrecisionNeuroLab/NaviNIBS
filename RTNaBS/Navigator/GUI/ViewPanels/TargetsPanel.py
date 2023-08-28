@@ -26,6 +26,7 @@ from RTNaBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import Actor, RemotePlotterProxy
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -43,7 +44,7 @@ class VisualizedTarget:
     re-instantiate the `VisualizedTarget` for any target changes.
     """
     _target: Target
-    _plotter: pv.Plotter = attrs.field(repr=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(repr=False)
     _style: str
     _color: str = '#2222FF'
     _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
@@ -70,7 +71,8 @@ class VisualizedTarget:
 
         self._visible = isVisible
 
-        self._plotter.render()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.render()
 
     @property
     def style(self):
@@ -176,20 +178,23 @@ class VisualizedTarget:
         else:
             raise NotImplementedError()
 
-        if not self.visible:
-            for actor in self._actors.values():
-                actor.VisibilityOff()
+        with self._plotter.allowNonblockingCalls():
+            if not self.visible:
+                for actor in self._actors.values():
+                    actor.VisibilityOff()
+
+            self._plotter.render()
 
     @property
     def actors(self):
         return self._actors
 
     def clearActors(self):
-        for actor in self._actors.values():
-            self._plotter.remove_actor(actor)
-
-        self._actors.clear()
-
+        with self._plotter.allowNonblockingCalls():
+            for actor in self._actors.values():
+                self._plotter.remove_actor(actor)
+            self._actors.clear()
+            self._plotter.render()
 
 
 @attrs.define
@@ -420,11 +425,14 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
         if True:
             # also set camera position for 3D view to align with target
-            self._views['3D'].plotter.camera.focal_point = self._views['3D'].sliceOrigin
-            self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 200]))
-            self._views['3D'].plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
-                                                                 np.asarray([0, 100, 0])) - self._views[
-                                                      '3D'].plotter.camera.position
+            plotter = self._views['3D'].plotter
+            with plotter.allowNonblockingCalls():
+                plotter.camera.focal_point = self._views['3D'].sliceOrigin
+                cameraPos = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 200]))
+                plotter.camera.position = cameraPos
+                plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
+                                                                 np.asarray([0, 100, 0])) - cameraPos
+                plotter.render()
 
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
         if not self._hasInitialized and not self._isInitializing:
