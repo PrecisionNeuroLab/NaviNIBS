@@ -106,7 +106,7 @@ class TrackingStatusWidget:
 
             hasTransf = self._positionsClient.getLatestTransf(toolKey, None) is not None
 
-            if self._prevHadTransf.get(toolKey, None) in (None, ~hasTransf):
+            if self._prevHadTransf.get(toolKey, None) in (None, not hasTransf):
                 # only update icon if status changed
                 wdgt = self._toolWdgts[toolKey]
                 if hasTransf:

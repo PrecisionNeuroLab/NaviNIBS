@@ -405,7 +405,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             def validate(self, inputStr: str, pos: int) -> QtGui.QValidator.State:
                 if len(inputStr) == 0:
-                    return self.Acceptable, inputStr, pos
+                    return self.State.Acceptable, inputStr, pos
                 try:
                     listOrScalarVal = json.loads(inputStr)
                     if not isinstance(listOrScalarVal, (list, float, int)):
@@ -413,11 +413,11 @@ class SubjectRegistrationPanel(MainViewPanel):
                     arrayVal = np.asarray(listOrScalarVal, dtype=np.float64)  # raises value error if problem
                 except ValueError as e:
                     if self._invalidRegex.search(inputStr):
-                        return self.Invalid, inputStr, pos
+                        return self.State.Invalid, inputStr, pos
                     else:
-                        return self.Intermediate, inputStr, pos
+                        return self.State.Intermediate, inputStr, pos
                 else:
-                    return self.Acceptable, inputStr, pos
+                    return self.State.Acceptable, inputStr, pos
 
         self._refineWeightsField.setValidator(RefineWeightsValidator())
 

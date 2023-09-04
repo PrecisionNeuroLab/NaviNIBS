@@ -408,6 +408,11 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
             self._gotoTarget(targetKey=targetKey)    # go to target immediately whenever selection changes
 
     def _gotoTarget(self, targetKey: str):
+
+        plotter = self._views['3D'].plotter
+        if isinstance(plotter, RemotePlotterProxy) and not plotter.isReadyEvent.is_set():
+            return  # plotter not ready yet
+
         # change slice camera views to align with selected target
         target = self.session.targets[targetKey]
         extraTransf = np.eye(4)
