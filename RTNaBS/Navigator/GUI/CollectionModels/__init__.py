@@ -405,6 +405,9 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         if index >= len(self._collection):
             if index == len(self._collection) and self._hasPlaceholderNewRow:
                 return None  # return None as indicator of being in placeholder row
+            elif index == 0:
+                # this can sometimes happen after deleting all entries in a collection
+                return None
             else:
                 raise IndexError
 

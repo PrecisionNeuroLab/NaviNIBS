@@ -59,6 +59,8 @@ class ToolWidget:
     _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _toolSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+
+    _asyncInitTask: asyncio.Task = attrs.field(init=False)
     _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
@@ -167,7 +169,7 @@ class ToolWidget:
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        self._asyncInitTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
         self.redraw()
 
@@ -288,7 +290,6 @@ class ToolWidget:
 
             self._trackerSpacePlotter.reset_camera()
 
-
     @property
     def wdgt(self):
         return self._wdgt
@@ -376,6 +377,8 @@ class ToolWidget:
             self.redraw(toRedraw)
 
     def close(self):
+        if not self._finishedAsyncInit.is_set():
+            self._asyncInitTask.cancel()
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
         self._toolSpacePlotter.close()
         self._trackerSpacePlotter.close()
