@@ -225,14 +225,17 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if calibPlate.toolSurf is not None:
                 mesh = calibPlate.toolSurf
                 meshColor = calibPlate.toolColor
+                scalars = None
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
+                        scalars = mesh.array_names[0]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._calibrationPlateToolActor = self._plotterLowerLayer.add_mesh(
                     mesh=mesh,
                     color=meshColor,
+                    scalars=scalars,
                     opacity=0.5,
                     rgb=meshColor is None
                 )
@@ -244,14 +247,17 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if calibPlate.trackerSurf is not None:
                 mesh = calibPlate.trackerSurf
                 meshColor = calibPlate.trackerColor
+                scalars = None
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
+                        scalars = mesh.array_names[0]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._calibrationPlateTrackerActor = self._plotterLowerLayer.add_mesh(
                     mesh=mesh,
                     color=meshColor,
+                    scalars=scalars,
                     opacity=0.5,
                     rgb=meshColor is None
                 )
@@ -309,14 +315,17 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if coil.toolSurf is not None:
                 mesh = coil.toolSurf
                 meshColor = coil.toolColor
+                scalars = None
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
+                        scalars = mesh.array_names[0]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._coilToolActor = self._plotterLowerLayer.add_mesh(
                     mesh=mesh,
                     color=meshColor,
+                    scalars=scalars,
                     opacity=0.5,
                     rgb=meshColor is None
                 )
@@ -326,14 +335,17 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if coil.trackerSurf is not None:
                 mesh = coil.trackerSurf
                 meshColor = coil.trackerColor
+                scalars = None
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
+                        scalars = mesh.array_names[0]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._coilTrackerActor = self._plotterLowerLayer.add_mesh(
                     mesh=mesh,
                     color=meshColor,
+                    scalars=scalars,
                     opacity=0.5,
                     rgb=meshColor is None
                 )
