@@ -207,9 +207,11 @@ class ToolWidget:
 
             if self._tool.toolSurf is not None:
                 meshColor = self._tool.toolColor
+                scalars = None
                 if meshColor is None:
                     if len(self._tool.toolSurf.array_names) > 0:
                         meshColor = None  # use color from mesh file
+                        scalars = self._tool.toolSurf.array_names[0]
                     else:
                         meshColor = '#2222ff'
                 meshColor_tool = meshColor
@@ -217,6 +219,7 @@ class ToolWidget:
                     name=actorKey,
                     mesh=self._tool.toolSurf,
                     color=meshColor,
+                    scalars=scalars,
                     rgb=meshColor is None,
                     opacity=0.8
                 )
@@ -231,6 +234,7 @@ class ToolWidget:
                     mesh=self._tool.toolSurf,
                     color=meshColor_tool,  # noqa
                     rgb=meshColor_tool is None,
+                    scalars=scalars,
                     opacity=0.8,
                     name=actorKey
                 )
@@ -256,14 +260,17 @@ class ToolWidget:
                 )
 
                 meshColor = self._tool.trackerColor
+                scalars = None
                 if meshColor is None:
                     if len(self._tool.trackerSurf.array_names) > 0:
                         meshColor = None  # use color from mesh file
+                        scalars = self._tool.trackerSurf.array_names[0]
                     else:
                         meshColor = '#2222ff'
                 actor = self._trackerSpacePlotter.add_mesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
+                    scalars=scalars,
                     rgb=meshColor is None,
                     opacity=0.8,
                     name=actorKey
@@ -278,6 +285,7 @@ class ToolWidget:
                     actor = self._toolSpacePlotter.add_mesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
+                        scalars=scalars,
                         rgb=meshColor is None,
                         opacity=0.8,
                         name=actorKey
