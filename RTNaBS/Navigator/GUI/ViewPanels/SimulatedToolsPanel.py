@@ -157,7 +157,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
             if isinstance(tool, SubjectTracker):
                 actorKeysForTool.append(key + '_subject')
 
-            if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
+            if not tool.isActive or self._positionsClient.getLatestTransf(tool.trackerKey, None) is None:
                 # no valid position available
                 for actorKey in actorKeysForTool:
                     if actorKey in self._actors and self._actors[actorKey].GetVisibility():
@@ -211,7 +211,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                                 setActorUserTransform(self._actors[actorKey],
                                                       concatenateTransforms([
                                                           toolOrTrackerStlToTrackerTransf,
-                                                          self._positionsClient.getLatestTransf(key)
+                                                          self._positionsClient.getLatestTransf(tool.trackerKey)
                                                       ]))
                                 self._plotter.render()
                             else:
@@ -229,7 +229,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                             doResetCamera = True
 
                         setActorUserTransform(self._actors[actorKey],
-                                              self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                                              self._positionsClient.getLatestTransf(tool.trackerKey) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
                         self._plotter.render()
 
                 if actorKey in self._actors:
@@ -250,11 +250,11 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         for key, tool in self.session.tools.items():
             if True:
                 # only zero positions for tools that don't have positions defined relative to another tool
-                pos = self._positionsClient.latestPositions.get(key, None)
+                pos = self._positionsClient.latestPositions.get(tool.trackerKey, None)
                 if pos is not None and pos.relativeTo is not None:
                     continue
 
-            self._positionsClient.setNewPosition(key=key, transf=np.eye(4))
+            self._positionsClient.setNewPosition(key=tool.trackerKey, transf=np.eye(4))
 
     async def importPositionsSnapshot(self, filepath: str | None = None):
 

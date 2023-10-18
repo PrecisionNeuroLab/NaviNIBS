@@ -48,6 +48,7 @@ class ToolWidget:
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
     _key: QtWidgets.QLineEdit = attrs.field(init=False)
+    _trackerKey: QtWidgets.QLineEdit = attrs.field(init=False)
     _label: QtWidgets.QLineEdit = attrs.field(init=False)
     _usedFor: QtWidgets.QComboBox = attrs.field(init=False)
     _isActive: QtWidgets.QCheckBox = attrs.field(init=False)
@@ -77,11 +78,15 @@ class ToolWidget:
 
         self._tool.sigItemChanged.connect(self._onToolChanged)
 
-        self._key = QtWidgets.QLineEdit(self._tool.key)
+        self._key = QtWidgets.QLineEdit()
         self._key.editingFinished.connect(self._onKeyEdited)
         formContainer.layout().addRow('Key', self._key)
 
-        self._label = QtWidgets.QLineEdit(self._tool.label)
+        self._trackerKey = QtWidgets.QLineEdit()
+        self._trackerKey.editingFinished.connect(self._onTrackerKeyEdited)
+        formContainer.layout().addRow('TrackerKey', self._trackerKey)
+
+        self._label = QtWidgets.QLineEdit()
         self._label.editingFinished.connect(self._onLabelEdited)
         formContainer.layout().addRow('Label', self._label)
 
@@ -170,6 +175,8 @@ class ToolWidget:
         plotContainer.layout().addWidget(plotterContainer)
 
         self._asyncInitTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+        QtCore.QTimer.singleShot(0, lambda: self._onToolChanged(self._tool.key, attribsChanged=None))
 
         self.redraw()
 
@@ -305,6 +312,9 @@ class ToolWidget:
     def _onKeyEdited(self):
         self._tool.key = self._key.text()
 
+    def _onTrackerKeyEdited(self):
+        self._tool.trackerKey = self._trackerKey.text()
+
     def _onLabelEdited(self):
         newLabel = self._label.text().strip()
         if len(newLabel) == 0:
@@ -354,6 +364,18 @@ class ToolWidget:
         toRedraw = set()
         if attribsChanged is None or 'key' in attribsChanged:
             self._key.setText(self._tool.key)
+            self._trackerKey.setPlaceholderText(self._tool.key)
+            self._label.setPlaceholderText(self._tool.key)
+        if attribsChanged is None or 'trackerKey' in attribsChanged:
+              if self._tool.trackerKeyIsSet:
+                  self._trackerKey.setText(self._tool.trackerKey)
+              else:
+                  self._trackerKey.setText('')
+        if attribsChanged is None or 'label' in attribsChanged:
+            if self._tool.labelIsSet:
+                self._label.setText(self._tool.label)
+            else:
+                self._label.setText('')
         if attribsChanged is None or 'usedFor' in attribsChanged:
             self._usedFor.setCurrentIndex(self._usedFor.findText(self._tool.usedFor) if self._tool.usedFor is not None else -1)  # TODO: check for change in type that we can't handle without reinstantiating
         if attribsChanged is None or 'isActive' in attribsChanged:
@@ -553,7 +575,7 @@ class ToolsPanel(MainViewPanel):
         for tool in self.session.tools.values():
             if tool.initialTrackerPose is not None:
                 await positionsClient.recordNewPosition(
-                    tool.key,
+                    tool.trackerKey,
                     position=TimestampedToolPosition(
                         time=0.,
                         transf=tool.initialTrackerPose,

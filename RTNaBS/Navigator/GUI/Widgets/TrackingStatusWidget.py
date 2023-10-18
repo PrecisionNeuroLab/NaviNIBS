@@ -104,7 +104,7 @@ class TrackingStatusWidget:
                 assert toolKey not in self._toolWdgts
                 continue
 
-            hasTransf = self._positionsClient.getLatestTransf(toolKey, None) is not None
+            hasTransf = self._positionsClient.getLatestTransf(tool.trackerKey, None) is not None
 
             if self._prevHadTransf.get(toolKey, None) in (None, not hasTransf):
                 # only update icon if status changed
