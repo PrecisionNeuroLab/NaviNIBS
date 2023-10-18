@@ -136,17 +136,25 @@ class CameraObjectsView(QueuedRedrawMixin):
                                         # initialize graphic
                                         mesh = getattr(tool, toolOrTracker + 'Surf')
                                         meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                        scalars = None
                                         meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
                                         if meshColor is None:
                                             if len(mesh.array_names) > 0:
                                                 meshColor = None  # use color from surf file
+                                                scalars = mesh.array_names[-1]
                                             else:
                                                 meshColor = '#2222ff'  # default color if nothing else provided
-                                        self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                                                        color=meshColor,
-                                                                                        opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                        rgb=meshColor is None,
-                                                                                        name=actorKey)
+                                        try:
+                                            self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
+                                                                                            color=meshColor,
+                                                                                            scalars=scalars,
+                                                                                            opacity=1.0 if meshOpacity is None else meshOpacity,
+                                                                                            rgb=meshColor is None,
+                                                                                            name=actorKey)
+                                        except (AttributeError, ValueError) as e:
+                                            from RTNaBS.util import exceptionToStr
+                                            logger.error(exceptionToStr(e))
+                                            raise e
                                         doResetCamera = True
 
                                     with self._plotter.allowNonblockingCalls():

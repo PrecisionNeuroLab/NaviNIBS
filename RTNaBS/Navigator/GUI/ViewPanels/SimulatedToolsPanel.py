@@ -196,7 +196,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                                     if meshColor is None:
                                         if len(mesh.array_names) > 0:
                                             meshColor = None  # use color from surf file
-                                            scalars = mesh.array_names[0]
+                                            scalars = mesh.array_names[-1]
                                         else:
                                             meshColor = '#2222ff'  # default color if nothing else provided
                                     self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
