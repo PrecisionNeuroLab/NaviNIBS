@@ -247,7 +247,8 @@ class SinglePlotterNavigationView(NavigationView):
                     extraTransf = np.eye(4)
                     toolKey = self._alignCameraTo[len('tool-'):]
 
-                trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(toolKey, None)
+                trackerKey = self._coordinator.session.tools[toolKey].trackerKey
+                trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(trackerKey, None)
 
                 if trackerToWorldTransf is None:
                     # missing information

@@ -109,8 +109,8 @@ class TargetingCoordinator:
         self.sigCurrentTargetChanged.connect(lambda: self._needToCheckIfOnTarget.set())
 
         if self._activeCoilKey is not None:
-            self._session.tools[self._activeCoilKey].sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
-            self._session.tools[self._activeCoilKey].sigItemChanged.connect(self._onActiveCoilToolChanged)
+            self.activeCoilTool.sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
+            self.activeCoilTool.sigItemChanged.connect(self._onActiveCoilToolChanged)
 
         if self._doMonitorOnTarget:
             self._startMonitoringOnTarget()
@@ -326,6 +326,10 @@ class TargetingCoordinator:
         return self._currentSamplePoseMetrics
 
     @property
+    def activeCoilTool(self):
+        return self._session.tools[self.activeCoilKey]
+
+    @property
     def activeCoilKey(self):
         if self._activeCoilKey is None:
             # if no active coil specified, use first active coil in list
@@ -357,10 +361,10 @@ class TargetingCoordinator:
     @property
     def currentCoilToMRITransform(self) -> tp.Optional[Transform]:
         if self._currentCoilToMRITransform is None:
-            coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.activeCoilKey, None)
-            subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.subjectTracker.key,
+            coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.activeCoilTool.trackerKey, None)
+            subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.subjectTracker.trackerKey,
                                                                                  None)
-            coilToTrackerTransf = self._session.tools[self.activeCoilKey].toolToTrackerTransf
+            coilToTrackerTransf = self.activeCoilTool.toolToTrackerTransf
 
             subjectTrackerToMRITransf = self._session.subjectRegistration.trackerToMRITransf
 

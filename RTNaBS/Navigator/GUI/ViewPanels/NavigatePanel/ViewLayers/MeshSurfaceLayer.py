@@ -144,9 +144,9 @@ class ToolMeshSurfaceLayer(PlotViewLayer):
 
                 match self._plotInSpace:
                     case 'MRI':
-                        trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=self._toolKey, default=None)
+                        trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=tool.trackerKey, default=None)
                         if trackerToWorldTransf is not None:
-                            subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.key, None)
+                            subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.trackerKey, None)
                             if subjectTrackerToWorldTransf is not None:
                                 subjectTrackerToMRITransf = self._coordinator.session.subjectRegistration.trackerToMRITransf
                                 if subjectTrackerToMRITransf is not None:
@@ -167,7 +167,7 @@ class ToolMeshSurfaceLayer(PlotViewLayer):
                                         self._plotter.render()
 
                     case 'World':
-                        trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=self._toolKey, default=None)
+                        trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(key=tool.trackerKey, default=None)
                         if trackerToWorldTransf is not None:
                             doHide = False
 
@@ -259,7 +259,7 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
                     actor = self._actors[actorKey]
 
                     doHide = True
-                    subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.key, None)
+                    subjectTrackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.session.tools.subjectTracker.trackerKey, None)
                     if subjectTrackerToWorldTransf is not None:
                         subjectTrackerToMRITransf = self._coordinator.session.subjectRegistration.trackerToMRITransf
                         if subjectTrackerToMRITransf is not None:

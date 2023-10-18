@@ -105,7 +105,7 @@ class CameraObjectsView(QueuedRedrawMixin):
                 if isinstance(tool, SubjectTracker):
                     actorKeysForTool.append(key + '_subject')
 
-                if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
+                if not tool.isActive or self._positionsClient.getLatestTransf(tool.trackerKey, None) is None:
                     # no valid position available
                     with self._plotter.allowNonblockingCalls():
                         for actorKey in actorKeysForTool:
@@ -136,25 +136,14 @@ class CameraObjectsView(QueuedRedrawMixin):
                                         # initialize graphic
                                         mesh = getattr(tool, toolOrTracker + 'Surf')
                                         meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
-                                        scalars = None
                                         meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
-                                        if meshColor is None:
-                                            if len(mesh.array_names) > 0:
-                                                meshColor = None  # use color from surf file
-                                                scalars = mesh.array_names[-1]
-                                            else:
-                                                meshColor = '#2222ff'  # default color if nothing else provided
-                                        try:
-                                            self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                                                            color=meshColor,
-                                                                                            scalars=scalars,
-                                                                                            opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                            rgb=meshColor is None,
-                                                                                            name=actorKey)
-                                        except (AttributeError, ValueError) as e:
-                                            from RTNaBS.util import exceptionToStr
-                                            logger.error(exceptionToStr(e))
-                                            raise e
+
+                                        self._actors[actorKey] = self._plotter.addMesh(mesh=mesh,
+                                                                                       color=meshColor,
+                                                                                       defaultMeshColor='#2222ff',
+                                                                                       opacity=1.0 if meshOpacity is None else meshOpacity,
+                                                                                       name=actorKey)
+
                                         doResetCamera = True
 
                                     with self._plotter.allowNonblockingCalls():
@@ -162,7 +151,7 @@ class CameraObjectsView(QueuedRedrawMixin):
                                         setActorUserTransform(self._actors[actorKey],
                                                               concatenateTransforms([
                                                                   toolOrTrackerStlToTrackerTransf,
-                                                                  self._positionsClient.getLatestTransf(key)
+                                                                  self._positionsClient.getLatestTransf(tool.trackerKey)
                                                               ]))
                                         self._plotter.render()
                                 else:
@@ -181,7 +170,7 @@ class CameraObjectsView(QueuedRedrawMixin):
 
                             with self._plotter.allowNonblockingCalls():
                                 setActorUserTransform(self._actors[actorKey],
-                                                      self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                                                      self._positionsClient.getLatestTransf(tool.trackerKey) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
                                 self._plotter.render()
 
                     if actorKey in self._actors:
