@@ -229,7 +229,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
-                        scalars = mesh.array_names[0]
+                        scalars = mesh.array_names[-1]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._calibrationPlateToolActor = self._plotterLowerLayer.add_mesh(
@@ -251,7 +251,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
-                        scalars = mesh.array_names[0]
+                        scalars = mesh.array_names[-1]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._calibrationPlateTrackerActor = self._plotterLowerLayer.add_mesh(
@@ -319,7 +319,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
-                        scalars = mesh.array_names[0]
+                        scalars = mesh.array_names[-1]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._coilToolActor = self._plotterLowerLayer.add_mesh(
@@ -339,7 +339,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
-                        scalars = mesh.array_names[0]
+                        scalars = mesh.array_names[-1]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
                 self._coilTrackerActor = self._plotterLowerLayer.add_mesh(
