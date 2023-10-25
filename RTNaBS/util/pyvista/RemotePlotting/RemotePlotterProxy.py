@@ -290,6 +290,9 @@ class RemotePlotterProxyBase:
     def add_mesh(self, *args, **kwargs):
         return self._remotePlotterCall('add_mesh', *args, **kwargs)
 
+    def addMesh(self, *args, **kwargs):
+        return self._remotePlotterCall('addMesh', *args, **kwargs)
+
     def add_volume(self, *args, **kwargs):
         return self._remotePlotterCall('add_volume', *args, **kwargs)
 
