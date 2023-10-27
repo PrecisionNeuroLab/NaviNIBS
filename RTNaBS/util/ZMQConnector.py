@@ -14,6 +14,7 @@ from . import ZMQAsyncioFix
 
 logger = logging.getLogger(__name__)
 
+
 class InvalidMessageError(Exception):
     pass
 
@@ -236,7 +237,7 @@ class ZMQConnectorClient:
 
     _reqSocket: zmq.Socket = attr.ib(init=False)
     _areqSocket: azmq.Socket = attr.ib(init=False)
-    _areqLock: asyncio.Lock = attr.ib(init=False)
+    _areqLock: asyncio.Lock | None = attr.ib(init=False, default=None)
     _subSocket: tp.Optional[azmq.Socket] = attr.ib(init=False, default=None)
 
     _allowAsyncCalls: bool = False
@@ -263,7 +264,8 @@ class ZMQConnectorClient:
             logger.debug('Connecting async req socket')
             self._areqSocket = self._actx.socket(zmq.REQ)
             self._areqSocket.connect('tcp://%s:%d' % (self._connAddr, self._reqRepPort))
-            self._areqLock = asyncio.Lock()
+            if self._areqLock is None:
+                self._areqLock = asyncio.Lock()
 
         if self._pubSubPort is not None:
             logger.debug('Setting up subscribe')
@@ -607,6 +609,7 @@ def checkIfPortAvailable(port: int) -> bool:
 
 
 usedPorts = set()
+
 
 def getNewPort(minAssignedPort: int = 5000) -> int:
     global usedPorts
