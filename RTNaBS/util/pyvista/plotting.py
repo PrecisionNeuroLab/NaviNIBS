@@ -223,8 +223,8 @@ class PlotterImprovementsMixin:
                     scalars = arrayName
                     break
 
-        if scalars is None:
-            color = defaultMeshColor # default color if nothing else provided
+        if color is None and scalars is None:
+            color = defaultMeshColor  # default color if nothing else provided
 
         if rgb is None:
             rgb = color is None
