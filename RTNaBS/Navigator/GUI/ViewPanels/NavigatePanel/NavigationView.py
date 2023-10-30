@@ -104,7 +104,7 @@ class SinglePlotterNavigationView(NavigationView):
     _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
-    _cameraDist: float = 200
+    _cameraDist: float = 100
     """
     None to use default camera perspective; 'target' to align camera space to target space, etc.
     Can also specify 'target-Y' to look at from along typical coil handle axis, or 'Target+X' to look at from other direction
@@ -206,9 +206,6 @@ class SinglePlotterNavigationView(NavigationView):
                 if self._alignCameraTo[-1] in 'XY':
                     # add negative z offset to reduce empty space above coil in camera view
                     extraTransf[2, 3] = -20
-
-                    # reduce distance from camera to target to zoom in tighter
-                    cameraPts[1, 2] = 100
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
