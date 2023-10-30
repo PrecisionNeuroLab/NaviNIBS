@@ -405,10 +405,12 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
                 case 'TargetingCrosshairs':
                     View = TargetingCrosshairsView
                     kwargs.setdefault('doShowHandleAngleError', True)
+                    kwargs.setdefault('cameraDist', 150)
                 case 'TargetingCrosshairs-X':
                     View = TargetingCrosshairsView
                     kwargs.setdefault('doParallelProjection', True)
                     kwargs.setdefault('alignCameraTo', 'coil+X')
+                    kwargs.setdefault('cameraDist', 75)
                     kwargs.setdefault('doShowSkinSurf', True)
                     kwargs.setdefault('doShowTargetTangentialAngleError', True)
                     kwargs.setdefault('doShowScalpTangentialAngleError', True)
@@ -416,6 +418,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
                     View = TargetingCrosshairsView
                     kwargs.setdefault('doParallelProjection', True)
                     kwargs.setdefault('alignCameraTo', 'coil-Y')
+                    kwargs.setdefault('cameraDist', 75)
                     kwargs.setdefault('doShowSkinSurf', True)
                     kwargs.setdefault('doShowTargetTangentialAngleError', True)
                     kwargs.setdefault('doShowScalpTangentialAngleError', True)
