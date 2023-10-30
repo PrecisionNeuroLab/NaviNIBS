@@ -634,13 +634,10 @@ class ToolsPanel(MainViewPanel):
         self.session.tools.addToolFromDict(toolDict)
 
     def _onDeleteBtnClicked(self, checked: bool):
-        keysToDelete = self._tblWdgt.selectedCollectionItemKeys
-        for key in keysToDelete:
-            if key is None:
-                # no tool selected
-                continue
-            logger.info('Deleting {} tool'.format(key))
-            self.session.tools.deleteItem(key=key)
+        keysToDelete = [key for key in self._tblWdgt.selectedCollectionItemKeys if key is not None]
+        if len(keysToDelete) > 0:
+            self.session.tools.deleteItems(keysToDelete)
+
 
 
 

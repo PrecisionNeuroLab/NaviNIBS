@@ -422,7 +422,7 @@ class Session:
                 # targeting info is about to change, and this target may be referenced by samples
                 # so make a copy to keep in history
                 logger.info('Creating historical copy of target')
-                historicalTarget = Target.fromDict(deepcopy(target.asDict()))
+                historicalTarget = Target.fromDict(deepcopy(target.asDict()), session=self)
                 historicalTarget.key = targetKey + ' pre ' + datetime.today().strftime('%y%m%d%H%M%S.%f')
                 historicalTarget.isHistorical = True
                 target.mayBeADependency = False

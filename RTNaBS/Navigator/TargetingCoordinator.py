@@ -150,6 +150,12 @@ class TargetingCoordinator:
 
     def _onSessionTargetsChanged(self, targetKeysChanged: tp.List[str], targetAttribsChanged: tp.Optional[tp.List[str]]):
         if self._currentTargetKey is not None and self._currentTargetKey in targetKeysChanged:
+
+            if self._currentTargetKey not in self.session.targets:
+                logger.debug('Current target deleted')
+                self.currentTargetKey = None  # this will emit sigCurrentTargetChanged
+                return
+
             logger.debug('Current target changed')
             self.sigCurrentTargetChanged.emit()
 

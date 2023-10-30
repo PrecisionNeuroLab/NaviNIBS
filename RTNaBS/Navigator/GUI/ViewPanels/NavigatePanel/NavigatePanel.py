@@ -283,7 +283,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         self.restoreLayoutIfAvailable()
 
-    def _onCurrentTargetChanged(self, newTargetKey: str):
+    def _onCurrentTargetChanged(self, newTargetKey: str | None):
         """
         Called when targetTreeWdgt selection or coordinator currentTarget changes, NOT when attributes of currently selected target change
         """
