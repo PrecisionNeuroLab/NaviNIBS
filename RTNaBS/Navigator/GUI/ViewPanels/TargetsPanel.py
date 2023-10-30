@@ -439,6 +439,15 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                                                                  np.asarray([0, 100, 0])) - cameraPos
                 plotter.render()
 
+    def _createVisualForTarget(self, viewKey: str, target: Target):
+        logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
+        view = self._views[viewKey]
+        style = self._targetDispStyle_comboBox.currentText()
+        self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
+                                                                    plotter=view.plotter,
+                                                                    style=style,
+                                                                    visible=target.isVisible)
+
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
         if not self._hasInitialized and not self._isInitializing:
             return
@@ -463,6 +472,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                     actorKey = viewKey + targetKey
                     if actorKey in self._targetActors:
                         self._targetActors[actorKey].visible = target.isVisible
+                    elif target.isVisible:
+                        self._createVisualForTarget(viewKey=viewKey, target=target)
 
         elif changedTargetAttrs == ['isSelected']:
             pass  # selection update will be handled separately
@@ -475,8 +486,6 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                     if changedTargetKeys is None:
                         changedTargetKeys = self.session.targets.keys()
 
-                    style = self._targetDispStyle_comboBox.currentText()
-
                     for key in changedTargetKeys:
                         try:
                             target = self.session.targets[key]
@@ -486,11 +495,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                                 visualizedTarget = self._targetActors.pop(viewKey + key)
                                 visualizedTarget.clearActors()
                         else:
-                            logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
-                            self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
-                                                                                        plotter=view.plotter,
-                                                                                        style=style,
-                                                                                        visible=target.isVisible)
+                            if target.isVisible:
+                                self._createVisualForTarget(viewKey=viewKey, target=target)
 
                     view.updateView()
 
