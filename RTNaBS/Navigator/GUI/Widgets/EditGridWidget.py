@@ -167,9 +167,9 @@ class EditGridWidget:
             self._regenerateGrid()
 
     def _deleteAnyPendingGridTargets(self):
-        for targetKey in self._pendingGridTargetKeys:
-            self._session.targets.deleteItem(targetKey)
-        self._pendingGridTargetKeys.clear()
+        if len(self._pendingGridTargetKeys) > 0:
+            self._session.targets.deleteItems(self._pendingGridTargetKeys)
+            self._pendingGridTargetKeys.clear()
 
     def _regenerateGrid(self):
         # TODO: instead of deleting everything and recreating, edit / repurpose existing targets

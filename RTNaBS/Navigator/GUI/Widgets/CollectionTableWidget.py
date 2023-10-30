@@ -95,7 +95,12 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         return self._model.getCollectionItemKeyFromIndex(curRow)
 
     @currentCollectionItemKey.setter
-    def currentCollectionItemKey(self, key: K):
+    def currentCollectionItemKey(self, key: K | None):
+        if key is None:
+            if self.currentCollectionItemKey is not None:
+                # current item was deleted, clear index
+                self._tableView.setCurrentIndex(QtCore.QModelIndex())
+            return
         if key == self.currentCollectionItemKey:
             return
         # logger.debug(f'Setting current item to {key}')

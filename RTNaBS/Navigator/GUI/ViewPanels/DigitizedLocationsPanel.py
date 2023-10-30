@@ -250,9 +250,9 @@ class DigitizedLocationsPanel(MainViewPanel):
                 self.session.digitizedLocations[key].sampledCoord = None
 
     def _onDeleteLocationBtnClicked(self, checked: bool):
-        for key in self._tblWdgt.selectedCollectionItemKeys:
-            if key is not None:
-                self.session.digitizedLocations.deleteItem(key)
+        selKeys = [key for key in self._tblWdgt.selectedCollectionItemKeys if key is not None]
+        if len(selKeys) > 0:
+            self.session.digitizedLocations.deleteItems(selKeys)
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
