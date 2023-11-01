@@ -12,6 +12,7 @@ from RTNaBS.Navigator.Model.Targets import Target
 from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
+from RTNaBS.util import makeStrUnique
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
@@ -42,6 +43,9 @@ class EditGridWidget:
 
     _gridWidthWdgts: tuple[QtWidgets.QDoubleSpinBox, QtWidgets.QDoubleSpinBox] = attrs.field(init=False)
     _gridNWdgts: tuple[QtWidgets.QSpinBox, QtWidgets.QSpinBox] = attrs.field(init=False)
+
+    _gridHandleAngleWdgts: tuple[AngleDial, AngleDial] = attrs.field(init=False)
+    _gridHandleAngleNWdgt: QtWidgets.QSpinBox = attrs.field(init=False)
 
     _pendingGridTargetKeys: list[str] = attrs.field(init=False, factory=list)
 
@@ -86,7 +90,13 @@ class EditGridWidget:
             QtWidgets.QDoubleSpinBox(),
             QtWidgets.QDoubleSpinBox()
         )
-        for iXY, gridWidthWdgt in enumerate(self._gridWidthWdgts):
+
+        self._gridNWdgts = (
+            QtWidgets.QSpinBox(),
+            QtWidgets.QSpinBox()
+        )
+
+        for iXY, (gridWidthWdgt, gridNWdgt) in enumerate(zip(self._gridWidthWdgts, self._gridNWdgts)):
             preventAnnoyingScrollBehaviour(gridWidthWdgt)
             gridWidthWdgt.setRange(0, 1000)
             gridWidthWdgt.setSingleStep(1)
@@ -97,17 +107,29 @@ class EditGridWidget:
             layout.addRow(f'Grid width {"XY"[iXY]}:', gridWidthWdgt)
             self._disableWidgetsWhenNoTarget.append(gridWidthWdgt)
 
-        self._gridNWdgts = (
-            QtWidgets.QSpinBox(),
-            QtWidgets.QSpinBox()
-        )
-        for iXY, gridNWdgt in enumerate(self._gridNWdgts):
             preventAnnoyingScrollBehaviour(gridNWdgt)
-            gridNWdgt.setRange(2, 1000)
+            gridNWdgt.setRange(1, 1000)
             gridNWdgt.setSingleStep(1)
             gridNWdgt.valueChanged.connect(self._onGridNChanged)
             layout.addRow(f'Grid N {"XY"[iXY]}:', gridNWdgt)
             self._disableWidgetsWhenNoTarget.append(gridNWdgt)
+
+        # noinspection PyTypeChecker
+        self._gridHandleAngleWdgts = tuple(
+            AngleDial(centerAngle=0,
+                      offsetAngle=-90,
+                      doInvert=True) for _ in range(2))
+        for iAngle, (angleWdgt, angleLabel) in enumerate(zip(self._gridHandleAngleWdgts, ('start', 'end'))):
+            angleWdgt.sigValueChanged.connect(self._onGridHandleAngleSpanChanged)
+            layout.addRow(f'Handle angle {angleLabel}', angleWdgt.wdgt)
+            self._disableWidgetsWhenNoTarget.append(angleWdgt.wdgt)
+
+        self._gridHandleAngleNWdgt = QtWidgets.QSpinBox()
+        self._gridHandleAngleNWdgt.setRange(1, 1000)
+        self._gridHandleAngleNWdgt.setSingleStep(1)
+        self._gridHandleAngleNWdgt.valueChanged.connect(self._onGridNChanged)
+        layout.addRow(f'Grid handle angle N', self._gridHandleAngleNWdgt)
+        self._disableWidgetsWhenNoTarget.append(self._gridHandleAngleNWdgt)
 
         btnContainer = QtWidgets.QWidget()
         btnLayout = QtWidgets.QHBoxLayout()
@@ -175,6 +197,8 @@ class EditGridWidget:
         # TODO: instead of deleting everything and recreating, edit / repurpose existing targets
         self._deleteAnyPendingGridTargets()
 
+        #return  # TODO: debug, delete
+
         if self._seedTarget is None:
             return
 
@@ -205,23 +229,32 @@ class EditGridWidget:
 
         gridNX, gridNY = (wdgt.value() for wdgt in self._gridNWdgts)
 
+        gridHandleAngleStart, gridHandleAngleStop = (wdgt.value for wdgt in self._gridHandleAngleWdgts)
+
+        gridNAngle = self._gridHandleAngleNWdgt.value()
+
         xCoords_seed = np.linspace(-gridWidthX / 2, gridWidthX / 2, gridNX)
         yCoords_seed = np.linspace(-gridWidthY / 2, gridWidthY / 2, gridNY)
-        coords_seed = np.array(np.meshgrid(xCoords_seed, yCoords_seed)).T.reshape(-1, 2)
+        aCoords_seed = np.linspace(gridHandleAngleStart, gridHandleAngleStop, gridNAngle)
+        coords_seed = np.array(np.meshgrid(xCoords_seed, yCoords_seed, aCoords_seed)).T.reshape(-1, 3)
 
         refDepthFromSeedCoil = -np.linalg.norm(refOrigin - self._seedTarget.entryCoordPlusDepthOffset)
         refDepthTargetToEntryDist = np.linalg.norm(self._seedTarget.entryCoord - self._seedTarget.targetCoord)
 
-        gridCoords_seedCoilSpace = np.concatenate((coords_seed, np.full((coords_seed.shape[0], 1), refDepthFromSeedCoil)), axis=1)
+        gridCoords_seedCoilSpace = np.hstack((
+            coords_seed[:, :2],
+            np.full((coords_seed.shape[0], 1), refDepthFromSeedCoil),  # add z axis
+            coords_seed[:, np.newaxis, 2]  # angle will be 4th column
+        ))
 
         seedCoilToMRITransf = self._seedTarget.coilToMRITransf
         extraTransf = composeTransform(ptr.active_matrix_from_angle(2, np.deg2rad(self._gridPrimaryAngleWdgt.value)))
         seedCoilToMRITransf = concatenateTransforms([extraTransf, seedCoilToMRITransf])
 
-        gridCoords_MRISpace = applyTransform(seedCoilToMRITransf, gridCoords_seedCoilSpace)
+        gridCoords_MRISpace = applyTransform(seedCoilToMRITransf, gridCoords_seedCoilSpace[:, :3])
 
         # not ideal, but adjust entry angle based on each new target's position (in brain)
-        targetCoords_seedCoilSpace = np.concatenate((coords_seed, np.full((coords_seed.shape[0], 1), targetDepthFromSkin)), axis=1)
+        targetCoords_seedCoilSpace = np.concatenate((coords_seed[:, :2], np.full((coords_seed.shape[0], 1), targetDepthFromSkin)), axis=1)
 
         targetCoords_MRISpace = applyTransform(seedCoilToMRITransf, targetCoords_seedCoilSpace)
         entryCoords_MRISpace = np.full(targetCoords_MRISpace.shape, np.nan)
@@ -238,13 +271,16 @@ class EditGridWidget:
             entryCoords_MRISpace[i, :] = targetCoords_MRISpace[i, :] + entryDir * refDepthTargetToEntryDist
 
         for i in range(gridCoords_MRISpace.shape[0]):
+            uniqueTargetKey = makeStrUnique(baseStr=f'{self._seedTarget.key} grid point {i+1}', # TODO: include X and Y indices separately in grid key
+                                            existingStrs=self._session.targets.keys(),
+                                            delimiter='#')
             newTarget = Target(
                 session=self._session,
                 targetCoord=targetCoords_MRISpace[i, :],
                 entryCoord=entryCoords_MRISpace[i, :],
                 depthOffset=self._seedTarget.depthOffset,
-                key=f'{self._seedTarget.key} grid point {i+1}',  # TODO: include X and Y indices separately in grid key
-                angle=self._seedTarget.angle,
+                key=uniqueTargetKey,
+                angle=self._seedTarget.angle + gridCoords_seedCoilSpace[i, 3],
                 color=self._seedTarget.color,
             )
             self._pendingGridTargetKeys.append(newTarget.key)
@@ -282,6 +318,9 @@ class EditGridWidget:
         self._gridNeedsUpdate.set()
 
     def _onGridNChanged(self, value: int):
+        self._gridNeedsUpdate.set()
+
+    def _onGridHandleAngleSpanChanged(self, *args):
         self._gridNeedsUpdate.set()
 
     def _onCancelBtnClicked(self, checked: bool):
