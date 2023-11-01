@@ -92,6 +92,10 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         btn.clicked.connect(lambda checked: self.selectToolToMove())
         container.layout().addWidget(btn)
 
+        btn = QtWidgets.QPushButton('Clear tool position...')
+        btn.clicked.connect(lambda checked: self.selectToolToClearPos())
+        container.layout().addWidget(btn)
+
         container.layout().addSpacing(10)
 
         btn = QtWidgets.QPushButton('Import positions snapshot...')
@@ -307,6 +311,28 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
 
         logger.info(f'Exported positions snapshot to {filepath}')
 
+    async def selectAndClearToolPos(self):
+        # start by picking mesh to move
+        pickedActor = await pickActor(self._plotter,
+                                      show=True,
+                                      show_message='Left click on mesh to clear',
+                                      style='wireframe',
+                                      left_clicking=True)
+        try:
+            pickedKey = [actorKey for actorKey, actor in self._actors.items() if actor is pickedActor][0]
+        except IndexError as e:
+            logger.warning('Unrecognized actor picked. Cancelling select')
+            return
+        if pickedKey.endswith('_tracker'):
+            pickedTool = self.session.tools[pickedKey[:-len('_tracker')]]
+        elif pickedKey.endswith('_tool'):
+            pickedTool = self.session.tools[pickedKey[:-len('_tool')]]
+        else:
+            raise NotImplementedError
+        logger.info(f'Picked actor {pickedKey} ({pickedTool.key}) to move')
+
+        self._positionsClient.setNewPosition(key=pickedTool.key, transf=None)
+
     async def selectAndMoveTool(self):
         # start by picking mesh to move
         pickedActor = await pickActor(self._plotter,
@@ -367,3 +393,5 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     def selectToolToMove(self):
         asyncio.create_task(self.selectAndMoveTool())
 
+    def selectToolToClearPos(self):
+        asyncio.create_task(self.selectAndClearToolPos())
