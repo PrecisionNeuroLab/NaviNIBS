@@ -183,9 +183,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             self._interpolateValuesOntoMesh()
 
             # so just call update rather than completely re-adding the mesh to plotter
-            self._plotter.update_scalars(self._scalarsKey, mesh=self._mesh, render=True)
-            self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
-            self._plotter.update()
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.update_scalars(self._scalarsKey, mesh=self._mesh, render=True)
+                self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
+                self._plotter.update()
 
         else:
             super()._redraw(which=which)
