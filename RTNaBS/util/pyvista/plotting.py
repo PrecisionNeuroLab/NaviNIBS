@@ -71,7 +71,6 @@ class _DelayedPlotter:
             self._needsRender.set()
 
 
-
 class PlotterImprovementsMixin:
     def __init__(self):
         pass
@@ -91,7 +90,7 @@ class PlotterImprovementsMixin:
                     # note: this works for actors created by add_mesh, but maybe not others
                     mesh = mapper.GetInput()
                     thisScalarKey = mapper.GetArrayName()
-                    scalars = pv.utilities.get_array(mesh, thisScalarKey)
+                    scalars = pv.get_array(mesh, thisScalarKey)
                     if not isinstance(scalars, np.ndarray):
                         scalars = np.asarray(scalars)
                     clims = [np.nanmin([clims[0], np.nanmin(scalars)]),
@@ -140,7 +139,7 @@ class PlotterImprovementsMixin:
             nan_color = pv.Color(None, default_opacity=1., default_color=self._theme.nan_color)
 
             if isinstance(scalars, str):
-                scalars = pv.utilities.helpers.get_array(lines, scalars, preference='points')
+                scalars = pv.get_array(lines, scalars, preference='points')
 
             clim = [np.nanmin(scalars), np.nanmax(scalars)]
 

@@ -220,6 +220,12 @@ class RemotePlotterProxyBase:
             callbackKey = self._callbackRegistry.register(callbackFn)
             kwargs['callback'] = callbackKey
 
+        if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData):
+            # clear un-pickleable obbTree field
+            # note: this may cause unexpected issues...
+            kwargs['mesh'] = kwargs['mesh'].copy()
+            kwargs['mesh']._obbTree = None
+
         if self._doQueueCallsAndReturnImmediately:
             self._sendReqNonblocking((cmdKey, *cmdArgs, fnStr, args, kwargs))
             return None
@@ -335,6 +341,9 @@ class RemotePlotterProxyBase:
     def reset_camera_clipping_range(self, *args, **kwargs):
         return self._remotePlotterCall('reset_camera_clipping_range', *args, **kwargs)
 
+    def reset_scalar_bar_ranges(self, *args, **kwargs):
+        return self._remotePlotterCall('reset_scalar_bar_ranges', *args, **kwargs)
+
     def add_axes_at_origin(self, *args, **kwargs):
         return self._remotePlotterCall('add_axes_at_origin', *args, **kwargs)
 
@@ -355,6 +364,12 @@ class RemotePlotterProxyBase:
 
     def resumeRendering(self):
         return self._remotePlotterCall('resumeRendering')
+
+    def update(self, *args, **kwargs):
+        return self._remotePlotterCall('update', *args, **kwargs)
+
+    def update_scalars(self, *args, **kwargs):
+        return self._remotePlotterCall('update_scalars', *args, **kwargs)
 
 
 class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
@@ -413,7 +428,11 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
             return await self._areqSocket.recv_pyobj()
 
     def _sendReqAndRecv(self, msg):
-        self._reqSocket.send_pyobj(msg)
+        try:
+            self._reqSocket.send_pyobj(msg)
+        except TypeError as e:
+            logger.error(f'Problem serializing message: {exceptionToStr(e)}')
+            raise e
         return self._waitForResp(self._reqSocket)
 
     def _sendReqNonblocking(self, msg):
