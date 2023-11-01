@@ -16,6 +16,7 @@ from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidge
 from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.Tools import CalibrationPlate, Pointer
 from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from RTNaBS.Navigator.Model.Samples import Sample
@@ -114,6 +115,77 @@ class _PoseMetricGroup:
 
 
 @attrs.define
+class BackgroundSamplePoseMetadataSetter:
+    _session: Session | None = attrs.field(init=False, default=None)
+    _pendingSampleKeys: list[str] = attrs.field(init=False, factory=list)
+    _needsUpdateEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _calculator: PoseMetricCalculator | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_keepUpdated))
+
+    async def _loop_keepUpdated(self):
+        while True:
+            await self._needsUpdateEvent.wait()
+            self._needsUpdateEvent.clear()
+            if self._session is None:
+                continue
+
+            if len(self._pendingSampleKeys) == 0:
+                continue
+
+            sampleKey = self._pendingSampleKeys.pop(0)
+
+            if len(self._pendingSampleKeys) > 0:
+                self._needsUpdateEvent.set()
+
+            if sampleKey not in self.session.samples:
+                # sample was presumably deleted while pending
+                continue
+
+            sample = self.session.samples[sampleKey]
+
+            if self._calculator is None:
+                self._calculator = PoseMetricCalculator(
+                    session=self.session,
+                    sample=sample
+                )
+            else:
+                self._calculator.sample = sample
+
+            with sample.changingMetadata():
+                for metric in self._calculator.supportedMetrics:
+                    if not metric.doShowByDefault:
+                        continue
+                    sample.metadata[metric.label] = self._calculator.getValueForMetric(metric.label)
+
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, newSes: Session | None):
+        if self._session is newSes:
+            return
+        if self._session is not None:
+            raise NotImplementedError  # TODO: disconnect from signals, update self._calculator.session, etc.
+        else:
+            assert self._calculator is None  # will be given session ref when instantiated
+        self._session = newSes
+        self._session.samples.sigItemKeyChanged.connect(self._onSampleKeyChanged)
+        self._needsUpdateEvent.set()
+
+    def queueSamples(self, sampleKeys: list[str]):
+        self._pendingSampleKeys.extend([key for key in sampleKeys if key not in self._pendingSampleKeys])
+        self._needsUpdateEvent.set()
+
+    def _onSampleKeyChanged(self, oldKey: str, newKey: str):
+        if oldKey in self._pendingSampleKeys:
+            if newKey not in self._pendingSampleKeys:
+                self._pendingSampleKeys.append(newKey)
+                self._needsUpdateEvent.set()
+
+@attrs.define
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
@@ -130,6 +202,9 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
     _coordinator: TargetingCoordinator = attrs.field(init=False)
     _triggerReceiver: TriggerReceiver = attrs.field(init=False)
+    _backgroundSamplePoseMetadataSetter: BackgroundSamplePoseMetadataSetter = attrs.field(
+        init=False,
+        factory=BackgroundSamplePoseMetadataSetter)
 
     _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
 
@@ -263,6 +338,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         self._coordinator.sigCurrentSampleChanged.connect(lambda: self._onCurrentSampleChanged(self._coordinator.currentSampleKey))
         self._targetsTableWdgt.session = self.session
         self._samplesTableWdgt.session = self.session
+        self._backgroundSamplePoseMetadataSetter.session = self.session
 
         self.session.samples.sigItemsChanged.connect(self._onSamplesChanged)
 
@@ -361,6 +437,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         )
 
         self.session.samples.addItem(sample)
+
+        self._backgroundSamplePoseMetadataSetter.queueSamples([sample.key])
 
         logger.info(f'Manually recorded a sample: {sample}')
 
