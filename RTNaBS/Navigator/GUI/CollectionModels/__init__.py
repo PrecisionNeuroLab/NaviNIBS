@@ -286,6 +286,8 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                         # assume val above is an (icon, text) tuple
                         assert len(colVal) == 2
                         colVal = colVal[1]
+                    if isinstance(colVal, float):
+                        colVal = f'{colVal:.4g}'  # TODO: make display precision (or format str) configurable rather than hardcoded
                     return str(colVal)
                 else:
                     raise KeyError
