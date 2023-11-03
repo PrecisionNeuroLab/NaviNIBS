@@ -214,20 +214,12 @@ class ToolWidget:
 
             if self._tool.toolSurf is not None:
                 meshColor = self._tool.toolColor
-                scalars = None
-                if meshColor is None:
-                    if len(self._tool.toolSurf.array_names) > 0:
-                        meshColor = None  # use color from mesh file
-                        scalars = self._tool.toolSurf.array_names[0]
-                    else:
-                        meshColor = '#2222ff'
                 meshColor_tool = meshColor
-                actor = self._toolSpacePlotter.add_mesh(
+                actor = self._toolSpacePlotter.addMesh(
                     name=actorKey,
                     mesh=self._tool.toolSurf,
                     color=meshColor,
-                    scalars=scalars,
-                    rgb=meshColor is None,
+                    defaultMeshColor='#2222ff',
                     opacity=0.8
                 )
                 self._toolSpaceActors[actorKey] = actor
@@ -237,11 +229,10 @@ class ToolWidget:
                     **defaultGridKwargs)
 
             if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
-                actor = self._trackerSpacePlotter.add_mesh(
+                actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.toolSurf,
                     color=meshColor_tool,  # noqa
-                    rgb=meshColor_tool is None,
-                    scalars=scalars,
+                    defaultMeshColor='#2222ff',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -267,18 +258,10 @@ class ToolWidget:
                 )
 
                 meshColor = self._tool.trackerColor
-                scalars = None
-                if meshColor is None:
-                    if len(self._tool.trackerSurf.array_names) > 0:
-                        meshColor = None  # use color from mesh file
-                        scalars = self._tool.trackerSurf.array_names[0]
-                    else:
-                        meshColor = '#2222ff'
-                actor = self._trackerSpacePlotter.add_mesh(
+                actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
-                    scalars=scalars,
-                    rgb=meshColor is None,
+                    defaultMeshColor='#2222ff',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -289,11 +272,10 @@ class ToolWidget:
                     **defaultGridKwargs)
 
                 if self._tool.toolToTrackerTransf is not None:
-                    actor = self._toolSpacePlotter.add_mesh(
+                    actor = self._toolSpacePlotter.addMesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
-                        scalars=scalars,
-                        rgb=meshColor is None,
+                        defaultMeshColor='#2222ff',
                         opacity=0.8,
                         name=actorKey
                     )
