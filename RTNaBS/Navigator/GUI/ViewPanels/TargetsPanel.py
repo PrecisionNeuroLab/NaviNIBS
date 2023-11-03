@@ -50,8 +50,12 @@ class VisualizedTarget:
     _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
     _visible: bool = True  # track this separately from self._target.isVisible to allow temporarily overriding
 
+    _needsUpdateEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _shouldBeClear: bool = False
+
     def __attrs_post_init__(self):
-        self.plot()
+        self._needsUpdateEvent.set()
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_keepUpdated))
 
     @property
     def visible(self):
@@ -85,27 +89,55 @@ class VisualizedTarget:
 
         self.clearActors()
         self._style = style
-        self.plot()
+        self.plot_soon()
 
-    def plot(self):
-        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+    async def _loop_keepUpdated(self):
+        while True:
+            await self._needsUpdateEvent.wait()
+            self._needsUpdateEvent.clear()
+            await self._plot_async()
+
+    def plot_soon(self):
+        self._shouldBeClear = False
+        self._needsUpdateEvent.set()
+
+    async def _plot_async(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
             # plotter not ready yet
+            await self._plotter.isReadyEvent.wait()
+
+        if self._shouldBeClear:
+            if len(self._actors) > 0:
+                with self._plotter.allowNonblockingCalls():
+                    for actor in self._actors.values():
+                        self._plotter.remove_actor(actor)
+                    self._actors.clear()
+                    self._plotter.render()
             return
 
         thinWidth = 3
         thickWidth = 6
         if self._style == 'line':
             pts_line = np.vstack((self._target.entryCoord, self._target.targetCoord))
-            self._actors['line'] = self._plotter.add_lines(pts_line,
+            self._actors['line'] = await self._plotter.add_lines_async(pts_line,
                                                            color=self._color,
                                                            width=thickWidth,
                                                            label=self._target.key,
                                                            name=self._target.key + 'line',
                                                            )
 
+            self._actors['target'] = await self._plotter.add_points_async(self._target.targetCoord,
+                                                              color=self._color,
+                                                              point_size=10.,
+                                                              render_points_as_spheres=True,
+                                                              label=self._target.key,
+                                                              name=self._target.key + 'target',
+                                                              reset_camera=False,
+                                                              render=False)
+
         elif self._style == 'lines':
             pts_line1 = np.vstack((self._target.entryCoord, self._target.targetCoord))
-            self._actors['line1'] = self._plotter.add_lines(pts_line1,
+            self._actors['line1'] = await self._plotter.add_lines_async(pts_line1,
                                                            color=self._color,
                                                            width=thickWidth,
                                                            label=self._target.key,
@@ -113,26 +145,28 @@ class VisualizedTarget:
                                                            )
 
             pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -10, 0], [0, 0, 0]]))
-            self._actors['line2'] = self._plotter.add_lines(pts_line2,
+            self._actors['line2'] = await self._plotter.add_lines_async(pts_line2,
                                                             color=self._color,
                                                             width=thinWidth,
                                                             label=self._target.key,
                                                             name=self._target.key + 'line2',
                                                             )
             pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
-            self._actors['line3'] = self._plotter.add_lines(pts_line3,
+            self._actors['line3'] = await self._plotter.add_lines_async(pts_line3,
                                                             color=self._color,
                                                             width=thinWidth,
                                                             label=self._target.key,
                                                             name=self._target.key + 'line3',
                                                             )
 
-            self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
+            self._actors['target'] = await self._plotter.add_points_async(self._target.targetCoord,
                                                               color=self._color,
                                                               point_size=10.,
                                                               render_points_as_spheres=True,
                                                               label=self._target.key,
-                                                              name=self._target.key + 'target')
+                                                              name=self._target.key + 'target',
+                                                              reset_camera=False,
+                                                              render=False)
 
         elif self._style == 'coilLines':
             coilDiameter = 10
@@ -144,7 +178,7 @@ class VisualizedTarget:
             for wing, dir in (('wing1', 1.), ('wing2', -1.)):
                 if self._target.coilToMRITransf is not None:
                     pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
-                    self._actors[wing] = self._plotter.add_lines(pts_wing,
+                    self._actors[wing] = await self._plotter.add_lines_async(pts_wing,
                                                                  connected=True,
                                                                  color=self._color,
                                                                  width=thinWidth,
@@ -154,7 +188,7 @@ class VisualizedTarget:
 
             if self._target.coilToMRITransf is not None:
                 pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
-                self._actors['line2'] = self._plotter.add_lines(pts_line2,
+                self._actors['line2'] = await self._plotter.add_lines_async(pts_line2,
                                                                 color=self._color,
                                                                 width=thinWidth,
                                                                 label=self._target.key,
@@ -165,7 +199,7 @@ class VisualizedTarget:
                 else:
                     depth = 50
                 pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -depth], [0, 0, 10]]))
-                self._actors['line3'] = self._plotter.add_lines(pts_line3,
+                self._actors['line3'] = await self._plotter.add_lines_async(pts_line3,
                                                                 color=self._color,
                                                                 width=thinWidth,
                                                                 label=self._target.key,
@@ -173,14 +207,14 @@ class VisualizedTarget:
                                                                 )
             elif self._target.targetCoord is not None and self._target.entryCoord is not None:
                 pts_line2 = np.vstack([self._target.targetCoord, self._target.entryCoord])
-                self._actors['line2'] = self._plotter.add_lines(pts_line2,
+                self._actors['line2'] = await self._plotter.add_lines_async(pts_line2,
                                                                 color=self._color,
                                                                 width=thinWidth,
                                                                 label=self._target.key,
                                                                 name=self._target.key + 'line2',
                                                                 )
 
-            self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
+            self._actors['target'] = await self._plotter.add_points_async(self._target.targetCoord,
                                                               color=self._color,
                                                               point_size=10.,
                                                               render_points_as_spheres=True,
@@ -204,11 +238,8 @@ class VisualizedTarget:
         return self._actors
 
     def clearActors(self):
-        with self._plotter.allowNonblockingCalls():
-            for actor in self._actors.values():
-                self._plotter.remove_actor(actor)
-            self._actors.clear()
-            self._plotter.render()
+        self._shouldBeClear = True
+        self._needsUpdateEvent.set()
 
 
 @attrs.define
@@ -514,8 +545,16 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
                     view.updateView()
 
-                currentTarget = self._getCurrentTargetKey()
-                self._onCurrentTargetChanged(currentTarget)
+                if False:
+                    asyncio.create_task(asyncTryAndLogExceptionOnError(self._refreshCurrentTarget))  # do this a bit later to give table time to update
+                else:
+                    currentTarget = self._getCurrentTargetKey()
+                    self._onCurrentTargetChanged(currentTarget)
+
+    async def _refreshCurrentTarget(self):
+        currentTargetKey = self._getCurrentTargetKey()
+        self._onCurrentTargetChanged(currentTargetKey)
+
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
