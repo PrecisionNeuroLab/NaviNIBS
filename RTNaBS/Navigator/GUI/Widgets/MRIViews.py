@@ -316,10 +316,11 @@ class MRISliceView:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
                     self._lineActors[lineKey] = line
                 else:
-                    logger.debug('Moving previous crosshairs')
-                    line = self._lineActors[lineKey]
-                    pts_pv = pv.lines_from_points(pts)
-                    line.GetMapper().SetInputData(pts_pv)
+                    with self._plotter.allowNonblockingCalls():
+                        logger.debug('Moving previous crosshairs')
+                        line = self._lineActors[lineKey]
+                        pts_pv = pv.lines_from_points(pts)
+                        line.GetMapper().SetInputData(pts_pv)
 
 
         if True:

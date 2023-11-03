@@ -185,6 +185,7 @@ class BackgroundSamplePoseMetadataSetter:
                 self._pendingSampleKeys.append(newKey)
                 self._needsUpdateEvent.set()
 
+
 @attrs.define
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
