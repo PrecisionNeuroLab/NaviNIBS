@@ -145,6 +145,7 @@ class CoordinateWidget:
                 coordTxt = '[' + ', '.join([f'{c:.2f}' for c in coord]) + ']'
 
             self._coordInSysWdgts[key].setText(coordTxt)
+            self._wdgt.updateGeometry()
 
         removeKeys = set(self._coordInSysWdgts.keys()) - set(coordSysKeys)
         for key in removeKeys:
@@ -180,7 +181,7 @@ class EntryAnglesWidgets:
         self._angleXWdgt = AngleDial(
             doInvert=False,
             offsetAngle=180,
-            centerAngle=0
+            centerAngle=0,
         )
         self._angleXWdgt.sigValueChanged.connect(self._onEntryAngleXChangedFromGUI)
         self._layout.addRow('Entry angle X', self._angleXWdgt.wdgt)
@@ -568,7 +569,6 @@ class EditTargetWidget:
             else:
                 pass  # temporarily disabled for now due to issue with over-aggressive disabling
                 # of tracking model's selected target (perhaps due to signal emit order?)
-
 
     def _onTargetItemChanged(self, targetKey: str, attribsChanged: list[str] | None = None):
         if attribsChanged is None or 'angle' in attribsChanged:

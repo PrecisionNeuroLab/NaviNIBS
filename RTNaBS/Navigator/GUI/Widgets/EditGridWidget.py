@@ -233,9 +233,18 @@ class EditGridWidget:
 
         gridNAngle = self._gridHandleAngleNWdgt.value()
 
-        xCoords_seed = np.linspace(-gridWidthX / 2, gridWidthX / 2, gridNX)
-        yCoords_seed = np.linspace(-gridWidthY / 2, gridWidthY / 2, gridNY)
-        aCoords_seed = np.linspace(gridHandleAngleStart, gridHandleAngleStop, gridNAngle)
+        if gridNX == 1:
+            xCoords_seed = 0.
+        else:
+            xCoords_seed = np.linspace(-gridWidthX / 2, gridWidthX / 2, gridNX)
+        if gridNY == 1:
+            yCoords_seed = 0.
+        else:
+            yCoords_seed = np.linspace(-gridWidthY / 2, gridWidthY / 2, gridNY)
+        if gridNAngle == 1:
+            aCoords_seed = np.mean([gridHandleAngleStart, gridHandleAngleStop])
+        else:
+            aCoords_seed = np.linspace(gridHandleAngleStart, gridHandleAngleStop, gridNAngle)
         coords_seed = np.array(np.meshgrid(xCoords_seed, yCoords_seed, aCoords_seed)).T.reshape(-1, 3)
 
         refDepthFromSeedCoil = -np.linalg.norm(refOrigin - self._seedTarget.entryCoordPlusDepthOffset)
