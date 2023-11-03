@@ -565,7 +565,7 @@ class ToolsPanel(MainViewPanel):
         super()._onSessionSet()
 
         if any(tool.initialTrackerPose is not None for tool in self.session.tools.values()):
-            asyncio.create_task(self._recordInitialToolPoses())
+            asyncio.create_task(asyncTryAndLogExceptionOnError(self._recordInitialToolPoses))
 
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
