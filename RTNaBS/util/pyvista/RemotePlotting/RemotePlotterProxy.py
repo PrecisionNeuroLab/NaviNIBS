@@ -199,7 +199,7 @@ class RemotePlotterProxyBase:
     def _sendReqNonblocking(self, msg) -> None:
         raise NotImplementedError  # to be implemented by subclass
 
-    def _remoteCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+    def _prepareForCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
         if kwargs is None:
             kwargs = dict()
 
@@ -226,11 +226,23 @@ class RemotePlotterProxyBase:
             kwargs['mesh'] = kwargs['mesh'].copy()
             kwargs['mesh']._obbTree = None
 
+        return cmdKey, *cmdArgs, fnStr, args, kwargs
+
+    async def _remoteCall_async(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+        req = self._prepareForCall(cmdKey, fnStr, args, kwargs, cmdArgs)
+
+        resp = await self._sendReqAndRecv_async(req)
+
+        return self._handleResp(fnStr, resp)
+
+    def _remoteCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+        req = self._prepareForCall(cmdKey, fnStr, args, kwargs, cmdArgs)
+
         if self._doQueueCallsAndReturnImmediately:
-            self._sendReqNonblocking((cmdKey, *cmdArgs, fnStr, args, kwargs))
+            self._sendReqNonblocking(req)
             return None
         else:
-            resp = self._sendReqAndRecv((cmdKey, *cmdArgs, fnStr, args, kwargs))
+            resp = self._sendReqAndRecv(req)
             logger.debug(f'Waiting for response to {fnStr}')
 
             return self._handleResp(fnStr, resp)
@@ -261,6 +273,9 @@ class RemotePlotterProxyBase:
 
     def _remotePlotterCall(self, fnStr, *args, **kwargs):
         return self._remoteCall('callPlotterMethod', fnStr, args, kwargs)
+
+    async def _remotePlotterCall_async(self, fnStr, *args, **kwargs):
+        return await self._remoteCall_async('callPlotterMethod', fnStr, args, kwargs)
 
     def _remotePlotterGet(self, key: str):
         return self._remoteCall('plotterGet', key)
@@ -305,11 +320,17 @@ class RemotePlotterProxyBase:
     def add_lines(self, *args, **kwargs):
         return self._remotePlotterCall('add_lines', *args, **kwargs)
 
+    async def add_lines_async(self, *args, **kwargs):
+        return await self._remotePlotterCall_async('add_lines', *args, **kwargs)
+
     def addLineSegments(self, *args, **kwargs):
         return self._remotePlotterCall('addLineSegments', *args, **kwargs)
 
     def add_points(self, *args, **kwargs):
         return self._remotePlotterCall('add_points', *args, **kwargs)
+
+    async def add_points_async(self, *args, **kwargs):
+        return await self._remotePlotterCall_async('add_points', *args, **kwargs)
 
     def add_point_labels(self, *args, **kwargs):
         return self._remotePlotterCall('add_point_labels', *args, **kwargs)
