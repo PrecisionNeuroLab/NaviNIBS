@@ -8,6 +8,9 @@ import typing as tp
 from .QWidgetWithCloseSignal import QMainWindowWithCloseSignal
 from ..Signaler import Signal
 
+
+from RTNaBS.util import exceptionToStr
+
 logger = logging.getLogger(__name__)
 
 
@@ -79,7 +82,11 @@ class RunnableAsApp:
         while not self._appIsClosing:
             if counter == 0:
                 logger.debug('Main loop: process Qt events')
-            self._app.processEvents()
+            try:
+                self._app.processEvents()
+            except Exception as e:
+                logger.error(f'Exception while processing Qt events: {exceptionToStr(e)}')
+                raise e
             if counter == 0:
                 logger.debug('Main loop: async')
             await asyncio.sleep(self._appAsyncPollPeriod)

@@ -188,6 +188,7 @@ async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor, onNewTransf:
         actor.SetUserTransform(actorTransf)
         handleRep.PlaceWidget(localActorBounds)
         handleRep.SetTransform(actorTransf)
+        plotter.render()
     else:
         handleRep.PlaceWidget(actor.GetBounds())
     #handleRep.SetOutlineFaceWires(True)
