@@ -44,6 +44,7 @@ class VisualizedTarget:
     re-instantiate the `VisualizedTarget` for any target changes.
     """
     _target: Target
+    _actorPrefix: str
     _plotter: DefaultBackgroundPlotter = attrs.field(repr=False)
     _style: str
     _color: str = '#2222FF'
@@ -108,12 +109,15 @@ class VisualizedTarget:
 
         if self._shouldBeClear:
             if len(self._actors) > 0:
+                logger.debug('Clearing actors')
                 with self._plotter.allowNonblockingCalls():
                     for actor in self._actors.values():
                         self._plotter.remove_actor(actor)
                     self._actors.clear()
                     self._plotter.render()
             return
+
+        logger.debug('Creating target graphics')
 
         thinWidth = 3
         thickWidth = 6
@@ -123,7 +127,7 @@ class VisualizedTarget:
                                                            color=self._color,
                                                            width=thickWidth,
                                                            label=self._target.key,
-                                                           name=self._target.key + 'line',
+                                                           name=self._actorPrefix + self._target.key + 'line',
                                                            )
 
             self._actors['target'] = await self._plotter.add_points_async(self._target.targetCoord,
@@ -131,7 +135,7 @@ class VisualizedTarget:
                                                               point_size=10.,
                                                               render_points_as_spheres=True,
                                                               label=self._target.key,
-                                                              name=self._target.key + 'target',
+                                                              name=self._actorPrefix + self._target.key + 'target',
                                                               reset_camera=False,
                                                               render=False)
 
@@ -141,7 +145,7 @@ class VisualizedTarget:
                                                            color=self._color,
                                                            width=thickWidth,
                                                            label=self._target.key,
-                                                           name=self._target.key + 'line1',
+                                                           name=self._actorPrefix + self._target.key + 'line1',
                                                            )
 
             pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -10, 0], [0, 0, 0]]))
@@ -149,14 +153,14 @@ class VisualizedTarget:
                                                             color=self._color,
                                                             width=thinWidth,
                                                             label=self._target.key,
-                                                            name=self._target.key + 'line2',
+                                                            name=self._actorPrefix + self._target.key + 'line2',
                                                             )
             pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
             self._actors['line3'] = await self._plotter.add_lines_async(pts_line3,
                                                             color=self._color,
                                                             width=thinWidth,
                                                             label=self._target.key,
-                                                            name=self._target.key + 'line3',
+                                                            name=self._actorPrefix + self._target.key + 'line3',
                                                             )
 
             self._actors['target'] = await self._plotter.add_points_async(self._target.targetCoord,
@@ -164,7 +168,7 @@ class VisualizedTarget:
                                                               point_size=10.,
                                                               render_points_as_spheres=True,
                                                               label=self._target.key,
-                                                              name=self._target.key + 'target',
+                                                              name=self._actorPrefix + self._target.key + 'target',
                                                               reset_camera=False,
                                                               render=False)
 
@@ -183,7 +187,7 @@ class VisualizedTarget:
                                                                  color=self._color,
                                                                  width=thinWidth,
                                                                  label=self._target.key,
-                                                                 name=self._target.key + wing,
+                                                                 name=self._actorPrefix + self._target.key + wing,
                                                                  )
 
             if self._target.coilToMRITransf is not None:
@@ -192,7 +196,7 @@ class VisualizedTarget:
                                                                 color=self._color,
                                                                 width=thinWidth,
                                                                 label=self._target.key,
-                                                                name=self._target.key + 'line2',
+                                                                name=self._actorPrefix + self._target.key + 'line2',
                                                                 )
                 if self._target.targetCoord is not None and self._target.entryCoord is not None:
                     depth = np.linalg.norm(self._target.targetCoord - self._target.entryCoord) + self._target.depthOffset
@@ -203,7 +207,7 @@ class VisualizedTarget:
                                                                 color=self._color,
                                                                 width=thinWidth,
                                                                 label=self._target.key,
-                                                                name=self._target.key + 'line3',
+                                                                name=self._actorPrefix + self._target.key + 'line3',
                                                                 )
             elif self._target.targetCoord is not None and self._target.entryCoord is not None:
                 pts_line2 = np.vstack([self._target.targetCoord, self._target.entryCoord])
@@ -211,7 +215,7 @@ class VisualizedTarget:
                                                                 color=self._color,
                                                                 width=thinWidth,
                                                                 label=self._target.key,
-                                                                name=self._target.key + 'line2',
+                                                                name=self._actorPrefix + self._target.key + 'line2',
                                                                 )
 
             self._actors['target'] = await self._plotter.add_points_async(self._target.targetCoord,
@@ -219,15 +223,18 @@ class VisualizedTarget:
                                                               point_size=10.,
                                                               render_points_as_spheres=True,
                                                               label=self._target.key,
-                                                              name=self._target.key + 'target',
+                                                              name=self._actorPrefix + self._target.key + 'target',
                                                               reset_camera=False,
                                                               render=False)
 
         else:
             raise NotImplementedError()
 
+        logger.debug('Done creating target graphics')
+
         with self._plotter.allowNonblockingCalls():
             if not self.visible:
+                logger.debug('Hiding target graphics')
                 for actor in self._actors.values():
                     actor.VisibilityOff()
 
@@ -238,6 +245,7 @@ class VisualizedTarget:
         return self._actors
 
     def clearActors(self):
+        logger.debug('Clearing actors')
         self._shouldBeClear = True
         self._needsUpdateEvent.set()
 
@@ -249,6 +257,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
+    _uniqueTargetActorCount: int = attrs.field(init=False, default=0)
 
     _editTargetWdgt: EditTargetWidget = attrs.field(init=False)
     _editGridWdgt: EditGridWidget = attrs.field(init=False)
@@ -488,7 +497,13 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
         logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
         view = self._views[viewKey]
         style = self._targetDispStyle_comboBox.currentText()
+        self._uniqueTargetActorCount += 1
+        visTrgKey = viewKey + target.key
+        if visTrgKey in self._targetActors:
+            oldVisTrg = self._targetActors.pop(visTrgKey)
+            oldVisTrg.clearActors()
         self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
+                                                                    actorPrefix=f'VisTrg{self._uniqueTargetActorCount}_',
                                                                     plotter=view.plotter,
                                                                     style=style,
                                                                     visible=target.isVisible)
