@@ -261,7 +261,11 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
 
     def data(self, index: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex], role: int = ...) -> tp.Any:
         colKey = self._columns[index.column()]
-        item = self.getCollectionItemFromIndex(index=index.row())
+        try:
+            item = self.getCollectionItemFromIndex(index=index.row())
+        except IndexError:
+            return None  # TODO: double check what would be correct to return here
+
         if item is None:
             assert self._hasPlaceholderNewRow
         #logger.debug(f'Getting data for {self.getCollectionItemKeyFromIndex(index=index.row())} {colKey} role {role}')
@@ -587,6 +591,9 @@ class FilteredCollectionModel(CollectionTableModelBase[K, C, CI], QtCore.QSortFi
 
     def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
         raise NotImplementedError  # should be implemented by subclass
+
+    def filterAcceptsColumn(self, source_column: int, source_parent: QtCore.QModelIndex) -> bool:
+        return True  # can be implemented by subclass to filter specific columns
 
     def getCollectionItemFromIndex(self, index: int) -> CI | None:
         return self._proxiedModel.getCollectionItemFromIndex(self.mapToSource(self.index(index, 0)).row())

@@ -18,12 +18,13 @@ class FullTargetsTableModel(CollectionTableModel[str, Targets, Target]):
     def __attrs_post_init__(self):
         self._collection = self._session.targets
 
-        self._boolColumns.extend(['isVisible'])
+        self._boolColumns.extend(['isVisible', 'isHistorical'])
         self._editableColumns.extend(['isVisible', 'key'])
 
         self._columns = [
             'key',
-            'isVisible'
+            'isVisible',
+            'isHistorical',
             # TODO: add color
             # TODO: add angle, depthOffset, target coord, entry coord as optional but hidden by default
         ]
@@ -31,6 +32,7 @@ class FullTargetsTableModel(CollectionTableModel[str, Targets, Target]):
         self._columnLabels = dict(
             key='Key',
             isVisible='Visibility',
+            isHistorical='Historical',
         )
 
         self._editableColumnValidators = dict(
@@ -52,9 +54,15 @@ class TargetsTableModel(FilteredCollectionModel[str, Targets, Target]):
 
     def __attrs_post_init__(self):
         self._proxiedModel = FullTargetsTableModel(session=self._session)
+
         FilteredCollectionModel.__attrs_post_init__(self)
 
     def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
         target = self._proxiedModel.getCollectionItemFromIndex(sourceRow)
         return not target.isHistorical
+
+    def filterAcceptsColumn(self, source_column: int, source_parent: QtCore.QModelIndex):
+        columnKey = self._proxiedModel.columns[source_column]
+        return columnKey not in ('isHistorical',)
+
 
