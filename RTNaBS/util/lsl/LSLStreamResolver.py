@@ -9,6 +9,7 @@ import threading
 import typing as tp
 
 from . import getKeyForStreamInfo, getEquivalentKeysForStreamInfo, inferStreamKey
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.ZMQConnector import ZMQConnectorServer, ZMQConnectorClient, getNewPort
 
@@ -118,7 +119,7 @@ class _ThreadedLSLStreamResolver_Daemon(LSLStreamResolver):
 
     def startAsyncPolling(self):
         if self._pollTask is None:
-            self._pollTask = asyncio.create_task(self._poll())
+            self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._poll))
 
     def _onStreamDetected(self, streamKey: str, streamInfo: lsl.StreamInfo):
         LSLStreamResolver._onStreamDetected(self, streamKey=streamKey, streamInfo=streamInfo)
@@ -179,7 +180,7 @@ class ThreadedLSLStreamResolver(LSLStreamResolver):
             resolveStreamsTimeout=self._resolveStreamsTimeout
         ), daemon=True)
         self._thread.start()
-        asyncio.create_task(self._startPolling())
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._startPolling))
 
     async def _startPolling(self):
         await asyncio.sleep(self._pollPeriod)  # extra delay here to give time for subscribe to take effect

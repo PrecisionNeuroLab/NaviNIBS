@@ -81,7 +81,7 @@ class RemotePlotManagerBase:
                 return 'ack'
 
             case 'quit':
-                asyncio.create_task(self._closeAfterDelay())
+                asyncio.create_task(asyncTryAndLogExceptionOnError(self._closeAfterDelay))
                 return 'ack'
 
             case 'getWinID':
