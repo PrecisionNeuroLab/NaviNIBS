@@ -327,6 +327,19 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
         """
         yield
 
+    async def add_lines_async(self, *args, **kwargs):
+        """
+        Not actually async. Is here for interface compatibility with RemotePlotterProxy that may be used instead
+        """
+        return self.add_lines(*args, **kwargs)
+
+    async def add_points_async(self, *args, **kwargs):
+        """
+        Not actually async. Is here for interface compatibility with RemotePlotterProxy that may be used instead
+        """
+        return self.add_points(*args, **kwargs)
+
+
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovementsMixin):
     _mainPlotter: PrimaryLayeredPlotter

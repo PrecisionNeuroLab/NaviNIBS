@@ -226,6 +226,8 @@ class RemotePlotterProxyBase:
             kwargs['mesh'] = kwargs['mesh'].copy()
             kwargs['mesh']._obbTree = None
 
+        logger.debug(f'prepared for call {cmdKey} {fnStr}')
+
         return cmdKey, *cmdArgs, fnStr, args, kwargs
 
     async def _remoteCall_async(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
@@ -445,8 +447,12 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
     async def _sendReqAndRecv_async(self, msg):
         async with self._areqLock:
+            logger.debug(f'Sending async msg {msg}')
             self._areqSocket.send_pyobj(msg)
-            return await self._areqSocket.recv_pyobj()
+            logger.debug(f'Awaiting reply')
+            resp = await self._areqSocket.recv_pyobj()
+            logger.debug(f'Received reply {resp}')
+            return resp
 
     def _sendReqAndRecv(self, msg):
         try:
