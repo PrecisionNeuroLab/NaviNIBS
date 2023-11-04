@@ -190,10 +190,12 @@ class EditGridWidget:
 
     def _deleteAnyPendingGridTargets(self):
         if len(self._pendingGridTargetKeys) > 0:
+            logger.debug(f'Deleting pending grid targets: {self._pendingGridTargetKeys}')
             self._session.targets.deleteItems(self._pendingGridTargetKeys)
             self._pendingGridTargetKeys.clear()
 
     def _regenerateGrid(self):
+        logger.debug('Regenerating grid')
         # TODO: instead of deleting everything and recreating, edit / repurpose existing targets
         self._deleteAnyPendingGridTargets()
 
@@ -201,6 +203,8 @@ class EditGridWidget:
 
         if self._seedTarget is None:
             return
+
+        logger.info(f'Generating grid for seedTarget {self._seedTarget.key}')
 
         depthMode = self._gridDepthWdgt.currentText()
         match depthMode:
@@ -310,6 +314,7 @@ class EditGridWidget:
         self._gridNeedsUpdate.set()
 
     def _onTargetComboBoxCurrentIndexChanged(self, index: int):
+
         if index == -1:
             self.seedTarget = None
             return
