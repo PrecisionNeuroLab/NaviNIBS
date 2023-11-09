@@ -241,7 +241,13 @@ class Session:
         if asAutosave:
             keysToSave = self._dirtyKeys_autosave.copy()
             self._dirtyKeys_autosave.clear()
+
             autosaveFilenamePrefix = 'autosaved-' + datetime.today().strftime('%y%m%d%H%M%S.%f') + '_'
+            if True:
+                # put autosaved files in an "autosaved" subdirectory to avoid cluttering session root
+                autosaveFilenamePrefix = os.path.join('autosaved', autosaveFilenamePrefix)
+                if not os.path.isdir(os.path.join(self.unpackedSessionDir, 'autosaved')):
+                    os.mkdir(os.path.join(self.unpackedSessionDir, 'autosaved'))
         else:
             keysToSave = self._dirtyKeys.copy()
             self._dirtyKeys.clear()
