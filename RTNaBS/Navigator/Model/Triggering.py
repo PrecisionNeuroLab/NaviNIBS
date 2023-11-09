@@ -34,7 +34,22 @@ class TriggerSource(GenericCollectionDictItem[str]):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+    @property
+    def isEnabled(self):
+        return self._isEnabled
+
+    @isEnabled.setter
+    def isEnabled(self, newIsEnabled: bool):
+        if self._isEnabled == newIsEnabled:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['isEnabled'])
+        self._isEnabled = newIsEnabled
+        self.sigItemChanged.emit(self.key, ['isEnabled'])
+
     def trigger(self, triggerEvt: TriggerEvent):
+        if not self.isEnabled:
+            logger.debug(f'Dropping event {triggerEvt} because trigger source is disabled')
+            return
         triggerEvt.metadata['source'] = self.type
         logger.debug(f'Recorded trigger: {triggerEvt}')
         self.sigTriggered.emit(triggerEvt)
@@ -60,6 +75,11 @@ class TriggerSource(GenericCollectionDictItem[str]):
 class LSLTriggerSource(TriggerSource):
     type: ClassVar[str] = 'LSLTriggerSource'
     _streamKey: tp.Optional[str] = None
+    _fallbackTriggerSourceKey: str | None = None
+    """
+    If the primary LSL stream is not available, can fallback to another trigger source. The fallback source
+    will be disabled when the primary is available, and enabled when the primary is not available.
+    """
     _triggerEvents: tp.Optional[dict[str, tp.Optional[str]]] = None  # dict mapping of {eventValue: action} on which to trigger
     _triggerValueIsEpochID: bool = False
     _defaultAction: str = 'pulse'
@@ -79,6 +99,18 @@ class LSLTriggerSource(TriggerSource):
         self.sigItemAboutToChange.emit(self.key, ['streamKey'])
         self._streamKey = newKey
         self.sigItemChanged.emit(self.key, ['streamKey'])
+
+    @property
+    def fallbackTriggerSourceKey(self):
+        return self._fallbackTriggerSourceKey
+
+    @fallbackTriggerSourceKey.setter
+    def fallbackTriggerSourceKey(self, newKey: tp.Optional[str]):
+        if self._fallbackTriggerSourceKey == newKey:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['fallbackTriggerSourceKey'])
+        self._fallbackTriggerSourceKey = newKey
+        self.sigItemChanged.emit(self.key, ['fallbackTriggerSourceKey'])
 
     @property
     def triggerEvents(self):
