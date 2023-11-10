@@ -196,9 +196,9 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         self._connectOrDisconnectAsNeeded()
 
     def _onTriggerSourceItemChanged(self, key: str, whichAttrs: list[str] | None = None):
-        if whichAttrs is None or 'fallbackTriggerSourceKey' in whichAttrs:
+        if whichAttrs is None or any(x in whichAttrs for x in ('fallbackTriggerSourceKey', 'isEnabled')):
             if self.fallbackTriggerSource is not None:
-                self.fallbackTriggerSource.isEnabled = self._inlet is None
+                self.fallbackTriggerSource.isEnabled = self._inlet is None and self.triggerSource.isEnabled
 
         if whichAttrs is None or 'streamKey' in whichAttrs:
             self._streamSelector.selectedStreamKey = self.triggerSource.streamKey
