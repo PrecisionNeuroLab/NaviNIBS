@@ -408,6 +408,8 @@ class TargetingCoordinator:
 
     @property
     def isOnTarget(self):
+        if not self._doMonitorOnTarget:
+            self.doMonitorOnTarget = True
         assert self._doMonitorOnTarget
         if self._needToCheckIfOnTarget.is_set():
             # check immediately to make sure we don't give outdated information
@@ -416,6 +418,7 @@ class TargetingCoordinator:
 
     def _startMonitoringOnTarget(self):
         assert self._monitorOnTargetTask is None
+        self._needToCheckIfOnTarget.set()
         self._monitorOnTargetTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_monitorOnTarget))
 
     def _stopMonitoringOnTarget(self):
