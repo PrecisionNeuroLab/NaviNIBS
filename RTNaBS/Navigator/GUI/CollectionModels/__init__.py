@@ -556,7 +556,10 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         if doUpdateSelection:
             self._updateSelection(keys=keys, attrKeys=attrKeys)
 
+        logger.debug(f'Done signaling completion for keys {keys}, attrKeys {attrKeys}')
+
     def _updateSelection(self, keys: list[str] | None, attrKeys: list[str] | None):
+        logger.debug(f'Updating selection')
         if self._isSelectedAttr is not None and (attrKeys is None or self._isSelectedAttr in attrKeys):
             keysToEmit = keys
             if keysToEmit is None:

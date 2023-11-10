@@ -423,6 +423,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
     def _gotoTarget(self, targetKey: str):
 
+        logger.debug('gotoTarget')
+
         plotter = self._views['3D'].plotter
         if isinstance(plotter, RemotePlotterProxy) and not plotter.isReadyEvent.is_set():
             return  # plotter not ready yet
