@@ -35,9 +35,14 @@ class EditGridWidget:
 
     _gridPrimaryAngleWdgt: AngleDial = attrs.field(init=False)
 
-    _gridDepthWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
+    _gridSpacingAtDepthWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
+    _gridPivotDepth: QtWidgets.QDoubleSpinBox = attrs.field(init=False, factory=QtWidgets.QDoubleSpinBox)
+    _gridDepthMethodWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
+    _gridEntryAngleMethodWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
 
     _seedTarget: Target | None = attrs.field(init=False, default=None)
+
+
 
     _disableWidgetsWhenNoTarget: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
 
@@ -80,11 +85,27 @@ class EditGridWidget:
         layout.addRow('Grid angle offset:', self._gridPrimaryAngleWdgt.wdgt)
         self._disableWidgetsWhenNoTarget.append(self._gridPrimaryAngleWdgt.wdgt)
 
-        self._gridDepthWdgt.addItems(['Coil', 'Entry', 'Target'])
-        self._gridDepthWdgt.setCurrentIndex(2)
-        self._gridDepthWdgt.currentIndexChanged.connect(self._onGridDepthChanged)
-        layout.addRow('Grid depth:', self._gridDepthWdgt)
-        self._disableWidgetsWhenNoTarget.append(self._gridDepthWdgt)
+        self._gridSpacingAtDepthWdgt.addItems(['Coil', 'Entry', 'Target'])
+        self._gridSpacingAtDepthWdgt.setCurrentIndex(2)
+        self._gridSpacingAtDepthWdgt.currentIndexChanged.connect(self._onGridSpacingAtDepthChanged)
+        layout.addRow('Grid at depth of:', self._gridSpacingAtDepthWdgt)
+        self._disableWidgetsWhenNoTarget.append(self._gridSpacingAtDepthWdgt)
+
+        self._gridPivotDepth.setRange(1, 1000)
+        self._gridPivotDepth.setSingleStep(1)
+        self._gridPivotDepth.setDecimals(1)
+        self._gridPivotDepth.setSuffix(' mm')
+        self._gridPivotDepth.setValue(60.)
+        self._gridPivotDepth.valueChanged.connect(self._onGridPivotDepthChanged)
+        # self._gridPivotDepth.setKeyboardTracking(False)
+        layout.addRow('Grid pivot depth:', self._gridPivotDepth)
+        self._disableWidgetsWhenNoTarget.append(self._gridPivotDepth)
+
+        self._gridDepthMethodWdgt.addItems(['from pivot', 'from skin'])
+        self._gridDepthMethodWdgt.setCurrentIndex(1)
+        self._gridDepthMethodWdgt.currentIndexChanged.connect(self._onGridDepthMethodChanged)
+        layout.addRow('Grid depth adjustment:', self._gridDepthMethodWdgt)
+        self._disableWidgetsWhenNoTarget.append(self._gridDepthMethodWdgt)
 
         self._gridWidthWdgts = (
             QtWidgets.QDoubleSpinBox(),
@@ -98,6 +119,7 @@ class EditGridWidget:
 
         for iXY, (gridWidthWdgt, gridNWdgt) in enumerate(zip(self._gridWidthWdgts, self._gridNWdgts)):
             preventAnnoyingScrollBehaviour(gridWidthWdgt)
+            # gridWidthWdgt.setKeyboardTracking(False)
             gridWidthWdgt.setRange(0, 1000)
             gridWidthWdgt.setSingleStep(1)
             gridWidthWdgt.setDecimals(1)
@@ -108,6 +130,7 @@ class EditGridWidget:
             self._disableWidgetsWhenNoTarget.append(gridWidthWdgt)
 
             preventAnnoyingScrollBehaviour(gridNWdgt)
+            # gridNWdgt.setKeyboardTracking(False)
             gridNWdgt.setRange(1, 1000)
             gridNWdgt.setSingleStep(1)
             gridNWdgt.valueChanged.connect(self._onGridNChanged)
@@ -206,29 +229,6 @@ class EditGridWidget:
 
         logger.info(f'Generating grid for seedTarget {self._seedTarget.key}')
 
-        depthMode = self._gridDepthWdgt.currentText()
-        match depthMode:
-            case 'Coil':
-                refOrigin = self._seedTarget.entryCoordPlusDepthOffset
-            case 'Entry':
-                refOrigin = self._seedTarget.entryCoord
-            case 'Target':
-                refOrigin = self._seedTarget.targetCoord
-            case _:
-                raise NotImplementedError
-
-        closestPt_skin = getClosestPointToPointOnMesh(
-            session=self._session,
-            whichMesh='skinSurf',
-            point_MRISpace=refOrigin,
-        )
-
-        entryDir = Vector(self._seedTarget.entryCoord - self._seedTarget.targetCoord).unit()
-
-        refDepthFromSkin = entryDir.scalar_projection(Vector(refOrigin - closestPt_skin))
-
-        targetDepthFromSkin = -np.linalg.norm(closestPt_skin - self._seedTarget.targetCoord)  # assume target inside head
-
         gridWidthX, gridWidthY = (wdgt.value() for wdgt in self._gridWidthWdgts)
 
         gridNX, gridNY = (wdgt.value() for wdgt in self._gridNWdgts)
@@ -237,65 +237,122 @@ class EditGridWidget:
 
         gridNAngle = self._gridHandleAngleNWdgt.value()
 
-        if gridNX == 1:
-            xCoords_seed = 0.
-        else:
-            xCoords_seed = np.linspace(-gridWidthX / 2, gridWidthX / 2, gridNX)
-        if gridNY == 1:
-            yCoords_seed = 0.
-        else:
-            yCoords_seed = np.linspace(-gridWidthY / 2, gridWidthY / 2, gridNY)
-        if gridNAngle == 1:
-            aCoords_seed = np.mean([gridHandleAngleStart, gridHandleAngleStop])
-        else:
-            aCoords_seed = np.linspace(gridHandleAngleStart, gridHandleAngleStop, gridNAngle)
-        coords_seed = np.array(np.meshgrid(xCoords_seed, yCoords_seed, aCoords_seed)).T.reshape(-1, 3)
-
-        refDepthFromSeedCoil = -np.linalg.norm(refOrigin - self._seedTarget.entryCoordPlusDepthOffset)
-        refDepthTargetToEntryDist = np.linalg.norm(self._seedTarget.entryCoord - self._seedTarget.targetCoord)
-
-        gridCoords_seedCoilSpace = np.hstack((
-            coords_seed[:, :2],
-            np.full((coords_seed.shape[0], 1), refDepthFromSeedCoil),  # add z axis
-            coords_seed[:, np.newaxis, 2]  # angle will be 4th column
-        ))
+        depthMode = self._gridSpacingAtDepthWdgt.currentText()
+        match depthMode:
+            case 'Coil':
+                refOrigin = self._seedTarget.entryCoordPlusDepthOffset
+                refDepthFromSeedCoil = 0.
+                refDepthFromSeedEntry = self._seedTarget.depthOffset
+                refDepthFromSeedTarget = np.linalg.norm(self._seedTarget.entryCoord - self._seedTarget.targetCoord) + self._seedTarget.depthOffset
+            case 'Entry':
+                refOrigin = self._seedTarget.entryCoord
+                refDepthFromSeedCoil = -self._seedTarget.depthOffset
+                refDepthFromSeedEntry = 0.
+                refDepthFromSeedTarget = np.linalg.norm(self._seedTarget.entryCoord - self._seedTarget.targetCoord)
+            case 'Target':
+                refOrigin = self._seedTarget.targetCoord
+                refDepthFromSeedCoil = -np.linalg.norm(self._seedTarget.entryCoord - self._seedTarget.targetCoord) - self.seedTarget.depthOffset
+                refDepthFromSeedEntry = -np.linalg.norm(self._seedTarget.entryCoord - self._seedTarget.targetCoord)
+                refDepthFromSeedTarget = 0.
+            case _:
+                raise NotImplementedError
 
         seedCoilToMRITransf = self._seedTarget.coilToMRITransf
-        extraTransf = composeTransform(ptr.active_matrix_from_angle(2, np.deg2rad(self._gridPrimaryAngleWdgt.value)))
-        seedCoilToMRITransf = concatenateTransforms([extraTransf, seedCoilToMRITransf])
+        seedCoilToUnrotSeedCoil = composeTransform(ptr.active_matrix_from_angle(2, -np.deg2rad(self._gridPrimaryAngleWdgt.value)))  # TODO: check sign of angle
+        gridSpaceToSeedCoilTransf = composeTransform(ptr.active_matrix_from_angle(2, np.deg2rad(self._gridPrimaryAngleWdgt.value)),  # TODO: check sign of angle
+                                                     np.asarray([0, 0, refDepthFromSeedCoil]))
+        gridSpaceToMRITransf = concatenateTransforms([gridSpaceToSeedCoilTransf, seedCoilToMRITransf])
 
-        gridCoords_MRISpace = applyTransform(seedCoilToMRITransf, gridCoords_seedCoilSpace[:, :3])
+        entryDir = Vector(self._seedTarget.entryCoord - self._seedTarget.targetCoord).unit()
 
-        # not ideal, but adjust entry angle based on each new target's position (in brain)
-        targetCoords_seedCoilSpace = np.concatenate((coords_seed[:, :2], np.full((coords_seed.shape[0], 1), targetDepthFromSkin)), axis=1)
+        pivotDepth = self._gridPivotDepth.value()  # in mm, dist from seed at grid depth to "common" origin
 
-        targetCoords_MRISpace = applyTransform(seedCoilToMRITransf, targetCoords_seedCoilSpace)
-        entryCoords_MRISpace = np.full(targetCoords_MRISpace.shape, np.nan)
+        # extraTransf = np.eye(4)
+        # extraTransf[:3, 3] = refDepthFromSeedCoil
+        # pivotOrigin_MRISpace = applyTransform(
+        #     concatenateTransforms((extraTransf, self._seedTarget.coilToMRITransf)),
+        #     np.asarray([0, 0, -pivotDepth]))
 
-        for i in range(gridCoords_MRISpace.shape[0]):
-            gridCoord = gridCoords_MRISpace[i, :]
-            targetCoord = targetCoords_MRISpace[i, :]
-            closestPt_skin_i = getClosestPointToPointOnMesh(
-                session=self._session,
-                whichMesh='skinSurf',
-                point_MRISpace=targetCoord)
-            entryDir = Vector(closestPt_skin_i - targetCoord).unit()
-            targetCoords_MRISpace[i, :] = gridCoord + entryDir * (targetDepthFromSkin - refDepthFromSkin)  # TODO: double check signs
-            entryCoords_MRISpace[i, :] = targetCoords_MRISpace[i, :] + entryDir * refDepthTargetToEntryDist
+        # TODO: update grid spacing below to be defined based on arc lengths around pivot origin, instead of in a 2D plane
 
-        for i in range(gridCoords_MRISpace.shape[0]):
+        totalThetaX = gridWidthX / pivotDepth
+        assert totalThetaX < 2*np.pi, 'Grid width too large for given pivot depth'
+
+        totalThetaY = gridWidthY / pivotDepth
+        assert totalThetaY < 2*np.pi, 'Grid width too large for given pivot depth'
+
+        if gridNX == 1:
+            thetaXs = [0.]
+        else:
+            thetaXs = np.linspace(-totalThetaX / 2, totalThetaX / 2, gridNX)
+        if gridNY == 1:
+            thetaYs = [0.]
+        else:
+            thetaYs = np.linspace(-totalThetaY / 2, totalThetaY / 2, gridNY)
+        if gridNAngle == 1:
+            aCoords_seed = [np.mean([gridHandleAngleStart, gridHandleAngleStop])]
+        else:
+            aCoords_seed = np.linspace(gridHandleAngleStart, gridHandleAngleStop, gridNAngle)
+
+        numPoints = gridNX * gridNY * gridNAngle
+        newToGridSpaceTransfs = np.full((numPoints, 4, 4), np.nan)
+        gridHandleAngles = np.full((numPoints,), np.nan)
+
+        for iX, thetaX in enumerate(thetaXs):
+            for iY, thetaY in enumerate(thetaYs):
+                transf_gridSpaceToPivot = np.eye(4)
+                transf_gridSpaceToPivot[2, 3] = pivotDepth
+
+                rot = ptr.active_matrix_from_extrinsic_euler_yxy((-thetaX, -thetaY, 0))  # TODO: check sign
+                transf_pivotToPivoted = composeTransform(rot)
+
+                transf_pivotedToNewUnrot = np.eye(4)
+                transf_pivotedToNewUnrot[2, 3] = -pivotDepth
+
+                for iA, aCoord in enumerate(aCoords_seed):
+                    transf_newUnrotToNew = concatenateTransforms([
+                        invertTransform(seedCoilToUnrotSeedCoil),
+                        composeTransform(ptr.active_matrix_from_angle(2, -np.deg2rad(aCoord))),  # TODO: check sign of angle
+                    ])
+
+                    newToGridSpaceTransfs[iX*gridNY*gridNAngle + iY*gridNAngle + iA] = invertTransform(concatenateTransforms(
+                        [transf_gridSpaceToPivot, transf_pivotToPivoted, transf_pivotedToNewUnrot, transf_newUnrotToNew]))
+
+                    gridHandleAngles[iX*gridNY*gridNAngle + iY*gridNAngle + iA] = aCoord
+
+        newToMRISpaceTransfs = np.full((numPoints, 4, 4), np.nan)
+        for i in range(numPoints):
+            newToMRISpaceTransfs[i] = concatenateTransforms([newToGridSpaceTransfs[i], gridSpaceToMRITransf])
+
+        newCoilToNewTransf = np.eye(4)
+        newCoilToNewTransf[2, 3] = -refDepthFromSeedCoil  # before any additional depth correction (e.g. before matching to new skin depth)
+
+        newEntryToNewTransf = np.eye(4)
+        newEntryToNewTransf[2, 3] = -refDepthFromSeedEntry
+
+        newTargetToNewTransf = np.eye(4)
+        newTargetToNewTransf[2, 3] = -refDepthFromSeedTarget
+
+        for i in range(numPoints):
             uniqueTargetKey = makeStrUnique(baseStr=f'{self._seedTarget.key} grid point {i+1}', # TODO: include X and Y indices separately in grid key
                                             existingStrs=self._session.targets.keys(),
                                             delimiter='#')
+
+            newCoilToMRITransf = concatenateTransforms([newCoilToNewTransf, newToMRISpaceTransfs[i]])
+            entryCoord_MRISpace = applyTransform((newEntryToNewTransf, newToMRISpaceTransfs[i]), np.asarray([0, 0, 0]))
+            targetCoord_MRISpace = applyTransform((newTargetToNewTransf, newToMRISpaceTransfs[i]), np.asarray([0, 0, 0]))
+
             newTarget = Target(
                 session=self._session,
-                targetCoord=targetCoords_MRISpace[i, :],
-                entryCoord=entryCoords_MRISpace[i, :],
+                coilToMRITransf=newCoilToMRITransf,
+                targetCoord=targetCoord_MRISpace,
+                entryCoord=entryCoord_MRISpace,
                 depthOffset=self._seedTarget.depthOffset,
                 key=uniqueTargetKey,
-                angle=self._seedTarget.angle + gridCoords_seedCoilSpace[i, 3],
+                angle=self._seedTarget.angle + gridHandleAngles[i],  # TODO: check sign of offset, and note that this is approximate due to pivot angles
                 color=self._seedTarget.color,
             )
+            logger.debug(f'New target: {newTarget}')
             self._pendingGridTargetKeys.append(newTarget.key)
             self._session.targets.addItem(newTarget)
 
@@ -325,7 +382,16 @@ class EditGridWidget:
     def _onGridPrimaryAngleChanged(self, angle: float):
         self._gridNeedsUpdate.set()
 
-    def _onGridDepthChanged(self, index: int):
+    def _onGridSpacingAtDepthChanged(self, index: int):
+        self._gridNeedsUpdate.set()
+
+    def _onGridPivotDepthChanged(self, value: float):
+        self._gridNeedsUpdate.set()
+
+    def _onGridDepthMethodChanged(self, index: int):
+        self._gridNeedsUpdate.set()
+
+    def _onGridEntryAngleMethodChanged(self, index: int):
         self._gridNeedsUpdate.set()
 
     def _onGridWidthChanged(self, value: float):
