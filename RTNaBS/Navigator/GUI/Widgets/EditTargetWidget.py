@@ -421,6 +421,7 @@ class EditTargetWidget:
 
         self._depthOffsetWdgt = QtWidgets.QDoubleSpinBox()
         preventAnnoyingScrollBehaviour(self._depthOffsetWdgt)
+        # self._depthOffsetWdgt.setKeyboardTracking(False)
         self._depthOffsetWdgt.valueChanged.connect(self._onDepthOffsetChangedFromGUI)
         self._depthOffsetWdgt.setRange(-10, 1000)
         self._depthOffsetWdgt.setSingleStep(0.1)

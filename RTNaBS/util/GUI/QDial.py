@@ -87,6 +87,7 @@ class AngleDial:
         self._layout.addWidget(self._qdial)
 
         self._numericField = QtWidgets.QDoubleSpinBox()
+        # self._numericField.setKeyboardTracking(False)
         self._numericField.setRange(-180 + self._centerAngle, 180 + self._centerAngle - self._resolution)
         if self._singleStep is None:
             self._numericField.setSingleStep(self._resolution * 10.)
