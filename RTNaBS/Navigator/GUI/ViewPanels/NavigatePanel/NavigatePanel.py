@@ -511,12 +511,12 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         assert view.key not in self._views
         self._views[view.key] = view
 
-        if View == 'TargetingCrosshairs-Y':
+        if key == 'Crosshairs-Y':
             # TODO: use position and positionRelativeTo if either/both specified
             self._wdgt.addDock(view.dock,
                                position='right',
                                relativeTo=self._views['Crosshairs-X'].dock)
-        elif View == 'TargetingCrosshairs-X':
+        elif key == 'Crosshairs-X':
             # TODO: use position and positionRelativeTo if either/both specified
             self._wdgt.addDock(view.dock,
                                position='bottom',
