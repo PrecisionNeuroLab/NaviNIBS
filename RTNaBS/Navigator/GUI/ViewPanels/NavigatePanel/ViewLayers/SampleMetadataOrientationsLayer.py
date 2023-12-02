@@ -122,6 +122,8 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         logger.debug(f'redraw {which}')
         if which == 'initSurf':
+            assert self._mesh is None
+
             # override parent method to use sample metadata to interpolate surface
             self._mesh = pv.PolyData(getattr(self._coordinator.session.headModel, self._surfKey),
                                      deep=True)
@@ -152,7 +154,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             else:
                 opacity = self._opacity
 
-            self._actors[actorKey] = self._plotter.add_mesh(mesh=self._mesh,
+            self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
                                                             color=self._color,
                                                             nan_color=self._color,
                                                             scalars=self._scalarsKey,
@@ -165,7 +167,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                             split_sharp_edges=True,
                                                             name=actorKey)
 
-            self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
+            #self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
 
             self._plotter.reset_camera_clipping_range()
 
@@ -180,13 +182,60 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
         elif which == 'interpolateValues':
 
-            self._interpolateValuesOntoMesh()
+            if False:
 
-            # so just call update rather than completely re-adding the mesh to plotter
-            with self._plotter.allowNonblockingCalls():
-                self._plotter.update_scalars(self._scalarsKey, mesh=self._mesh, render=True)
-                self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
-                self._plotter.update()
+                self._interpolateValuesOntoMesh()
+
+                # just call update rather than completely re-adding the mesh to plotter
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.update_scalars(self._scalarsKey, mesh=self._mesh, render=True)
+                    # TODO: also update opacity field
+                    #self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
+                    self._plotter.update()
+            else:
+                # current pyvista doesn't support dynamically changing color when a custom opacity is specified, so
+                # need to fully re-add the mesh to the plotter
+
+                actorKey = self._getActorKey('surf')
+
+                assert actorKey in self._actors
+
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.remove_actor(self._actors[actorKey])
+                    self._actors.pop(actorKey)
+
+                if self._colorbarLabel is None:
+                    colorbarLabel = self._metadataKey
+                else:
+                    colorbarLabel = self._colorbarLabel
+                scalar_bar_args = dict(
+                    title=colorbarLabel,
+                )
+
+                self._interpolateValuesOntoMesh()
+
+                if self._scalarsOpacityKey is not None:
+                    opacity = self._scalarsOpacityKey
+                else:
+                    opacity = self._opacity
+
+                self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
+                                                               color=self._color,
+                                                               nan_color=self._color,
+                                                               scalars=self._scalarsKey,
+                                                               scalar_bar_args=scalar_bar_args,
+                                                               opacity=opacity,
+                                                               specular=0.5,
+                                                               diffuse=0.5,
+                                                               ambient=0.5,
+                                                               # smooth_shading=True,  # disabled since this breaks scalar value updates later
+                                                               split_sharp_edges=True,
+                                                               name=actorKey)
+
+                with self._plotter.allowNonblockingCalls():
+                    # self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
+
+                    self._plotter.reset_camera_clipping_range()
 
         else:
             super()._redraw(which=which)
@@ -282,10 +331,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             self._mesh.clear_data()  # not sure why this is necessary, but otherwise the interpolation doesn't work
             logger.debug(f'Interpolating point cloud values {self._metadataKey} onto surface {self._surfKey}')
             tmpMesh = self._mesh.interpolate(pointCloud,
-                                                null_value=np.nan,
-                                                sharpness=self._kernelSharpness,
-                                                radius=self._kernelRadius
-                                                )
+                                             null_value=np.nan,
+                                             sharpness=self._kernelSharpness,
+                                             radius=self._kernelRadius
+                                             )
             logger.debug(f'Done interpolating')
 
             if self._scalarsKey not in tmpMesh.point_data:
