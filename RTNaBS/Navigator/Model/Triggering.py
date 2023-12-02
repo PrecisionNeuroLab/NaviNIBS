@@ -50,7 +50,8 @@ class TriggerSource(GenericCollectionDictItem[str]):
         if not self.isEnabled:
             logger.debug(f'Dropping event {triggerEvt} because trigger source is disabled')
             return
-        triggerEvt.metadata['source'] = self.type
+        if 'source' not in triggerEvt.metadata:
+            triggerEvt.metadata['source'] = self.type
         logger.debug(f'Recorded trigger: {triggerEvt}')
         self.sigTriggered.emit(triggerEvt)
 
@@ -143,6 +144,11 @@ class LSLTriggerSource(TriggerSource):
     @property
     def minInterTriggerPeriod(self):
         return self._minInterTriggerPeriod
+
+    def trigger(self, triggerEvt: TriggerEvent):
+        if 'source' not in triggerEvt.metadata:
+            triggerEvt.metadata['source'] = self.type + ' ' + self._streamKey
+        super().trigger(triggerEvt=triggerEvt)
 
 
 @attrs.define
