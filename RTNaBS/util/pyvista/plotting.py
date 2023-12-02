@@ -400,7 +400,10 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovemen
             super().reset_camera_clipping_range()
 
 
-class CustomRenderWindowInteractor(pv.RenderWindowInteractor):
+from pyvista.plotting.render_window_interactor import RenderWindowInteractor
+
+
+class CustomRenderWindowInteractor(RenderWindowInteractor):
     """
     Some quirks for layered plotter setup require us to override some behavior in pyvista's RenderWindowInteractor
     """
