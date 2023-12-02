@@ -202,7 +202,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
     _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
 
     _coordinator: TargetingCoordinator = attrs.field(init=False)
-    _triggerReceiver: TriggerReceiver = attrs.field(init=False)
+    _triggerReceiver: TriggerReceiver | None = attrs.field(init=False, default=None)
     _backgroundSamplePoseMetadataSetter: BackgroundSamplePoseMetadataSetter = attrs.field(
         init=False,
         factory=BackgroundSamplePoseMetadataSetter)
@@ -371,7 +371,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
     def _onPanelShown(self):
         super()._onPanelShown()
-        if self.session is not None:
+        if self.session is not None and self._triggerReceiver is not None:
             self.session.triggerSources.triggerRouter.subscribeToTrigger(receiver=self._triggerReceiver, triggerKey='sample', exclusive=True)
 
         for view in self._views.values():
