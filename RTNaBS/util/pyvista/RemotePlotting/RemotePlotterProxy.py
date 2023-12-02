@@ -499,7 +499,14 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         if False:  # TODO: debug, delete or set to False
             self._embedWdgt = QtWidgets.QWidget()  # placeholder
         else:
-            self._embedWdgt = QtWidgets.QWidget.createWindowContainer(self._embedWin, parent=self)
+            try:
+                self._embedWdgt = QtWidgets.QWidget.createWindowContainer(self._embedWin, parent=self)
+            except RuntimeError as e:
+                # if this widget was deleted while awaiting remote initialization, will
+                # raise a runtime error here
+                logger.warning('Problem while creating window container, giving up')
+                self.remoteProc.terminate()
+                return
 
         layout.removeWidget(tempWdgt)
         tempWdgt.deleteLater()
