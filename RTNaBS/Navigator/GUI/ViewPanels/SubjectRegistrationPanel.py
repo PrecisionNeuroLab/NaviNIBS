@@ -647,6 +647,10 @@ class SubjectRegistrationPanel(MainViewPanel):
                 )
             )
 
+            # clear sampled positions of previously selected fiducials so that they're not automatically used for future alignments
+            self.session.subjectRegistration.fiducials[selFidKey].sampledCoords = None
+
+
     def _onFidTblCurrentCellChanged(self, currentRow: int, currentCol: int, previousRow: int, previousCol: int):
         if previousRow == currentRow:
             return  # no change in row selection
