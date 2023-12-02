@@ -79,7 +79,7 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         sidebar = QtWidgets.QWidget()
         sidebar.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
+        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
         self._wdgt.layout().addWidget(sidebar)
 
         self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
