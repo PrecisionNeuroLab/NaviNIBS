@@ -66,6 +66,11 @@ class NavigatorGUI(RunnableAsApp):
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
+        thisDir = pathlib.Path(__file__).parent
+        iconPath = os.path.join(thisDir, 'resources', 'NaviNIBSIcon.ico')
+        assert os.path.exists(iconPath)
+        self._appIconPath = iconPath
+
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
