@@ -3,7 +3,10 @@ import typing as tp
 import numpy as np
 import pyvista as pv
 from pyvista import _vtk
-from pyvista.core.utilities import vtk_id_list_to_array
+if pv.__version__ <= '0.39.1':
+    from pyvista.utilities.helpers import vtk_id_list_to_array
+else:
+    from pyvista.core.utilities import vtk_id_list_to_array
 
 
 def find_closest_point(dataset: pv.DataSet, point: tp.Iterable, n: int = 1) -> int:
