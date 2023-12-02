@@ -515,22 +515,22 @@ class ZMQConnectorClient:
         """
         Asynchronously on the client, make a synchronous call on the server
         """
-        return await self._call_async(method=method, doAsync=False, *args, **kwargs)
+        return await self._call_async(method, False, *args, **kwargs)
 
     def call(self, method: str, *args, **kwargs):
-        return self._call(method=method, doAsync=False, *args, **kwargs)
+        return self._call(method, False, *args, **kwargs)
 
     async def callAsync_async(self, method: str, *args, **kwargs):
         """"
         Asynchronously on the client, make an asynchronous call on the server
         """
-        return await self._call_async(method=method, doAsync=True, *args, **kwargs)
+        return await self._call_async(method, True, *args, **kwargs)
 
     def callAsync(self, method: str, *args, **kwargs):
         """
         Synchronously on the client, make an asynchronous call on the server
         """
-        return self._call(method=method, doAsync=True, *args, **kwargs)
+        return self._call(method, True, *args, **kwargs)
 
     async def ping_async(self, timeout=100, numTries=2):
         """
