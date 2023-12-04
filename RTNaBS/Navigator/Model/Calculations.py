@@ -113,7 +113,7 @@ def calculateAngleFromMidlineFromCoilToMRITransf(session: Session, coilToMRITran
     return np.rad2deg(angle).item()
 
 
-def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
+def calculateCoilToMRITransfFromTargetEntryAngle(session: Session | None,
                                                  targetCoord: np.ndarray | None,
                                                  entryCoord: np.ndarray | None,
                                                  angle: float | None,
@@ -123,6 +123,9 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session,
     """
     Implemented outside of Target class to allow preparing for invalidating old coilToMRITransf when targetCoord, entryCoord, angle, or depthOffset change, before actually applying that change to the instance.
     """
+
+    if session is None:
+        return None
 
     if targetCoord is None:
         # estimate targetCoord from prevCoilToMRITransf

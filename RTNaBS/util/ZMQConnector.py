@@ -12,7 +12,10 @@ import zmq.asyncio as azmq
 from . import exceptionToStr
 from . import ZMQAsyncioFix
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+
 logger = logging.getLogger(__name__)
+
 
 class InvalidMessageError(Exception):
     pass
@@ -47,7 +50,7 @@ class ZMQConnectorServer:
             self._pubSocket.linger = 0
             self._pubSocket.bind('tcp://%s:%d' % (self._bindAddr, self._pubSubPort))
 
-        self._asyncPollingTask = asyncio.create_task(self._asyncPoll())
+        self._asyncPollingTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._asyncPoll))
 
     def __del__(self):
         logger.debug("Deleting ZMQConnectorServer")
@@ -236,7 +239,7 @@ class ZMQConnectorClient:
 
     _reqSocket: zmq.Socket = attr.ib(init=False)
     _areqSocket: azmq.Socket = attr.ib(init=False)
-    _areqLock: asyncio.Lock = attr.ib(init=False)
+    _areqLock: asyncio.Lock | None = attr.ib(init=False, default=None)
     _subSocket: tp.Optional[azmq.Socket] = attr.ib(init=False, default=None)
 
     _allowAsyncCalls: bool = False
@@ -263,7 +266,8 @@ class ZMQConnectorClient:
             logger.debug('Connecting async req socket')
             self._areqSocket = self._actx.socket(zmq.REQ)
             self._areqSocket.connect('tcp://%s:%d' % (self._connAddr, self._reqRepPort))
-            self._areqLock = asyncio.Lock()
+            if self._areqLock is None:
+                self._areqLock = asyncio.Lock()
 
         if self._pubSubPort is not None:
             logger.debug('Setting up subscribe')
@@ -272,7 +276,7 @@ class ZMQConnectorClient:
             self._subSocket.connect('tcp://%s:%d' % (self._connAddr, self._pubSubPort))
             self._subSocket.setsockopt(zmq.SUBSCRIBE, b'')
 
-            asyncio.create_task(self._asyncPoll())  # only need to poll if checking for published updates
+            asyncio.create_task(asyncTryAndLogExceptionOnError(self._asyncPoll))  # only need to poll if checking for published updates
             logger.debug('Finished setting up subscribe')
 
     def close(self, linger=0):
@@ -511,22 +515,22 @@ class ZMQConnectorClient:
         """
         Asynchronously on the client, make a synchronous call on the server
         """
-        return await self._call_async(method=method, doAsync=False, *args, **kwargs)
+        return await self._call_async(method, False, *args, **kwargs)
 
     def call(self, method: str, *args, **kwargs):
-        return self._call(method=method, doAsync=False, *args, **kwargs)
+        return self._call(method, False, *args, **kwargs)
 
     async def callAsync_async(self, method: str, *args, **kwargs):
         """"
         Asynchronously on the client, make an asynchronous call on the server
         """
-        return await self._call_async(method=method, doAsync=True, *args, **kwargs)
+        return await self._call_async(method, True, *args, **kwargs)
 
     def callAsync(self, method: str, *args, **kwargs):
         """
         Synchronously on the client, make an asynchronous call on the server
         """
-        return self._call(method=method, doAsync=True, *args, **kwargs)
+        return self._call(method, True, *args, **kwargs)
 
     async def ping_async(self, timeout=100, numTries=2):
         """
@@ -607,6 +611,7 @@ def checkIfPortAvailable(port: int) -> bool:
 
 
 usedPorts = set()
+
 
 def getNewPort(minAssignedPort: int = 5000) -> int:
     global usedPorts

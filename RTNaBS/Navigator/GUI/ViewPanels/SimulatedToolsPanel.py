@@ -92,6 +92,10 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         btn.clicked.connect(lambda checked: self.selectToolToMove())
         container.layout().addWidget(btn)
 
+        btn = QtWidgets.QPushButton('Clear tool position...')
+        btn.clicked.connect(lambda checked: self.selectToolToClearPos())
+        container.layout().addWidget(btn)
+
         container.layout().addSpacing(10)
 
         btn = QtWidgets.QPushButton('Import positions snapshot...')
@@ -157,7 +161,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
             if isinstance(tool, SubjectTracker):
                 actorKeysForTool.append(key + '_subject')
 
-            if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
+            if not tool.isActive or self._positionsClient.getLatestTransf(tool.trackerKey, None) is None:
                 # no valid position available
                 for actorKey in actorKeysForTool:
                     if actorKey in self._actors and self._actors[actorKey].GetVisibility():
@@ -192,13 +196,16 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                                     mesh = getattr(tool, toolOrTracker + 'Surf')
                                     meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
                                     meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
+                                    scalars = None
                                     if meshColor is None:
                                         if len(mesh.array_names) > 0:
                                             meshColor = None  # use color from surf file
+                                            scalars = mesh.array_names[-1]
                                         else:
                                             meshColor = '#2222ff'  # default color if nothing else provided
                                     self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                                                     color=meshColor,
+                                                                                    scalars=scalars,
                                                                                     opacity=1.0 if meshOpacity is None else meshOpacity,
                                                                                     rgb=meshColor is None,
                                                                                     name=actorKey)
@@ -208,7 +215,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                                 setActorUserTransform(self._actors[actorKey],
                                                       concatenateTransforms([
                                                           toolOrTrackerStlToTrackerTransf,
-                                                          self._positionsClient.getLatestTransf(key)
+                                                          self._positionsClient.getLatestTransf(tool.trackerKey)
                                                       ]))
                                 self._plotter.render()
                             else:
@@ -226,7 +233,7 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
                             doResetCamera = True
 
                         setActorUserTransform(self._actors[actorKey],
-                                              self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                                              self._positionsClient.getLatestTransf(tool.trackerKey) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
                         self._plotter.render()
 
                 if actorKey in self._actors:
@@ -247,11 +254,11 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
         for key, tool in self.session.tools.items():
             if True:
                 # only zero positions for tools that don't have positions defined relative to another tool
-                pos = self._positionsClient.latestPositions.get(key, None)
+                pos = self._positionsClient.latestPositions.get(tool.trackerKey, None)
                 if pos is not None and pos.relativeTo is not None:
                     continue
 
-            self._positionsClient.setNewPosition(key=key, transf=np.eye(4))
+            self._positionsClient.setNewPosition(key=tool.trackerKey, transf=np.eye(4))
 
     async def importPositionsSnapshot(self, filepath: str | None = None):
 
@@ -303,6 +310,28 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
             f.write(toWrite)
 
         logger.info(f'Exported positions snapshot to {filepath}')
+
+    async def selectAndClearToolPos(self):
+        # start by picking mesh to move
+        pickedActor = await pickActor(self._plotter,
+                                      show=True,
+                                      show_message='Left click on mesh to clear',
+                                      style='wireframe',
+                                      left_clicking=True)
+        try:
+            pickedKey = [actorKey for actorKey, actor in self._actors.items() if actor is pickedActor][0]
+        except IndexError as e:
+            logger.warning('Unrecognized actor picked. Cancelling select')
+            return
+        if pickedKey.endswith('_tracker'):
+            pickedTool = self.session.tools[pickedKey[:-len('_tracker')]]
+        elif pickedKey.endswith('_tool'):
+            pickedTool = self.session.tools[pickedKey[:-len('_tool')]]
+        else:
+            raise NotImplementedError
+        logger.info(f'Picked actor {pickedKey} ({pickedTool.key}) to move')
+
+        self._positionsClient.setNewPosition(key=pickedTool.key, transf=None)
 
     async def selectAndMoveTool(self):
         # start by picking mesh to move
@@ -364,3 +393,5 @@ class SimulatedToolsPanel(MainViewPanelWithDockWidgets):
     def selectToolToMove(self):
         asyncio.create_task(self.selectAndMoveTool())
 
+    def selectToolToClearPos(self):
+        asyncio.create_task(self.selectAndClearToolPos())

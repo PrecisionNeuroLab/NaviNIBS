@@ -196,7 +196,8 @@ class MRISliceView:
 
     def _clearPlot(self):
         logger.debug('Clearing plot for {} slice'.format(self.label))
-        self._plotter.clear()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.clear()
         self.sliceOrigin = None
         self._plotterInitialized = False
 
@@ -205,7 +206,8 @@ class MRISliceView:
             # no data available
             if self._plotterInitialized:
                 logger.debug('Clearing plot for {} slice'.format(self.label))
-                self._plotter.clear()
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.clear()
 
                 self.sliceOrigin = None
                 self._plotterInitialized = False
@@ -314,14 +316,16 @@ class MRISliceView:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
                     self._lineActors[lineKey] = line
                 else:
-                    logger.debug('Moving previous crosshairs')
-                    line = self._lineActors[lineKey]
-                    pts_pv = pv.lines_from_points(pts)
-                    line.GetMapper().SetInputData(pts_pv)
+                    with self._plotter.allowNonblockingCalls():
+                        logger.debug('Moving previous crosshairs')
+                        line = self._lineActors[lineKey]
+                        pts_pv = pv.lines_from_points(pts)
+                        line.GetMapper().SetInputData(pts_pv)
 
 
         if True:
-            self.plotter.camera.position = offsetDir * self._cameraOffsetDist + self._sliceOrigin
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.camera.position = offsetDir * self._cameraOffsetDist + self._sliceOrigin
         else:
             # hack to prevent resetting clipping range due to pyvista implementation quirk
             tmp = self._plotter.camera._renderer
@@ -329,22 +333,23 @@ class MRISliceView:
             self._plotter.camera.position = offsetDir * 100 + self._sliceOrigin
             self._plotter.camera._renderer = tmp
 
-        self.plotter.camera.focal_point = self._sliceOrigin
-        if isinstance(self._normal, str):
-            upDir = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
-            if self._normal == 'y':
-                upDir *= -1
-        else:
-            upDir = self._normal @ np.asarray([0, 1, 0])
-        self.plotter.camera.up = upDir
-        if self._slicePlotMethod == 'cameraClippedVolume':
-            self.plotter.camera.clipping_range = (self._cameraOffsetDist * 0.98, self._cameraOffsetDist * 1.02)
+        with self.plotter.allowNonblockingCalls():
+            self.plotter.camera.focal_point = self._sliceOrigin
+            if isinstance(self._normal, str):
+                upDir = np.roll(offsetDir, (2, 1, 2)['xyz'.index(self._normal)])
+                if self._normal == 'y':
+                    upDir *= -1
+            else:
+                upDir = self._normal @ np.asarray([0, 1, 0])
+            self.plotter.camera.up = upDir
+            if self._slicePlotMethod == 'cameraClippedVolume':
+                self.plotter.camera.clipping_range = (self._cameraOffsetDist * 0.98, self._cameraOffsetDist * 1.02)
 
-        self.plotter.camera.parallel_scale = self._cameraOffsetDist
+            self.plotter.camera.parallel_scale = self._cameraOffsetDist
 
-        self._plotterInitialized = True
+            self._plotterInitialized = True
 
-        self.plotter.render()
+            self.plotter.render()
 
 
 @attrs.define
@@ -422,4 +427,5 @@ class MRI3DView(MRISliceView):
 
         self._plotterInitialized = True
 
-        self.plotter.render()
+        with self.plotter.allowNonblockingCalls():
+            self.plotter.render()

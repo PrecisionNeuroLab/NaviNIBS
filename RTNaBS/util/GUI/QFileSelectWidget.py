@@ -102,9 +102,10 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     @filepath.setter
     def filepath(self, newFilepath: str):
-        newFilepath = os.path.normpath(newFilepath)
         if newFilepath == self._filepath:
             return
+        if newFilepath is not None:
+            newFilepath = os.path.normpath(newFilepath)
         logger.info('Filepath changed from {} to {}'.format(self._filepath, newFilepath))
         self._filepath = newFilepath
         self.sigFilepathChanged.emit(newFilepath)
@@ -119,7 +120,8 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     @showRelativeTo.setter
     def showRelativeTo(self, newPath: tp.Optional[str]):
-        newPath = os.path.normpath(newPath)
+        if newPath is not None:
+            newPath = os.path.normpath(newPath)
         if self._showRelativeTo == newPath:
             return
         self._showRelativeTo = newPath

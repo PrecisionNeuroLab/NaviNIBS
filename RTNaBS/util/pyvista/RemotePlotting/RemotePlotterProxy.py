@@ -199,7 +199,7 @@ class RemotePlotterProxyBase:
     def _sendReqNonblocking(self, msg) -> None:
         raise NotImplementedError  # to be implemented by subclass
 
-    def _remoteCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+    def _prepareForCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
         if kwargs is None:
             kwargs = dict()
 
@@ -220,11 +220,31 @@ class RemotePlotterProxyBase:
             callbackKey = self._callbackRegistry.register(callbackFn)
             kwargs['callback'] = callbackKey
 
+        if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData):
+            # clear un-pickleable obbTree field
+            # note: this may cause unexpected issues...
+            kwargs['mesh'] = kwargs['mesh'].copy()
+            kwargs['mesh']._obbTree = None
+
+        logger.debug(f'prepared for call {cmdKey} {fnStr}')
+
+        return cmdKey, *cmdArgs, fnStr, args, kwargs
+
+    async def _remoteCall_async(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+        req = self._prepareForCall(cmdKey, fnStr, args, kwargs, cmdArgs)
+
+        resp = await self._sendReqAndRecv_async(req)
+
+        return self._handleResp(fnStr, resp)
+
+    def _remoteCall(self, cmdKey: str, fnStr: str, args: tuple = (), kwargs: dict | None = None, cmdArgs: tuple = ()):
+        req = self._prepareForCall(cmdKey, fnStr, args, kwargs, cmdArgs)
+
         if self._doQueueCallsAndReturnImmediately:
-            self._sendReqNonblocking((cmdKey, *cmdArgs, fnStr, args, kwargs))
+            self._sendReqNonblocking(req)
             return None
         else:
-            resp = self._sendReqAndRecv((cmdKey, *cmdArgs, fnStr, args, kwargs))
+            resp = self._sendReqAndRecv(req)
             logger.debug(f'Waiting for response to {fnStr}')
 
             return self._handleResp(fnStr, resp)
@@ -255,6 +275,9 @@ class RemotePlotterProxyBase:
 
     def _remotePlotterCall(self, fnStr, *args, **kwargs):
         return self._remoteCall('callPlotterMethod', fnStr, args, kwargs)
+
+    async def _remotePlotterCall_async(self, fnStr, *args, **kwargs):
+        return await self._remoteCall_async('callPlotterMethod', fnStr, args, kwargs)
 
     def _remotePlotterGet(self, key: str):
         return self._remoteCall('plotterGet', key)
@@ -290,17 +313,26 @@ class RemotePlotterProxyBase:
     def add_mesh(self, *args, **kwargs):
         return self._remotePlotterCall('add_mesh', *args, **kwargs)
 
+    def addMesh(self, *args, **kwargs):
+        return self._remotePlotterCall('addMesh', *args, **kwargs)
+
     def add_volume(self, *args, **kwargs):
         return self._remotePlotterCall('add_volume', *args, **kwargs)
 
     def add_lines(self, *args, **kwargs):
         return self._remotePlotterCall('add_lines', *args, **kwargs)
 
+    async def add_lines_async(self, *args, **kwargs):
+        return await self._remotePlotterCall_async('add_lines', *args, **kwargs)
+
     def addLineSegments(self, *args, **kwargs):
         return self._remotePlotterCall('addLineSegments', *args, **kwargs)
 
     def add_points(self, *args, **kwargs):
         return self._remotePlotterCall('add_points', *args, **kwargs)
+
+    async def add_points_async(self, *args, **kwargs):
+        return await self._remotePlotterCall_async('add_points', *args, **kwargs)
 
     def add_point_labels(self, *args, **kwargs):
         return self._remotePlotterCall('add_point_labels', *args, **kwargs)
@@ -332,6 +364,9 @@ class RemotePlotterProxyBase:
     def reset_camera_clipping_range(self, *args, **kwargs):
         return self._remotePlotterCall('reset_camera_clipping_range', *args, **kwargs)
 
+    def reset_scalar_bar_ranges(self, *args, **kwargs):
+        return self._remotePlotterCall('reset_scalar_bar_ranges', *args, **kwargs)
+
     def add_axes_at_origin(self, *args, **kwargs):
         return self._remotePlotterCall('add_axes_at_origin', *args, **kwargs)
 
@@ -352,6 +387,12 @@ class RemotePlotterProxyBase:
 
     def resumeRendering(self):
         return self._remotePlotterCall('resumeRendering')
+
+    def update(self, *args, **kwargs):
+        return self._remotePlotterCall('update', *args, **kwargs)
+
+    def update_scalars(self, *args, **kwargs):
+        return self._remotePlotterCall('update_scalars', *args, **kwargs)
 
 
 class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
@@ -406,11 +447,19 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
     async def _sendReqAndRecv_async(self, msg):
         async with self._areqLock:
+            logger.debug(f'Sending async msg {msg}')
             self._areqSocket.send_pyobj(msg)
-            return await self._areqSocket.recv_pyobj()
+            logger.debug(f'Awaiting reply')
+            resp = await self._areqSocket.recv_pyobj()
+            logger.debug(f'Received reply {resp}')
+            return resp
 
     def _sendReqAndRecv(self, msg):
-        self._reqSocket.send_pyobj(msg)
+        try:
+            self._reqSocket.send_pyobj(msg)
+        except TypeError as e:
+            logger.error(f'Problem serializing message: {exceptionToStr(e)}')
+            raise e
         return self._waitForResp(self._reqSocket)
 
     def _sendReqNonblocking(self, msg):
@@ -450,7 +499,14 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         if False:  # TODO: debug, delete or set to False
             self._embedWdgt = QtWidgets.QWidget()  # placeholder
         else:
-            self._embedWdgt = QtWidgets.QWidget.createWindowContainer(self._embedWin, parent=self)
+            try:
+                self._embedWdgt = QtWidgets.QWidget.createWindowContainer(self._embedWin, parent=self)
+            except RuntimeError as e:
+                # if this widget was deleted while awaiting remote initialization, will
+                # raise a runtime error here
+                logger.warning('Problem while creating window container, giving up')
+                self.remoteProc.terminate()
+                return
 
         layout.removeWidget(tempWdgt)
         tempWdgt.deleteLater()

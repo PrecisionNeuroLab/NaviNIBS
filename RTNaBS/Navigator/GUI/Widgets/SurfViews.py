@@ -85,9 +85,11 @@ class SurfSliceView(MRISliceView):
 
         await super()._finish_init()
 
-        self._primaryPlotter.set_background(self._backgroundColor)
+        with self._primaryPlotter.allowNonblockingCalls():
+            self._primaryPlotter.set_background(self._backgroundColor)
 
-        self._surfPlotter.enable_depth_peeling(8)
+        with self._surfPlotter.allowNonblockingCalls():
+            self._surfPlotter.enable_depth_peeling(8)
 
     @MRISliceView.wdgt.getter
     def wdgt(self) -> QtWidgets.QWidget:
@@ -114,8 +116,9 @@ class SurfSliceView(MRISliceView):
         super()._clearPlot()
 
     def _clearSurfPlotActors(self):
-        for actor in self._surfPlotActors:
-            self._surfPlotter.remove_actor(actor)
+        with self._surfPlotter.allowNonblockingCalls():
+            for actor in self._surfPlotActors:
+                self._surfPlotter.remove_actor(actor)
         self._surfPlotActors.clear()
         self._surfPlotInitialized = False
 
@@ -169,12 +172,15 @@ class SurfSliceView(MRISliceView):
 
         if self._slicePlotMethod != 'cameraClippedVolume':
             # clip camera for surface
-            self.plotter.camera.clipping_range = (90, 110)
+            with self.plotter.allowNonblockingCalls:
+                self.plotter.camera.clipping_range = (90, 110)
 
         if self._slicePlotMethod == 'cameraClippedVolume':
-            self._primaryPlotter.set_camera_clipping_range((self._cameraOffsetDist * 0.98, self._cameraOffsetDist * 1.02))
+            with self._primaryPlotter.allowNonblockingCalls():
+                self._primaryPlotter.set_camera_clipping_range((self._cameraOffsetDist * 0.98, self._cameraOffsetDist * 1.02))
 
-        self.plotter.render()
+        with self.plotter.allowNonblockingCalls():
+            self.plotter.render()
 
 
 @attrs.define()
@@ -205,7 +211,8 @@ class Surf3DView(SurfSliceView):
             # no data available
             if self._plotterInitialized:
                 logger.debug('Clearing plot for {} slice'.format(self.label))
-                self._plotter.clear()
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.clear()
                 self._surfPlotter.clear()
 
                 self.sliceOrigin = None
@@ -296,7 +303,8 @@ class Surf3DView(SurfSliceView):
 
         self._plotterInitialized = True
 
-        self._primaryPlotter.render()
+        with self._primaryPlotter.allowNonblockingCalls():
+            self._primaryPlotter.render()
 
     def _onSlicePointChanged(self):
         pos = self.plotter.picked_point

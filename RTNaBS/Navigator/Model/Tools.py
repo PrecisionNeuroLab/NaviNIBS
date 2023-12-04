@@ -34,7 +34,11 @@ class Tool(GenericCollectionDictItem[str]):
     _usedFor: str  # e.g. 'subject', 'coil', 'pointer'
     _label: tp.Optional[str] = None
     """
-    Optional "nice" label for display. If not specified, key will be used instead. Label does not need to be unique, but could be confusing in some GUI displays if multiple tools with the same label are shown.
+    Optional "nice" label for display. If not specified, `key` will be used instead. Label does not need to be unique, but could be confusing in some GUI displays if multiple tools with the same label are shown.
+    """
+    _trackerKey: tp.Optional[str] = None
+    """
+    Optional key to match up to tracking data. If not specified, `key` will be used instead.
     """
     _isActive: bool = True
     """
@@ -102,6 +106,29 @@ class Tool(GenericCollectionDictItem[str]):
         self.sigItemAboutToChange.emit(self._key, ['label'])
         self._label = newLabel
         self.sigItemChanged.emit(self._key, ['label'])
+
+    @property
+    def labelIsSet(self):
+        return self._label is not None
+
+    @property
+    def trackerKey(self):
+        if self._trackerKey is None:
+            return self._key
+        else:
+            return self._trackerKey
+
+    @trackerKey.setter
+    def trackerKey(self, newKey: tp.Optional[str]):
+        if self._trackerKey == newKey:
+            return
+        self.sigItemAboutToChange.emit(self._key, ['trackerKey'])
+        self._trackerKey = newKey
+        self.sigItemChanged.emit(self._key, ['trackerKey'])
+
+    @property
+    def trackerKeyIsSet(self):
+        return self._trackerKey is not None
 
     @property
     def usedFor(self):
@@ -201,6 +228,7 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.toolStlFilepath:
             return
         logger.info('Changing {} toolStlFilepath to {}'.format(self.key, newFilepath))
+        self._toolSurf = None
         self.sigItemAboutToChange.emit(self.key, ['toolStlFilepath'])
         self._toolStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
         self.sigItemChanged.emit(self.key, ['toolStlFilepath'])
@@ -217,6 +245,7 @@ class Tool(GenericCollectionDictItem[str]):
         if newFilepath == self.trackerStlFilepath:
             return
         logger.info('Changing {} trackerStlFilepath to {}'.format(self.key, newFilepath))
+        self._trackerSurf = None
         self.sigItemAboutToChange.emit(self.key, ['trackerStlFilepath'])
         self._trackerStlFilepath = os.path.relpath(newFilepath, self.filepathsRelTo)
         self.sigItemChanged.emit(self.key, ['trackerStlFilepath'])

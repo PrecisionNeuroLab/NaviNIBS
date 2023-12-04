@@ -266,7 +266,7 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
             self._calibrateBtn.setEnabled(False)
 
     def _onAcquireSampleClicked(self):
-        toolTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._toolKeyToCalibrate)
+        toolTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.toolToCalibrate.trackerKey)
         self._samples.append(toolTrackerToCameraTransf)
 
         # draw new visual for sample
@@ -415,14 +415,14 @@ class PointerCalibrationWindow(ToolCalibrationWindow):
             return
 
         super()._onLatestPositionsChanged()
-        if self.toolToCalibrate.isActive and self._positionsClient.getLatestTransf(self._toolKeyToCalibrate, None) is not None:
+        if self.toolToCalibrate.isActive and self._positionsClient.getLatestTransf(self.toolToCalibrate.trackerKey, None) is not None:
             self._acquireSampleBtn.setEnabled(True)
 
             if self._pendingNewTransf is None:
                 transfToolToTracker = self.toolToCalibrate.toolToTrackerTransf
             else:
                 transfToolToTracker = self._pendingNewTransf
-            transfToolTrackerToCamera = self._positionsClient.getLatestTransf(self._toolKeyToCalibrate, None)
+            transfToolTrackerToCamera = self._positionsClient.getLatestTransf(self.toolToCalibrate.trackerKey, None)
             transfToolToCamera = concatenateTransforms([
                         transfToolToTracker,
                         transfToolTrackerToCamera])

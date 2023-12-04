@@ -72,7 +72,7 @@ class QueuedRedrawMixin:
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
         if isinstance(which, str):
             # since we're redrawing now, can remove this from the queue
-            if len(kwargs)==0:
+            if len(kwargs) == 0:
                 queueKey = which
             else:
                 queueKey = (which, kwargs)

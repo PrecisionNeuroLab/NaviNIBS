@@ -71,7 +71,6 @@ class _DelayedPlotter:
             self._needsRender.set()
 
 
-
 class PlotterImprovementsMixin:
     def __init__(self):
         pass
@@ -91,7 +90,7 @@ class PlotterImprovementsMixin:
                     # note: this works for actors created by add_mesh, but maybe not others
                     mesh = mapper.GetInput()
                     thisScalarKey = mapper.GetArrayName()
-                    scalars = pv.utilities.get_array(mesh, thisScalarKey)
+                    scalars = pv.get_array(mesh, thisScalarKey)
                     if not isinstance(scalars, np.ndarray):
                         scalars = np.asarray(scalars)
                     clims = [np.nanmin([clims[0], np.nanmin(scalars)]),
@@ -140,7 +139,7 @@ class PlotterImprovementsMixin:
             nan_color = pv.Color(None, default_opacity=1., default_color=self._theme.nan_color)
 
             if isinstance(scalars, str):
-                scalars = pv.utilities.helpers.get_array(lines, scalars, preference='points')
+                scalars = pv.get_array(lines, scalars, preference='points')
 
             clim = [np.nanmin(scalars), np.nanmax(scalars)]
 
@@ -207,6 +206,44 @@ class PlotterImprovementsMixin:
         self.add_actor(actor, reset_camera=reset_camera, pickable=False)
 
         return actor
+
+    def addMesh(self, mesh, defaultMeshColor: str | None = None, **kwargs):
+        """
+        Wrapper around add_mesh with some extra defaults for things like mesh color handling
+
+        defaultMeshColor: use this if the mesh has no color arrays
+        """
+        color = kwargs.pop('color', None)
+        scalars = kwargs.pop('scalars', None)
+        rgb = kwargs.pop('rgb', None)
+        if color is None and scalars is None:
+            for arrayName in mesh.array_names:
+                if mesh[arrayName].shape[1] in (3, 4):
+                    scalars = arrayName
+                    break
+
+        if color is None and scalars is None:
+            color = defaultMeshColor  # default color if nothing else provided
+
+        if rgb is None:
+            rgb = color is None
+
+        try:
+            toReturn = self.add_mesh(mesh=mesh,
+                                              color=color,
+                                              scalars=scalars,
+                                              rgb=rgb,
+                                              **kwargs)
+        except (AttributeError, ValueError) as e:
+            from RTNaBS.util import exceptionToStr
+            logger.error(exceptionToStr(e))
+            raise e
+
+        return toReturn
+
+
+
+
 
 
 class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImprovementsMixin):
@@ -290,6 +327,19 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
         """
         yield
 
+    async def add_lines_async(self, *args, **kwargs):
+        """
+        Not actually async. Is here for interface compatibility with RemotePlotterProxy that may be used instead
+        """
+        return self.add_lines(*args, **kwargs)
+
+    async def add_points_async(self, *args, **kwargs):
+        """
+        Not actually async. Is here for interface compatibility with RemotePlotterProxy that may be used instead
+        """
+        return self.add_points(*args, **kwargs)
+
+
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovementsMixin):
     _mainPlotter: PrimaryLayeredPlotter
@@ -350,7 +400,10 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovemen
             super().reset_camera_clipping_range()
 
 
-class CustomRenderWindowInteractor(pv.RenderWindowInteractor):
+from pyvista.plotting.render_window_interactor import RenderWindowInteractor
+
+
+class CustomRenderWindowInteractor(RenderWindowInteractor):
     """
     Some quirks for layered plotter setup require us to override some behavior in pyvista's RenderWindowInteractor
     """

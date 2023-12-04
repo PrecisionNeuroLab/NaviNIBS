@@ -115,8 +115,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
 
     def calibrate(self):
         # TODO: spin-wait positions client to make sure we have most up-to-date information
-        coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._toolKeyToCalibrate)
-        calibrationPlateTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.calibrationPlate.key)
+        coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.toolToCalibrate.trackerKey)
+        calibrationPlateTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.calibrationPlate.trackerKey)
         calibrationPlateToTrackerTransf = self._session.tools.calibrationPlate.toolToTrackerTransf
 
         self._pendingNewTransf = concatenateTransforms([
@@ -168,8 +168,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
 
         calibrationPlate = self._session.tools.calibrationPlate
         if self.toolToCalibrate.isActive and calibrationPlate is not None \
-                and self._positionsClient.getLatestTransf(self._toolKeyToCalibrate, None) is not None \
-                and self._positionsClient.getLatestTransf(calibrationPlate.key, None) is not None:
+                and self._positionsClient.getLatestTransf(self.toolToCalibrate.trackerKey, None) is not None \
+                and self._positionsClient.getLatestTransf(calibrationPlate.trackerKey, None) is not None:
             self._calibrateBtn.setEnabled(True)
         else:
             self._calibrateBtn.setEnabled(False)
@@ -178,7 +178,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         if calibPlate is None:
             calibPlateTrackerToCameraTransf = None
         else:
-            calibPlateTrackerToCameraTransf = self._positionsClient.getLatestTransf(calibPlate.key, None)
+            calibPlateTrackerToCameraTransf = self._positionsClient.getLatestTransf(calibPlate.trackerKey, None)
 
         if calibPlateTrackerToCameraTransf is None:
             # without calibration plate pose, can't show anything in view that is relative to calibration plate
@@ -225,17 +225,14 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if calibPlate.toolSurf is not None:
                 mesh = calibPlate.toolSurf
                 meshColor = calibPlate.toolColor
-                if meshColor is None:
-                    if len(mesh.array_names) > 0:
-                        meshColor = None  # use color from surf file
-                    else:
-                        meshColor = '#2222ff'  # default color if nothing else provided
-                self._calibrationPlateToolActor = self._plotterLowerLayer.add_mesh(
+
+                self._calibrationPlateToolActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    opacity=0.5,
-                    rgb=meshColor is None
+                    defaultMeshColor='#2222ff',
+                    opacity=0.5
                 )
+
                 setActorUserTransform(self._calibrationPlateToolActor, calibPlate.toolStlToToolTransf)
                 needsRender = True
                 doResetCamera = True
@@ -244,16 +241,11 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if calibPlate.trackerSurf is not None:
                 mesh = calibPlate.trackerSurf
                 meshColor = calibPlate.trackerColor
-                if meshColor is None:
-                    if len(mesh.array_names) > 0:
-                        meshColor = None  # use color from surf file
-                    else:
-                        meshColor = '#2222ff'  # default color if nothing else provided
-                self._calibrationPlateTrackerActor = self._plotterLowerLayer.add_mesh(
+                self._calibrationPlateTrackerActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    opacity=0.5,
-                    rgb=meshColor is None
+                    defaultMeshColor='#2222ff',
+                    opacity=0.5
                 )
                 setActorUserTransform(self._calibrationPlateTrackerActor, concatenateTransforms([
                     calibPlate.trackerStlToTrackerTransf,
@@ -266,7 +258,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         if coil is None:
             coilTrackerToCameraTransf = None
         else:
-            coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._toolKeyToCalibrate, None)
+            coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.toolToCalibrate.trackerKey, None)
 
         if coilTrackerToCameraTransf is None:
             # without coil pose, can't show any of the coil-related actors
@@ -309,16 +301,11 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if coil.toolSurf is not None:
                 mesh = coil.toolSurf
                 meshColor = coil.toolColor
-                if meshColor is None:
-                    if len(mesh.array_names) > 0:
-                        meshColor = None  # use color from surf file
-                    else:
-                        meshColor = '#2222ff'  # default color if nothing else provided
-                self._coilToolActor = self._plotterLowerLayer.add_mesh(
+                self._coilToolActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    opacity=0.5,
-                    rgb=meshColor is None
+                    defaultMeshColor='#2222ff',
+                    opacity=0.5
                 )
                 doResetCamera = True
 
@@ -326,17 +313,18 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             if coil.trackerSurf is not None:
                 mesh = coil.trackerSurf
                 meshColor = coil.trackerColor
+                scalars = None
                 if meshColor is None:
                     if len(mesh.array_names) > 0:
                         meshColor = None  # use color from surf file
+                        scalars = mesh.array_names[-1]
                     else:
                         meshColor = '#2222ff'  # default color if nothing else provided
-                self._coilTrackerActor = self._plotterLowerLayer.add_mesh(
+                self._coilTrackerActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    opacity=0.5,
-                    rgb=meshColor is None
-                )
+                    defaultMeshColor='#2222ff',
+                    opacity=0.5)
                 doResetCamera = True
 
         coilTrackerToCalibToolTransf = concatenateTransforms([

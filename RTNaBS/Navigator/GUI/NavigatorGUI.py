@@ -66,6 +66,11 @@ class NavigatorGUI(RunnableAsApp):
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
+        thisDir = pathlib.Path(__file__).parent
+        iconPath = os.path.join(thisDir, 'resources', 'NaviNIBSIcon.ico')
+        assert os.path.exists(iconPath)
+        self._appIconPath = iconPath
+
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
@@ -181,7 +186,11 @@ class NavigatorGUI(RunnableAsApp):
                     winSize = self._win.size()
                     logger.debug(f'About to restore root layout when winSize={winSize}')
 
-                    self._rootDockArea.restoreState(layout.state)
+                    try:
+                        self._rootDockArea.restoreState(layout.state)
+                    except ValueError:
+                        # sometimes can get errors during restore if other parts of layout have changed
+                        logger.error('Unable to restore root dock area state')
 
                 for panel in self.mainViewPanels.values():
                     # catch up with signals that may have been blocked above

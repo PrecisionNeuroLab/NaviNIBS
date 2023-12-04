@@ -81,7 +81,7 @@ class RemotePlotManagerBase:
                 return 'ack'
 
             case 'quit':
-                asyncio.create_task(self._closeAfterDelay())
+                asyncio.create_task(asyncTryAndLogExceptionOnError(self._closeAfterDelay))
                 return 'ack'
 
             case 'getWinID':
@@ -190,6 +190,7 @@ class RemotePlotManagerBase:
         return self._callMethod(fn, args, kwargs)
 
     def _callMethod(self, fn, args, kwargs):
+        logger.debug(f'calling method {fn} {args} {kwargs}')
         # convert any obvious ActorRefs to Actors
         for iArg in range(len(args)):
             if isinstance(args[iArg], ActorRef):
@@ -215,6 +216,8 @@ class RemotePlotManagerBase:
             # Actor is not pickleable, so convert to an ActorRef
             actorRef = self._actorManager.addActor(result)
             result = actorRef
+
+        logger.debug(f'result of calling method {fn}: {result}')
 
         return result
 
@@ -318,7 +321,7 @@ class RemotePlotManager(RemotePlotManagerBase):
                     if replyOnSock is not None:
                         await replyOnSock.send_pyobj(resp)
                     else:
-                        logger.debug('Non-blocking request complete, dropping response: {resp}')
+                        logger.debug(f'Non-blocking request complete, dropping response: {resp}')
 
                     if True:
                         # wait to render until after processed all pending requests

@@ -30,10 +30,179 @@ from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+@attrs.define
+class CameraObjectsView(QueuedRedrawMixin):
+    _positionsClient: ToolPositionsClient
+    _session: Session
+
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
+
+    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+
+    def __attrs_post_init__(self):
+        QueuedRedrawMixin.__attrs_post_init__(self)
+
+        self._plotter = DefaultBackgroundPlotter()
+
+        self._session.tools.sigItemsChanged.connect(lambda *args: self._queueRedraw('afterToolsChanged'))
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    @property
+    def plotter(self):
+        return self._plotter
+
+    @property
+    def session(self):
+        return self._session
+
+    async def _finishInitialization_async(self):
+        if isinstance(self._plotter, RemotePlotterProxy):
+            await self._plotter.isReadyEvent.wait()
+
+        if isinstance(DefaultBackgroundPlotter, RemotePlotterProxy):
+            self._plotter.enable_depth_peeling(4)
+
+        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
+
+        self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._queueRedraw('toolPositions'))
+
+        self._redraw('all')
+
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
+        super()._redraw(which=which, **kwargs)
+
+        if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
+            # remote plotter not ready yet
+            return
+
+        if which is None:
+            which = 'all'
+            self._redraw(which=which, **kwargs)
+            return
+
+        if not isinstance(which, str):
+            for subWhich in which:
+                self._redraw(which=subWhich, **kwargs)
+            return
+
+        if which == 'all':
+            self._redraw(which=['toolPositions'])
+            return
+
+        if which == 'toolPositions':
+            doResetCamera = False
+
+            for key, tool in self.session.tools.items():
+                actorKeysForTool = [key + '_tracker', key + '_tool']
+                if isinstance(tool, SubjectTracker):
+                    actorKeysForTool.append(key + '_subject')
+
+                if not tool.isActive or self._positionsClient.getLatestTransf(tool.trackerKey, None) is None:
+                    # no valid position available
+                    with self._plotter.allowNonblockingCalls():
+                        for actorKey in actorKeysForTool:
+                            if actorKey in self._actors and self._actors[actorKey].GetVisibility():
+                                self._actors[actorKey].VisibilityOff()
+                    continue
+
+                for actorKey in actorKeysForTool:
+                    logger.debug(f'actorKey: {actorKey}')
+
+                    doShow = False
+                    for toolOrTracker in ('tracker', 'tool'):
+                        if actorKey == (key + '_' + toolOrTracker):
+                            if getattr(tool, 'doRender' + toolOrTracker.capitalize()) is False:
+                                doShow = False
+                            else:
+                                if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
+                                    if toolOrTracker == 'tool':
+                                        toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
+                                    elif toolOrTracker == 'tracker':
+                                        toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
+                                    else:
+                                        raise NotImplementedError()
+                                    if toolOrTrackerStlToTrackerTransf is not None:
+                                        doShow = True
+
+                                    if actorKey not in self._actors:
+                                        # initialize graphic
+                                        mesh = getattr(tool, toolOrTracker + 'Surf')
+                                        meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                        meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
+
+                                        self._actors[actorKey] = self._plotter.addMesh(mesh=mesh,
+                                                                                       color=meshColor,
+                                                                                       defaultMeshColor='#2222ff',
+                                                                                       opacity=1.0 if meshOpacity is None else meshOpacity,
+                                                                                       name=actorKey)
+
+                                        doResetCamera = True
+
+                                    with self._plotter.allowNonblockingCalls():
+                                        # apply transform to existing actor
+                                        setActorUserTransform(self._actors[actorKey],
+                                                              concatenateTransforms([
+                                                                  toolOrTrackerStlToTrackerTransf,
+                                                                  self._positionsClient.getLatestTransf(tool.trackerKey)
+                                                              ]))
+                                        self._plotter.render()
+                                else:
+                                    # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
+                                    doShow = False
+
+                    if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
+                        if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
+                            doShow = True
+                            if actorKey not in self._actors:
+                                self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
+                                                                                color='#d9a5b2',
+                                                                                opacity=0.8,
+                                                                                name=actorKey)
+                                doResetCamera = True
+
+                            with self._plotter.allowNonblockingCalls():
+                                setActorUserTransform(self._actors[actorKey],
+                                                      self._positionsClient.getLatestTransf(tool.trackerKey) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
+                                self._plotter.render()
+
+                    if actorKey in self._actors:
+                        with self._plotter.allowNonblockingCalls():
+                            if doShow and not self._actors[actorKey].GetVisibility():
+                                self._actors[actorKey].VisibilityOn()
+                                self._plotter.render()
+                            elif not doShow and self._actors[actorKey].GetVisibility():
+                                self._actors[actorKey].VisibilityOff()
+                                self._plotter.render()
+
+            if doResetCamera:
+                if False:
+                    with self._plotter.allowNonblockingCalls():
+                        self._plotter.reset_camera()
+
+        elif which == 'afterToolsChanged':
+            # remove any tool actors, to be regenerated later
+            didRemove = False
+            for key, tool in self.session.tools.items():
+                actorKeysForTool = [key + '_tracker', key + '_tool']
+                with self._plotter.allowNonblockingCalls():
+                    for actorKey in actorKeysForTool:
+                        if actorKey in self._actors:
+                            self._plotter.remove_actor(self._actors.pop(actorKey))
+                            didRemove = True
+
+            if didRemove:
+                self._redraw('toolPositions')
+
+        else:
+            raise NotImplementedError  # TODO
 
 
 @attrs.define
@@ -55,8 +224,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _serverGUIContainer: QtWidgets.QGroupBox = attrs.field(init=False)
 
-    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
-    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+    _mainCameraView: CameraObjectsView = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -109,33 +277,28 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         container.layout().addStretch()
 
-        self._plotter = DefaultBackgroundPlotter()
+        self._positionsClient = ToolPositionsClient()
+        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
+
+        self._mainCameraView = CameraObjectsView(
+            positionsClient=self._positionsClient,
+            session=self.session
+        )
+
+        # TODO: create other camera views as defined in session config
 
         dock, _ = self._createDockWidget(
             title='Tracked objects',
-            widget=self._plotter)
+            widget=self._mainCameraView.plotter)
         self._wdgt.addDock(dock, position='right')
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
     async def _finishInitialization_async(self):
 
-        if isinstance(self._plotter, RemotePlotterProxy):
-            await self._plotter.isReadyEvent.wait()
-
-        self._positionsClient = ToolPositionsClient()
-        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
-        self._positionsClient.sigIsConnectedChanged.connect(self._onClientIsConnectedChanged)
-
-        if isinstance(DefaultBackgroundPlotter, RemotePlotterProxy):
-            self._plotter.enable_depth_peeling(4)
-
-        self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
-
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
 
-        self._onLatestPositionsChanged()
         self._onClientIsConnectedChanged()
 
     def _onSessionSet(self):
@@ -152,7 +315,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self._session.tools.sigItemsChanged.connect(self._onToolsChanged)
+
+        assert self._mainCameraView.session is self.session
+        # TODO: assert for other views too
+
         self._trackingStatusWdgt.session = self.session
 
         info = self.session.tools.positionsServerInfo
@@ -161,20 +327,6 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         else:
             self._serverTypeComboBox.setCurrentText(info.type)
         self._serverAddressEdit.setText(f'{info.hostname}:{info.pubPort},{info.cmdPort}')
-
-    def _onToolsChanged(self, toolKeysChanged: tp.List[str], changedAttribs: tp.Optional[list[str]] = None):
-        didRemove = False
-        for key, tool in self.session.tools.items():
-            actorKeysForTool = [key + '_tracker', key + '_tool']
-            with self._plotter.allowNonblockingCalls():
-                for actorKey in actorKeysForTool:
-                    if actorKey in self._actors:
-                        self._plotter.remove_actor(self._actors[actorKey])
-                        self._actors.pop(actorKey)
-                        didRemove = True
-
-        if didRemove:
-            self._onLatestPositionsChanged()
 
     def _startPositionsServer(self):
         logger.info('Starting Positions server process')
@@ -228,100 +380,6 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     def _onLatestPositionsChanged(self):
         if not self._hasInitialized and not self.isInitializing:
             return
-
-        doResetCamera = False
-
-        for key, tool in self.session.tools.items():
-            if True == False:
-                logger.debug('TODO: delete')
-            actorKeysForTool = [key + '_tracker', key + '_tool']
-            if isinstance(tool, SubjectTracker):
-                actorKeysForTool.append(key + '_subject')
-
-            if not tool.isActive or self._positionsClient.getLatestTransf(key, None) is None:
-                # no valid position available
-                with self._plotter.allowNonblockingCalls():
-                    for actorKey in actorKeysForTool:
-                        if actorKey in self._actors and self._actors[actorKey].GetVisibility():
-                            self._actors[actorKey].VisibilityOff()
-                continue
-
-            for actorKey in actorKeysForTool:
-                logger.debug(f'actorKey: {actorKey}')
-
-                doShow = False
-                for toolOrTracker in ('tracker', 'tool'):
-                    if actorKey == (key + '_' + toolOrTracker):
-                        if getattr(tool, 'doRender' + toolOrTracker.capitalize()) is False:
-                            doShow = False
-                        else:
-                            if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
-                                if toolOrTracker == 'tool':
-                                    toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
-                                elif toolOrTracker == 'tracker':
-                                    toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
-                                else:
-                                    raise NotImplementedError()
-                                if toolOrTrackerStlToTrackerTransf is not None:
-                                    doShow = True
-
-                                if actorKey not in self._actors:
-                                    # initialize graphic
-                                    mesh = getattr(tool, toolOrTracker + 'Surf')
-                                    meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
-                                    meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
-                                    if meshColor is None:
-                                        if len(mesh.array_names) > 0:
-                                            meshColor = None  # use color from surf file
-                                        else:
-                                            meshColor = '#2222ff'  # default color if nothing else provided
-                                    self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                                                    color=meshColor,
-                                                                                    opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                    rgb=meshColor is None,
-                                                                                    name=actorKey)
-                                    doResetCamera = True
-
-                                with self._plotter.allowNonblockingCalls():
-                                    # apply transform to existing actor
-                                    setActorUserTransform(self._actors[actorKey],
-                                                          concatenateTransforms([
-                                                              toolOrTrackerStlToTrackerTransf,
-                                                              self._positionsClient.getLatestTransf(key)
-                                                          ]))
-                                    self._plotter.render()
-                            else:
-                                # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
-                                doShow = False
-
-                if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
-                    if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
-                        doShow = True
-                        if actorKey not in self._actors:
-                            self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
-                                                                            color='#d9a5b2',
-                                                                            opacity=0.8,
-                                                                            name=actorKey)
-                            doResetCamera = True
-
-                        with self._plotter.allowNonblockingCalls():
-                            setActorUserTransform(self._actors[actorKey],
-                                                  self._positionsClient.getLatestTransf(key) @ invertTransform(self.session.subjectRegistration.trackerToMRITransf))
-                            self._plotter.render()
-
-                if actorKey in self._actors:
-                    with self._plotter.allowNonblockingCalls():
-                        if doShow and not self._actors[actorKey].GetVisibility():
-                            self._actors[actorKey].VisibilityOn()
-                            self._plotter.render()
-                        elif not doShow and self._actors[actorKey].GetVisibility():
-                            self._actors[actorKey].VisibilityOff()
-                            self._plotter.render()
-
-        if doResetCamera:
-            if False:
-                with self._plotter.allowNonblockingCalls():
-                    self._plotter.reset_camera()
 
     def close(self):
         if self._positionsServerProc is not None:

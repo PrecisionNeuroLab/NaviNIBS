@@ -109,8 +109,8 @@ class TargetingCoordinator:
         self.sigCurrentTargetChanged.connect(lambda: self._needToCheckIfOnTarget.set())
 
         if self._activeCoilKey is not None:
-            self._session.tools[self._activeCoilKey].sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
-            self._session.tools[self._activeCoilKey].sigItemChanged.connect(self._onActiveCoilToolChanged)
+            self.activeCoilTool.sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
+            self.activeCoilTool.sigItemChanged.connect(self._onActiveCoilToolChanged)
 
         if self._doMonitorOnTarget:
             self._startMonitoringOnTarget()
@@ -150,6 +150,12 @@ class TargetingCoordinator:
 
     def _onSessionTargetsChanged(self, targetKeysChanged: tp.List[str], targetAttribsChanged: tp.Optional[tp.List[str]]):
         if self._currentTargetKey is not None and self._currentTargetKey in targetKeysChanged:
+
+            if self._currentTargetKey not in self.session.targets:
+                logger.debug('Current target deleted')
+                self.currentTargetKey = None  # this will emit sigCurrentTargetChanged
+                return
+
             logger.debug('Current target changed')
             self.sigCurrentTargetChanged.emit()
 
@@ -326,6 +332,10 @@ class TargetingCoordinator:
         return self._currentSamplePoseMetrics
 
     @property
+    def activeCoilTool(self):
+        return self._session.tools[self.activeCoilKey]
+
+    @property
     def activeCoilKey(self):
         if self._activeCoilKey is None:
             # if no active coil specified, use first active coil in list
@@ -357,10 +367,10 @@ class TargetingCoordinator:
     @property
     def currentCoilToMRITransform(self) -> tp.Optional[Transform]:
         if self._currentCoilToMRITransform is None:
-            coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.activeCoilKey, None)
-            subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.subjectTracker.key,
+            coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.activeCoilTool.trackerKey, None)
+            subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.subjectTracker.trackerKey,
                                                                                  None)
-            coilToTrackerTransf = self._session.tools[self.activeCoilKey].toolToTrackerTransf
+            coilToTrackerTransf = self.activeCoilTool.toolToTrackerTransf
 
             subjectTrackerToMRITransf = self._session.subjectRegistration.trackerToMRITransf
 
@@ -398,6 +408,8 @@ class TargetingCoordinator:
 
     @property
     def isOnTarget(self):
+        if not self._doMonitorOnTarget:
+            self.doMonitorOnTarget = True
         assert self._doMonitorOnTarget
         if self._needToCheckIfOnTarget.is_set():
             # check immediately to make sure we don't give outdated information
@@ -406,6 +418,7 @@ class TargetingCoordinator:
 
     def _startMonitoringOnTarget(self):
         assert self._monitorOnTargetTask is None
+        self._needToCheckIfOnTarget.set()
         self._monitorOnTargetTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_monitorOnTarget))
 
     def _stopMonitoringOnTarget(self):

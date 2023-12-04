@@ -11,7 +11,7 @@ import pylsl as lsl
 from qtpy import QtWidgets
 
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
-from RTNaBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent
+from RTNaBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent, TriggerSource
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.lsl.LSLStreamSelector import LSLStreamSelector
 
@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSource]):
     _title: str = 'LSL trigger settings'
     _triggerSourceKey: str = 'LSLTriggerSource'
-
     _streamSelector: LSLStreamSelector = attrs.field(init=False)
     _inlet: tp.Optional[lsl.StreamInlet] = attrs.field(init=False, default=None)
     _inletConnectedEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
@@ -47,9 +46,24 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         self._streamSelector.sigSelectedStreamKeyChanged.connect(self._onSelectedStreamKeyChanged)
         self._streamSelector.sigSelectedStreamAvailabilityChanged.connect(self._onSelectedStreamAvailabilityChanged)
 
+        self.triggerSource.sigItemChanged.connect(self._onTriggerSourceItemChanged)
+
         self._wdgt.layout().addRow('Trigger stream', self._streamSelector.wdgt)
 
         self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._pollForData))
+
+        if self.fallbackTriggerSource is not None:
+            self.fallbackTriggerSource.isEnabled = True
+
+    @property
+    def fallbackTriggerSource(self) -> TriggerSource | None:
+        if self.triggerSource.fallbackTriggerSourceKey is None:
+            return None
+
+        if self.session is not None and self.triggerSource.fallbackTriggerSourceKey in self.session.triggerSources:
+            return self.session.triggerSources[self.triggerSource.fallbackTriggerSourceKey]
+
+        return None
 
     def _disconnectInlet(self):
         logger.info(f'Disconnecting from LSL stream {self._streamSelector.selectedStreamKey}')
@@ -58,6 +72,8 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         self._inlet = None
         logger.debug(f'Disconnected from LSL stream {self._streamSelector.selectedStreamKey}')
         # TODO: maybe start and stop polling task when connecting / disconnecting inlet
+        if self.fallbackTriggerSource is not None:
+            self.fallbackTriggerSource.isEnabled = True
 
     def _connectInlet(self):
         assert self._inlet is None
@@ -77,6 +93,9 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                                       recover=False)
         self._inletConnectedEvent.set()
         logger.debug(f'Connected to LSL stream {self._streamSelector.selectedStreamKey}')
+
+        if self.fallbackTriggerSource is not None:
+            self.fallbackTriggerSource.isEnabled = False
 
     async def _pollForData(self):
         while True:
@@ -158,6 +177,12 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
             relevantEvtData.append(evtData[evtIndex])
         return relevantEvtTimes, relevantEvtData, relevantEvtIndices
 
+    def _connectOrDisconnectAsNeeded(self):
+        if self._inlet is None and (self.triggerSource.isEnabled and self._streamSelector.selectedStreamIsAvailable):
+            self._connectInlet()
+        elif self._inlet is not None and (not self.triggerSource.isEnabled or not self._streamSelector.selectedStreamIsAvailable):
+            self._disconnectInlet()
+
     def _onSelectedStreamKeyChanged(self, newKey: str):
         if self.session is None:
             # not yet initialized
@@ -165,16 +190,21 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
         if self._inlet is not None:
             self._disconnectInlet()
         self.triggerSource.streamKey = newKey
-        if self._streamSelector.selectedStreamIsAvailable:
-            self._connectInlet()
-        else:
-            pass  # nothing to do, selected stream not available
+        self._connectOrDisconnectAsNeeded()
 
     def _onSelectedStreamAvailabilityChanged(self):
-        if self._inlet is None and self._streamSelector.selectedStreamIsAvailable:
-            self._connectInlet()
-        elif self._inlet is not None and not self._streamSelector.selectedStreamIsAvailable:
-            self._disconnectInlet()
+        self._connectOrDisconnectAsNeeded()
+
+    def _onTriggerSourceItemChanged(self, key: str, whichAttrs: list[str] | None = None):
+        if whichAttrs is None or any(x in whichAttrs for x in ('fallbackTriggerSourceKey', 'isEnabled')):
+            if self.fallbackTriggerSource is not None:
+                self.fallbackTriggerSource.isEnabled = self._inlet is None and self.triggerSource.isEnabled
+
+        if whichAttrs is None or 'streamKey' in whichAttrs:
+            self._streamSelector.selectedStreamKey = self.triggerSource.streamKey
+
+        if whichAttrs is None or 'isEnabled' in whichAttrs:
+            self._connectOrDisconnectAsNeeded()
 
     def _onSessionTriggerSettingChanged(self, triggerSourceKeys: list[str], attribs: tp.Optional[list[str]]):
         if self._triggerSourceKey not in triggerSourceKeys:

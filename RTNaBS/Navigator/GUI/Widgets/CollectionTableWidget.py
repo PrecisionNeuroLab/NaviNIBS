@@ -92,10 +92,18 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         curRow = self._tableView.currentIndex().row()
         if curRow == -1:
             return None
+        if curRow >= self._model.rowCount():
+            # can happen if rows were recently deleted
+            return None
         return self._model.getCollectionItemKeyFromIndex(curRow)
 
     @currentCollectionItemKey.setter
-    def currentCollectionItemKey(self, key: K):
+    def currentCollectionItemKey(self, key: K | None):
+        if key is None:
+            if self.currentCollectionItemKey is not None:
+                # current item was deleted, clear index
+                self._tableView.setCurrentIndex(QtCore.QModelIndex())
+            return
         if key == self.currentCollectionItemKey:
             return
         # logger.debug(f'Setting current item to {key}')
@@ -146,6 +154,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def _onTableRowsInserted(self, parent: QtCore.QModelIndex, first: int, last: int):
         # scroll to end of new rows automatically
         self._tableView.scrollTo(self._model.index(last, 0))
+        self._tableView.resizeColumnsToContents()
 
     def _onModelSelectionChanged(self, changedKeys: list[K]):
         logger.debug(f'Updating selection for keys {changedKeys}')

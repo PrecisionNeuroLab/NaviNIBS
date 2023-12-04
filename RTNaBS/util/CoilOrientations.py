@@ -112,14 +112,15 @@ class PoseMetricCalculator:
         return self._sample
 
     @sample.setter
-    def sample(self, newSample: Sample):
+    def sample(self, newSample: Sample | None):
         if self._sample is newSample:
             return
         logger.debug('Sample changed')
         if self._sample is not None:
             self._sample.sigItemChanged.disconnect(self._onSampleChanged)
         self._sample = newSample
-        self._sample.sigItemChanged.connect(self._onSampleChanged)
+        if self._sample is not None:
+            self._sample.sigItemChanged.connect(self._onSampleChanged)
         self._clearCachedValues()
 
     def _onTargetsChanged(self, targetKeys: list[str], targetAttrs: tp.Optional[list[str]] = None):

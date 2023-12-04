@@ -261,7 +261,11 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
 
     def data(self, index: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex], role: int = ...) -> tp.Any:
         colKey = self._columns[index.column()]
-        item = self.getCollectionItemFromIndex(index=index.row())
+        try:
+            item = self.getCollectionItemFromIndex(index=index.row())
+        except IndexError:
+            return None  # TODO: double check what would be correct to return here
+
         if item is None:
             assert self._hasPlaceholderNewRow
         #logger.debug(f'Getting data for {self.getCollectionItemKeyFromIndex(index=index.row())} {colKey} role {role}')
@@ -286,6 +290,8 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                         # assume val above is an (icon, text) tuple
                         assert len(colVal) == 2
                         colVal = colVal[1]
+                    if isinstance(colVal, float):
+                        colVal = f'{colVal:.4g}'  # TODO: make display precision (or format str) configurable rather than hardcoded
                     return str(colVal)
                 else:
                     raise KeyError
@@ -405,6 +411,9 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         if index >= len(self._collection):
             if index == len(self._collection) and self._hasPlaceholderNewRow:
                 return None  # return None as indicator of being in placeholder row
+            elif index == 0:
+                # this can sometimes happen after deleting all entries in a collection
+                return None
             else:
                 raise IndexError
 
@@ -547,7 +556,10 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         if doUpdateSelection:
             self._updateSelection(keys=keys, attrKeys=attrKeys)
 
+        logger.debug(f'Done signaling completion for keys {keys}, attrKeys {attrKeys}')
+
     def _updateSelection(self, keys: list[str] | None, attrKeys: list[str] | None):
+        logger.debug(f'Updating selection')
         if self._isSelectedAttr is not None and (attrKeys is None or self._isSelectedAttr in attrKeys):
             keysToEmit = keys
             if keysToEmit is None:
@@ -582,6 +594,9 @@ class FilteredCollectionModel(CollectionTableModelBase[K, C, CI], QtCore.QSortFi
 
     def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
         raise NotImplementedError  # should be implemented by subclass
+
+    def filterAcceptsColumn(self, source_column: int, source_parent: QtCore.QModelIndex) -> bool:
+        return True  # can be implemented by subclass to filter specific columns
 
     def getCollectionItemFromIndex(self, index: int) -> CI | None:
         return self._proxiedModel.getCollectionItemFromIndex(self.mapToSource(self.index(index, 0)).row())

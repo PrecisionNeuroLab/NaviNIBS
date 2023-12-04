@@ -168,8 +168,19 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         relNotchLength = 0.2
         # TODO: check signs and directions
         topNotch = pv.lines_from_points(np.asarray([[0, radius, 0], [0, radius * (1 - relNotchLength), 0]]))
-        botNotch = pv.lines_from_points(
-            np.asarray([[0, -radius * (1 + relNotchLength), 0], [0, -radius * (1 - relNotchLength), 0]]))
+        if False:
+            # show a longer line at bottom notch to indicate handle angle
+            botNotch = pv.lines_from_points(
+                np.asarray([[0, -radius * (1 + relNotchLength), 0], [0, -radius * (1 - relNotchLength), 0]]))
+        else:
+            # show a small inward-pointing triangle at bottom notch to indicate handle angle
+            angle = 5  # in degrees
+            x1 = np.sin(np.deg2rad(angle))*-radius
+            y1 = np.cos(np.deg2rad(angle))*-radius
+            botNotch = pv.lines_from_points(
+                np.asarray([[x1, y1, 0], [0, -radius * (1 - relNotchLength), 0], [-x1, y1, 0]])
+            )
+
         leftNotch = pv.lines_from_points(
             np.asarray([[-radius, 0, 0], [-radius * (1 - relNotchLength), 0, 0]]))
         rightNotch = pv.lines_from_points(np.asarray([[radius, 0, 0], [radius * (1 - relNotchLength), 0, 0]]))

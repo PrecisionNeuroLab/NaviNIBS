@@ -8,6 +8,9 @@ import typing as tp
 from .QWidgetWithCloseSignal import QMainWindowWithCloseSignal
 from ..Signaler import Signal
 
+
+from RTNaBS.util import exceptionToStr
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +23,7 @@ class RunnableAsApp:
     _theme: str = 'auto'  # auto, light, or dark
 
     _app: QtGui.QGuiApplication = attr.ib(init=False)
+    _appIconPath: str | None = attr.ib(init=False, default=None)
     _Win: tp.Callable[..., QMainWindowWithCloseSignal] = attr.ib(default=QMainWindowWithCloseSignal)
     """
     Can specify Win to point to a different MainWindow class (e.g. for docking support)
@@ -35,6 +39,19 @@ class RunnableAsApp:
 
             logger.debug('Initializing GUI window')
             self._app = pg.mkQApp(self._appName)
+
+            if self._appIconPath is not None:
+
+                import platform
+                isWin = platform.system() == 'Windows'
+                if isWin:
+                    # workaround to show icon in Windows task bar
+                    # based on https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
+                    import ctypes
+                    myappid = f"NaviNIBS.{self._appName.replace(' ', '')}.subproduct.version"  # arbitrary string
+                    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
+                self._app.setWindowIcon(QtGui.QIcon(self._appIconPath))
 
             theme = self._theme
             if theme == 'auto':
@@ -79,7 +96,11 @@ class RunnableAsApp:
         while not self._appIsClosing:
             if counter == 0:
                 logger.debug('Main loop: process Qt events')
-            self._app.processEvents()
+            try:
+                self._app.processEvents()
+            except Exception as e:
+                logger.error(f'Exception while processing Qt events: {exceptionToStr(e)}')
+                raise e
             if counter == 0:
                 logger.debug('Main loop: async')
             await asyncio.sleep(self._appAsyncPollPeriod)

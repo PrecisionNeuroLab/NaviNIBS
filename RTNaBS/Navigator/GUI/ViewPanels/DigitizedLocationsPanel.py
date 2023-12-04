@@ -79,7 +79,7 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         sidebar = QtWidgets.QWidget()
         sidebar.setLayout(QtWidgets.QVBoxLayout())
-        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.MinimumExpanding)
+        sidebar.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
         self._wdgt.layout().addWidget(sidebar)
 
         self._trackingStatusWdgt = TrackingStatusWidget(session=self.session,
@@ -185,8 +185,8 @@ class DigitizedLocationsPanel(MainViewPanel):
         return self._tblWdgt.currentCollectionItemKey
 
     def _getPointerCoordInMRISpace(self) -> tp.Optional[np.ndarray]:
-        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.key, None)
-        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.key, None)
+        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.trackerKey, None)
+        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.trackerKey, None)
         subjectTrackerToMRITransf = self.session.subjectRegistration.trackerToMRITransf
 
         if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None or subjectTrackerToMRITransf is None:
@@ -250,9 +250,9 @@ class DigitizedLocationsPanel(MainViewPanel):
                 self.session.digitizedLocations[key].sampledCoord = None
 
     def _onDeleteLocationBtnClicked(self, checked: bool):
-        for key in self._tblWdgt.selectedCollectionItemKeys:
-            if key is not None:
-                self.session.digitizedLocations.deleteItem(key)
+        selKeys = [key for key in self._tblWdgt.selectedCollectionItemKeys if key is not None]
+        if len(selKeys) > 0:
+            self.session.digitizedLocations.deleteItems(selKeys)
 
     def _redraw(self, which: tp.Union[str, tp.List[str,...]]):
 
@@ -307,7 +307,7 @@ class DigitizedLocationsPanel(MainViewPanel):
 
             allowSampling = False
             if pointer is not None and subjectTracker is not None:
-                allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.key, subjectTracker.key))
+                allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.trackerKey, subjectTracker.trackerKey))
 
             if self._sampleLocationBtn.isEnabled() != allowSampling:
                 self._sampleLocationBtn.setEnabled(allowSampling)
@@ -352,8 +352,8 @@ class DigitizedLocationsPanel(MainViewPanel):
                         # assume this was because we don't have enough info to show
                         continue
 
-                    pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.key, None)
-                    subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.key, None)
+                    pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.trackerKey, None)
+                    subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.trackerKey, None)
 
                     if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
                         # don't have valid info for determining pointer position relative to head tracker

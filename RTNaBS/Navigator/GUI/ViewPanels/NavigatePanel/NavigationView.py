@@ -11,7 +11,7 @@ from typing import ClassVar
 
 from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
 from .ViewLayers import ViewLayer, PlotViewLayer
-from .ViewLayers.MeshSurfaceLayer import MeshSurfaceLayer
+from .ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer, ToolMeshSurfaceLayer
 from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
 from .ViewLayers.SampleMetadataOrientationsLayer import SampleMetadataOrientationsLayer, SampleMetadataInterpolatedSurfaceLayer
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
@@ -104,10 +104,13 @@ class SinglePlotterNavigationView(NavigationView):
     _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
+    _cameraDist: float = 100
     """
     None to use default camera perspective; 'target' to align camera space to target space, etc.
-    Can also specify 'target-Y' to look at from along typical coil handle axis, or 'TargetX' to look at from other direction
+    Can also specify 'target-Y' to look at from along typical coil handle axis, or 'Target+X' to look at from other direction
+    Can also specify something like 'tool-<toolKey>+X' to look at from along tool X axis
     """
+    _doParallelProjection: bool = False
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)
@@ -123,7 +126,8 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._layerLibrary = {}
         for cls in (
-                    MeshSurfaceLayer,
+                    HeadMeshSurfaceLayer,
+                    ToolMeshSurfaceLayer,
                     SampleOrientationsLayer,
                     SampleMetadataOrientationsLayer,
                     SampleMetadataInterpolatedSurfaceLayer,
@@ -145,6 +149,9 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
+
+        if self._doParallelProjection:
+            self._plotter.camera.enable_parallel_projection()
 
         self._redraw('all')
 
@@ -187,7 +194,7 @@ class SinglePlotterNavigationView(NavigationView):
             pass
 
         try:
-            cameraPts = np.asarray([[0, 0, 0], [0, 0, 200], [0, 1, 0]])  # focal point, position, and up respectively
+            cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist], [0, 1, 0]])  # focal point, position, and up respectively
 
             if self._alignCameraTo is None:
                 pass
@@ -199,9 +206,6 @@ class SinglePlotterNavigationView(NavigationView):
                 if self._alignCameraTo[-1] in 'XY':
                     # add negative z offset to reduce empty space above coil in camera view
                     extraTransf[2, 3] = -20
-
-                    # reduce distance from camera to target to zoom in tighter
-                    cameraPts[1, 2] = 100
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
@@ -231,6 +235,34 @@ class SinglePlotterNavigationView(NavigationView):
                 else:
                     raise NotImplementedError()
 
+            elif self._alignCameraTo.startswith('tool-'):
+                if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
+                    extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[-2:])
+                    extraTransf = composeTransform(extraRot)
+                    toolKey = self._alignCameraTo[len('tool-'):-2]
+                else:
+                    extraTransf = np.eye(4)
+                    toolKey = self._alignCameraTo[len('tool-'):]
+
+                trackerKey = self._coordinator.session.tools[toolKey].trackerKey
+                trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(trackerKey, None)
+
+                if trackerToWorldTransf is None:
+                    # missing information
+                    raise NoValidCameraPoseAvailable
+
+                if self._plotInSpace == 'MRI':
+                    raise NotImplementedError  # TODO
+
+                elif self._plotInSpace == 'World':
+                    toolToTrackerTransf = self._coordinator.session.tools[toolKey].toolToTrackerTransf
+
+                    if toolToTrackerTransf is None:
+                        # missing information
+                        raise NoValidCameraPoseAvailable
+
+                    cameraPts = applyTransform(trackerToWorldTransf @ toolToTrackerTransf @ extraTransf, cameraPts, doCheck=False)
+
             else:
                  raise NotImplementedError()
 
@@ -245,7 +277,19 @@ class SinglePlotterNavigationView(NavigationView):
             self._plotter.camera.focal_point = cameraPts[0, :]
             self._plotter.camera.position = cameraPts[1, :]
             self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
-            self._plotter.reset_camera_clipping_range()
+            if True:
+                # force fixed zoom in parallel camera views
+                self.plotter.camera.parallel_scale = self._cameraDist / 2
+
+            if False:
+                # force fixed zoom in perspective camera views
+                self.plotter.camera.view_angle = 60.
+
+            if self._alignCameraTo[-1] in 'XY' and False:
+                # orthogonal view, clip camera
+                self._plotter.camera.clipping_range = (self._cameraDist-0.1, self._cameraDist+0.1)
+            else:
+                self._plotter.reset_camera_clipping_range()
             self._plotter.render()
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
@@ -263,7 +307,6 @@ class SinglePlotterNavigationView(NavigationView):
 
     async def _addLayer_async(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
                               plotterLayer: tp.Optional[int] = None, **kwargs):
-
 
         if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()
@@ -322,7 +365,6 @@ class SinglePlotterNavigationView(NavigationView):
 class TargetingCrosshairsView(SinglePlotterNavigationView):
     _type: ClassVar[str] = 'TargetingCrosshairs'
     _alignCameraTo: str = 'target'
-    _doParallelProjection: bool = False
     _doShowSkinSurf: bool = False
     _doShowHandleAngleError: bool = False
     _doShowTargetTangentialAngleError: bool = False
@@ -331,15 +373,18 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+        plotLayer = 0
+
         if self._doShowSkinSurf:
-            self.addLayer(type='MeshSurface', key='Skin', surfKey='skinSimpleSurf',
+            self.addLayer(type='HeadMeshSurface', key='Skin', surfKey='skinSimpleSurf',
                           color='#c9c5c2',
                           layeredPlotterKey='SkinMesh',
-                          plotterLayer=0)
+                          plotterLayer=plotLayer)
+
+            plotLayer += 1
 
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
-        plotLayer = 1 if self._doShowSkinSurf else 0
 
         if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
@@ -348,9 +393,11 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           scalarsOpacityKey=None,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
-                          relevantSampleDepth='intersection')
+                          relevantSampleDepth='intersection',
+                          layeredPlotterKey='Brain',
+                          plotterLayer=plotLayer)
         else:
-            self.addLayer(type='MeshSurface', key='Brain', surfKey='gmSurf',
+            self.addLayer(type='HeadMeshSurface', key='Brain', surfKey='gmSurf',
                           plotterLayer=plotLayer)
 
         plotLayer += 1
@@ -363,14 +410,19 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
                           relevantSampleDepth='intersection',
+                          layeredPlotterKey='ScalpVpps',
                           plotterLayer=plotLayer)
+            plotLayer += 1
 
         if True:
-            self.addLayer(type='SampleOrientations', key='Samples', layeredPlotterKey='Orientations')
+            self.addLayer(type='SampleOrientations', key='Samples',
+                          layeredPlotterKey='Orientations',
+                          plotterLayer=plotLayer)
         elif False:
             self.addLayer(type='SampleMetadataOrientations',
                           key='SampleVpps',
                           layeredPlotterKey='Orientations',
+                          plotterLayer=plotLayer,
                           metadataKey='Vpp',
                           metadataScaleFactor=1.e6,
                           colorbarLabel='Vpp (uV)',
@@ -379,6 +431,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             self.addLayer(type='SampleMetadataOrientations',
                           key='SampleVpps_dBmV',
                           layeredPlotterKey='Orientations',
+                          plotterLayer=plotLayer,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
                           lineWidth=6.)
@@ -387,11 +440,19 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         self.addLayer(type='TargetingTargetPoints', key='TargetPoints', layeredPlotterKey='Orientations')
         self.addLayer(type='TargetingCoilPoints', key='CoilPoints', layeredPlotterKey='Orientations')
 
-        self.addLayer(type='TargetingTargetCrosshairs', key='Target', layeredPlotterKey='Crosshairs')
-        self.addLayer(type='TargetingCoilCrosshairs', key='Coil', layeredPlotterKey='Crosshairs')
+        plotLayer += 1
 
-        self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target', layeredPlotterKey='TargetingError')
-        self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil', layeredPlotterKey='TargetingError')
+        self.addLayer(type='TargetingTargetCrosshairs', key='Target',
+                      layeredPlotterKey='Crosshairs',
+                      plotterLayer=plotLayer)
+        self.addLayer(type='TargetingCoilCrosshairs', key='Coil', layeredPlotterKey='Crosshairs')
+        plotLayer += 1
+
+        self.addLayer(type='TargetingErrorLine', key='TargetError', targetDepth='target', coilDepth='target',
+                      layeredPlotterKey='TargetingError',
+                      plotterLayer=plotLayer)
+        self.addLayer(type='TargetingErrorLine', key='CoilError', targetDepth='coil', coilDepth='coil',
+                      layeredPlotterKey='TargetingError')
 
         if self._doShowHandleAngleError:
             self.addLayer(type='TargetingAngleError', key='HandleAngleError',
@@ -451,11 +512,10 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           xyDims=xyDims,
                           layeredPlotterKey='TargetingError')
 
+            plotLayer += 1
+
     async def _finishInitialization_async(self):
         await super()._finishInitialization_async()
-
-        if self._doParallelProjection:
-            self._plotter.camera.enable_parallel_projection()
 
         #self._plotter.enable_depth_peeling(2)
 
