@@ -17,6 +17,7 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
+import RTNaBS
 from RTNaBS.Navigator.Model.MRI import MRI
 from RTNaBS.Navigator.Model.HeadModel import HeadModel
 from RTNaBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
@@ -278,6 +279,8 @@ class Session:
             assert config['formatVersion'] == self._latestConfigFormatVersion
         else:
             config = dict(formatVersion=self._latestConfigFormatVersion)
+
+        config['softwareVersion'] = RTNaBS.__version__
 
         if 'info' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing session info')
