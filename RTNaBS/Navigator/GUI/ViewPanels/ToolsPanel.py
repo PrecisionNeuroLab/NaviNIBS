@@ -48,6 +48,7 @@ class ToolWidget:
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
     _key: QtWidgets.QLineEdit = attrs.field(init=False)
+    _trackerKey: QtWidgets.QLineEdit = attrs.field(init=False)
     _label: QtWidgets.QLineEdit = attrs.field(init=False)
     _usedFor: QtWidgets.QComboBox = attrs.field(init=False)
     _isActive: QtWidgets.QCheckBox = attrs.field(init=False)
@@ -59,6 +60,8 @@ class ToolWidget:
     _trackerStlToTrackerTransf: QtWidgets.QLineEdit = attrs.field(init=False)
     _toolSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
     _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+
+    _asyncInitTask: asyncio.Task = attrs.field(init=False)
     _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
@@ -75,11 +78,15 @@ class ToolWidget:
 
         self._tool.sigItemChanged.connect(self._onToolChanged)
 
-        self._key = QtWidgets.QLineEdit(self._tool.key)
+        self._key = QtWidgets.QLineEdit()
         self._key.editingFinished.connect(self._onKeyEdited)
         formContainer.layout().addRow('Key', self._key)
 
-        self._label = QtWidgets.QLineEdit(self._tool.label)
+        self._trackerKey = QtWidgets.QLineEdit()
+        self._trackerKey.editingFinished.connect(self._onTrackerKeyEdited)
+        formContainer.layout().addRow('TrackerKey', self._trackerKey)
+
+        self._label = QtWidgets.QLineEdit()
         self._label.editingFinished.connect(self._onLabelEdited)
         formContainer.layout().addRow('Label', self._label)
 
@@ -115,7 +122,7 @@ class ToolWidget:
             filepath=self._tool.trackerStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             showRelativePrefix=self._tool.filepathsRelToKey,
-            extFilters='STL (*.stl)',
+            extFilters='STL (*.stl); PLY (*.ply)',
             browseCaption='Choose 3D model for tracker visualization'
         )
         self._trackerStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onTrackerStlFilepathEdited())
@@ -126,7 +133,7 @@ class ToolWidget:
             filepath=self._tool.toolStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             showRelativePrefix=self._tool.filepathsRelToKey,
-            extFilters='STL (*.stl)',
+            extFilters='STL (*.stl); PLY (*.ply)',
             browseCaption='Choose 3D model for tool visualization'
         )
         self._toolStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onToolStlFilepathEdited())
@@ -167,7 +174,9 @@ class ToolWidget:
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        self._asyncInitTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+        QtCore.QTimer.singleShot(0, lambda: self._onToolChanged(self._tool.key, attribsChanged=None))
 
         self.redraw()
 
@@ -178,8 +187,10 @@ class ToolWidget:
         if isinstance(self._trackerSpacePlotter, RemotePlotterProxy):
             await self._trackerSpacePlotter.isReadyEvent.wait()
 
-        self._toolSpacePlotter.enable_depth_peeling(2)
-        self._trackerSpacePlotter.enable_depth_peeling(2)
+        for plotter in (self._toolSpacePlotter, self._trackerSpacePlotter):
+            with plotter.allowNonblockingCalls():
+                plotter.enable_parallel_projection()
+                plotter.enable_depth_peeling(2)
 
         self._finishedAsyncInit.set()
 
@@ -203,17 +214,12 @@ class ToolWidget:
 
             if self._tool.toolSurf is not None:
                 meshColor = self._tool.toolColor
-                if meshColor is None:
-                    if len(self._tool.toolSurf.array_names) > 0:
-                        meshColor = None  # use color from mesh file
-                    else:
-                        meshColor = '#2222ff'
                 meshColor_tool = meshColor
-                actor = self._toolSpacePlotter.add_mesh(
+                actor = self._toolSpacePlotter.addMesh(
                     name=actorKey,
                     mesh=self._tool.toolSurf,
                     color=meshColor,
-                    rgb=meshColor is None,
+                    defaultMeshColor='#2222ff',
                     opacity=0.8
                 )
                 self._toolSpaceActors[actorKey] = actor
@@ -223,10 +229,10 @@ class ToolWidget:
                     **defaultGridKwargs)
 
             if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
-                actor = self._trackerSpacePlotter.add_mesh(
+                actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.toolSurf,
                     color=meshColor_tool,  # noqa
-                    rgb=meshColor_tool is None,
+                    defaultMeshColor='#2222ff',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -252,15 +258,10 @@ class ToolWidget:
                 )
 
                 meshColor = self._tool.trackerColor
-                if meshColor is None:
-                    if len(self._tool.trackerSurf.array_names) > 0:
-                        meshColor = None  # use color from mesh file
-                    else:
-                        meshColor = '#2222ff'
-                actor = self._trackerSpacePlotter.add_mesh(
+                actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
-                    rgb=meshColor is None,
+                    defaultMeshColor='#2222ff',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -271,10 +272,10 @@ class ToolWidget:
                     **defaultGridKwargs)
 
                 if self._tool.toolToTrackerTransf is not None:
-                    actor = self._toolSpacePlotter.add_mesh(
+                    actor = self._toolSpacePlotter.addMesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
-                        rgb=meshColor is None,
+                        defaultMeshColor='#2222ff',
                         opacity=0.8,
                         name=actorKey
                     )
@@ -286,13 +287,15 @@ class ToolWidget:
 
             self._trackerSpacePlotter.reset_camera()
 
-
     @property
     def wdgt(self):
         return self._wdgt
 
     def _onKeyEdited(self):
         self._tool.key = self._key.text()
+
+    def _onTrackerKeyEdited(self):
+        self._tool.trackerKey = self._trackerKey.text()
 
     def _onLabelEdited(self):
         newLabel = self._label.text().strip()
@@ -343,6 +346,18 @@ class ToolWidget:
         toRedraw = set()
         if attribsChanged is None or 'key' in attribsChanged:
             self._key.setText(self._tool.key)
+            self._trackerKey.setPlaceholderText(self._tool.key)
+            self._label.setPlaceholderText(self._tool.key)
+        if attribsChanged is None or 'trackerKey' in attribsChanged:
+              if self._tool.trackerKeyIsSet:
+                  self._trackerKey.setText(self._tool.trackerKey)
+              else:
+                  self._trackerKey.setText('')
+        if attribsChanged is None or 'label' in attribsChanged:
+            if self._tool.labelIsSet:
+                self._label.setText(self._tool.label)
+            else:
+                self._label.setText('')
         if attribsChanged is None or 'usedFor' in attribsChanged:
             self._usedFor.setCurrentIndex(self._usedFor.findText(self._tool.usedFor) if self._tool.usedFor is not None else -1)  # TODO: check for change in type that we can't handle without reinstantiating
         if attribsChanged is None or 'isActive' in attribsChanged:
@@ -374,6 +389,8 @@ class ToolWidget:
             self.redraw(toRedraw)
 
     def close(self):
+        if not self._finishedAsyncInit.is_set():
+            self._asyncInitTask.cancel()
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
         self._toolSpacePlotter.close()
         self._trackerSpacePlotter.close()
@@ -530,7 +547,7 @@ class ToolsPanel(MainViewPanel):
         super()._onSessionSet()
 
         if any(tool.initialTrackerPose is not None for tool in self.session.tools.values()):
-            asyncio.create_task(self._recordInitialToolPoses())
+            asyncio.create_task(asyncTryAndLogExceptionOnError(self._recordInitialToolPoses))
 
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
@@ -540,7 +557,7 @@ class ToolsPanel(MainViewPanel):
         for tool in self.session.tools.values():
             if tool.initialTrackerPose is not None:
                 await positionsClient.recordNewPosition(
-                    tool.key,
+                    tool.trackerKey,
                     position=TimestampedToolPosition(
                         time=0.,
                         transf=tool.initialTrackerPose,
@@ -599,13 +616,10 @@ class ToolsPanel(MainViewPanel):
         self.session.tools.addToolFromDict(toolDict)
 
     def _onDeleteBtnClicked(self, checked: bool):
-        keysToDelete = self._tblWdgt.selectedCollectionItemKeys
-        for key in keysToDelete:
-            if key is None:
-                # no tool selected
-                continue
-            logger.info('Deleting {} tool'.format(key))
-            self.session.tools.deleteItem(key=key)
+        keysToDelete = [key for key in self._tblWdgt.selectedCollectionItemKeys if key is not None]
+        if len(keysToDelete) > 0:
+            self.session.tools.deleteItems(keysToDelete)
+
 
 
 

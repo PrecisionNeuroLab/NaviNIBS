@@ -24,17 +24,21 @@ class _CustomQDial(QtWidgets.QDial):
 class AngleDial:
     _value: float = 0.
     _resolution: float = 0.1
+    _singleStep: float | None = None  # in degrees
+    _pageStep: float | None = None  # in degrees
     _doInvert: bool = False
     """
     When doInvert is False, clockwise rotation from 0 increases the angle.
     """
     _offsetAngle: float = 0.
     """
+    In degrees.
     When offset is zero, value=0 is pointing down.
     When offset is +90 (and doInvert is False), value=0 is pointing left.
     """
     _centerAngle: float = 180.
     """
+    In degrees.
     When centerAngle is zero, values range from (-180, 180).
     When centerAngle is 180, values range from (0, 360).
     """
@@ -83,8 +87,23 @@ class AngleDial:
         self._layout.addWidget(self._qdial)
 
         self._numericField = QtWidgets.QDoubleSpinBox()
+        # self._numericField.setKeyboardTracking(False)
         self._numericField.setRange(-180 + self._centerAngle, 180 + self._centerAngle - self._resolution)
-        self._numericField.setSingleStep(self._resolution)
+        if self._singleStep is None:
+            self._numericField.setSingleStep(self._resolution * 10.)
+            self._qdial.setSingleStep(ceil(1/self._resolution))
+        else:
+            self._numericField.setSingleStep(self._singleStep)
+            self._qdial.setSingleStep(ceil(self._singleStep / self._resolution))
+
+        if self._pageStep is None:
+            if self._singleStep is None:
+                self._qdial.setPageStep(ceil(5/self._resolution))
+            else:
+                self._qdial.setPageStep(ceil(self._singleStep * 5. / self._resolution))
+        else:
+            self._qdial.setPageStep(self._pageStep / self._resolution)
+
         self._numericField.setDecimals(int(ceil(log10(1 / self._resolution))))
         self._numericField.setSuffix('°')
         self._numericField.valueChanged.connect(self._onNumericFieldValueChanged)

@@ -54,11 +54,15 @@ class MRI:
             else:
                 raise NotImplementedError()
 
-            self._dataAsUniformGrid = pv.ImageData(
-                dimensions=self._data.shape,
-                spacing=gridSpacing,
-                origin=self._data.affine[:-1, 3]
-            )
+            if pv.__version__ <= '0.39.1':
+                self._dataAsUniformGrid = pv.UniformGrid(
+                    dims=self._data.shape)
+            else:
+                self._dataAsUniformGrid = pv.ImageData(
+                    dimensions=self._data.shape,
+                    spacing=gridSpacing,
+                    origin=self._data.affine[:-1, 3]
+                )
 
             self._dataAsUniformGrid.point_data['MRI'] = np.asanyarray(self.data.dataobj).ravel(order='F')
 

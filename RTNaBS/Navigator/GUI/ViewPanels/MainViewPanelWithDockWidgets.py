@@ -9,6 +9,7 @@ import typing as tp
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
+from RTNaBS.util import exceptionToStr
 from RTNaBS.util.GUI.Dock import Dock, DockArea
 from RTNaBS.util.Signaler import Signal
 
@@ -66,7 +67,12 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
 
         logger.debug(f'About to restore layout for {self._key}')
         self.sigAboutToRestoreLayout.emit()
-        self._wdgt.restoreState(layout.state)
+        try:
+            self._wdgt.restoreState(layout.state)
+        except Exception as e:
+            logger.warning(f'Unable to restore layout: {exceptionToStr(e)}')
+            return False
+
         logger.debug(f'Restored layout for {self._key}')
         self.sigRestoredLayout.emit()
         return True

@@ -12,6 +12,7 @@ from typing import ClassVar
 from . import PlotViewLayer
 from RTNaBS.Navigator.Model.Samples import Sample, Samples
 from RTNaBS.Navigator.Model.Targets import Target, Targets
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
@@ -124,7 +125,7 @@ class OrientationsLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._loopTask = asyncio.create_task(self._loop_drawPendingOrientations())
+        self._loopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_drawPendingOrientations))
 
     def _createVisualizedOrientationForSample(self, key: str) -> VisualizedOrientation:
         isSelected = self.orientations[key].isSelected

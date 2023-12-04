@@ -15,6 +15,7 @@ import typing as tp
 
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import exceptionToStr
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.GUI.Dock import Dock, DockArea
 from RTNaBS.util.GUI.ErrorDialog import raiseErrorDialog
 from RTNaBS.util.Signaler import Signal
@@ -150,7 +151,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         self._updateEnabledWdgts()
 
-        self._autosaveTask = asyncio.create_task(self._autosaveOccasionally())
+        self._autosaveTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._autosaveOccasionally))
 
     def _onSessionSet(self):
         self._updateEnabledWdgts()

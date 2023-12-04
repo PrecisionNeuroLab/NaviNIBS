@@ -9,6 +9,7 @@ import zmq.asyncio as azmq
 
 from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
 from RTNaBS.util import ZMQAsyncioFix
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.ZMQConnector import ZMQConnectorClient, logger as logger_ZMQConnector
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import concatenateTransforms
@@ -57,9 +58,9 @@ class ToolPositionsClient:
                                              connAddr=self._serverHostname,
                                              allowAsyncCalls=True)
 
-        self._pollTask = asyncio.create_task(self._receiveLatestPositionsLoop())
+        self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._receiveLatestPositionsLoop))
 
-        self._monitorTask = asyncio.create_task(self._monitorServerStatus())
+        self._monitorTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._monitorServerStatus))
 
     @property
     def latestPositions(self):

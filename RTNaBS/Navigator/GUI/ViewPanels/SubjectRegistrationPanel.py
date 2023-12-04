@@ -152,8 +152,8 @@ class _PointerDistanceReadouts:
         self._update()
 
     def _update(self):
-        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.key, None)
-        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.key, None)
+        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.trackerKey, None)
+        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.trackerKey, None)
 
         if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
             # TODO: report NaNs for all distances
@@ -405,7 +405,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
             def validate(self, inputStr: str, pos: int) -> QtGui.QValidator.State:
                 if len(inputStr) == 0:
-                    return self.Acceptable, inputStr, pos
+                    return self.State.Acceptable, inputStr, pos
                 try:
                     listOrScalarVal = json.loads(inputStr)
                     if not isinstance(listOrScalarVal, (list, float, int)):
@@ -413,11 +413,11 @@ class SubjectRegistrationPanel(MainViewPanel):
                     arrayVal = np.asarray(listOrScalarVal, dtype=np.float64)  # raises value error if problem
                 except ValueError as e:
                     if self._invalidRegex.search(inputStr):
-                        return self.Invalid, inputStr, pos
+                        return self.State.Invalid, inputStr, pos
                     else:
-                        return self.Intermediate, inputStr, pos
+                        return self.State.Intermediate, inputStr, pos
                 else:
-                    return self.Acceptable, inputStr, pos
+                    return self.State.Acceptable, inputStr, pos
 
         self._refineWeightsField.setValidator(RefineWeightsValidator())
 
@@ -530,8 +530,8 @@ class SubjectRegistrationPanel(MainViewPanel):
     def _getPointerCoordRelToSubTracker(self) -> tp.Optional[np.ndarray]:
         # TODO: spin-wait update positionsClient.latestPositions to make sure we have the most up to date position
 
-        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.key, None)
-        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.key, None)
+        pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.trackerKey, None)
+        subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.subjectTracker.trackerKey, None)
 
         if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
             logger.warning('Tried to sample, but do not have valid positions. Returning.')
@@ -646,6 +646,10 @@ class SubjectRegistrationPanel(MainViewPanel):
                     sampledCoords=sampledCoord
                 )
             )
+
+            # clear sampled positions of previously selected fiducials so that they're not automatically used for future alignments
+            self.session.subjectRegistration.fiducials[selFidKey].sampledCoords = None
+
 
     def _onFidTblCurrentCellChanged(self, currentRow: int, currentCol: int, previousRow: int, previousCol: int):
         if previousRow == currentRow:
@@ -841,7 +845,7 @@ class SubjectRegistrationPanel(MainViewPanel):
             allowSampling = False
             if pointer is not None and subjectTracker is not None:
                 if self._fidTblWdgt.currentCollectionItemKey is not None:
-                    allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.key, subjectTracker.key))
+                    allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.trackerKey, subjectTracker.trackerKey))
 
             if self._sampleFiducialBtn.isEnabled() != allowSampling:
                 self._sampleFiducialBtn.setEnabled(allowSampling)
@@ -898,8 +902,8 @@ class SubjectRegistrationPanel(MainViewPanel):
                         # assume this was because we don't have enough info to show
                         continue
 
-                    pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.key, None)
-                    subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.key, None)
+                    pointerToCameraTransf = self._positionsClient.getLatestTransf(pointer.trackerKey, None)
+                    subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(subjectTracker.trackerKey, None)
 
                     if pointerToCameraTransf is None or subjectTrackerToCameraTransf is None:
                         # don't have valid info for determining pointer position relative to head tracker

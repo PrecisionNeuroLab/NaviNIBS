@@ -17,6 +17,7 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
+import RTNaBS
 from RTNaBS.Navigator.Model.MRI import MRI
 from RTNaBS.Navigator.Model.HeadModel import HeadModel
 from RTNaBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
@@ -241,7 +242,13 @@ class Session:
         if asAutosave:
             keysToSave = self._dirtyKeys_autosave.copy()
             self._dirtyKeys_autosave.clear()
+
             autosaveFilenamePrefix = 'autosaved-' + datetime.today().strftime('%y%m%d%H%M%S.%f') + '_'
+            if True:
+                # put autosaved files in an "autosaved" subdirectory to avoid cluttering session root
+                autosaveFilenamePrefix = os.path.join('autosaved', autosaveFilenamePrefix)
+                if not os.path.isdir(os.path.join(self.unpackedSessionDir, 'autosaved')):
+                    os.mkdir(os.path.join(self.unpackedSessionDir, 'autosaved'))
         else:
             keysToSave = self._dirtyKeys.copy()
             self._dirtyKeys.clear()
@@ -272,6 +279,8 @@ class Session:
             assert config['formatVersion'] == self._latestConfigFormatVersion
         else:
             config = dict(formatVersion=self._latestConfigFormatVersion)
+
+        config['softwareVersion'] = RTNaBS.__version__
 
         if 'info' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing session info')
@@ -422,7 +431,7 @@ class Session:
                 # targeting info is about to change, and this target may be referenced by samples
                 # so make a copy to keep in history
                 logger.info('Creating historical copy of target')
-                historicalTarget = Target.fromDict(deepcopy(target.asDict()))
+                historicalTarget = Target.fromDict(deepcopy(target.asDict()), session=self)
                 historicalTarget.key = targetKey + ' pre ' + datetime.today().strftime('%y%m%d%H%M%S.%f')
                 historicalTarget.isHistorical = True
                 target.mayBeADependency = False

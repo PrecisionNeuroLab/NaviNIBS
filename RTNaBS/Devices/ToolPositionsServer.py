@@ -9,6 +9,7 @@ import zmq.asyncio as azmq
 
 from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
 from RTNaBS.util import ZMQAsyncioFix
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.ZMQConnector import ZMQConnectorServer, logger as logger_ZMQConnector
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class ToolPositionsServer:
             bindAddr=self._hostname
         )
 
-        asyncio.create_task(self._publishLatestPositionsLoop())
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._publishLatestPositionsLoop))
 
     @property
     def type(self):

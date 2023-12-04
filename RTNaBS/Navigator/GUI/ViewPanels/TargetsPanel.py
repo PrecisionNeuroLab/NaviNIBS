@@ -26,6 +26,7 @@ from RTNaBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.util import makeStrUnique
 from RTNaBS.util.pyvista import Actor, RemotePlotterProxy
+from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -43,7 +44,7 @@ class VisualizedTarget:
     re-instantiate the `VisualizedTarget` for any target changes.
     """
     _target: Target
-    _plotter: pv.Plotter = attrs.field(repr=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(repr=False)
     _style: str
     _color: str = '#2222FF'
     _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
@@ -70,7 +71,8 @@ class VisualizedTarget:
 
         self._visible = isVisible
 
-        self._plotter.render()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.render()
 
     @property
     def style(self):
@@ -140,29 +142,43 @@ class VisualizedTarget:
             circlePts = np.column_stack((coilDiameter/2 * np.cos(theta), coilDiameter/2 * np.sin(theta), np.zeros(theta.shape)))
 
             for wing, dir in (('wing1', 1.), ('wing2', -1.)):
-                pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
-                self._actors[wing] = self._plotter.add_lines(pts_wing,
-                                                             connected=True,
-                                                             color=self._color,
-                                                             width=thinWidth,
-                                                             label=self._target.key,
-                                                             name=self._target.key + wing,
-                                                             )
+                if self._target.coilToMRITransf is not None:
+                    pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
+                    self._actors[wing] = self._plotter.add_lines(pts_wing,
+                                                                 connected=True,
+                                                                 color=self._color,
+                                                                 width=thinWidth,
+                                                                 label=self._target.key,
+                                                                 name=self._target.key + wing,
+                                                                 )
 
-            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
-            self._actors['line2'] = self._plotter.add_lines(pts_line2,
-                                                            color=self._color,
-                                                            width=thinWidth,
-                                                            label=self._target.key,
-                                                            name=self._target.key + 'line2',
-                                                            )
-            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
-            self._actors['line3'] = self._plotter.add_lines(pts_line3,
-                                                            color=self._color,
-                                                            width=thinWidth,
-                                                            label=self._target.key,
-                                                            name=self._target.key + 'line3',
-                                                            )
+            if self._target.coilToMRITransf is not None:
+                pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
+                self._actors['line2'] = self._plotter.add_lines(pts_line2,
+                                                                color=self._color,
+                                                                width=thinWidth,
+                                                                label=self._target.key,
+                                                                name=self._target.key + 'line2',
+                                                                )
+                if self._target.targetCoord is not None and self._target.entryCoord is not None:
+                    depth = np.linalg.norm(self._target.targetCoord - self._target.entryCoord) + self._target.depthOffset
+                else:
+                    depth = 50
+                pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -depth], [0, 0, 10]]))
+                self._actors['line3'] = self._plotter.add_lines(pts_line3,
+                                                                color=self._color,
+                                                                width=thinWidth,
+                                                                label=self._target.key,
+                                                                name=self._target.key + 'line3',
+                                                                )
+            elif self._target.targetCoord is not None and self._target.entryCoord is not None:
+                pts_line2 = np.vstack([self._target.targetCoord, self._target.entryCoord])
+                self._actors['line2'] = self._plotter.add_lines(pts_line2,
+                                                                color=self._color,
+                                                                width=thinWidth,
+                                                                label=self._target.key,
+                                                                name=self._target.key + 'line2',
+                                                                )
 
             self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
                                                               color=self._color,
@@ -176,20 +192,23 @@ class VisualizedTarget:
         else:
             raise NotImplementedError()
 
-        if not self.visible:
-            for actor in self._actors.values():
-                actor.VisibilityOff()
+        with self._plotter.allowNonblockingCalls():
+            if not self.visible:
+                for actor in self._actors.values():
+                    actor.VisibilityOff()
+
+            self._plotter.render()
 
     @property
     def actors(self):
         return self._actors
 
     def clearActors(self):
-        for actor in self._actors.values():
-            self._plotter.remove_actor(actor)
-
-        self._actors.clear()
-
+        with self._plotter.allowNonblockingCalls():
+            for actor in self._actors.values():
+                self._plotter.remove_actor(actor)
+            self._actors.clear()
+            self._plotter.render()
 
 
 @attrs.define
@@ -403,6 +422,13 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
             self._gotoTarget(targetKey=targetKey)    # go to target immediately whenever selection changes
 
     def _gotoTarget(self, targetKey: str):
+
+        logger.debug('gotoTarget')
+
+        plotter = self._views['3D'].plotter
+        if isinstance(plotter, RemotePlotterProxy) and not plotter.isReadyEvent.is_set():
+            return  # plotter not ready yet
+
         # change slice camera views to align with selected target
         target = self.session.targets[targetKey]
         extraTransf = np.eye(4)
@@ -420,11 +446,23 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
         if True:
             # also set camera position for 3D view to align with target
-            self._views['3D'].plotter.camera.focal_point = self._views['3D'].sliceOrigin
-            self._views['3D'].plotter.camera.position = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 200]))
-            self._views['3D'].plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
-                                                                 np.asarray([0, 100, 0])) - self._views[
-                                                      '3D'].plotter.camera.position
+            plotter = self._views['3D'].plotter
+            with plotter.allowNonblockingCalls():
+                plotter.camera.focal_point = self._views['3D'].sliceOrigin
+                cameraPos = applyTransform(self._views['3D'].sliceTransform, np.asarray([0, 0, 200]))
+                plotter.camera.position = cameraPos
+                plotter.camera.up = applyTransform(self._views['3D'].sliceTransform,
+                                                                 np.asarray([0, 100, 0])) - cameraPos
+                plotter.render()
+
+    def _createVisualForTarget(self, viewKey: str, target: Target):
+        logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
+        view = self._views[viewKey]
+        style = self._targetDispStyle_comboBox.currentText()
+        self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
+                                                                    plotter=view.plotter,
+                                                                    style=style,
+                                                                    visible=target.isVisible)
 
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
         if not self._hasInitialized and not self._isInitializing:
@@ -450,6 +488,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                     actorKey = viewKey + targetKey
                     if actorKey in self._targetActors:
                         self._targetActors[actorKey].visible = target.isVisible
+                    elif target.isVisible:
+                        self._createVisualForTarget(viewKey=viewKey, target=target)
 
         elif changedTargetAttrs == ['isSelected']:
             pass  # selection update will be handled separately
@@ -462,8 +502,6 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                     if changedTargetKeys is None:
                         changedTargetKeys = self.session.targets.keys()
 
-                    style = self._targetDispStyle_comboBox.currentText()
-
                     for key in changedTargetKeys:
                         try:
                             target = self.session.targets[key]
@@ -473,11 +511,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                                 visualizedTarget = self._targetActors.pop(viewKey + key)
                                 visualizedTarget.clearActors()
                         else:
-                            logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
-                            self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
-                                                                                        plotter=view.plotter,
-                                                                                        style=style,
-                                                                                        visible=target.isVisible)
+                            if target.isVisible:
+                                self._createVisualForTarget(viewKey=viewKey, target=target)
 
                     view.updateView()
 
@@ -507,8 +542,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
     def _onDeleteBtnClicked(self, checked: bool):
         selectedTargetKeys = self._tableWdgt.selectedCollectionItemKeys
-        for targetKey in selectedTargetKeys:
-            self.session.targets.deleteItem(targetKey)
+        self.session.targets.deleteItems(selectedTargetKeys)
 
     def _onDuplicateBtnClicked(self, checked: bool):
         raise NotImplementedError()  # TODO
