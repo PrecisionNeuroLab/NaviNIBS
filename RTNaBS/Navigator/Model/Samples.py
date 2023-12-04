@@ -135,9 +135,9 @@ class Sample(GenericCollectionDictItem[str]):
     @property
     def metadata(self):
         """
-        Note: if needing to modify the result, make sure to do within the `changingMetada context manager, like:
-            with sample.changingMetadata() as metadata:
-                metadata['foo'] = 'bar'
+        Note: if needing to modify the result, make sure to do within the `changingMetadata` context manager, like:
+                with sample.changingMetadata() as metadata:
+                    metadata['foo'] = 'bar'
         """
         return self._metadata
 
