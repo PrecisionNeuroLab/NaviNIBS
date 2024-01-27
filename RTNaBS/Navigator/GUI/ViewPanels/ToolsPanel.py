@@ -190,7 +190,7 @@ class ToolWidget:
         for plotter in (self._toolSpacePlotter, self._trackerSpacePlotter):
             with plotter.allowNonblockingCalls():
                 plotter.enable_parallel_projection()
-                plotter.enable_depth_peeling(2)
+                plotter.enable_depth_peeling(4)
 
         self._finishedAsyncInit.set()
 

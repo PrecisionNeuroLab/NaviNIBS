@@ -4,6 +4,7 @@ import asyncio
 import attrs
 import logging
 import numpy as np
+import pyvista as pv
 import pytransform3d.rotations as ptr
 from qtpy import QtWidgets, QtCore
 import typing as tp
@@ -39,6 +40,7 @@ class NavigationView(QueuedRedrawMixin):
     _coordinator: TargetingCoordinator
 
     _dockKeyPrefix: str = ''
+    _title: str | None = None
 
     _dock: Dock = attrs.field(init=False)
     _wdgt: QtWidgets.QWidget = attrs.field(init=False)
@@ -52,6 +54,7 @@ class NavigationView(QueuedRedrawMixin):
 
         self._dock = Dock(
             name=self._dockKeyPrefix + self._key,
+            title=self._title,
             affinities=[self._dockKeyPrefix])
 
         self._wdgt = QtWidgets.QWidget()
@@ -390,14 +393,15 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='Brain',
                           surfKey='gmSurf',
-                          scalarsOpacityKey=None,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
                           relevantSampleDepth='intersection',
+                          kernelRadius=8,
                           layeredPlotterKey='Brain',
                           plotterLayer=plotLayer)
         else:
             self.addLayer(type='HeadMeshSurface', key='Brain', surfKey='gmSurf',
+                          layeredPlotterKey='Brain',
                           plotterLayer=plotLayer)
 
         plotLayer += 1
@@ -407,6 +411,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           key='ScalpVpps',
                           surfKey='csfSurf',
                           opacity=0.5,
+                          meshOpacityOutsideInterpolatedRegion=0.,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
                           relevantSampleDepth='intersection',

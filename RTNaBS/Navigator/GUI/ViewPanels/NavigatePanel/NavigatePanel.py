@@ -24,6 +24,7 @@ from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.CoilOrientations import PoseMetricCalculator
 from RTNaBS.util.GUI.Dock import Dock
 from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
+from RTNaBS.util.GUI.QFlowLayout import QFlowLayout
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,9 @@ class _PoseMetricGroup:
         poseMetrics = [poseMetric for poseMetric in self._calculator.supportedMetrics if poseMetric.doShowByDefault]
 
         if not self._hasInitialized:
-            self._scroll = QScrollContainer(innerContainerLayout=QtWidgets.QFormLayout())
+            innerLayout = QtWidgets.QFormLayout()
+            innerLayout.setContentsMargins(0, 0, 0, 0)
+            self._scroll = QScrollContainer(innerContainerLayout=innerLayout)
             self._container.setLayout(QtWidgets.QVBoxLayout())
             self._container.layout().setContentsMargins(0, 0, 0, 0)
             self._container.layout().addWidget(self._scroll.scrollArea)
@@ -195,9 +198,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
     _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
     _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _hideSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _showSampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
 
@@ -274,38 +275,27 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         self._wdgt.addDock(dock, position='bottom')
 
         btnContainer = QtWidgets.QWidget()
-        btnContainerLayout = QtWidgets.QGridLayout()
+        btnContainerLayout = QFlowLayout()
+        btnContainerLayout.setContentsMargins(0, 0, 0, 0)
         btnContainer.setLayout(btnContainerLayout)
         container.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Add a sample')
         btn.clicked.connect(self._onSampleBtnClicked)
-        btnContainerLayout.addWidget(btn, 0, 0)
+        btnContainerLayout.addWidget(btn)
         self._sampleBtn = btn
         # TODO: change color to warning indicator when coil or tracker are not visible
 
         btn = QtWidgets.QPushButton('Sample ⇒ Target')
         btn.clicked.connect(self._onSampleToTargetBtnClicked)
-        btnContainerLayout.addWidget(btn, 0, 1)
+        btnContainerLayout.addWidget(btn)
         btn.setEnabled(False)
         self._sampleToTargetBtn = btn
         # TODO: only enable when one or more samples are selected
 
-        btn = QtWidgets.QPushButton('Hide sample')
-        btn.clicked.connect(self._onHideSampleBtnClicked)
-        btn.setEnabled(False)
-        btnContainerLayout.addWidget(btn, 1, 1)
-        self._hideSampleBtn = btn
-
-        btn = QtWidgets.QPushButton('Show sample')
-        btn.clicked.connect(self._onShowSampleBtnClicked)
-        btn.setEnabled(False)
-        btnContainerLayout.addWidget(btn, 1, 0)
-        self._showSampleBtn = btn
-
         btn = QtWidgets.QPushButton('Hide all samples')
         btn.clicked.connect(self._onHideAllSamplesBtnClicked)
-        btnContainerLayout.addWidget(btn, 2, 1)
+        btnContainerLayout.addWidget(btn)
         self._hideAllSamplesBtn = btn
 
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
@@ -403,12 +393,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
     def _onSelectedSamplesChanged(self, selectedKeys: list[str]):
         if self._hasInitialized:
             numSelectedHidden = sum(not self.session.samples[key].isVisible for key in selectedKeys)
-            self._showSampleBtn.setEnabled(numSelectedHidden > 0)
-            self._showSampleBtn.setText('Show samples' if numSelectedHidden > 1 else 'Show sample')
 
             numSelectedVisible = len(selectedKeys) - numSelectedHidden
-            self._hideSampleBtn.setEnabled(numSelectedVisible > 0)
-            self._hideSampleBtn.setText('Hide samples' if numSelectedVisible > 1 else 'Hide sample')
 
             self._sampleToTargetBtn.setEnabled(len(selectedKeys) > 0)
 
@@ -483,10 +469,12 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             match View:
                 case 'TargetingCrosshairs':
                     View = TargetingCrosshairsView
+                    kwargs.setdefault('title', 'Crosshairs (Z)')
                     kwargs.setdefault('doShowHandleAngleError', True)
                     kwargs.setdefault('cameraDist', 150)
                 case 'TargetingCrosshairs-X':
                     View = TargetingCrosshairsView
+                    kwargs.setdefault('title', 'Crosshairs (X)')
                     kwargs.setdefault('doParallelProjection', True)
                     kwargs.setdefault('alignCameraTo', 'coil+X')
                     kwargs.setdefault('cameraDist', 75)
@@ -494,6 +482,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
                     kwargs.setdefault('doShowTargetTangentialAngleError', True)
                     kwargs.setdefault('doShowScalpTangentialAngleError', True)
                 case 'TargetingCrosshairs-Y':
+                    kwargs.setdefault('title', 'Crosshairs (Y)')
                     View = TargetingCrosshairsView
                     kwargs.setdefault('doParallelProjection', True)
                     kwargs.setdefault('alignCameraTo', 'coil-Y')
