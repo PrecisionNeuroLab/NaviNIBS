@@ -1,3 +1,4 @@
+import asyncio
 import attrs
 import logging
 import numpy as np
@@ -5,6 +6,7 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
 from RTNaBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
 from RTNaBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
@@ -36,6 +38,8 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
 
     _doAdjustSizeToContents: bool = True
 
+    _needsResizeToContents: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     sigCurrentItemChanged: Signal = attrs.field(init=False, factory=lambda: Signal((K,)))
     """
     Includes key (or index) of newly selected item.
@@ -57,6 +61,8 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._tableView.setSelectionMode(self._tableView.SelectionMode.ExtendedSelection)
         if self._doAdjustSizeToContents:
             self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
+            asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsLoop))
+
         if self._session is not None:
             self._onSessionSet()
 
@@ -154,7 +160,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def _onTableRowsInserted(self, parent: QtCore.QModelIndex, first: int, last: int):
         # scroll to end of new rows automatically
         self._tableView.scrollTo(self._model.index(last, 0))
-        self._tableView.resizeColumnsToContents()
+        self._needsResizeToContents.set()
 
     def _onModelSelectionChanged(self, changedKeys: list[K]):
         logger.debug(f'Updating selection for keys {changedKeys}')
@@ -179,6 +185,19 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
 
         self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
 
+    async def _resizeToContentsLoop(self):
+        """
+        resizeColumnsToContents is very expensive, so don't run on every update.
+        Instead, wait until there are no changes for at least 20 sec to resize.
+        """
+        while True:
+            await self._needsResizeToContents.wait()
+            while self._needsResizeToContents.is_set():
+                self._needsResizeToContents.clear()
+                await asyncio.sleep(20.)
+
+            logger.debug('Resizing columns to contents')
+            self._tableView.resizeColumnsToContents()
 
 @attrs.define
 class DigitizedLocationsTableWidget(CollectionTableWidget[str, DigitizedLocation, DigitizedLocations, DigitizedLocationsTableModel]):
