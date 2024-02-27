@@ -242,10 +242,6 @@ class PlotterImprovementsMixin:
         return toReturn
 
 
-
-
-
-
 class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImprovementsMixin):
     """
     Similar to pvqt.BackgroundPlotter, with a few key differences:
@@ -276,7 +272,7 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
                                                  auto_update=auto_update,
                                                  **kwargs)
 
-        #self.enable_anti_aliasing()  # for nice visuals
+        self.enable_anti_aliasing()  # for nice visuals
 
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
 
@@ -287,29 +283,6 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
             action.triggered.connect(self._onExportToObj)
 
         PlotterImprovementsMixin.__init__(self)
-
-    def _onExportToObj(self):
-        exportFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self,
-                                                               'Export scene to obj',
-                                                               '',
-                                                               'obj (*.obj)')
-        if len(exportFilepath) == 0:
-            logger.info('Export cancelled')
-            return
-
-        self.export_obj(exportFilepath)
-
-    def closeEvent(self, evt):
-        toRet = super().closeEvent(evt)
-        self.close()
-        self.Finalize()  # suggested by https://discourse.vtk.org/t/wglmakecurrent-failed-in-makecurrent-after-closed-a-window-with-two-vtk-widget/5899/2
-        return toRet
-
-    def addIrenStyleClassObserver(self, *, event: str, callback: tp.Callable):
-        # shortcut alias for self.iren._style_class.AddObserver, with kwargs instead of args, and
-        # not passing first arg when calling callback
-        # (all for easier implementation with remote plotters)
-        return self.iren._style_class.AddObserver(event, lambda _, event: callback(None, event))
 
     @contextmanager
     def allowNonblockingCalls(self):
@@ -339,6 +312,28 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
         """
         return self.add_points(*args, **kwargs)
 
+    def _onExportToObj(self):
+        exportFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self,
+                                                               'Export scene to obj',
+                                                               '',
+                                                               'obj (*.obj)')
+        if len(exportFilepath) == 0:
+            logger.info('Export cancelled')
+            return
+
+        self.export_obj(exportFilepath)
+
+    def closeEvent(self, evt):
+        toRet = super().closeEvent(evt)
+        self.close()
+        self.Finalize()  # suggested by https://discourse.vtk.org/t/wglmakecurrent-failed-in-makecurrent-after-closed-a-window-with-two-vtk-widget/5899/2
+        return toRet
+
+    def addIrenStyleClassObserver(self, *, event: str, callback: tp.Callable):
+        # shortcut alias for self.iren._style_class.AddObserver, with kwargs instead of args, and
+        # not passing first arg when calling callback
+        # (all for easier implementation with remote plotters)
+        return self.iren._style_class.AddObserver(event, lambda _, event: callback(None, event))
 
 
 class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovementsMixin):
@@ -376,6 +371,22 @@ class SecondaryLayeredPlotter(_DelayedPlotter, pv.BasePlotter, PlotterImprovemen
         self.iren = None
 
         PlotterImprovementsMixin.__init__(self)
+
+    @contextmanager
+    def allowNonblockingCalls(self):
+        """
+        For now, this is does nothing. Is here for interface compatibility with RemotePlotterProxy that may be used instead.
+        :return:
+        """
+        yield
+
+    @contextmanager
+    def disallowNonblockingCalls(self):
+        """
+        For now, this is does nothing. Is here for interface compatibility with RemotePlotterProxy that may be used instead.
+        :return:
+        """
+        yield
 
     @property
     def rendererLayer(self):
