@@ -272,7 +272,7 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
                                                  auto_update=auto_update,
                                                  **kwargs)
 
-        self.enable_anti_aliasing()  # for nice visuals
+        # self.enable_anti_aliasing()  # for nice visuals
 
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
 
