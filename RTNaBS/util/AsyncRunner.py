@@ -1,4 +1,5 @@
 import asyncio
+import atexit
 import logging
 import typing as tp
 
@@ -30,6 +31,9 @@ def asyncioRunAndHandleExceptions(fn: tp.Callable[..., tp.Awaitable], *args, **k
         logger.error('Exception: %s' % exceptionToStr(e))
         raise e
     finally:
+        logger.debug('Running any atexits')
+        atexit._run_exitfuncs()
+
         logger.debug('Running any shutdown_asyncgens')
         try:
             loop.run_until_complete(loop.shutdown_asyncgens())
