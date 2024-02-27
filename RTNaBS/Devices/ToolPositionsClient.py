@@ -11,6 +11,7 @@ from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, posi
 from RTNaBS.util import ZMQAsyncioFix
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.ZMQConnector import ZMQConnectorClient, logger as logger_ZMQConnector
+from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import concatenateTransforms
 from RTNaBS.util import exceptionToStr
@@ -122,6 +123,31 @@ class ToolPositionsClient:
 
                 self._timeLastHeardFromServer = time.time()
                 self._updateIsConnected()
+
+                newPositions = {key: (TimestampedToolPosition.fromDict(val) if val is not None else None) for key, val in msg.items()}
+
+                # only notify if tool position (not time) changed
+                positionsChanged = False
+                for key, newPos in newPositions.items():
+                    try:
+                        oldPos = self._latestPositions[key]
+                    except KeyError:
+                        positionsChanged = True
+                        break
+                    else:
+                        if not array_equalish(oldPos.transf, newPos.transf) or oldPos.relativeTo != newPos.relativeTo:
+                            positionsChanged = True
+                            break
+
+                if not positionsChanged:
+                    for key, val in self._latestPositions.items():
+                        if key not in newPositions:
+                            positionsChanged = True
+                            break
+
+                if not positionsChanged:
+                    logger.debug('Positions not changed during update, not signaling.')
+                    continue
 
                 self._latestPositions = {key: (TimestampedToolPosition.fromDict(val) if val is not None else None) for key, val in msg.items()}
                 logger.debug('Signaling change in latest positions')
