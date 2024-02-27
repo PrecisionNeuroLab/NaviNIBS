@@ -15,6 +15,7 @@ import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
+import time
 import typing as tp
 
 from . import MainViewPanel
@@ -559,7 +560,7 @@ class ToolsPanel(MainViewPanel):
                 await positionsClient.recordNewPosition(
                     tool.trackerKey,
                     position=TimestampedToolPosition(
-                        time=0.,
+                        time=time.time(),
                         transf=tool.initialTrackerPose,
                         relativeTo=tool.initialTrackerPoseRelativeTo
                     ))

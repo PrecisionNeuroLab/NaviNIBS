@@ -67,7 +67,7 @@ class CameraObjectsView(QueuedRedrawMixin):
         if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()
 
-        if isinstance(DefaultBackgroundPlotter, RemotePlotterProxy):
+        if isinstance(self._plotter, RemotePlotterProxy):
             self._plotter.enable_depth_peeling(4)
 
         self._plotter.add_axes_at_origin(labels_off=True, line_width=4)
