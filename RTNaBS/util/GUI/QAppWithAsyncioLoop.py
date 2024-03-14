@@ -10,6 +10,7 @@ from ..Signaler import Signal
 
 
 from RTNaBS.util import exceptionToStr
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 
 logger = logging.getLogger(__name__)
 
@@ -81,14 +82,8 @@ class RunnableAsApp:
     def appIsClosing(self):
         return self._appIsClosing
 
-    @classmethod
-    async def createAndRun_async(cls, *args, **kwargs):
-        logger.debug('Creating %s' % (cls.__name__,))
-        try:
-            self = cls(*args, doRunAsApp=True, **kwargs)
-        except Exception as e:
-            raise e
-        logger.debug('Running %s' % (cls.__name__,))
+    async def _runLoop(self):
+        logger.debug('Running %s' % (self.__class__.__name__,))
         if self._appLogEveryNLoops is None:
             counter = 1
         else:
@@ -110,6 +105,23 @@ class RunnableAsApp:
             # so check (infrequently) whether window has been closed and quit manually
             if self._appLogEveryNLoops is not None:
                 counter = (counter + 1) % self._appLogEveryNLoops
+
+    @classmethod
+    def createAndRunAsTask(cls, *args, **kwargs):
+        logger.debug('Creating %s' % (cls.__name__,))
+        self = cls(*args, doRunAsApp=True, **kwargs)
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._runLoop))
+        return self
+
+    @classmethod
+    async def createAndRun_async(cls, *args, **kwargs):
+        logger.debug('Creating %s' % (cls.__name__,))
+        try:
+            self = cls(*args, doRunAsApp=True, **kwargs)
+        except Exception as e:
+            raise e
+
+        await self._runLoop()
 
     @classmethod
     def createAndRun(cls, *args, **kwargs):

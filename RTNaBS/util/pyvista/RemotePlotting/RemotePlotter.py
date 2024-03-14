@@ -14,6 +14,7 @@ from qtpy import QtWidgets, QtCore
 from zmq import asyncio as azmq
 
 from RTNaBS.util import exceptionToStr
+from RTNaBS.util import ZMQAsyncioFix
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 
