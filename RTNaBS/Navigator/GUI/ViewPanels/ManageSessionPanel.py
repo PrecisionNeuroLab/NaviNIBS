@@ -37,6 +37,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _autosavePeriod: float = 60  # in sec
 
     _inProgressBaseDir: tp.Optional[str] = None
+    _newSessionBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveShortcut: QtWidgets.QShortcut = attrs.field(init=False)
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -72,6 +73,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._wdgt.addDock(dock, position='left')
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
+        self._newSessionBtn = btn
         btn.clicked.connect(lambda checked: self._createNewSession())
         container.layout().addWidget(btn)
 
@@ -139,13 +141,13 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         container.layout().addRow('Session filepath', wdgt)
 
         wdgt = QtWidgets.QLineEdit()
-        wdgt.textEdited.connect(lambda text, key='subjectID': self._onInfoTextEdited(key, text))
+        wdgt.editingFinished.connect(lambda key='subjectID': self._onInfoTextEdited(key))
         self._infoWdgts['subjectID'] = wdgt
         container.layout().addRow('Subject ID', wdgt)
         # TODO: continue here
 
         wdgt = QtWidgets.QLineEdit()
-        wdgt.textEdited.connect(lambda text, key='sessionID': self._onInfoTextEdited(key, text))
+        wdgt.editingFinished.connect(lambda key='sessionID': self._onInfoTextEdited(key))
         self._infoWdgts['sessionID'] = wdgt
         container.layout().addRow('Session ID', wdgt)
 
@@ -239,19 +241,39 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 dir = 'todo'
             else:
                 dir = str(pathlib.Path.home())
-            sesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
-                                                                'Create new session file',
-                                                                dir,
-                                                                'Session folder (*.navinibsdir);; Session file (*.navinibs)')
+
+
+            useFilters = False
+
+            if useFilters:
+                sesFilepath, selectedFilter = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
+                                                                    'Create new session file',
+                                                                    dir,
+                                                                    'Session file (*.navinibs);;Session folder (*)',
+                                                                    'Session folder (*)')
+            else:
+                sesFilepath, selectedFilter = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
+                                                                                    'Create new session file',
+                                                                                    dir)
+
             if len(sesFilepath) == 0:
                 logger.info('Browse new session cancelled')
                 return
+
+            if useFilters:
+                # due to some issue with QFileDialog, if ext filters are specified, then an extension is always
+                # appended, even if none was specified and this empty ext matches an existing filter.
+                # So strip extension manually if the empty filter was selected.
+                # This has the side effect that the .navinibs filter MUST be selected to specify a .navinibs path.
+                if selectedFilter == 'Session folder (*)':
+                    sesFilepath = os.path.splitext(sesFilepath)[0]
+
         logger.info('New session filepath: {}'.format(sesFilepath))
 
-        if sesFilepath.endswith('.navinibsdir'):
-            unpackedSessionDir = sesFilepath
-        else:
+        if sesFilepath.endswith('.navinibs'):
             unpackedSessionDir = self._getNewInProgressSessionDir()
+        else:
+            unpackedSessionDir = sesFilepath
         session = Session.createNew(filepath=sesFilepath, unpackedSessionDir=unpackedSessionDir)
         self.sigAboutToFinishLoadingSession.emit(session)
         self.session = session
@@ -278,7 +300,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         try:
             if os.path.isdir(sesFilepath):
                 # treat as already-unpacked session dir
-                session = Session.loadFromUnpackedDir(unpackedSessionDir=sesFilepath, filepath=sesFilepath)
+                session = Session.loadFromFolder(folderpath=sesFilepath)
             else:
                 # treat as compressed file
                 assert os.path.isfile(sesFilepath)
@@ -362,7 +384,8 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 val = getattr(self.session, key)
                 self._infoWdgts[key].setText('' if val is None else val)
 
-    def _onInfoTextEdited(self, key: str, text: str):
+    def _onInfoTextEdited(self, key: str):
+        text = self._infoWdgts[key].text()
         if len(text) == 0:
             text = None
         if self.session is not None:
@@ -371,9 +394,15 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         else:
             logger.warning('Ignoring edited value of {} since session is closed.'.format(key))
 
+    async def _autosave(self):
+        logger.debug('Trying to autosave')
+        if self.session is None:
+            logger.debug('Session is None, nothing to autosave.')
+        else:
+            self.session.saveToUnpackedDir(asAutosave=True)
+        logger.debug('Done trying to autosave')
+
     async def _autosaveOccasionally(self):
         while True:
             await asyncio.sleep(self._autosavePeriod)
-            logger.debug('Trying to autosave')
-            self.session.saveToUnpackedDir(asAutosave=True)
-            logger.debug('Done trying to autosave')
+            await self._autosave()
