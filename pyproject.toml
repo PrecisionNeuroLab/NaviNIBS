@@ -1,9 +1,9 @@
 [tool.poetry]
-name = "RTNaBS"
+name = "NaviNIBS"
 version = "0.0.1"
-description = "Software for real-time navigated brain stimulation"
-authors = ["Chris Cline <chriscline@users.noreply.github.com>"]
-license = "MIT"
+description = "Software for neuronavigated non-invasive brain stimulation"
+authors = ["Christopher C. Cline <chriscline@users.noreply.github.com>"]
+license = "LGPLv3"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
