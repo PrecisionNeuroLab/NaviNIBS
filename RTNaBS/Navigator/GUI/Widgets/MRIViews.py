@@ -59,9 +59,9 @@ class MRISliceView:
         if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()
 
-        self._plotter.set_background(self._backgroundColor)
-
-        _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.set_background(self._backgroundColor)
+            _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
 
         self._finishedAsyncInit.set()
 
@@ -226,31 +226,33 @@ class MRISliceView:
 
         if not self._plotterPickerInitialized:
             logger.debug('Initializing plot for {} slice'.format(self.label))
-            self.plotter.enable_parallel_projection()
-            self.plotter.enable_point_picking(left_clicking=True,
-                                               show_message=False,
-                                               show_point=False,
-                                               pickable_window=True,
-                                               callback=lambda newPt: self._onSlicePointChanged())
-            self.plotter.enable_image_style()
-            for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
-                self.plotter.addIrenStyleClassObserver(
-                    event=event,
-                    callback=lambda obj, event: self._onMouseEvent(obj,event))
+            with self.plotter.allowNonblockingCalls():
+                self.plotter.enable_parallel_projection()
+                self.plotter.enable_point_picking(left_clicking=True,
+                                                   show_message=False,
+                                                   show_point=False,
+                                                   pickable_window=True,
+                                                   callback=lambda newPt: self._onSlicePointChanged())
+                self.plotter.enable_image_style()
+                for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
+                    self.plotter.addIrenStyleClassObserver(
+                        event=event,
+                        callback=lambda obj, event: self._onMouseEvent(obj,event))
             self._plotterPickerInitialized = True
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
             slice = self.session.MRI.dataAsUniformGrid.slice(normal=self._normal, origin=self._sliceOrigin)  # this is very slow for some reason
-            self._plotter.add_mesh(slice,
-                                   name='slice',
-                                   cmap='gray',
-                                   render=False,
-                                   reset_camera=False)
-            if isinstance(self._normal, str):
-                self.plotter.camera_position = 'xyz'.replace(self._normal, '')
-            else:
-                raise NotImplementedError()  # TODO
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.add_mesh(slice,
+                                       name='slice',
+                                       cmap='gray',
+                                       render=False,
+                                       reset_camera=False)
+                if isinstance(self._normal, str):
+                    self.plotter.camera_position = 'xyz'.replace(self._normal, '')
+                else:
+                    raise NotImplementedError()  # TODO
 
         elif self._slicePlotMethod == 'cameraClippedVolume':
             # volume plotting with camera clipping
@@ -258,20 +260,21 @@ class MRISliceView:
                 logger.debug('Getting MRI data as uniform grid')
                 vol = self.session.MRI.dataAsUniformGrid
                 logger.debug('Initializing volume plot of data')
-                self._plotter.add_volume(vol,
-                                         scalars='MRI',
-                                         name='MRI',
-                                         mapper='gpu',
-                                         clim=self._clim,
-                                         scalar_bar_args=dict(
-                                             title='',
-                                             color='white',
-                                             vertical=True,
-                                         ),
-                                         opacity=[0, self._opacity, self._opacity],
-                                         cmap='gray',
-                                         render=False,
-                                         reset_camera=False)
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.add_volume(vol,
+                                             scalars='MRI',
+                                             name='MRI',
+                                             mapper='gpu',
+                                             clim=self._clim,
+                                             scalar_bar_args=dict(
+                                                 title='',
+                                                 color='white',
+                                                 vertical=True,
+                                             ),
+                                             opacity=[0, self._opacity, self._opacity],
+                                             cmap='gray',
+                                             render=False,
+                                             reset_camera=False)
 
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
@@ -391,20 +394,21 @@ class MRI3DView(MRISliceView):
 
         if not self._plotterInitialized:
             logger.debug('Initializing 3D plot')
-            self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
-                                     scalars='MRI',
-                                     scalar_bar_args=dict(
-                                         title='',
-                                         color='white',
-                                         vertical=True,
-                                     ),
-                                     name='vol',
-                                     clim=self._clim,
-                                     cmap='gray',
-                                     mapper='gpu',
-                                     opacity=[0, self._opacity, self._opacity],
-                                     shade=False)
-            self.plotter.reset_camera()
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
+                                         scalars='MRI',
+                                         scalar_bar_args=dict(
+                                             title='',
+                                             color='white',
+                                             vertical=True,
+                                         ),
+                                         name='vol',
+                                         clim=self._clim,
+                                         cmap='gray',
+                                         mapper='gpu',
+                                         opacity=[0, self._opacity, self._opacity],
+                                         shade=False)
+                self.plotter.reset_camera()
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
