@@ -336,6 +336,14 @@ class NavigatorGUI(RunnableAsApp):
     def mainViewPanels(self):
         return self._mainViewPanels
 
+    @property
+    def manageSessionPanel(self) -> ManageSessionPanel:
+        return self._mainViewPanels['Manage session']
+
+    @property
+    def mriPanel(self) -> MRIPanel:
+        return self._mainViewPanels['Set MRI']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
@@ -356,16 +364,19 @@ class NavigatorGUI(RunnableAsApp):
         fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
 
     @property
-    def activeViewKey(self) -> str:
-        return list(self._mainViewPanels.keys())[0]
-        viewWdgt = self._mainViewStackedWdgt.currentWidget()
-        viewKeys = [key for key, val in self._mainViewPanels.items() if val.wdgt is viewWdgt]
-        assert len(viewKeys) == 1
-        return viewKeys[0]
+    def activeViewKey(self) -> str | None:
+        """
+        Note: This doesn't account for "active" views is secondary windows, split views, etc.
+        """
+        try:
+            return self._rootDockArea.topContainer.stack.currentWidget().name()
+        except:
+            # can happen if root is not a tabbed container (?)
+            return None
 
     def _activateView(self, viewKey: str):
 
-        self._mainViewPanels[viewKey].dockWdgt.raise_()
+        self._mainViewPanels[viewKey].dockWdgt.raiseDock()
 
         logger.info('Switched to view "{}"'.format(viewKey))
 
