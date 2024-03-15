@@ -282,6 +282,26 @@ class Session:
 
         config['softwareVersion'] = RTNaBS.__version__
 
+        def saveConfigPartToFileIfNeeded(key: str, getWhatToDump: tp.Callable[[], tp.Any]):
+            if key in keysToSave or not saveDirtyOnly:
+                logger.debug(f'Writing {key} info')
+                upperKey = key[0].upper() + key[1:]
+                configFilename_part = autosaveFilenamePrefix + self._sessionConfigFilename + '_' + upperKey + '.json'
+                outputPath = os.path.join(self.unpackedSessionDir, configFilename_part)
+                toDump = getWhatToDump()
+                if len(toDump) == 0:
+                    # delete output if it already exists
+                    if os.path.exists(outputPath):
+                        os.remove(outputPath)
+                    if key in config:
+                        del config[key]
+                else:
+                    config[key] = configFilename_part
+                    toWrite = self._prettyJSONDumps(toDump)
+                    with open(outputPath, 'w') as f:
+                        f.write(toWrite)
+                keysToSave.discard(key)
+
         if 'info' in keysToSave or not saveDirtyOnly:
             logger.debug('Writing session info')
             infoFields = ('filepath', 'subjectID', 'sessionID')
@@ -291,94 +311,42 @@ class Session:
 
         otherPathsRelTo = self.filepath
 
-        if 'MRI' in keysToSave or not saveDirtyOnly:
-            # save MRI path relative to location of compressed file
-            logger.debug('Writing MRI info')
-            configFilename_MRI =  autosaveFilenamePrefix + self._sessionConfigFilename + '_MRI' + '.json'
-            config['MRI'] = configFilename_MRI
-            with open(os.path.join(self.unpackedSessionDir, configFilename_MRI), 'w') as f:
-                f.write(self._prettyJSONDumps(self.MRI.asDict(filepathRelTo=otherPathsRelTo)))
-            keysToSave.discard('MRI')
+        saveConfigPartToFileIfNeeded('MRI', lambda: self.MRI.asDict(filepathRelTo=otherPathsRelTo))
 
-        if 'headModel' in keysToSave or not saveDirtyOnly:
-            # save head model path relative to location of compressed file
-            logger.debug('Writing headModel info')
-            configFilename_headModel = autosaveFilenamePrefix + self._sessionConfigFilename + '_HeadModel' + '.json'
-            config['headModel'] = configFilename_headModel
-            with open(os.path.join(self.unpackedSessionDir, configFilename_headModel), 'w') as f:
-                f.write(self._prettyJSONDumps(self.headModel.asDict(filepathRelTo=otherPathsRelTo)))
-            keysToSave.discard('headModel')
+        saveConfigPartToFileIfNeeded('headModel', lambda: self.headModel.asDict(filepathRelTo=otherPathsRelTo))
 
-        if 'coordinateSystems' in keysToSave or not saveDirtyOnly:
-            # save coordinate systems path relative to location of compressed file
-            logger.debug('Writing coordinateSystems info')
-            configFilename_coordinateSystems = autosaveFilenamePrefix + self._sessionConfigFilename + '_CoordinateSystems' + '.json'
-            config['coordinateSystems'] = configFilename_coordinateSystems
-            with open(os.path.join(self.unpackedSessionDir, configFilename_coordinateSystems), 'w') as f:
-                f.write(self._prettyJSONDumps(self.coordinateSystems.asList()))
-            keysToSave.discard('coordinateSystems')
+        saveConfigPartToFileIfNeeded('coordinateSystems', lambda: self.coordinateSystems.asList())
 
-        if 'digitizedLocations' in keysToSave or not saveDirtyOnly:
-            # save digitized locations path relative to location of compressed file
-            logger.debug('Writing digitizedLocations info')
-            configFilename_digitizedLocations = autosaveFilenamePrefix + self._sessionConfigFilename + '_DigitizedLocations' + '.json'
-            config['digitizedLocations'] = configFilename_digitizedLocations
-            with open(os.path.join(self.unpackedSessionDir, configFilename_digitizedLocations), 'w') as f:
-                f.write(self._prettyJSONDumps(self.digitizedLocations.asList()))
-            keysToSave.discard('digitizedLocations')
+        saveConfigPartToFileIfNeeded('digitizedLocations', lambda: self.digitizedLocations.asList())
 
-        if 'subjectRegistration' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing subjectRegistration info')
-            configFilename_subjectReg = autosaveFilenamePrefix + self._sessionConfigFilename + '_SubjectRegistration' + '.json'
-            config['subjectRegistration'] = configFilename_subjectReg
-            with open(os.path.join(self.unpackedSessionDir, configFilename_subjectReg), 'w') as f:
-                f.write(self._prettyJSONDumps(self.subjectRegistration.asDict()))
-            # TODO: save contents of potentially larger *History fields to separate file(s)
-            keysToSave.discard('subjectRegistration')
+        saveConfigPartToFileIfNeeded('subjectRegistration', lambda: self.subjectRegistration.asDict())
+        # TODO: maybe save contents of potentially larger *History fields to separate file(s)
 
-        if 'targets' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing targets info')
-            configFilename_targets = autosaveFilenamePrefix + self._sessionConfigFilename + '_Targets' + '.json'
-            config['targets'] = configFilename_targets
-            with open(os.path.join(self.unpackedSessionDir, configFilename_targets), 'w') as f:
-                f.write(self._prettyJSONDumps(self.targets.asList()))
-            keysToSave.discard('targets')
+        saveConfigPartToFileIfNeeded('targets', lambda: self.targets.asList())
 
-        if 'samples' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing samples info')
-            configFilename_samples = autosaveFilenamePrefix + self._sessionConfigFilename + '_Samples' + '.json'
-            config['samples'] = configFilename_samples
-            with open(os.path.join(self.unpackedSessionDir, configFilename_samples), 'w') as f:
-                f.write(self._prettyJSONDumps(self.samples.asList()))
-            keysToSave.discard('samples')
+        saveConfigPartToFileIfNeeded('samples', lambda: self.samples.asList())
 
-        if 'tools' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing tools info')
-            configFilename_tools = autosaveFilenamePrefix + self._sessionConfigFilename + '_Tools' + '.json'
-            config['tools'] = configFilename_tools
-            with open(os.path.join(self.unpackedSessionDir, configFilename_tools), 'w') as f:
-                f.write(self._prettyJSONDumps(self.tools.asList()))
-            keysToSave.discard('tools')
+        saveConfigPartToFileIfNeeded('tools', lambda: self.tools.asList())
 
-        if 'triggerSources' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing triggerSources info')
-            config['triggerSources'] = self.triggerSources.asList()
-            keysToSave.discard('triggerSources')
+        thisKey = 'triggerSources'
+        if thisKey in keysToSave or not saveDirtyOnly:
+            logger.debug(f'Writing {thisKey} info')
+            config[thisKey] = self.triggerSources.asList()
+            if len(config[thisKey]) == 0:
+                 del config[thisKey]
+            keysToSave.discard(thisKey)
 
-        if 'dockWidgetLayouts' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing dockWidgetLayouts info')
-            configFilename_dockWidgetLayouts = autosaveFilenamePrefix + self._sessionConfigFilename + '_DockWidgetLayouts' + '.json'
-            config['dockWidgetLayouts'] = configFilename_dockWidgetLayouts
-            with open(os.path.join(self.unpackedSessionDir, configFilename_dockWidgetLayouts), 'w') as f:
-                f.write(self._prettyJSONDumps(self.dockWidgetLayouts.asList()))
-            keysToSave.discard('dockWidgetLayouts')
+        saveConfigPartToFileIfNeeded('dockWidgetLayouts', lambda: self.dockWidgetLayouts.asList())
 
         # TODO: loop through any addons to give them a chance to save to config as needed
 
-        if 'addons' in keysToSave or not saveDirtyOnly:
-            logger.debug('Writing addons info')
-            config['addons'] = self.addons.asList(unpackedSessionDir=self.unpackedSessionDir)
-            keysToDiscard = {'addons'}
+        thisKey = 'addons'
+        if thisKey in keysToSave or not saveDirtyOnly:
+            logger.debug(f'Writing {thisKey} info')
+            config[thisKey] = self.addons.asList(unpackedSessionDir=self.unpackedSessionDir)
+            if len(config[thisKey]) == 0:
+                 del config[thisKey]
+            keysToDiscard = {thisKey}
             for key in keysToSave:
                 if key.startswith('addon.'):
                     keysToDiscard.add(key)
@@ -551,6 +519,10 @@ class Session:
         logger.debug('Done unpacking')
         return cls.loadFromUnpackedDir(unpackedSessionDir=unpackedSessionDir, filepath=filepath,
                                        compressedFileIsDirty=False)
+
+    @classmethod
+    def loadFromFolder(cls, folderpath: str, **kwargs):
+        return cls.loadFromUnpackedDir(unpackedSessionDir=folderpath, filepath=folderpath, **kwargs)
 
     @classmethod
     def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None, **kwargs):

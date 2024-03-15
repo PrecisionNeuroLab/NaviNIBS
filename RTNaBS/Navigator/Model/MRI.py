@@ -15,6 +15,7 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
+from RTNaBS.util.attrs import attrsAsDict
 from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.numpy import array_equalish
 
@@ -112,10 +113,8 @@ class MRI:
         return self._dataAsUniformGrid
 
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
-        d = dict(
-            filepath=self._filepath
-        )
-        if d['filepath'] is not None:
+        d = attrsAsDict(self)
+        if 'filepath' in d:
             d['filepath'] = os.path.relpath(d['filepath'], filepathRelTo)
 
         return d

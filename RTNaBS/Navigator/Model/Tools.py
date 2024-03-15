@@ -643,8 +643,9 @@ class Tools(GenericCollection[str, Tool]):
 
         # add ToolPositionsServer info as another entry in list next to tools
         serverInfo = self._positionsServerInfo.asDict()
-        serverInfo['key'] = 'ToolPositionsServer'
-        toolList.append(serverInfo)
+        if len(serverInfo) > 0:
+            serverInfo['key'] = 'ToolPositionsServer'
+            toolList.append(serverInfo)
 
         return toolList
 
