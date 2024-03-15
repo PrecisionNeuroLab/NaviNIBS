@@ -352,6 +352,10 @@ class NavigatorGUI(RunnableAsApp):
     def planFiducialsPanel(self) -> FiducialsPanel:
         return self._mainViewPanels['Plan fiducials']
 
+    @property
+    def setTargetsPanel(self) -> TargetsPanel:
+        return self._mainViewPanels['Set targets']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
