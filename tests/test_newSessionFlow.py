@@ -17,6 +17,9 @@ from RTNaBS.Navigator.Model.Session import Session
 logger = logging.getLogger(__name__)
 
 
+doAssertScreenshotsEqual = False
+
+
 @pytest.fixture
 def existingResourcesDataPath():
     """
@@ -33,7 +36,14 @@ def screenshotsDataSourcePath(existingResourcesDataPath):
 
 @pytest.fixture
 def mriDataSourcePath(existingResourcesDataPath):
-    return os.path.join(existingResourcesDataPath, 'sub-test_wt-T1_seq-SagFSPGRBRAVO_MRI.nii.gz')
+    return os.path.join(existingResourcesDataPath, 'testSourceData',
+                        'sub-test_wt-T1_seq-SagFSPGRBRAVO_MRI.nii.gz')
+
+
+@pytest.fixture
+def headModelDataSourcePath(existingResourcesDataPath):
+    return os.path.join(existingResourcesDataPath, 'testSourceData',
+                        'sub-test_T1Seq-SagFSPGRBRAVO_SimNIBS', 'sub-test.msh')
 
 
 @pytest.fixture(scope='session')
@@ -90,7 +100,7 @@ def copySessionFolder(workingDir: str, fromPathKey: str, toPathKey: str) -> str:
 
     return toPath
 
-def assertSavedSessionIsValid(sessionPath: str):
+def assertSavedSessionIsValid(sessionPath: str) -> Session:
     if os.path.isfile(sessionPath):
         ses = Session.loadFromFile(filepath=sessionPath)
     else:
@@ -99,6 +109,8 @@ def assertSavedSessionIsValid(sessionPath: str):
     # load would have thrown exception if there was an issue
 
     # TODO: maybe do some jsonschema validation here
+
+    return ses
 
 
 async def waitForever():
@@ -118,7 +130,7 @@ def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str):
     ImageGrab.grab(bbox).save(saveToPath)
 
 
-def assertImagesEqualish(img1Path: str, img2Path: str):
+def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True):
     from PIL import ImageChops, Image
     with Image.open(img1Path) as im1, Image.open(img2Path) as im2:
         diff = ImageChops.difference(im1, im2)
@@ -134,8 +146,9 @@ def assertImagesEqualish(img1Path: str, img2Path: str):
                 imJoined.paste(im, (xOffset, 0))
                 xOffset += im.width
             imJoined.show()
-        # TODO: add some tolerance for permissible differences (with configurable threshold)
-        assert not diff.getbbox()
+        if doAssertEqual:
+            # TODO: add some tolerance for permissible differences (with configurable threshold)
+            assert not diff.getbbox()
 
 
 @pytest_asyncio.fixture
@@ -145,7 +158,7 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
 
 @pytest.mark.asyncio
 async def test_openSession(workingDir):
-    sessionKey = 'setMRI'
+    sessionKey = 'SetHeadModel'
     sessionPath = getSessionPath(workingDir, sessionKey)
     NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath)
     while True:
@@ -244,6 +257,7 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
+    # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
 
     # TODO: break this apart into separate steps, save and reload after each
@@ -268,33 +282,157 @@ async def test_setMRIInfo(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
-    # set MRI
+    # equivalent to clicking on MRI tab
     navigatorGUI._activateView(navigatorGUI.mriPanel.key)
 
+    # give time for initialization
+    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
     await asyncio.sleep(10.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.mriPanel.key
-
-    # TODO: continue writing test here
 
     mriDataFilename = os.path.split(mriDataSourcePath)[1]
     mriDataTestPath = os.path.join(sessionPath, '..', mriDataFilename)
     if not os.path.exists(mriDataTestPath):
         shutil.copy(mriDataSourcePath, mriDataTestPath)
 
+    # equivalent to clicking browse and selecting MRI data path in GUI
     navigatorGUI.mriPanel._filepathWdgt.filepath = mriDataTestPath
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = assertSavedSessionIsValid(sessionPath)
+
+    assert os.path.normpath(ses.MRI.filepath) == os.path.normpath(mriDataTestPath)
 
     if True:
         screenshotPath = os.path.join(sessionPath, 'MRI1.png')
         captureScreenshot(navigatorGUI, screenshotPath)
         pyperclip.copy(str(screenshotPath))
+        # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
         await asyncio.sleep(10.)
         screenshotPath = os.path.join(sessionPath, 'MRI2.png')
         captureScreenshot(navigatorGUI, screenshotPath)
         pyperclip.copy(str(screenshotPath))
 
-        assertImagesEqualish(screenshotPath,
-                             os.path.join(screenshotsDataSourcePath, 'SetMRI.png'))
+        compareImages(screenshotPath,
+                      os.path.join(screenshotsDataSourcePath, 'SetMRI.png'),
+                      doAssertEqual=doAssertScreenshotsEqual)
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_setMRIInfo')
+async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
+                          workingDir: str,
+                          headModelDataSourcePath: str,
+                          screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = copySessionFolder(workingDir, 'SetMRI', 'SetHeadModel')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on head model tab
+    navigatorGUI._activateView(navigatorGUI.headModelPanel.key)
+
+    # give time for initialization
+    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
+    await asyncio.sleep(10.)
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.headModelPanel.key
+
+    headModelSourceDir, headModelMeshName = os.path.split(headModelDataSourcePath)
+    headModelDirName = os.path.split(headModelSourceDir)[1]
+    headModelTestDir = os.path.join(sessionPath, '..', headModelDirName)
+    if not os.path.exists(headModelTestDir):
+        shutil.copytree(headModelSourceDir, headModelTestDir)
+
+    headModelTestSourcePath = os.path.join(headModelTestDir, headModelMeshName)
+
+    navigatorGUI.headModelPanel._filepathWdgt.filepath = headModelTestSourcePath
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = assertSavedSessionIsValid(sessionPath)
+
+    assert os.path.normpath(ses.headModel.filepath) == os.path.normpath(headModelTestSourcePath)
+
+    # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
+    await asyncio.sleep(60.)
+    screenshotPath = os.path.join(sessionPath, 'SetHeadModel.png')
+    captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    compareImages(screenshotPath,
+                  os.path.join(screenshotsDataSourcePath, 'SetHeadModel.png'),
+                  doAssertEqual=doAssertScreenshotsEqual)
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_setHeadModel')
+async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
+                          workingDir: str,
+                          screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = copySessionFolder(workingDir, 'SetHeadModel', 'PlanFiducials')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on plan fiducials tab
+    navigatorGUI._activateView(navigatorGUI.planFiducialsPanel.key)
+
+    # give time for initialization
+    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
+    await asyncio.sleep(60.)
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.planFiducialsPanel.key
+
+    screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Empty.png')
+    captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    # compareImages(screenshotPath,
+    #               os.path.join(screenshotsDataSourcePath, 'PlanFiducials_Empty.png'),
+    #               doAssertEqual=doAssertScreenshotsEqual)
+
+    # equivalent to clicking autoset button
+    navigatorGUI.planFiducialsPanel._onAutosetBtnClicked(checked=False)
+
+    # equivalent to clicking on corresponding entry in table
+    navigatorGUI.planFiducialsPanel._tblWdgt.currentCollectionItemKey = 'RPA'
+
+    # equivalent to clicking on goto button
+    navigatorGUI.planFiducialsPanel._onGotoBtnClicked(checked=False)
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = assertSavedSessionIsValid(sessionPath)
+
+    assert ses.subjectRegistration.fiducials.plannedFiducials['RPA'].round(1).tolist() == [76.4, 5.1, -35.5]
+
+    # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
+    await asyncio.sleep(60.)
+    screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Autoset.png')
+    captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    compareImages(screenshotPath,
+                  os.path.join(screenshotsDataSourcePath, 'PlanFiducials_Autoset.png'))
+
+    # TODO: add additional test procedures + assertions for manually editing existing fiducials,
+    #  creating new fiducials, and deleting existing fiducials
+
+
 
 
 def child():

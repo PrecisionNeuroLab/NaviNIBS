@@ -344,6 +344,14 @@ class NavigatorGUI(RunnableAsApp):
     def mriPanel(self) -> MRIPanel:
         return self._mainViewPanels['Set MRI']
 
+    @property
+    def headModelPanel(self) -> HeadModelPanel:
+        return self._mainViewPanels['Set head model']
+
+    @property
+    def planFiducialsPanel(self) -> FiducialsPanel:
+        return self._mainViewPanels['Plan fiducials']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')

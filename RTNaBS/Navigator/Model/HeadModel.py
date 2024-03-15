@@ -29,9 +29,11 @@ VolMesh = pv.PolyData
 
 @attrs.define()
 class HeadModel:
-    _filepath: tp.Optional[str] = None  # path to .msh file in simnibs folder
-    # (note that .msh file and other nested files in same parent dir will be used)
-
+    _filepath: tp.Optional[str] = None
+    """ 
+    Path to .msh file in simnibs folder.
+    (note that .msh file and other nested files in same parent dir will be used)
+    """
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _csfSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -40,7 +42,11 @@ class HeadModel:
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigDataChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[str],)))  # emits key `which` indicating what changed, e.g. which='gmSurf'; if None all should be assumed to have changed
+    sigDataChanged: Signal = attrs.field(init=False, factory=lambda: Signal((tp.Optional[str],)))
+    """
+    emits key `which` indicating what changed, e.g. which='gmSurf'; 
+    if None all should be assumed to have changed
+    """
 
     def __attrs_post_init__(self):
         self.sigFilepathChanged.connect(self._onFilepathChanged)
