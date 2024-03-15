@@ -1,5 +1,4 @@
 import asyncio
-import atexit
 import logging
 from functools import wraps
 import typing as tp
