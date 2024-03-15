@@ -418,6 +418,10 @@ class SubjectRegistration:
 
         d['sampledHeadPoints'] = self._sampledHeadPoints.asList()
 
+        for key in ('fiducials', 'fiducialsHistory', 'sampledHeadPoints'):
+            if len(d[key]) == 0:
+                del d[key]  # don't include in output if it's empty anyways
+
         if self._sampledHeadPoints.alignmentWeights is not None:
             d['headPointAlignmentWeights'] = self._sampledHeadPoints.alignmentWeights.tolist()
 
