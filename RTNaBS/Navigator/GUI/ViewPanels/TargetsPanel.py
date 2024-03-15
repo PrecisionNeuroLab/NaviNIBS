@@ -529,7 +529,13 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
             logger.warning('Import cancelled')
             return
 
+        self._importTargetsFromFile(newFilepath=newFilepath)
+
+    def _importTargetsFromFile(self, newFilepath: str):
+
         self.session.mergeFromFile(filepath=newFilepath, sections=['targets'])
+
+        self._tableWdgt.resizeColumnsToContents()  # resize immediately rather than waiting for delayed auto-resize
 
     def _onAddBtnClicked(self, checked: bool):
         # create new target at current crosshair location, and autoset entry
