@@ -423,11 +423,13 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             metadata=metadata if metadata is not None else {}
         )
 
+        logger.info(f'Manually recording a sample: {sample}')
+
         self.session.samples.addItem(sample)
 
         self._backgroundSamplePoseMetadataSetter.queueSamples([sample.key])
 
-        logger.info(f'Manually recorded a sample: {sample}')
+        logger.debug(f'Manually recorded a sample: {sample}')
 
     def _onSampleToTargetBtnClicked(self, _):
         newTarget = self._coordinator.createTargetFromCurrentSample(doAddToSession=True)
