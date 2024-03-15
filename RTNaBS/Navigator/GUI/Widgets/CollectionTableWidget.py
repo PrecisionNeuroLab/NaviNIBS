@@ -39,6 +39,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _doAdjustSizeToContents: bool = True
 
     _needsResizeToContents: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _resizeToContentsPending: bool = attrs.field(init=False, default=False)
 
     sigCurrentItemChanged: Signal = attrs.field(init=False, factory=lambda: Signal((K,)))
     """
@@ -192,12 +193,27 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         """
         while True:
             await self._needsResizeToContents.wait()
+            self._resizeToContentsPending = True
             while self._needsResizeToContents.is_set():
                 self._needsResizeToContents.clear()
                 await asyncio.sleep(20.)
 
+            if not self._resizeToContentsPending:
+                # someone manually resized while we were waiting
+                continue
+
             logger.debug('Resizing columns to contents')
             self._tableView.resizeColumnsToContents()
+            self._resizeToContentsPending = False
+
+    def resizeColumnsToContents(self):
+        """
+        Allow caller to manually trigger resize without waititng for auto-resize loop.
+        Note: this is an expensive operation
+        """
+        self._needsResizeToContents.clear()
+        self._tableView.resizeColumnsToContents()
+        self._resizeToContentsPending = False  # cancel any auto-queued resize
 
 @attrs.define
 class DigitizedLocationsTableWidget(CollectionTableWidget[str, DigitizedLocation, DigitizedLocations, DigitizedLocationsTableModel]):
