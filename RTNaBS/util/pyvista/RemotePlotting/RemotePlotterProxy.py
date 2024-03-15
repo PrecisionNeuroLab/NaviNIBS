@@ -152,6 +152,7 @@ class RemotePlotterProxyBase:
     _callbackRegistry: CallbackRegistry
 
     def __init__(self):
+        logger.debug(f'Initializing {self.__class__.__name__}')
         self._callbackRegistry = self.CallbackRegistry()
 
         self._isReady = asyncio.Event()
@@ -343,6 +344,9 @@ class RemotePlotterProxyBase:
     def addIrenStyleClassObserver(self, *args, **kwargs):
         return self._remotePlotterCall('addIrenStyleClassObserver', *args, **kwargs)
 
+    def clear(self, *args, **kwargs):
+        return self._remotePlotterCall('clear', *args, **kwargs)
+
     def enable_depth_peeling(self, *args, **kwargs):
         return self._remotePlotterCall('enable_depth_peeling', *args, **kwargs)
 
@@ -443,6 +447,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         self.remoteProc = mp.Process(target=RemotePlotterApp.createAndRun,
                                      daemon=True,
                                      kwargs=procKwargs)
+        logger.debug('Starting remote plotter process')
         self.remoteProc.start()
 
     async def _sendReqAndRecv_async(self, msg):
