@@ -206,6 +206,9 @@ class Fiducials(GenericCollection[str, Fiducial]):
 @attrs.define
 class HeadPoints:
     _headPoints: list[HeadPoint] = attrs.field(factory=list)
+    """
+    Note that these are coordinates are in tracker space, not in MRI space.
+    """
     _alignmentWeights: tp.Optional[np.ndarray] = attrs.field(default=None)
     """
     Optional weights used for headpoint-based registration refinement, in format expected by 
