@@ -583,7 +583,12 @@ class ToolsPanel(MainViewPanel):
             logger.warning('Import cancelled')
             return
 
-        self.session.mergeFromFile(filepath=newFilepath, sections=['tools'])
+        self._importToolsFromFile(newFilepath=newFilepath)
+
+    def _importToolsFromFile(self, newFilepath: str):
+            self.session.mergeFromFile(filepath=newFilepath, sections=['tools'])
+
+            self._tblWdgt.resizeColumnsToContents()  # resize immediately rather than waiting for delayed auto-resize
 
     def _updateSelectedToolWdgt(self):
         logger.debug('Updating selected tool widget')

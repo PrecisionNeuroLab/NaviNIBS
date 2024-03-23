@@ -356,6 +356,10 @@ class NavigatorGUI(RunnableAsApp):
     def setTargetsPanel(self) -> TargetsPanel:
         return self._mainViewPanels['Set targets']
 
+    @property
+    def toolsPanel(self) -> ToolsPanel:
+        return self._mainViewPanels['Tools']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
