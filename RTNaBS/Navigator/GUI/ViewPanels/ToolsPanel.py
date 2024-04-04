@@ -416,7 +416,11 @@ class ToolWidget:
 class CoilToolWidget(ToolWidget):
     _tool: CoilTool
 
+    _calibrateCoilBtn: QtWidgets.QPushButton = attrs.field(init=False)
+
     _lastCalibratedAtLabel: QtWidgets.QLabel = attrs.field(init=False)
+
+    _calibrationWindow: CoilCalibrationWithPlateWindow | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -426,6 +430,7 @@ class CoilToolWidget(ToolWidget):
         self._updateLastCalibratedAt()
 
         btn = QtWidgets.QPushButton('Calibrate coil...')
+        self._calibrateCoilBtn = btn
         self._formLayout.addRow('', btn)
         btn.clicked.connect(lambda _: self._calibrate())
 
@@ -438,11 +443,19 @@ class CoilToolWidget(ToolWidget):
             self._lastCalibratedAtLabel.setText(lastCalibratedAt.strftime('%Y-%m-%d %H:%M:%S'))
 
     def _calibrate(self):
-        CoilCalibrationWithPlateWindow(
+        assert self._calibrationWindow is None
+        self._calibrationWindow = CoilCalibrationWithPlateWindow(
             parent=self._wdgt,
             toolKeyToCalibrate=self._tool.key,
             session=self._session
-        ).show()
+        )
+        self._calibrationWindow.sigFinished.connect(self._onCalibrationWindowFinished)
+        self._calibrationWindow.show()
+
+    def _onCalibrationWindowFinished(self, *args):
+        assert self._calibrationWindow is not None
+        self._calibrationWindow.sigFinished.disconnect(self._onCalibrationWindowFinished)
+        self._calibrationWindow = None
 
     def _onToolChanged(self, toolKey: str, attribsChanged: list[str] | None = None):
         super()._onToolChanged(toolKey=toolKey, attribsChanged=attribsChanged)
@@ -452,6 +465,8 @@ class CoilToolWidget(ToolWidget):
 @attrs.define
 class PointerToolWidget(ToolWidget):
     _tool: Pointer
+
+    _calibrationWindow: CoilCalibrationWithPlateWindow | PointerCalibrationWindow | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -466,18 +481,29 @@ class PointerToolWidget(ToolWidget):
 
     def _calibrateWithPlate(self):
         # TODO: add extra arg to specify that pointer will be rotated 90 deg (tangential to calibration plate instead of perpendicular)
-        CoilCalibrationWithPlateWindow(
+        assert self._calibrationWindow is None
+        self._calibrationWindow = CoilCalibrationWithPlateWindow(
             parent=self._wdgt,
             toolKeyToCalibrate=self._tool.key,
             session=self._session
-        ).show()
+        )
+        self._calibrationWindow.sigFinished.connect(self._onCalibrationWindowFinished)
+        self._calibrationWindow.show()
 
     def _calibrateByEndpoint(self):
-        PointerCalibrationWindow(
+        assert self._calibrationWindow is None
+        self._calibrationWindow = PointerCalibrationWindow(
             parent=self._wdgt,
             toolKeyToCalibrate=self._tool.key,
             session=self._session
-        ).show()
+        )
+        self._calibrationWindow.sigFinished.connect(self._onCalibrationWindowFinished)
+        self._calibrationWindow.show()
+
+    def _onCalibrationWindowFinished(self, *args):
+        assert self._calibrationWindow is not None
+        self._calibrationWindow.sigFinished.disconnect(self._onCalibrationWindowFinished)
+        self._calibrationWindow = None
 
 
 @attrs.define
@@ -557,7 +583,7 @@ class ToolsPanel(MainViewPanel):
         positionsClient = ToolPositionsClient()
         for tool in self.session.tools.values():
             if tool.initialTrackerPose is not None:
-                await positionsClient.recordNewPosition(
+                await positionsClient.recordNewPosition_async(
                     tool.trackerKey,
                     position=TimestampedToolPosition(
                         time=time.time(),

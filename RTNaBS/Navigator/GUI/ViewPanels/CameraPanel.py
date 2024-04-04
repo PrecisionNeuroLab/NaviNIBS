@@ -112,7 +112,10 @@ class CameraObjectsView(QueuedRedrawMixin):
                             else:
                                 if getattr(tool, toolOrTracker + 'StlFilepath') is not None:
                                     if toolOrTracker == 'tool':
-                                        toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
+                                        if tool.toolToTrackerTransf is None:
+                                            toolOrTrackerStlToTrackerTransf = None
+                                        else:
+                                            toolOrTrackerStlToTrackerTransf = tool.toolToTrackerTransf @ tool.toolStlToToolTransf
                                     elif toolOrTracker == 'tracker':
                                         toolOrTrackerStlToTrackerTransf = tool.trackerStlToTrackerTransf
                                     else:
@@ -120,28 +123,29 @@ class CameraObjectsView(QueuedRedrawMixin):
                                     if toolOrTrackerStlToTrackerTransf is not None:
                                         doShow = True
 
-                                    if actorKey not in self._actors:
-                                        # initialize graphic
-                                        mesh = getattr(tool, toolOrTracker + 'Surf')
-                                        meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
-                                        meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
+                                        if actorKey not in self._actors:
+                                            # initialize graphic
+                                            mesh = getattr(tool, toolOrTracker + 'Surf')
+                                            meshColor = tool.trackerColor if toolOrTracker == 'tracker' else tool.toolColor
+                                            meshOpacity = tool.trackerOpacity if toolOrTracker == 'tracker' else tool.toolOpacity
 
-                                        self._actors[actorKey] = self._plotter.addMesh(mesh=mesh,
-                                                                                       color=meshColor,
-                                                                                       defaultMeshColor='#2222ff',
-                                                                                       opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                       name=actorKey)
+                                            self._actors[actorKey] = self._plotter.addMesh(mesh=mesh,
+                                                                                           color=meshColor,
+                                                                                           defaultMeshColor='#2222ff',
+                                                                                           opacity=1.0 if meshOpacity is None else meshOpacity,
+                                                                                           name=actorKey)
 
-                                        doResetCamera = True
+                                            doResetCamera = True
 
-                                    with self._plotter.allowNonblockingCalls():
-                                        # apply transform to existing actor
-                                        setActorUserTransform(self._actors[actorKey],
-                                                              concatenateTransforms([
-                                                                  toolOrTrackerStlToTrackerTransf,
-                                                                  self._positionsClient.getLatestTransf(tool.trackerKey)
-                                                              ]))
-                                        self._plotter.render()
+                                    if doShow:
+                                        with self._plotter.allowNonblockingCalls():
+                                            # apply transform to existing actor
+                                            setActorUserTransform(self._actors[actorKey],
+                                                                  concatenateTransforms([
+                                                                      toolOrTrackerStlToTrackerTransf,
+                                                                      self._positionsClient.getLatestTransf(tool.trackerKey)
+                                                                  ]))
+                                            self._plotter.render()
                                 else:
                                     # TODO: show some generic graphic to indicate tool position, even when we don't have an stl for the tool
                                     doShow = False
@@ -152,7 +156,7 @@ class CameraObjectsView(QueuedRedrawMixin):
                             if actorKey not in self._actors:
                                 self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
                                                                                 color='#d9a5b2',
-                                                                                opacity=0.8,
+                                                                                # opacity=0.8,
                                                                                 name=actorKey)
                                 doResetCamera = True
 

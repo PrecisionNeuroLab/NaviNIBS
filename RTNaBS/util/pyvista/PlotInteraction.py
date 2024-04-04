@@ -13,6 +13,7 @@ else:
 
 from . import Actor
 
+from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, getActorUserTransform
 from RTNaBS.util import Transforms
 
@@ -144,6 +145,9 @@ async def pickActor(plotter: pv.Plotter,
     else:
         leftClickObserver = None
 
+    logging.debug('About to wait')
+    await asyncio.sleep(2.)  # TODO: debug, delete
+
     picker = _vtk.vtkPropPicker()
     endPickObserver = picker.AddObserver(_vtk.vtkCommand.EndPickEvent, end_pick_call_back)
     plotter.enable_trackball_style()
@@ -161,7 +165,7 @@ async def pickActor(plotter: pv.Plotter,
         async def removeSelectActorAfterDelay():
             await asyncio.sleep(0.5)
             plotter.remove_actor(selectActor)
-        asyncio.create_task(removeSelectActorAfterDelay())
+        asyncio.create_task(asyncTryAndLogExceptionOnError(removeSelectActorAfterDelay))
 
     picker.RemoveObserver(endPickObserver)
     if left_clicking:
@@ -210,13 +214,13 @@ async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor, onNewTransf:
             onNewTransf(newestTransf)
             await asyncio.sleep(0.1)  # don't publish updates more frequently than this
 
-    publishTask = asyncio.create_task(publishNewPosition())
+    publishTask = asyncio.create_task(asyncTryAndLogExceptionOnError(publishNewPosition))
 
     def interactionCallback(obj, event_type):
         nonlocal newestTransf
         transform = _vtk.vtkTransform()
         handleRep.GetTransform(transform)
-        actor.SetUserTransform(transform)  # TODO: debug, delete
+        actor.SetUserTransform(transform)  # could be disabled if want to rely on caller to update the actor
         newestTransf = transform
         newTransfPending.set()
 
@@ -225,7 +229,6 @@ async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor, onNewTransf:
     wdgt.AddObserver('InteractionEvent', interactionCallback)
 
     if True:
-        # TODO: debug, delete
         while True:
             await asyncio.sleep(1.)
 

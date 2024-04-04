@@ -485,7 +485,7 @@ class CoilTool(Tool):
     _usedFor: str = 'coil'
 
     @Tool.toolToTrackerTransf.getter
-    def toolToTrackerTransf(self):
+    def toolToTrackerTransf(self) -> np.ndarray | None:
         """
         Override parent class to not assume identity transform by default. Unlike other tools, this will
         return None if no transform is set.
