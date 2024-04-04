@@ -77,6 +77,9 @@ class ToolPositionsServer:
         self._latestPositions[key] = position
         self._publishPending.set()
 
+    def publishLatestPositions(self):
+        self._publishPending.set()
+
     @classmethod
     async def createAndRun_async(cls, *args, **kwargs):
         server = cls(*args, **kwargs)

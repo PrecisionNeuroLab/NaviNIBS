@@ -42,8 +42,9 @@ class ToolPositionsClient:
     _isConnected: bool = False
     _serverStatusTimeout: float = 10.  # consider server offline if we haven't heard from it for this long
 
-    _pollTask: tp.Optional[asyncio.Task] = attrs.field(init=False)
-    _monitorTask: tp.Optional[asyncio.Task] = attrs.field(init=False)
+    _pollTask: asyncio.Task | None = attrs.field(init=False)
+    _monitorTask: asyncio.Task | None = attrs.field(init=False)
+    _startupTask: asyncio.Task | None = attrs.field(init=False)
 
     sigIsConnectedChanged: Signal = attrs.field(init=False, factory=Signal)
 
@@ -59,9 +60,14 @@ class ToolPositionsClient:
                                              connAddr=self._serverHostname,
                                              allowAsyncCalls=True)
 
-        self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._receiveLatestPositionsLoop))
+        self._startupTask = asyncio.create_task(asyncTryAndLogExceptionOnError(
+            self._requestLatestPositionsOnStart))
 
-        self._monitorTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._monitorServerStatus))
+        self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(
+            self._receiveLatestPositionsLoop))
+
+        self._monitorTask = asyncio.create_task(asyncTryAndLogExceptionOnError(
+            self._monitorServerStatus))
 
     @property
     def latestPositions(self):
@@ -77,6 +83,21 @@ class ToolPositionsClient:
         if self._pollTask is not None:
             self._pollTask.cancel()
             self._pollTask = None
+
+    def requestLatestPositions(self):
+        self._connector.call('publishLatestPositions')
+
+    async def _requestLatestPositionsOnStart(self):
+        """
+        Whenever (re)connecting to the server, request that all latest positions be re-published
+        """
+        connectedChangedEvent = asyncio.Event()
+        self.sigIsConnectedChanged.connect(lambda: connectedChangedEvent.set())
+        while True:
+            await connectedChangedEvent.wait()
+            connectedChangedEvent.clear()
+            if self.isConnected:
+                self.requestLatestPositions()
 
     def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
         """
@@ -97,15 +118,25 @@ class ToolPositionsClient:
                 return concatenateTransforms((tsPos.transf, otherTransf))
         return tsPos.transf
 
-    async def recordNewPosition(self, key: str, position: TimestampedToolPosition):
+    async def recordNewPosition_async(self, key: str, position: TimestampedToolPosition):
         """
         This should only be used to record positions of tools that are not tracked by the camera
-        (e.g. when a position is reported by some other external system)
+        (e.g. when a position is reported by some other external system, or simulated)
         """
         logger.debug(f'recordNewPosition {key} {position}')
         await self._connector.callAsync_async('recordNewPosition',
                                               key=key,
                                               position=position.asDict())
+
+    def recordNewPosition_sync(self, key: str, position: TimestampedToolPosition):
+        """
+        This should only be used to record positions of tools that are not tracked by the camera
+        (e.g. when a position is reported by some other external system, or simulated)
+        """
+        logger.debug(f'recordNewPosition {key} {position}')
+        self._connector.callAsync('recordNewPosition',
+                                  key=key,
+                                  position=position.asDict())
 
     async def _receiveLatestPositionsLoop(self):
         poller = azmq.Poller()

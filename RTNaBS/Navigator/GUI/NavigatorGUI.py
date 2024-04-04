@@ -6,22 +6,17 @@ import appdirs
 import attrs
 import contextlib
 import darkdetect
-from datetime import datetime
 import logging
 import os
 import pathlib
 import pyvista as pv
-import pyqtgraph as pg
-import qtawesome as qta
-from qtpy import QtWidgets, QtGui, QtCore
-import shutil
+from qtpy import QtGui, QtCore
 import typing as tp
 
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
-from RTNaBS.util.GUI.Dock import Dock, DockArea
+from RTNaBS.util.GUI.Dock import DockArea
 from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
-from RTNaBS.util.Signaler import Signal
 from RTNaBS.Navigator.Model.Session import Session
 from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
 from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
@@ -33,14 +28,11 @@ from RTNaBS.Navigator.GUI.ViewPanels.CoordinateSystemsPanel import CoordinateSys
 from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.SimulatedToolsPanel import \
-    SimulatedToolsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettingsPanel
 from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
 from RTNaBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
-from RTNaBS.util import exceptionToStr
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +102,6 @@ class NavigatorGUI(RunnableAsApp):
         #self._toolbarWdgt.addSeparator()  # separate pre-session planning/setup panels from within-session panels
 
         self._addViewPanel(ToolsPanel(session=self._session))
-
-        # TODO: dynamically create and add this later only if tools.positionsServerInfo.type is Simulated
-        # self._addViewPanel(SimulatedToolsPanel(key='Simulated tools', session=self._session))
 
         self._addViewPanel(TriggerSettingsPanel(session=self._session))
 
