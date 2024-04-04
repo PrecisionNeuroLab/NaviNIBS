@@ -80,6 +80,7 @@ class TrackingStatusWidget:
                     assert isinstance(child, QtWidgets.QLayoutItem)
                     child.widget().deleteLater()
             self._toolWdgts = {}
+            self._prevHadTransf = {}
 
         toolsToShow = []
         for toolKey, tool in self.session.tools.items():
@@ -95,6 +96,8 @@ class TrackingStatusWidget:
             wdgt = IconWidget(icon=qta.icon('mdi6.circle-outline', color='gray'))
             self._columnContainers[iCol].layout().addRow(tool.label, wdgt)
             self._toolWdgts[tool.key] = wdgt
+
+        self._onLatestPositionsChanged()
 
     def _onLatestPositionsChanged(self):
         for toolKey, tool in self.session.tools.items():
