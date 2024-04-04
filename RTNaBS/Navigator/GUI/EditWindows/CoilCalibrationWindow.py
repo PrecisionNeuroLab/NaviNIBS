@@ -338,10 +338,21 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 coilTrackerToCalibToolTransf
             ]))
 
-        coilToolToCalibToolTransf = concatenateTransforms([
-            coil.toolToTrackerTransf if self._pendingNewTransf is None else self._pendingNewTransf,
-            coilTrackerToCalibToolTransf
-        ])
+        coilToolToCalibToolTransf = coilTrackerToCalibToolTransf.copy()
+        if self._pendingNewTransf is None:
+            if coil.toolToTrackerTransf is None:
+                # assume identity transform initially
+                pass
+            else:
+                coilToolToCalibToolTransf = concatenateTransforms([
+                    coil.toolToTrackerTransf,
+                    coilTrackerToCalibToolTransf
+                ])
+        else:
+            coilToolToCalibToolTransf = concatenateTransforms([
+                self._pendingNewTransf,
+                coilTrackerToCalibToolTransf
+            ])
         setActorUserTransform(self._coilAxesActor, coilToolToCalibToolTransf)
         if self._coilToolActor is not None:
             setActorUserTransform(self._coilToolActor, concatenateTransforms([
