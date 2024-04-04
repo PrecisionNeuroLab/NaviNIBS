@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import glob
 import os
 import pyperclip
 import pytest
@@ -49,8 +50,8 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
     headModelSourceDir, headModelMeshName = os.path.split(headModelDataSourcePath)
     headModelDirName = os.path.split(headModelSourceDir)[1]
     headModelTestDir = os.path.join(sessionPath, '..', headModelDirName)
-    if not os.path.exists(headModelTestDir):
-        shutil.copytree(headModelSourceDir, headModelTestDir)
+    if len(glob.glob(os.path.join(headModelTestDir, '*.msh'))) < 1:
+        shutil.copytree(headModelSourceDir, headModelTestDir, dirs_exist_ok=True)
 
     headModelTestSourcePath = os.path.join(headModelTestDir, headModelMeshName)
 
