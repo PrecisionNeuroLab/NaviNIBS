@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='Requires user input')
 async def test_createNewSessionFolderWithUserInput(navigatorGUIWithoutSession: NavigatorGUI,
                                                    workingDir: str):
     newSessionPath = utils.getNewSessionPath(workingDir, 'New')
@@ -38,6 +39,7 @@ async def test_createNewSessionFolderWithUserInput(navigatorGUIWithoutSession: N
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='Requires user input')
 async def test_createNewSessionFileWithUserInput(navigatorGUIWithoutSession: NavigatorGUI,
                                                  workingDir: str):
     newSessionPath = utils.getNewSessionPath(workingDir, 'New', '.navinibs')

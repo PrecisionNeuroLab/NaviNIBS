@@ -66,6 +66,7 @@ async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
     # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
     await asyncio.sleep(60.)
     screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Autoset.png')
+    await utils.raiseMainNavigatorGUI()
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
 
