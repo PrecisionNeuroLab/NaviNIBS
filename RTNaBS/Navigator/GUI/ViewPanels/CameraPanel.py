@@ -2,34 +2,22 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
-from datetime import datetime
 import logging
 import multiprocessing as mp
-import numpy as np
-import os
-import pathlib
-import pyvista as pv
-import pyvistaqt as pvqt
 import qtawesome as qta
-from qtpy import QtWidgets, QtGui, QtCore
-import shutil
+from qtpy import QtWidgets, QtGui
 import typing as tp
 
 from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
 from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
 from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
-from RTNaBS.Devices.SimulatedToolPositionsServer import SimulatedToolPositionsServer
-from RTNaBS.Devices.SimulatedToolPositionsClient import SimulatedToolPositionsClient
-from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker
+from RTNaBS.Navigator.Model.Session import Session, SubjectTracker
 from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
-from RTNaBS.util.Signaler import Signal
 from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 
@@ -263,7 +251,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         container.layout().addWidget(subContainer)
 
         self._serverTypeComboBox = QtWidgets.QComboBox()
-        self._serverTypeComboBox.addItems(['IGTLink', 'Simulated'])
+        self._serverTypeComboBox.addItems(['IGTLink', 'Generic'])
         formLayout.addRow('Server type', self._serverTypeComboBox)
 
         self._serverAddressEdit = QtWidgets.QLineEdit()
@@ -333,8 +321,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         match(self.session.tools.positionsServerInfo.type):
             case 'IGTLink':
                 Server = IGTLinkToolPositionsServer
-            case 'Simulated':
-                Server = SimulatedToolPositionsServer
+            case 'Generic':
+                Server = ToolPositionsServer
             case _:
                 raise NotImplementedError(f'Unexpected positionsServerInfo type: {self.session.tools.positionsServerInfo.type}')
         self._positionsServerProc = mp.Process(target=Server.createAndRun,
