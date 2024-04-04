@@ -50,7 +50,8 @@ def workingDir(request):
 @pytest_asyncio.fixture
 async def navigatorGUIWithoutSession() -> NavigatorGUI:
     navGUI = NavigatorGUI.createAndRunAsTask()
-    navGUI._win.activateWindow()
+    if True:
+        await raiseMainNavigatorGUI()
     yield navGUI
     navGUI._win.close()
 
@@ -60,6 +61,23 @@ async def openSessionForInteraction(workingDir, sessionKey: str):
     NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath)
     while True:
         await asyncio.sleep(1.)
+
+
+async def raiseMainNavigatorGUI():
+    import multiprocessing as mp
+    proc = mp.Process(target=_raiseMainNavigatorGUIWindow)
+    proc.start()
+    while proc.is_alive():
+        await asyncio.sleep(1.)
+
+
+def _raiseMainNavigatorGUIWindow():
+    logger.debug('Finding running NaviNIBS app')
+    from pywinauto import Application as PWAApp
+    app = PWAApp(backend="uia").connect(title="NaviNIBS Navigator GUI")
+    logger.debug('Finding NaviNIBS main window and raising to foreground')
+    app.NavigatorGUI.set_focus()
+    logger.debug('Done raising NaviNIBS main window')
 
 
 def test_copyWorkingDirToClipboard(workingDir):
