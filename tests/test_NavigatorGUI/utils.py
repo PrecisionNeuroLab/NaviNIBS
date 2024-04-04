@@ -7,6 +7,8 @@ import pytest_asyncio
 import shutil
 import tempfile
 
+
+
 from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from RTNaBS.Navigator.Model.Session import Session
 
@@ -53,9 +55,7 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
     navGUI._win.close()
 
 
-@pytest.mark.asyncio
-async def test_openSession(workingDir):
-    sessionKey = 'PlanFiducials'
+async def openSessionForInteraction(workingDir, sessionKey: str):
     sessionPath = getSessionPath(workingDir, sessionKey)
     NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath)
     while True:
@@ -134,6 +134,13 @@ def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str):
 def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True):
     from PIL import ImageChops, Image
     with Image.open(img1Path) as im1, Image.open(img2Path) as im2:
+        if im1.size != im2.size:
+            # don't show comparison at all if sizes are different
+            if doAssertEqual:
+                assert False, 'Images are different sizes'
+            else:
+                logger.warning('Images are different sizes')
+            return
         diff = ImageChops.difference(im1, im2)
         if diff.getbbox():
             im3 = Image.new("RGB", im2.size, (255, 0, 0))
@@ -150,3 +157,14 @@ def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True):
         if doAssertEqual:
             # TODO: add some tolerance for permissible differences (with configurable threshold)
             assert not diff.getbbox()
+
+
+async def importSimulatedPositionsSnapshot(navigatorGUI: NavigatorGUI, positionsPath: str):
+    from addons.NaviNIBS_Simulated_Tools.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+    simulatedToolsPanel: SimulatedToolsPanel = navigatorGUI._mainViewPanels['SimulatedToolsPanel']
+
+    if not simulatedToolsPanel._hasInitialized:
+        simulatedToolsPanel.finishInitialization()
+
+    await simulatedToolsPanel.importPositionsSnapshot(positionsPath)
+
