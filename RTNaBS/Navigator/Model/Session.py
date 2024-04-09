@@ -343,7 +343,9 @@ class Session:
         thisKey = 'addons'
         if thisKey in keysToSave or not saveDirtyOnly:
             logger.debug(f'Writing {thisKey} info')
-            config[thisKey] = self.addons.asList(unpackedSessionDir=self.unpackedSessionDir)
+            config[thisKey] = self.addons.asList(
+                unpackedSessionDir=self.unpackedSessionDir,
+                filenamePrefix=autosaveFilenamePrefix + self._sessionConfigFilename + '_')
             if len(config[thisKey]) == 0:
                  del config[thisKey]
             keysToDiscard = {thisKey}
@@ -356,8 +358,25 @@ class Session:
             for addonKey, addon in self.addons.items():
                 flagKey = f'addon.{addonKey}'
                 if flagKey in keysToSave:
-                    configFilename_addon = addon.writeConfig(unpackedSessionDir=self.unpackedSessionDir)
+                    configFilename_addon = addon.writeConfig(
+                        unpackedSessionDir=self.unpackedSessionDir,
+                        filenamePrefix=autosaveFilenamePrefix + self._sessionConfigFilename + '_')
+
+                    altConfigFilename_addon = addon.getConfigFilename(
+                        unpackedSessionDir=self.unpackedSessionDir,
+                        filenamePrefix=self._sessionConfigFilename + '_',  # no autosave prefix
+                    )
+                    if altConfigFilename_addon != configFilename_addon:
+                        if not altConfigFilename_addon in config['addons']:
+                            for prevAddonFilename in config['addons']:
+                                if prevAddonFilename.endswith(altConfigFilename_addon):
+                                    altConfigFilename_addon = prevAddonFilename
+                                    break
+                        if altConfigFilename_addon in config['addons']:
+                            # update config to use new filename
+                            config['addons'][config['addons'].index(altConfigFilename_addon)] = configFilename_addon
                     assert configFilename_addon in config['addons']
+
                     keysToSave.discard(flagKey)
 
         # TODO: save other fields
