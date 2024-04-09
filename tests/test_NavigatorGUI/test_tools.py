@@ -101,6 +101,12 @@ async def test_openSimulatedToolsSession(workingDir):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openCalibrateCoilSession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'CalibrateCoil')
+
+
+@pytest.mark.asyncio
 @pytest.mark.order(after='test_setTools')
 async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
                              workingDir: str,
