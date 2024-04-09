@@ -353,6 +353,7 @@ class RemotePlotterApp(RunnableAsApp):
     _debugTimer: QtCore.QTimer = attrs.field(init=False)
 
     def __attrs_post_init__(self):
+        logger.debug(f'Initializing {self.__class__.__name__}')
         super().__attrs_post_init__()
         wdgt = QtWidgets.QWidget()
         self._rootWdgt = wdgt
