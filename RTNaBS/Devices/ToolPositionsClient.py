@@ -31,7 +31,7 @@ class ToolPositionsClient:
     _serverPubPort: int = positionsServerPubPort
     _serverCmdPort: int = positionsServerCmdPort
 
-    _latestPositions: tp.Dict[str, tp.Optional[TimestampedToolPosition]] = attrs.field(init=False, factory=dict)
+    _latestPositions: dict[str, tp.Optional[TimestampedToolPosition]] | None = attrs.field(init=False, default=None)
 
     _subSocket: azmq.Socket = attrs.field(init=False)
     _connector: ZMQConnectorClient = attrs.field(init=False)
@@ -74,7 +74,7 @@ class ToolPositionsClient:
         """
         Note that returned positions may be absolute (rel to world) or relative, based on pos.relativeTo
         """
-        return self._latestPositions
+        return self._latestPositions if self._latestPositions is not None else dict()
 
     def getServerType(self) -> str:
         return self._connector.get('type')
@@ -159,16 +159,21 @@ class ToolPositionsClient:
 
                 # only notify if tool position (not time) changed
                 positionsChanged = False
-                for key, newPos in newPositions.items():
-                    try:
-                        oldPos = self._latestPositions[key]
-                    except KeyError:
-                        positionsChanged = True
-                        break
-                    else:
-                        if not array_equalish(oldPos.transf, newPos.transf) or oldPos.relativeTo != newPos.relativeTo:
+                if self._latestPositions is None:
+                    # latest positions had never been set, so send out an update
+                    # even if empty
+                    positionsChanged = True
+                else:
+                    for key, newPos in newPositions.items():
+                        try:
+                            oldPos = self._latestPositions[key]
+                        except KeyError:
                             positionsChanged = True
                             break
+                        else:
+                            if not array_equalish(oldPos.transf, newPos.transf) or oldPos.relativeTo != newPos.relativeTo:
+                                positionsChanged = True
+                                break
 
                 if not positionsChanged:
                     for key, val in self._latestPositions.items():
