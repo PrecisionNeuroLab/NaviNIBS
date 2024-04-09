@@ -203,8 +203,13 @@ class Addon(GenericCollectionDictItem[str]):
 
         return d
 
-    def writeConfig(self, unpackedSessionDir: str) -> str:
-        configFilename_addon = 'SessionConfig_Addon_' + self.key + '.json'
+    def getConfigFilename(self, unpackedSessionDir: str, filenamePrefix: str = '') -> str:
+        return filenamePrefix + 'Addon_' + self.key + '.json'
+
+    def writeConfig(self, unpackedSessionDir: str, filenamePrefix: str = '') -> str:
+        configFilename_addon = self.getConfigFilename(
+            unpackedSessionDir=unpackedSessionDir,
+            filenamePrefix=filenamePrefix)
         toWrite = jsonPrettyDumps(self.asDict())
         with open(os.path.join(unpackedSessionDir, configFilename_addon), 'w') as f:
             f.write(toWrite)
@@ -268,10 +273,17 @@ class Addons(GenericCollection[str, Addon]):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-    def asList(self, unpackedSessionDir: str) -> tp.List[str]:
+    def asList(self, unpackedSessionDir: str,
+               filenamePrefix: str = '',
+               doWriteAddonConfigs: bool = True) -> tp.List[str]:
         addonSessionConfigFilenames = []
         for addonKey, addon in self.items():
-            configFilename_addon = addon.writeConfig(unpackedSessionDir)
+            if doWriteAddonConfigs:
+                configFilename_addon = addon.writeConfig(unpackedSessionDir=unpackedSessionDir,
+                                                         filenamePrefix=filenamePrefix)
+            else:
+                configFilename_addon = addon.getConfigFilename(unpackedSessionDir=unpackedSessionDir,
+                                                               filenamePrefix=filenamePrefix)
             addonSessionConfigFilenames.append(configFilename_addon)
         return addonSessionConfigFilenames
 
