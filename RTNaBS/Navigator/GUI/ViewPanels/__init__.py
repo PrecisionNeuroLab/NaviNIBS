@@ -72,6 +72,8 @@ class MainViewPanel:
 
     @session.setter
     def session(self, newVal: tp.Optional[session]):
+        if self._session is newVal:
+            return
         self._session = newVal
         self._onSessionSet()
 
