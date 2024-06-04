@@ -1,12 +1,13 @@
 import asyncio
 import logging
+import numpy as np
 import os
 import pyperclip
 import pytest
 import pytest_asyncio
 import shutil
 import tempfile
-
+import time
 
 
 from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -185,4 +186,20 @@ async def importSimulatedPositionsSnapshot(navigatorGUI: NavigatorGUI, positions
         simulatedToolsPanel.finishInitialization()
 
     await simulatedToolsPanel.importPositionsSnapshot(positionsPath)
+
+
+async def setSimulatedToolPose(navigatorGUI: NavigatorGUI, key: str, transf: np.ndarray | None):
+    from addons.NaviNIBS_Simulated_Tools.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+    simulatedToolsPanel: SimulatedToolsPanel = navigatorGUI._mainViewPanels['SimulatedToolsPanel']
+
+    from RTNaBS.Devices import TimestampedToolPosition
+
+    logger.info(f'Setting simulated tool pose: {key} {transf}')
+
+    position = TimestampedToolPosition(
+        time=time.time(),
+        transf=transf)
+
+    await simulatedToolsPanel.positionsClient.recordNewPosition_async(key=key, position=position)
+
 
