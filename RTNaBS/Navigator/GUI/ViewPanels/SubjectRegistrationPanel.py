@@ -832,10 +832,11 @@ class SubjectRegistrationPanel(MainViewPanel):
                     self._actors.pop(actorKey)
 
             else:
-                self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.tools.subjectTracker.trackerSurf,
-                                                                color='#aaaaaa',
-                                                                opacity=0.6,
-                                                                name=actorKey)
+                self._actors[actorKey] = self._plotter.addMesh(mesh=self.session.tools.subjectTracker.trackerSurf,
+                                                               color=self.session.tools.subjectTracker.trackerColor,
+                                                               defaultMeshColor='#aaaaaa',
+                                                               opacity=0.6,
+                                                               name=actorKey)
                 self._redraw(which='subjectTrackerPosition')
 
         elif which in ('sampleBtns',):
@@ -879,16 +880,19 @@ class SubjectRegistrationPanel(MainViewPanel):
             if which == 'initPointer':
                 for toolOrTracker in ('tool', 'tracker'):
                     actorKey = 'pointer' + '_' + toolOrTracker
-                    actorSurf = getattr(self.session.tools.pointer, toolOrTracker + 'Surf')
+                    tool = self.session.tools.pointer
+                    actorSurf = getattr(tool, toolOrTracker + 'Surf')
+                    meshColor = getattr(tool, toolOrTracker + 'Color')
                     if actorSurf is None:
                         if actorKey in self._actors:
                             self._plotter.remove_actor(self._actors[actorKey])
                             self._actors.pop(actorKey)
                         continue
-                    self._actors[actorKey] = self._plotter.add_mesh(mesh=actorSurf,
-                                                                    color='#999999',
-                                                                    opacity=0.6,
-                                                                    name=actorKey)
+                    self._actors[actorKey] = self._plotter.addMesh(mesh=actorSurf,
+                                                                   color=meshColor,
+                                                                   defaultMeshColor='#999999',
+                                                                   opacity=0.6,
+                                                                   name=actorKey)
                 self._redraw(which='pointerPosition')
 
             elif which == 'pointerPosition':
