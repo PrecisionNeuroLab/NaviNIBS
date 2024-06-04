@@ -331,6 +331,7 @@ class SubjectRegistration:
     _fiducialsHistory: tp.Dict[str, Fiducials] = attrs.field(factory=dict)
     _trackerToMRITransfHistory: tp.Dict[str, tp.Optional[Transform]] = attrs.field(factory=dict)
 
+    sigTrackerToMRITransfAboutToChange: Signal = attrs.field(init=False, factory=Signal)
     sigTrackerToMRITransfChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
@@ -390,6 +391,9 @@ class SubjectRegistration:
         # TODO: do validation of newTransf
 
         logger.info('Set trackerToMRITransf to {}'.format(newTransf))
+
+        self.sigTrackerToMRITransfAboutToChange.emit()
+
         self._trackerToMRITransf = newTransf
 
         self._trackerToMRITransfHistory[self._getTimestampStr()] = None if newTransf is None else newTransf.copy()

@@ -31,6 +31,12 @@ class HeadPointsTableModel(CollectionTableModel[int, HeadPoints, HeadPoint]):
         self._collection.sigHeadpointsAboutToChange.connect(self._onCollectionAboutToChange)
         self._collection.sigHeadpointsChanged.connect(self._onCollectionChanged)
 
+        # subscribe to changes that will affect derived columns
+        self._session.subjectRegistration.sigTrackerToMRITransfAboutToChange.connect(
+            lambda: self._onCollectionAboutToChange(None, ['distFromSkin',]))
+        self._session.subjectRegistration.sigTrackerToMRITransfChanged.connect(
+            lambda: self._onCollectionChanged(None, ['distFromSkin',]))
+
         super().__attrs_post_init__()
 
     def _getDistFromSkinForIndex(self, index: int) -> str:
