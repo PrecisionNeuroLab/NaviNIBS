@@ -25,6 +25,17 @@ def array_equalish(a: tp.Optional[np.ndarray], b: tp.Optional[np.ndarray], *args
 C = tp.TypeVar('C')
 
 
+def attrsOptionalNDArrayField(init: bool = True) -> attrs.field:
+    """
+    Shorthand for an attrs field like ``x: np.ndarray | None = attrs.field(default=None)`` but with functional comparison behavior
+    """
+    return attrs.field(default=None,
+                       init=init,
+                       eq=attrs.cmp_using(
+                           eq=array_equalish,
+                           require_same_type=False))
+
+
 def attrsWithNumpyAsDict(obj: C, npFields: tp.Optional[tp.Iterable[str]] = None,
                          eqs: tp.Optional[dict[str, tp.Callable]] = None,
                          **kwargs):

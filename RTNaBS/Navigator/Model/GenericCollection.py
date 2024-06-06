@@ -20,12 +20,11 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
 
     _key: K
 
-    sigKeyAboutToChange: Signal = attrs.field(init=False, repr=False,
+    sigKeyAboutToChange: Signal = attrs.field(init=False, repr=False, eq=False,
                                               factory=lambda: Signal((K, K)))  # includes old key, new key
-    sigKeyChanged: Signal = attrs.field(init=False, repr=False,
                                         factory=lambda: Signal((K, K)))  # includes old key, new key
 
-    sigItemAboutToChange: Signal = attrs.field(init=False, repr=False,
+    sigItemAboutToChange: Signal = attrs.field(init=False, repr=False, eq=False,
                                                factory=lambda: Signal((K, tp.Optional[tp.List[str]])))
     """
     This signal includes the key of the item, and optionally a list of keys of attributes about to change;
@@ -33,7 +32,7 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
 
     Not emitted when key changed (use sigKeyAboutToChange instead!)
     """
-    sigItemChanged: Signal = attrs.field(init=False, repr=False,
+    sigItemChanged: Signal = attrs.field(init=False, repr=False, eq=False,
                                          factory=lambda: Signal((K, tp.Optional[list[str]])))
     """
     This signal includes the key of the item, and optionally a list of keys of changed attributes;  
@@ -77,21 +76,21 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
 
     _items: Mapping[K, CI] = attrs.field(factory=dict)
 
-    sigItemsAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((list[K], list[str] | None)))
+    sigItemsAboutToChange: Signal[list[K], list[str] | None] = attrs.field(init=False, eq=False, factory=lambda: Signal())
     """
     This signal includes list of keys of collection items about to change, and optionally a list of 
     keys of attributes about to change;  if second arg is None, all attributes should be assumed to
     be about to change.
     """
 
-    sigItemsChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[K], list[str] | None)))
+    sigItemsChanged: Signal = attrs.field(init=False, eq=False, factory=lambda: Signal((list[K], list[str] | None)))
     """
     This signal includes list of keys of changed collection items, and optionally a list of keys of
     changed attributes; if second arg is None, all attributes should be assumed to have changed.
     """
 
-    sigItemKeyAboutToChange: Signal = attrs.field(init=False, factory=lambda: Signal((K, K)))
-    sigItemKeyChanged: Signal = attrs.field(init=False, factory=lambda: Signal((K, K)))
+    sigItemKeyAboutToChange: Signal = attrs.field(init=False, eq=False, factory=lambda: Signal((K, K)))
+    sigItemKeyChanged: Signal = attrs.field(init=False, eq=False, factory=lambda: Signal((K, K)))
     """
     Emitted in addition to sigItemsAboutToChange and sigItemsChanged specifically when an item key changes.
 
