@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import collections
+
 import attrs
 from abc import ABC
 from collections.abc import Sequence, Mapping, Iterable
@@ -75,7 +78,7 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
     Base class to implement collection behavior and signaling for various session model components
     """
 
-    _items: Mapping[K, CI] = attrs.field(factory=dict)
+    _items: dict[K, CI] = attrs.field(factory=dict)
 
     sigItemsAboutToChange: Signal[list[K], list[str] | None] = attrs.field(init=False, eq=False, factory=lambda: Signal())
     """
@@ -232,7 +235,7 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
     def keys(self):
         return self._items.keys()
 
-    def items(self):
+    def items(self) -> collections.ItemsView[K, CI]:
         return self._items.items()
 
     def get(self, *args, **kwargs):

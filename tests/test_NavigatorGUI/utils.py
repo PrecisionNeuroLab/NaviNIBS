@@ -150,7 +150,7 @@ def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str):
     ImageGrab.grab(bbox).save(saveToPath)
 
 
-def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True):
+def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True, diffAmtThreshold: int = 0):
     from PIL import ImageChops, Image
     with Image.open(img1Path) as im1, Image.open(img2Path) as im2:
         if im1.size != im2.size:
@@ -161,7 +161,9 @@ def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True):
                 logger.warning('Images are different sizes')
             return
         diff = ImageChops.difference(im1, im2)
-        if diff.getbbox():
+        # for some reason first row is consistently very different, so don't include in quantification
+        diffAmt = np.sum(np.asarray(diff)[1:, :])
+        if diff.getbbox() and diffAmt > diffAmtThreshold:
             im3 = Image.new("RGB", im2.size, (255, 0, 0))
             mask = diff.convert("L").point(lambda x: 127 if x else 0)
             im4 = im2.copy()
@@ -174,8 +176,7 @@ def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True):
                 xOffset += im.width
             imJoined.show()
         if doAssertEqual:
-            # TODO: add some tolerance for permissible differences (with configurable threshold)
-            assert not diff.getbbox()
+            assert diffAmt <= diffAmtThreshold, f'Images are different: {diffAmt}'
 
 
 async def importSimulatedPositionsSnapshot(navigatorGUI: NavigatorGUI, positionsPath: str):

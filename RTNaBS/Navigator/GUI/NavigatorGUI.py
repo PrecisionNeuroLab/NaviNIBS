@@ -349,6 +349,10 @@ class NavigatorGUI(RunnableAsApp):
     def toolsPanel(self) -> ToolsPanel:
         return self._mainViewPanels['Tools']
 
+    @property
+    def subjectRegistrationPanel(self) -> SubjectRegistrationPanel:
+        return self._mainViewPanels['Register']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
