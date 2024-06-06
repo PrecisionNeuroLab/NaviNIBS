@@ -50,9 +50,9 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
 
-    # compareImages(screenshotPath,
-    #               os.path.join(screenshotsDataSourcePath, 'SetTargets_Empty.png'),
-    #               doAssertEqual=doAssertScreenshotsEqual)
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'SetTargets_Empty.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
 
     # equivalent to clicking "Import targets from file..." button and browsing to file
     navigatorGUI.setTargetsPanel._importTargetsFromFile(targetsDataSourcePath)

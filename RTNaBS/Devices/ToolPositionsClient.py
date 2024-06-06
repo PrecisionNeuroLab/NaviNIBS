@@ -102,6 +102,8 @@ class ToolPositionsClient:
     def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
         """
         Note that returned transf is always absolute, even if the underlying latest position was relative
+
+        If key is not found, raises KeyError unless a default value is provided (default can be set to None).
         """
         tsPos = self.latestPositions.get(key, None)
         if tsPos is None or tsPos.transf is None:
