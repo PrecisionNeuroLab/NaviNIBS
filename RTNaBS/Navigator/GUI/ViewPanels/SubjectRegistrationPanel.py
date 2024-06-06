@@ -4,7 +4,7 @@ import asyncio
 
 import appdirs
 import attrs
-from datetime import datetime
+from datetime import datetime, timedelta
 import inspect
 import json
 import logging
@@ -37,6 +37,7 @@ from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
 from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from RTNaBS.util.numpy import array_equalish
 from RTNaBS.util.pyvista import DefaultBackgroundPlotter
 from RTNaBS.util.pyvista.dataset import find_closest_point
 
@@ -232,6 +233,71 @@ class _PointerDistanceReadouts:
 
 @attrs.define
 class SubjectRegistrationPanel(MainViewPanel):
+    """
+
+
+    Note: need to carefully manage sequencing / interaction between fiducials and head points.
+    Example scenario:
+        1. Plan fiducials
+        2. Sample planned fiducials
+        3. Align fiducials
+        4. Sample head points
+        5. Refine alignment with head points
+        6. Convert sampled fiducials to planned
+        7. Create another fiducial from pointer position (e.g. head ref)
+        Some time later, tracker moves and we must reregister:
+        8. Re-sample (sampled-converted-to-planned) fiducials and head ref
+        9. Align fiducials
+        10. Don't resample head points, but expect them to update their alignment
+    This last point is what requires careful attention in sequencing.
+    Head points are defined in tracker space. If the tracker moves, the old points
+    are no longer valid (but we may want to update them for the new alignment for display purposes).
+
+    Another example scenario, not using sample->planned fiducial conversion:
+        1. Plan fiducials
+        2. Sample planned fiducials
+        3. Align fiducials
+        4. Sample head points
+        5. Refine alignment with head points
+        Some time later, tracker moves and we must reregister:
+        8. Re-sample planned fiducials
+        9. Align fiducials
+        10. Don't resample head points, but expect them to update their alignment(?)
+
+    But also must allow this scenario:
+        1. Plan fiducials
+        2. Sample planned fiducials
+        3. Align fiducials
+        4. Sample head points
+        5. Refine alignment with head points
+        6. Align to fiducials again to "undo" head point refinement
+        7. Change a refinement setting (e.g. weight) and refine again, without needing to resample head points
+
+    Less common scenario that would also be nice to support:
+        1. Plan fiducials
+        2. Sample planned fiducials
+        3. Align fiducials
+        4. Sample head points
+        5. Refine alignment with head points
+        6. Edit a *planned* fiducial to make it align better with reality.
+        7. Align fiducials.
+        8. Refine alignment with head points, without needing to resample.
+
+     So, if re-aligning to fiducials but *sampled* fiducials haven't actually changed, we should assume that tracker position hasn't changed, and so head points don't need to be adjusted.
+
+     But if fiducials have changed, and then we re-align to those fiducials, then we should assume
+        that the tracker position did change. If we do nothing, head points will then be
+        incorrect/nonnsensical. We must either convert head points into the new tracker space,
+        or delete them.
+
+    To convert head points into new tracker space, can we assume that previous tracker to MRI
+    transform was "correct", and go through that?
+
+    TODO: maybe use fiducial history or add a "last edited" timestamp to fiducial fields and
+    head points to not be responsible for tracking this sequencing here.
+
+
+    """
     _key: str = 'Register'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake'))
     _surfKey: str = 'skinSurf'
@@ -726,10 +792,79 @@ class SubjectRegistrationPanel(MainViewPanel):
             alignmentWeights = None
 
         logger.info('Estimating transform aligning sampled fiducials to planned fiducials')
-        subReg.trackerToMRITransf = estimateAligningTransform(
+        newTrackerToMRITransf = estimateAligningTransform(
             sampledPts_subSpace,
             plannedPts_mriSpace,
             weights=alignmentWeights)
+
+        if len(subReg.sampledHeadPoints) > 0:
+            # TODO: handle updating coordinate system of sampled head points if needed
+            # did tracker move since last alignment?
+            # if sampled fiducials were updated since trackerToMRITransf last updated,
+            # then we should assume that the tracker moved and we need to update head points
+
+            timeOfLastSampledFiducialChange = None
+            # (assumes history is in chronological order, with most recent last)
+
+            historyTimes = list(subReg.fiducialsHistory.keys())
+            historyDatetimes = [subReg.getDatetimeFromTimestamp(t) for t in historyTimes]
+
+            if len(subReg.fiducialsHistory) > 0:
+                assert subReg.fiducialsHistory[historyTimes[-1]] == subReg.fiducials, \
+                    'last item in history does not match current state'
+
+            for iHist in range(len(historyTimes) - 2, -1, -1):
+                timeDiff = historyDatetimes[iHist + 1] - historyDatetimes[iHist]
+                assert timeDiff > timedelta(0), 'fiducial history times are not in chronological order'
+
+                fids_i = subReg.fiducialsHistory[historyTimes[iHist]].sampledFiducials
+                fids_j = subReg.fiducialsHistory[historyTimes[iHist + 1]].sampledFiducials
+
+                fidKeys_i = set(fids_i.keys())
+                for fidKey_j, fidCoord_j in fids_j.items():
+                    if fidKey_j not in fids_i:
+                        # new fiducial
+                        timeOfLastSampledFiducialChange = historyDatetimes[iHist + 1]
+                        break
+                    else:
+                        fidKeys_i.remove(fidKey_j)
+                        if not array_equalish(fidCoord_j, fids_i[fidKey_j]):
+                            # fiducial changed
+                            timeOfLastSampledFiducialChange = historyDatetimes[iHist + 1]
+                            break
+
+                if timeOfLastSampledFiducialChange is None:
+                    if len(fidKeys_i) > 0:
+                        # previously-sampled fiducial is now removed
+                        timeOfLastSampledFiducialChange = historyDatetimes[iHist + 1]
+                        break
+
+                if timeOfLastSampledFiducialChange is not None:
+                    break
+
+            if len(subReg.trackerToMRITransfHistory) > 0:
+                timeOfLastTrackerToMRITransfChange = subReg.getDatetimeFromTimestamp(list(subReg.trackerToMRITransfHistory.keys())[-1])
+            else:
+                timeOfLastTrackerToMRITransfChange = None
+
+            if timeOfLastSampledFiducialChange is None:
+                trackerMoved = False
+            elif timeOfLastTrackerToMRITransfChange is None:
+                trackerMoved = True
+            elif timeOfLastTrackerToMRITransfChange > timeOfLastSampledFiducialChange:
+                trackerMoved = False
+            else:
+                trackerMoved = True
+
+            if trackerMoved:
+
+                headPtsTransf = concatenateTransforms([subReg.trackerToMRITransf, invertTransform(newTrackerToMRITransf)])
+
+                logger.info(f'Applying transform to align previously sampled head points to new tracker position: {headPtsTransf}')
+
+                subReg.sampledHeadPoints.replace(applyTransform(headPtsTransf, np.asarray(subReg.sampledHeadPoints)))
+
+        subReg.trackerToMRITransf = newTrackerToMRITransf
 
     def _onSampleHeadPtsBtnClicked(self):
 
@@ -785,6 +920,8 @@ class SubjectRegistrationPanel(MainViewPanel):
         else:
             icpObservationWeights = None
 
+        # TODO: offload this to a separate thread/process so it doesn't block main GUI
+        # (but then also need to implement progress bar, option to cancel, locking of other dependent GUI controls)
         extraTransf = estimateAligningTransform(sampledHeadPts_MRISpace, meshHeadPts_MRISpace,
                                                 method='ICP',
                                                 weights=icpObservationWeights)
