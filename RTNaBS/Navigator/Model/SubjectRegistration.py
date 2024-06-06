@@ -17,7 +17,7 @@ from typing import ClassVar
 
 from RTNaBS.util.attrs import attrsAsDict
 from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
+from RTNaBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict, attrsOptionalNDArrayField
 
 from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
@@ -33,18 +33,18 @@ HeadPoint = np.ndarray
 
 @attrs.define
 class Fiducial(GenericCollectionDictItem[str]):
-    _plannedCoord: tp.Optional[np.ndarray] = None
+    _plannedCoord: tp.Optional[np.ndarray] = attrsOptionalNDArrayField()
     """
     Note that these (planned) coordinates are in MRI space.
     """
-    _sampledCoords: tp.Optional[np.ndarray] = None
+    _sampledCoords: tp.Optional[np.ndarray] = attrsOptionalNDArrayField()
     """
     Note that these (sampled) coordinates are in tracker space, not in MRI space. This is to not require modification when
     using other methods besides fiducials for defining tracker->MRI coordinate transform.
     
     Is of size Nx3, where N is the number of repeated samples of the same coordinate.
     """
-    _sampledCoord: tp.Optional[np.ndarray] = None
+    _sampledCoord: tp.Optional[np.ndarray] = attrsOptionalNDArrayField()
     """
     Is of size (3,). 
     
@@ -209,7 +209,7 @@ class HeadPoints:
     """
     Note that these are coordinates are in tracker space, not in MRI space.
     """
-    _alignmentWeights: tp.Optional[np.ndarray] = attrs.field(default=None)
+    _alignmentWeights: np.ndarray | None = attrs.field(default=None)
     """
     Optional weights used for headpoint-based registration refinement, in format expected by 
     simpleicp's `rbp_observation_weights` argument (i.e. rot_x, rot_y, rot_z, t_x, t_y, t_z). 
@@ -359,6 +359,13 @@ class SubjectRegistration:
         return self._fiducials
 
     @property
+    def fiducialsHistory(self):
+        """
+        Result should not be modified
+        """
+        return self._fiducialsHistory
+
+    @property
     def hasMinimumPlannedFiducials(self) -> bool:
         numFiducialsSet = 0
         for fid in self._fiducials.values():
@@ -399,6 +406,13 @@ class SubjectRegistration:
         self._trackerToMRITransfHistory[self._getTimestampStr()] = None if newTransf is None else newTransf.copy()
 
         self.sigTrackerToMRITransfChanged.emit()
+
+    @property
+    def trackerToMRITransfHistory(self):
+        """
+        Result should not be modified
+        """
+        return self._trackerToMRITransfHistory
 
     @property
     def isRegistered(self):
@@ -482,6 +496,10 @@ class SubjectRegistration:
     @staticmethod
     def _getTimestampStr():
         return datetime.today().strftime('%y%m%d%H%M%S.%f')
+
+    @staticmethod
+    def getDatetimeFromTimestamp(ts: str) -> datetime:
+        return datetime.strptime(ts, '%y%m%d%H%M%S.%f')
 
     @staticmethod
     def fiducialsEqual(fidsA: Fiducials, fidsB: Fiducials) -> bool:
