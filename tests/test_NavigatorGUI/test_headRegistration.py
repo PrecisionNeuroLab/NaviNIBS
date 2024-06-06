@@ -218,6 +218,8 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
     logger.debug('Refining with head points')
     navigatorGUI.subjectRegistrationPanel._refineWithHeadpointsBtn.click()
 
+    await asyncio.sleep(1.)
+
     screenshotPath = os.path.join(sessionPath, 'HeadRegistration_HeadPointRefinement.png')
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
@@ -231,5 +233,88 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
 
     ses = utils.assertSavedSessionIsValid(sessionPath)
 
-    # new transform should be identical(ish) to planned transform
-    assert not array_equalish(ses.subjectRegistration.trackerToMRITransf, trackerToMRITransf)
+    # new transform after refinement should not be identical(ish) to planned transform
+    refinedTrackerToMRITransf = ses.subjectRegistration.trackerToMRITransf
+    assert not array_equalish(refinedTrackerToMRITransf, trackerToMRITransf)
+
+    preMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
+
+    # re-aligning to fiducials should bring it back to planned transform
+    # equivalent to clicking on align button
+    navigatorGUI.subjectRegistrationPanel._alignToFiducialsBtn.click()
+
+    await asyncio.sleep(1.)
+
+    assert array_equalish(navigatorGUI.session.subjectRegistration.trackerToMRITransf, trackerToMRITransf)
+
+    # unrefining should not have changed head points themselves
+    postMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
+    assert array_equalish(np.asarray(preMoveHeadPoints), np.asarray(postMoveHeadPoints))
+
+    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_Unrefined.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_Unrefined.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+
+    # re-refining should produce approximately same refined transform
+    navigatorGUI.subjectRegistrationPanel._refineWithHeadpointsBtn.click()
+
+    await asyncio.sleep(1.0)
+
+    assert not array_equalish(navigatorGUI.session.subjectRegistration.trackerToMRITransf, trackerToMRITransf)
+    assert array_equalish(navigatorGUI.session.subjectRegistration.trackerToMRITransf, refinedTrackerToMRITransf)
+
+    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_Rerefined.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_Rerefined.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+
+    # resamping fiducial(s) after head point refinement and then re-aligning should trigger transformation of head points
+    pointerKey = navigatorGUI.session.tools.pointer.key
+    fidKey = 'RPA'
+    origSampledFidCoord_trackerSpace = navigatorGUI.session.subjectRegistration.fiducials[fidKey].sampledCoord
+    newSampledFidCoord_trackerSpace = origSampledFidCoord_trackerSpace + np.asarray([0., 0., 20.])
+    pointerPose_trackerSpace = composeTransform(np.eye(3), newSampledFidCoord_trackerSpace)
+    pointerPose_worldSpace = concatenateTransforms((pointerPose_trackerSpace,
+                                                        trackerPose_worldSpace))
+    await utils.setSimulatedToolPose(navigatorGUI=navigatorGUI,
+                                     key=pointerKey,
+                                     transf=pointerPose_worldSpace)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on corresponding entry in table
+    navigatorGUI.subjectRegistrationPanel._fidTblWdgt.currentCollectionItemKey = fidKey
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on sample button
+    navigatorGUI.subjectRegistrationPanel._sampleFiducialBtn.click()
+
+    await asyncio.sleep(1.)
+
+    preMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
+
+    # equivalent to clicking on align button
+    navigatorGUI.subjectRegistrationPanel._alignToFiducialsBtn.click()
+
+    postMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
+
+    assert not array_equalish(np.asarray(preMoveHeadPoints), np.asarray(postMoveHeadPoints))
+
+    await asyncio.sleep(1.)
+
+    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_RefinedThenRegistered.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_RefinedThenRegistered.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+
