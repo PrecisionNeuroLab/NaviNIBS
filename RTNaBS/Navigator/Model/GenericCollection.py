@@ -22,6 +22,7 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
 
     sigKeyAboutToChange: Signal = attrs.field(init=False, repr=False, eq=False,
                                               factory=lambda: Signal((K, K)))  # includes old key, new key
+    sigKeyChanged: Signal = attrs.field(init=False, repr=False, eq=False,
                                         factory=lambda: Signal((K, K)))  # includes old key, new key
 
     sigItemAboutToChange: Signal = attrs.field(init=False, repr=False, eq=False,
