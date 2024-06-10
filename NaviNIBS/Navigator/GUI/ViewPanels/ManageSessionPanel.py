@@ -287,7 +287,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 dir = 'todo'
             else:
                 dir = str(pathlib.Path.home())
-            sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.navinibs)')
+            sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.navinibs); Config file (*.json)')
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return
@@ -295,6 +295,10 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         sesFilepath = os.path.normpath(sesFilepath)
 
         logger.info('Load session filepath: {}'.format(sesFilepath))
+
+        if sesFilepath.endswith('.json'):
+            # assume this is a config file inside a larger session dir
+            sesFilepath = os.path.dirname(sesFilepath)
 
         try:
             if os.path.isdir(sesFilepath):
