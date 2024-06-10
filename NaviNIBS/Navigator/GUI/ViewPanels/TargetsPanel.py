@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 from datetime import datetime
 import json

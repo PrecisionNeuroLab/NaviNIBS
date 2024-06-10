@@ -21,7 +21,6 @@ pyvista = "^0.40.1"
 QtPy = "^2.3.1"
 matplotlib = "^3.7.2"
 QtAwesome = "^1.1.1"
-appdirs = "^1.4.4"
 nibabel = "^5.1.0"
 pytransform3d = "^3.2.0"
 pandas = "^2.0.3"
@@ -37,6 +36,7 @@ keyboard = {git = "https://github.com/chriscline/keyboard.git"}
 darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
 xmltodict = "^0.13.0"
+platformdirs = "^4.2.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 import contextlib
 import darkdetect
 import logging
 import os
 import pathlib
+import platformdirs
 import pyvista as pv
 from qtpy import QtGui, QtCore
 import typing as tp
@@ -65,7 +65,7 @@ class NavigatorGUI(RunnableAsApp):
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
-            self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
+            self._inProgressBaseDir = os.path.join(platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
 
         self._rootDockArea = DockArea(affinities=['MainViewPanel'])
         self._rootDockArea.setContentsMargins(2, 2, 2, 2)

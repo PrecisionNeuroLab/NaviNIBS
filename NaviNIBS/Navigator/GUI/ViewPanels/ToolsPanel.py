@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 
-import appdirs
 import attrs
 import json
 import logging
