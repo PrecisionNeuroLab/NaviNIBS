@@ -28,6 +28,51 @@ Transform = np.ndarray
 
 
 @attrs.define
+class LegendEntry:
+    _label: str
+    _color: tp.Any
+
+    """
+    Note: attributes below are shared by entire legend, so each entry just provides its preference but may not 
+    actually be granted these values. Or in the future, may implement multiple / more flexible pyvista legends
+    to support showing these on a per-entry basis
+    """
+    _bcolor: tp.Any | None = None
+    _border: bool = False
+    _loc: str = 'upper right'
+    _face: str | pv.PolyData | None = 'triangle'
+
+    _legendActor: pv.Actor | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        pass
+
+    @property
+    def label(self):
+        return self._label
+
+    @property
+    def color(self):
+        return self._color
+
+    @property
+    def bcolor(self):
+        return
+
+    @property
+    def border(self):
+        return self._border
+
+    @property
+    def loc(self):
+        return self._loc
+
+    @property
+    def face(self):
+        return self._face
+
+
+@attrs.define
 class ViewLayer:
     _key: str
     _type: ClassVar[str]
@@ -46,12 +91,20 @@ class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
     _plotter: DefaultBackgroundPlotter  # note that this one plotter may be shared between multiple ViewLayers
     _plotInSpace: str = 'MRI'
 
-    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+    _actors: dict[str, Actor | None] = attrs.field(init=False, factory=dict)
+    _legendEntries: list[LegendEntry] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
         ViewLayer.__attrs_post_init__(self)
         QueuedRedrawMixin.__attrs_post_init__(self)
         self._redraw('all')
+
+    @property
+    def legendEntries(self):
+        return self._legendEntries
+
+    def _registerLegendEntry(self, entry: LegendEntry):
+        self._legendEntries.append(entry)
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         QueuedRedrawMixin._redraw(self, which=which)
