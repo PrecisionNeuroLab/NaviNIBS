@@ -397,7 +397,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.sesFilepath is None:
-        if True:  # TODO: debug, delete or set to False
+        if False:  # TODO: debug, delete or set to False
             if True:
                 #sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test4.rtnabs')
                 # sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test8.rtnabsdir')
