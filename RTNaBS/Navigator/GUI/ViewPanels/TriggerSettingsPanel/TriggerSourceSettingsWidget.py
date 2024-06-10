@@ -5,8 +5,8 @@ import typing as tp
 import attrs
 from qtpy import QtWidgets
 
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.GUI.Dock import Dock
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.util.GUI.Dock import Dock
 
 
 TS = tp.TypeVar('TS')   # TriggerSource class (e.g. LSLTriggerSource) referenced by a settings widget

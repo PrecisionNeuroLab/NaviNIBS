@@ -5,7 +5,7 @@ import typing as tp
 import os
 from qtpy import QtWidgets, QtGui, QtCore
 
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
     _filepath: tp.Optional[str] = None
     _showRelativeTo: tp.Optional[str] = None
-    _showRelativePrefix: tp.Optional[str] = None  # if showing relative to path, can show this prefix in displayed QLineEdit to make origin of rel path clear, e.g. '[RTNaBS]'
+    _showRelativePrefix: tp.Optional[str] = None  # if showing relative to path, can show this prefix in displayed QLineEdit to make origin of rel path clear, e.g. '[NaviNIBS]'
     _extFilters: tp.Optional[str] = None
     _browseCaption: tp.Optional[str] = None
 

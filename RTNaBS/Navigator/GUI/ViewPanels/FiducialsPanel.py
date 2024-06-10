@@ -16,15 +16,15 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
-from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import PlanningFiducialsTableWidget
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.pyvista import RemotePlotterProxy
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
+from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import PlanningFiducialsTableWidget
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.pyvista import RemotePlotterProxy
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducial
 
 
 logger = logging.getLogger(__name__)

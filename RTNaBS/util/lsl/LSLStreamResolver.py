@@ -9,9 +9,9 @@ import threading
 import typing as tp
 
 from . import getKeyForStreamInfo, getEquivalentKeysForStreamInfo, inferStreamKey
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.ZMQConnector import ZMQConnectorServer, ZMQConnectorClient, getNewPort
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.ZMQConnector import ZMQConnectorServer, ZMQConnectorClient, getNewPort
 
 
 logger = logging.getLogger(__name__)

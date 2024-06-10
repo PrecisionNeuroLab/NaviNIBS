@@ -10,11 +10,11 @@ from scipy.optimize import least_squares
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 
 logger = logging.getLogger(__name__)

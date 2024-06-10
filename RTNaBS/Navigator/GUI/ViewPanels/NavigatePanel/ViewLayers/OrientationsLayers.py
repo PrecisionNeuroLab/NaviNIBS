@@ -10,11 +10,11 @@ import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
-from RTNaBS.Navigator.Model.Samples import Sample, Samples
-from RTNaBS.Navigator.Model.Targets import Target, Targets
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from NaviNIBS.Navigator.Model.Samples import Sample, Samples
+from NaviNIBS.Navigator.Model.Targets import Target, Targets
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
 logger = logging.getLogger(__name__)

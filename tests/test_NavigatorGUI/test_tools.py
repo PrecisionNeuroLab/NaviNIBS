@@ -7,8 +7,8 @@ import pyperclip
 import pytest
 import shutil
 
-from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
-from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import CoilToolWidget
+from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+from NaviNIBS.Navigator.GUI.ViewPanels.ToolsPanel import CoilToolWidget
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
     existingResourcesDataPath,

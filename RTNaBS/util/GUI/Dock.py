@@ -6,8 +6,8 @@ import pyqtgraph.dockarea.Container as pgdc
 from qtpy import QtWidgets, QtGui, QtCore
 import weakref
 
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
 
 
 DockArea = pgd.DockArea

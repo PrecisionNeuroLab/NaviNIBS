@@ -18,16 +18,16 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Navigator.Model.Session import Session, CoordinateSystems, CoordinateSystem
-from RTNaBS.util import makeStrUnique
-from RTNaBS.util.pyvista import setActorUserTransform
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
-from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from NaviNIBS.Navigator.Model.Session import Session, CoordinateSystems, CoordinateSystem
+from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.pyvista import setActorUserTransform
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
+from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from NaviNIBS.util.GUI.QValidators import OptionalTransformValidator
+from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
 
 logger = logging.getLogger(__name__)
 

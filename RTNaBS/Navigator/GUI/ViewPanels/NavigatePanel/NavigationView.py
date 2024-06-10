@@ -10,8 +10,8 @@ from qtpy import QtWidgets, QtCore
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
-from .ViewLayers import ViewLayer, PlotViewLayer
+from NaviNIBS.Navigator.TargetingCoordinator import TargetingCoordinator
+from .ViewLayers import ViewLayer, PlotViewLayer, LegendEntry
 from .ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer, ToolMeshSurfaceLayer
 from .ViewLayers.OrientationsLayers import SampleOrientationsLayer, TargetOrientationsLayer
 from .ViewLayers.SampleMetadataOrientationsLayer import SampleMetadataOrientationsLayer, SampleMetadataInterpolatedSurfaceLayer
@@ -20,11 +20,11 @@ from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.Transforms import applyTransform, composeTransform
-from RTNaBS.util.GUI.Dock import Dock
-from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
-from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Transforms import applyTransform, composeTransform
+from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
+from NaviNIBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -102,6 +102,8 @@ class NavigationView(QueuedRedrawMixin):
         return self._wdgt
 
 
+
+
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
     _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
@@ -114,6 +116,8 @@ class SinglePlotterNavigationView(NavigationView):
     Can also specify something like 'tool-<toolKey>+X' to look at from along tool X axis
     """
     _doParallelProjection: bool = False
+
+    _doShowLegend: bool = False
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)
@@ -389,7 +393,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
 
-        if False and self._alignCameraTo == 'target':
+        if True and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='Brain',
                           surfKey='gmSurf',

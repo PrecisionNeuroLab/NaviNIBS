@@ -13,9 +13,9 @@ else:
 
 from . import Actor
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, getActorUserTransform
-from RTNaBS.util import Transforms
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, getActorUserTransform
+from NaviNIBS.util import Transforms
 
 
 logger = logging.getLogger(__name__)

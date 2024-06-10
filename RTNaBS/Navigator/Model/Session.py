@@ -17,20 +17,20 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
-import RTNaBS
-from RTNaBS.Navigator.Model.MRI import MRI
-from RTNaBS.Navigator.Model.HeadModel import HeadModel
-from RTNaBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
-from RTNaBS.Navigator.Model.Targets import Targets, Target
-from RTNaBS.Navigator.Model.Samples import Samples, Sample
-from RTNaBS.Navigator.Model.SubjectRegistration import SubjectRegistration
-from RTNaBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
-from RTNaBS.Navigator.Model.Triggering import TriggerSources
-from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
-from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayouts
-from RTNaBS.Navigator.Model.Addons import Addons, Addon
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.numpy import array_equalish
+import NaviNIBS
+from NaviNIBS.Navigator.Model.MRI import MRI
+from NaviNIBS.Navigator.Model.HeadModel import HeadModel
+from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
+from NaviNIBS.Navigator.Model.Targets import Targets, Target
+from NaviNIBS.Navigator.Model.Samples import Samples, Sample
+from NaviNIBS.Navigator.Model.SubjectRegistration import SubjectRegistration
+from NaviNIBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
+from NaviNIBS.Navigator.Model.Triggering import TriggerSources
+from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
+from NaviNIBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayouts
+from NaviNIBS.Navigator.Model.Addons import Addons, Addon
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.numpy import array_equalish
 
 
 logger = logging.getLogger(__name__)
@@ -280,7 +280,7 @@ class Session:
         else:
             config = dict(formatVersion=self._latestConfigFormatVersion)
 
-        config['softwareVersion'] = RTNaBS.__version__
+        config['softwareVersion'] = NaviNIBS.__version__
 
         def saveConfigPartToFileIfNeeded(key: str, getWhatToDump: tp.Callable[[], tp.Any]):
             if key in keysToSave or not saveDirtyOnly:
@@ -520,7 +520,7 @@ class Session:
             if sections is not None and len(sections) > 0:
                 raise NotImplementedError('Merging of sections {} not implemented yet'.format(sections))
         else:
-            raise NotImplementedError()  # TODO: implement more general merging of .rtnabs files
+            raise NotImplementedError()  # TODO: implement more general merging of .navinibs files
 
     @classmethod
     def createNew(cls, filepath: str, unpackedSessionDir: tp.Optional[str] = None):

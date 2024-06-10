@@ -8,10 +8,10 @@ import logging
 from qtpy import QtWidgets
 
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.Triggering import HotkeyTriggerSource, Hotkey, Hotkeys, TriggerEvent
-from RTNaBS.Navigator.GUI.CollectionModels.HotkeysTableModel import HotkeysTableModel
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import CollectionTableWidget
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.Triggering import HotkeyTriggerSource, Hotkey, Hotkeys, TriggerEvent
+from NaviNIBS.Navigator.GUI.CollectionModels.HotkeysTableModel import HotkeysTableModel
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import CollectionTableWidget
 
 
 logger = logging.getLogger(__name__)

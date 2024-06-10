@@ -8,12 +8,12 @@ import os
 import typing as tp
 
 if tp.TYPE_CHECKING:
-    from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, invertTransform
+    from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import applyTransform, invertTransform
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 logger = logging.getLogger(__name__)
 

@@ -13,16 +13,16 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from RTNaBS.util import exceptionToStr
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.GUI.Dock import Dock, DockArea
-from RTNaBS.util.GUI.ErrorDialog import raiseErrorDialog
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.util import exceptionToStr
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.Dock import Dock, DockArea
+from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.Navigator.Model.Session import Session
 
 if tp.TYPE_CHECKING:
-    from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+    from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 
 
 logger = logging.getLogger(__name__)
@@ -196,7 +196,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             sesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
                                                                    'Save session to file',
                                                                    prevFilepath,
-                                                                   'Session file (*.rtnabs)')
+                                                                   'Session file (*.navinibs)')
             if len(sesFilepath) == 0:
                 logger.info('Browse save session file cancelled')
                 return
@@ -288,7 +288,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 dir = 'todo'
             else:
                 dir = str(pathlib.Path.home())
-            sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.rtnabs)')
+            sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.navinibs)')
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return
@@ -344,7 +344,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             else:
                 dir = str(pathlib.Path.home())
             fromSesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to clone', dir,
-                                                                "Session file (*.rtnabs)")
+                                                                "Session file (*.navinibs)")
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return
@@ -355,7 +355,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         if toSesFilepath is None:
             dir, _ = os.path.split(fromSesFilepath)
-            toSesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt, 'Create save cloned session file', dir, "Session file (*.rtnabs)")
+            toSesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt, 'Create save cloned session file', dir, "Session file (*.navinibs)")
             if len(sesFilepath) == 0:
                 logger.info('Browse clone session cancelled')
                 return

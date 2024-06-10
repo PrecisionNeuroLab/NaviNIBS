@@ -19,23 +19,23 @@ import time
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient, TimestampedToolPosition
-from RTNaBS.Navigator.GUI.EditWindows.CoilCalibrationWindow import CoilCalibrationWithPlateWindow
-from RTNaBS.Navigator.GUI.EditWindows.PointerCalibrationWindow import PointerCalibrationWindow
-from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
-from RTNaBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
-from RTNaBS.util import makeStrUnique
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
-from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.GUI.QValidators import OptionalTransformValidator
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient, TimestampedToolPosition
+from NaviNIBS.Navigator.GUI.EditWindows.CoilCalibrationWindow import CoilCalibrationWithPlateWindow
+from NaviNIBS.Navigator.GUI.EditWindows.PointerCalibrationWindow import PointerCalibrationWindow
+from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
+from NaviNIBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
+from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
+from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from NaviNIBS.util.GUI.QValidators import OptionalTransformValidator
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
+from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
 
 
 logger = logging.getLogger(__name__)

@@ -2,7 +2,7 @@ import attrs
 import logging
 from qtpy import QtWidgets, QtCore, QtGui
 
-from RTNaBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
+from NaviNIBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
 
 logger = logging.getLogger(__name__)
 

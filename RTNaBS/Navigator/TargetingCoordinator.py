@@ -16,13 +16,13 @@ import shutil
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.CoilOrientations import PoseMetricCalculator
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.CoilOrientations import PoseMetricCalculator
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
 logger = logging.getLogger(__name__)

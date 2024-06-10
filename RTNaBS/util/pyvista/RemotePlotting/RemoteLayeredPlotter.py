@@ -2,8 +2,8 @@ import typing as tp
 from typing import ClassVar
 
 import attrs
-from RTNaBS.util.pyvista.plotting import PrimaryLayeredPlotter, SecondaryLayeredPlotter
-from RTNaBS.util.pyvista.RemotePlotting import RemotePlotter as RP
+from NaviNIBS.util.pyvista.plotting import PrimaryLayeredPlotter, SecondaryLayeredPlotter
+from NaviNIBS.util.pyvista.RemotePlotting import RemotePlotter as RP
 
 
 class RemoteSecondaryLayeredPlotter(SecondaryLayeredPlotter, RP.RemotePlotterMixin):

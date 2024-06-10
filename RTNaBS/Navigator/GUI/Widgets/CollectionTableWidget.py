@@ -6,21 +6,21 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
-from RTNaBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
-from RTNaBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
-from RTNaBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
-from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
-from RTNaBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
-from RTNaBS.Navigator.GUI.CollectionModels.ToolsTableModel import ToolsTableModel
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.Samples import Sample, Samples
-from RTNaBS.Navigator.Model.Targets import Target, Targets
-from RTNaBS.Navigator.Model.Tools import Tool, Tools
-from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints, Fiducial, Fiducials
-from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocation, DigitizedLocations
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
+from NaviNIBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
+from NaviNIBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
+from NaviNIBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
+from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
+from NaviNIBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
+from NaviNIBS.Navigator.GUI.CollectionModels.ToolsTableModel import ToolsTableModel
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.Samples import Sample, Samples
+from NaviNIBS.Navigator.Model.Targets import Target, Targets
+from NaviNIBS.Navigator.Model.Tools import Tool, Tools
+from NaviNIBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints, Fiducial, Fiducials
+from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocation, DigitizedLocations
+from NaviNIBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
 

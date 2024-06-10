@@ -20,26 +20,26 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
-from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
-from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTableWidget, RegistrationFiducialsTableWidget
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
-from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
-from RTNaBS.util import makeStrUnique
-from RTNaBS.util import exceptionToStr
-from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
-from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.numpy import array_equalish
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter
-from RTNaBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
+from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTableWidget, RegistrationFiducialsTableWidget
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
+from NaviNIBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
+from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util import exceptionToStr
+from NaviNIBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
+from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from NaviNIBS.util.numpy import array_equalish
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
+from NaviNIBS.util.pyvista.dataset import find_closest_point
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

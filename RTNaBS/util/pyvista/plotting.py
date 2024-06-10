@@ -11,8 +11,8 @@ from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import Actor
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.pyvista import Actor
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -235,7 +235,7 @@ class PlotterImprovementsMixin:
                                               rgb=rgb,
                                               **kwargs)
         except (AttributeError, ValueError) as e:
-            from RTNaBS.util import exceptionToStr
+            from NaviNIBS.util import exceptionToStr
             logger.error(exceptionToStr(e))
             raise e
 

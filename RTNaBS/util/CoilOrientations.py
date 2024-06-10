@@ -8,13 +8,13 @@ from skspatial.objects import Line, Plane, Vector
 import types
 import typing as tp
 
-from RTNaBS.Navigator.Model import Session
-from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, getClosestPointToPointOnMesh
-from RTNaBS.Navigator.Model.Samples import Sample
-from RTNaBS.Navigator.Model.Targets import Target
-from RTNaBS.util.pyvista.dataset import find_closest_point
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform
+from NaviNIBS.Navigator.Model import Session
+from NaviNIBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, getClosestPointToPointOnMesh
+from NaviNIBS.Navigator.Model.Samples import Sample
+from NaviNIBS.Navigator.Model.Targets import Target
+from NaviNIBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform
 
 
 logger = logging.getLogger(__name__)

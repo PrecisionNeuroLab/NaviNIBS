@@ -8,11 +8,11 @@ import pylsl as lsl
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util import exceptionToStr
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util import exceptionToStr
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 logger = logging.getLogger(__name__)
 

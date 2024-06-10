@@ -13,26 +13,25 @@ import pyvista as pv
 from qtpy import QtGui, QtCore
 import typing as tp
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
-from RTNaBS.util.GUI.Dock import DockArea
-from RTNaBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
-from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
-from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from RTNaBS.Navigator.GUI.ViewPanels.ManageSessionPanel import ManageSessionPanel
-from RTNaBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
-from RTNaBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
-from RTNaBS.Navigator.GUI.ViewPanels.CoordinateSystemsPanel import CoordinateSystemsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettingsPanel
-from RTNaBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
-from RTNaBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
-from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
-from RTNaBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
+from NaviNIBS.util.GUI.Dock import DockArea
+from NaviNIBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
+from NaviNIBS.Navigator.GUI.ViewPanels import MainViewPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.Navigator.GUI.ViewPanels.ManageSessionPanel import ManageSessionPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettingsPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
+from NaviNIBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
 
 logger = logging.getLogger(__name__)
 

@@ -17,21 +17,21 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
-from RTNaBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
-from RTNaBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
-from RTNaBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
-from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from RTNaBS.util import makeStrUnique
-from RTNaBS.util.pyvista import Actor, RemotePlotterProxy
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
-from RTNaBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
-from RTNaBS.Navigator.Model.Session import Session, Target
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
+from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
+from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
+from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
+from NaviNIBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
+from NaviNIBS.Navigator.Model.Session import Session, Target
 
 
 logger = logging.getLogger(__name__)
@@ -523,7 +523,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
                                                                'Select targets file to import',
                                                                os.path.dirname(self.session.filepath),
-                                                               'json (*.json);; RTNaBS (*.rtnabs)')
+                                                               'json (*.json);; NaviNIBS (*.navinibs)')
 
         if len(newFilepath) == 0:
             logger.warning('Import cancelled')

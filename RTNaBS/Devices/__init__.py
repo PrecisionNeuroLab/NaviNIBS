@@ -2,7 +2,7 @@ import attrs
 import numpy as np
 import typing as tp
 
-from RTNaBS.util.numpy import attrsWithNumpyAsDict, attrsWithNumpyFromDict
+from NaviNIBS.util.numpy import attrsWithNumpyAsDict, attrsWithNumpyFromDict
 
 positionsServerHostname = '127.0.0.1'
 positionsServerPubPort = 18950

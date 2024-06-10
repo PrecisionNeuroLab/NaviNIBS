@@ -11,9 +11,9 @@ import pylsl as lsl
 from qtpy import QtWidgets
 
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
-from RTNaBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent, TriggerSource
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.lsl.LSLStreamSelector import LSLStreamSelector
+from NaviNIBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent, TriggerSource
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.lsl.LSLStreamSelector import LSLStreamSelector
 
 
 logger = logging.getLogger(__name__)

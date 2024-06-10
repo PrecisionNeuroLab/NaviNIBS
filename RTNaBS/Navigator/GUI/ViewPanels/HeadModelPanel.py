@@ -16,11 +16,11 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
-from RTNaBS.Navigator.GUI.Widgets.SurfViews import SurfSliceView, Surf3DView
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
+from NaviNIBS.Navigator.GUI.Widgets.SurfViews import SurfSliceView, Surf3DView
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.Navigator.Model.Session import Session
 
 
 logger = logging.getLogger(__name__)

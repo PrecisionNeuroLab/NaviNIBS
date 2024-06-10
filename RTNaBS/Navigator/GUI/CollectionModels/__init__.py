@@ -5,9 +5,9 @@ import logging
 import typing as tp
 from qtpy import QtCore, QtGui, QtWidgets
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
-from RTNaBS.Navigator.Model import Session
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model import Session
+from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)

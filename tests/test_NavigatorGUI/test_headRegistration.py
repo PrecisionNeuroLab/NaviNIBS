@@ -6,9 +6,9 @@ import pyperclip
 import pytest
 import shutil
 
-from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
-from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
-from RTNaBS.util.numpy import array_equalish
+from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
+from NaviNIBS.util.numpy import array_equalish
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
     existingResourcesDataPath,

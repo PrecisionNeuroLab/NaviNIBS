@@ -19,10 +19,10 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 
 
 logger = logging.getLogger(__name__)

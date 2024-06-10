@@ -16,18 +16,18 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import DigitizedLocationsTableWidget
-from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocation
-from RTNaBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
-from RTNaBS.util import makeStrUnique
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.pyvista import Actor, setActorUserTransform
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
-from RTNaBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import DigitizedLocationsTableWidget
+from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocation
+from NaviNIBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
+from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 
 
 logger = logging.getLogger(__name__)

@@ -15,19 +15,19 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
-from RTNaBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
-from RTNaBS.util.pyvista import Actor
-from RTNaBS.util.pyvista import (
+from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
+from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import (
     DefaultBackgroundPlotter,
     DefaultPrimaryLayeredPlotter,
     DefaultSecondaryLayeredPlotter,
     RemotePlotterProxy
 )
-from RTNaBS.util.pyvista.PlotInteraction import set_mouse_event_for_picking
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import composeTransform, applyTransform
-from RTNaBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from RTNaBS.Navigator.Model.Session import Session
+from NaviNIBS.util.pyvista.PlotInteraction import set_mouse_event_for_picking
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import composeTransform, applyTransform
+from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.Navigator.Model.Session import Session
 
 
 logger = logging.getLogger(__name__)

@@ -5,9 +5,9 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.Model.Session import Session, Tool
-from RTNaBS.util.GUI.IconWidget import IconWidget
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.Model.Session import Session, Tool
+from NaviNIBS.util.GUI.IconWidget import IconWidget
 
 logger = logging.getLogger(__name__)
 

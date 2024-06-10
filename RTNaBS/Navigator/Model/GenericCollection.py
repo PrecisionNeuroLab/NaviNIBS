@@ -8,9 +8,9 @@ from collections.abc import Sequence, Mapping, Iterable
 import logging
 import typing as tp
 
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.util.numpy import array_equalish
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.numpy import array_equalish
+from NaviNIBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
 

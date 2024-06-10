@@ -3,9 +3,9 @@ import logging
 import typing as tp
 from qtpy import QtGui
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K
-from RTNaBS.Navigator.Model.Triggering import Hotkey, Hotkeys, HotkeyTriggerSource
-from RTNaBS.util import makeStrUnique
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K
+from NaviNIBS.Navigator.Model.Triggering import Hotkey, Hotkeys, HotkeyTriggerSource
+from NaviNIBS.util import makeStrUnique
 
 logger = logging.getLogger()
 

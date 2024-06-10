@@ -6,8 +6,8 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
-from RTNaBS.util.lsl.LSLStreamResolver import ThreadedLSLStreamResolver
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.util.lsl.LSLStreamResolver import ThreadedLSLStreamResolver
+from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)
