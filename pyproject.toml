@@ -1,9 +1,14 @@
+[project]
+classifiers = [
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)"
+]
+
 [tool.poetry]
-name = "RTNaBS"
+name = "NaviNIBS"
 version = "0.0.1"
-description = "Software for real-time navigated brain stimulation"
-authors = ["Chris Cline <chriscline@users.noreply.github.com>"]
-license = "MIT"
+description = "Software for neuronavigated non-invasive brain stimulation"
+authors = ["Christopher C. Cline <chriscline@users.noreply.github.com>"]
+license = "LGPLv3"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -27,18 +32,27 @@ pylsl = "^1.16.0"
 scikit-spatial = "^6.4.1"
 #simpleicp = "^2.0.12"
 simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
-pytest-asyncio = "^0.21.1"
-pytest-pycharm = "^0.7.0"
 nitransforms = "^23.0.1"
 keyboard = {git = "https://github.com/chriscline/keyboard.git"}
 darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
-aioconsole = "^0.6.1"
 xmltodict = "^0.13.0"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"
+pytest-asyncio = "^0.21.1"
+pytest-pycharm = "^0.7.0"
+pytest-qt = "^4.4.0"
+pytest-order = "^1.2.0"
+pytest-lazy-fixtures = "^1.0.5"
+pyperclip = "^1.8.2"
+aioconsole = "^0.6.1"
+pywinauto = "^0.6.8"  # TODO: maybe delete if unused
+pillow = "^10.2.0"  # for screenshots
+
+[tool.poetry.group.dev.dependencies]
 setuptools = "^68.0.0"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
