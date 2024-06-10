@@ -93,7 +93,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     """
     Where to save interpolated values within internal mesh object
     """
-    _scalarsOpacityKey: str = 'SampleMetadataInterpolatedOpacity'
+    # _scalarsOpacityKey: str | None = 'SampleMetadataInterpolatedOpacity'
+    _scalarsOpacityKey: str | None = None
+
+    _meshOpacityOutsideInterpolatedRegion: float = 1.
 
     _reinterpolationRateLimit: float = 10  # in Hz
     _needsReinterpolation: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
@@ -113,10 +116,13 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
         """
 
         while True:
+            logger.debug('Awaiting needsReinterpolation')
             await self._needsReinterpolation.wait()
+            logger.debug('Sleeping before reinterpolating')
             await asyncio.sleep(1/self._reinterpolationRateLimit)
             if not self._needsReinterpolation.is_set():
                 continue
+            logger.debug('Reinterpolation loop')
             self._redraw(which='interpolateValues')
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
@@ -145,7 +151,12 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                 colorbarLabel = self._colorbarLabel
             scalar_bar_args = dict(
                 title=colorbarLabel,
+                bold=True,
+                title_font_size=20,
+                label_font_size=12,
             )
+
+            self._mesh.clear_data()  # TODO: determine if this is necessary
 
             self._interpolateValuesOntoMesh()
 
@@ -157,6 +168,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
                                                             color=self._color,
                                                             nan_color=self._color,
+                                                            nan_opacity=self._meshOpacityOutsideInterpolatedRegion,
                                                             scalars=self._scalarsKey,
                                                             scalar_bar_args=scalar_bar_args,
                                                             opacity=opacity,
@@ -182,16 +194,18 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
         elif which == 'interpolateValues':
 
-            if False:
+            if self._scalarsOpacityKey is None and False:
 
                 self._interpolateValuesOntoMesh()
 
                 # just call update rather than completely re-adding the mesh to plotter
                 with self._plotter.allowNonblockingCalls():
-                    self._plotter.update_scalars(self._scalarsKey, mesh=self._mesh, render=True)
-                    # TODO: also update opacity field
+                    # self._plotter.update_scalars(self._scalarsKey,
+                    #                              mesh=self._mesh,
+                    #                              render=True)
                     #self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
                     self._plotter.update()
+
             else:
                 # current pyvista doesn't support dynamically changing color when a custom opacity is specified, so
                 # need to fully re-add the mesh to the plotter
@@ -343,7 +357,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             else:
                 newVals = tmpMesh[self._scalarsKey]
 
-        if self._scalarsKey not in self._mesh.point_data:
+        if self._scalarsKey not in self._mesh.point_data or True:
             self._mesh[self._scalarsKey] = newVals
         else:
             self._mesh[self._scalarsKey][:] = newVals  # update existing array
@@ -356,9 +370,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             else:
                 self._mesh[self._scalarsOpacityKey][:] = opacityVals  # update existing array
 
-        #logger.debug(f'{np.isnan(self._mesh[self._scalarsKey]).sum()} / {self._mesh.n_points} points are nan')
+        logger.debug(f'{np.isnan(self._mesh[self._scalarsKey]).sum()} / {self._mesh.n_points} points are nan')
 
     def _onSamplesChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
+        logger.debug(f'_onSamplesChanged: {changedKeys} {changedAttrs}')
         if changedAttrs is not None:
             if 'isVisible' not in changedAttrs:
                 if any(x in changedAttrs for x in ('coilToMRITransf', 'targetKey', 'metadata')):
