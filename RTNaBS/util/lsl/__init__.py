@@ -11,7 +11,7 @@ import threading
 import typing as tp
 
 
-from RTNaBS.util.ZMQConnector import ZMQConnectorServer, ZMQConnectorClient, getNewPort
+from NaviNIBS.util.ZMQConnector import ZMQConnectorServer, ZMQConnectorClient, getNewPort
 
 
 logger = logging.getLogger(__name__)

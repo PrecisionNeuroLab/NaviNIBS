@@ -3,7 +3,7 @@ import attrs
 import logging
 import typing as tp
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

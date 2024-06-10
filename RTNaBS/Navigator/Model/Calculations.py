@@ -9,9 +9,9 @@ from skspatial.objects import Vector, Plane
 import typing as tp
 
 if tp.TYPE_CHECKING:
-    from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
-from RTNaBS.util.pyvista.dataset import find_closest_point
+    from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
+from NaviNIBS.util.pyvista.dataset import find_closest_point
 
 logger = logging.getLogger(__name__)
 

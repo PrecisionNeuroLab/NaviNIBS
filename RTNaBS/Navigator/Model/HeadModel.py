@@ -15,9 +15,9 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.numpy import array_equalish
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.numpy import array_equalish
 
 
 logger = logging.getLogger(__name__)

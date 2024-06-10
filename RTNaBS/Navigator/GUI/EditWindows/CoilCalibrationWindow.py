@@ -7,11 +7,11 @@ import pyvista as pv
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
-from RTNaBS.util.pyvista import DefaultPrimaryLayeredPlotter, DefaultSecondaryLayeredPlotter, RemotePlotterProxy
+from NaviNIBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from NaviNIBS.util.pyvista import DefaultPrimaryLayeredPlotter, DefaultSecondaryLayeredPlotter, RemotePlotterProxy
 
 
 logger = logging.getLogger(__name__)

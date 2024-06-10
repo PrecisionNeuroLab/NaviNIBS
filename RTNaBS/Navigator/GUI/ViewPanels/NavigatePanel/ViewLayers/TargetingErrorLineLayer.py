@@ -8,7 +8,7 @@ import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
-from RTNaBS.Navigator.TargetingCoordinator import ProjectionSpecification
+from NaviNIBS.Navigator.TargetingCoordinator import ProjectionSpecification
 
 logger = logging.getLogger(__name__)
 

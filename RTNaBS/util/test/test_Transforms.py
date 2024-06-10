@@ -3,8 +3,8 @@ import pytest
 import pytransform3d.rotations as ptr
 import pytransform3d.transformations as ptt
 
-from RTNaBS.util.numpy import array_equalish
-from RTNaBS.util.Transforms import transformToString, stringToTransform, composeTransform, invertTransform, applyTransform, estimateAligningTransform
+from NaviNIBS.util.numpy import array_equalish
+from NaviNIBS.util.Transforms import transformToString, stringToTransform, composeTransform, invertTransform, applyTransform, estimateAligningTransform
 
 
 @pytest.fixture

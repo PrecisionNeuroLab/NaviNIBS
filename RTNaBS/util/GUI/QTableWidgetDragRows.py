@@ -4,7 +4,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QTableWidget, QAbstractItemView, QTableWidgetItem
 
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.util.Signaler import Signal
 
 
 class QTableWidgetDragRows(QTableWidget):

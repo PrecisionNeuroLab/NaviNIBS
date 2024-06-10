@@ -7,7 +7,7 @@ import shutil
 import logging
 from qtpy import QtCore
 
-from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
     existingResourcesDataPath,

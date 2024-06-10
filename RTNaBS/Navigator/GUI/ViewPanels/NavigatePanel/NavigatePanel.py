@@ -11,21 +11,21 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
-from RTNaBS.Navigator.TargetingCoordinator import TargetingCoordinator
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
-from RTNaBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
-from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.Tools import CalibrationPlate, Pointer
-from RTNaBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
-from RTNaBS.Navigator.Model.Samples import Sample
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.CoilOrientations import PoseMetricCalculator
-from RTNaBS.util.GUI.Dock import Dock
-from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
-from RTNaBS.util.GUI.QFlowLayout import QFlowLayout
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.Navigator.TargetingCoordinator import TargetingCoordinator
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
+from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.Tools import CalibrationPlate, Pointer
+from NaviNIBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
+from NaviNIBS.Navigator.Model.Samples import Sample
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.CoilOrientations import PoseMetricCalculator
+from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.GUI.QScrollContainer import QScrollContainer
+from NaviNIBS.util.GUI.QFlowLayout import QFlowLayout
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

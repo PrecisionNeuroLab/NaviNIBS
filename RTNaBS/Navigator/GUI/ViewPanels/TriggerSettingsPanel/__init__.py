@@ -11,8 +11,8 @@ from . import HotkeyTriggerSourceSettingsWidget
 from .HotkeyTriggerSourceSettingsWidget import HotkeyTriggerSourceSettingsWidget
 
 from .. import MainViewPanel
-from RTNaBS.Navigator.Model.Triggering import TriggerEvent
-from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.Navigator.Model.Triggering import TriggerEvent
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from .LSLTriggerSourceSettingsWidget import LSLTriggerSourceSettingsWidget
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
 

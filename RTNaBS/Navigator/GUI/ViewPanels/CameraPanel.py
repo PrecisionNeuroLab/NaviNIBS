@@ -9,17 +9,17 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtGui
 import typing as tp
 
-from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
-from RTNaBS.Navigator.Model.Session import Session, SubjectTracker
-from RTNaBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from RTNaBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
-from RTNaBS.util.Transforms import invertTransform, concatenateTransforms
-from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter
+from NaviNIBS.Devices.ToolPositionsServer import ToolPositionsServer
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
+from NaviNIBS.Navigator.Model.Session import Session, SubjectTracker
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
+from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

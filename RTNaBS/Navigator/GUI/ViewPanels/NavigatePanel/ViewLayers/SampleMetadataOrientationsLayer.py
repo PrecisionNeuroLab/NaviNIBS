@@ -10,10 +10,10 @@ import typing as tp
 from typing import ClassVar
 import pyvista as pv
 
-from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLayers import SampleOrientationsLayer, VisualizedOrientation
-from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
+from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLayers import SampleOrientationsLayer, VisualizedOrientation
+from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
 
 logger = logging.getLogger(__name__)
 

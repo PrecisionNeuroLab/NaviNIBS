@@ -4,9 +4,9 @@ import logging
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.Model.Session import Session, Tool
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.Model.Session import Session, Tool
+from NaviNIBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
 

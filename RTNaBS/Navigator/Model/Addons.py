@@ -9,18 +9,18 @@ import os
 import sys
 import typing as tp
 
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.util.json import jsonPrettyDumps
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.json import jsonPrettyDumps
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 if tp.TYPE_CHECKING:
-    from RTNaBS.Navigator.Model.Session import Session
-    from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
-    from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
-    from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import NavigationView
-    from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers import ViewLayer
+    from NaviNIBS.Navigator.Model.Session import Session
+    from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+    from NaviNIBS.Navigator.GUI.ViewPanels import MainViewPanel
+    from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import NavigationView
+    from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers import ViewLayer
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +222,7 @@ class Addon(GenericCollectionDictItem[str]):
 
         assert 'addonInstallPath' in d
 
-        # specified path in config is relative to root RTNaBS installPath
+        # specified path in config is relative to root NaviNIBS installPath
         addonInstallPath = os.path.join(_installPath, d['addonInstallPath'])
         del d['addonInstallPath']
         addonConfigPath = os.path.join(addonInstallPath, 'addon_configuration.json')

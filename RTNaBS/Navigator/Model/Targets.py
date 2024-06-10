@@ -15,14 +15,14 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
 if tp.TYPE_CHECKING:
-    from RTNaBS.Navigator.Model.Session import Session
+    from NaviNIBS.Navigator.Model.Session import Session
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
-from RTNaBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, calculateCoilToMRITransfFromTargetEntryAngle, getClosestPointToPointOnMesh
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, calculateCoilToMRITransfFromTargetEntryAngle, getClosestPointToPointOnMesh
 
 
 logger = logging.getLogger(__name__)

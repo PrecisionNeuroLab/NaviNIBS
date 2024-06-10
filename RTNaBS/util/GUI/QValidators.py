@@ -5,8 +5,8 @@ from qtpy import QtWidgets, QtCore, QtGui
 import re
 import typing as tp
 
-from RTNaBS.util.numpy import array_equalish
-from RTNaBS.util.Transforms import transformToString, stringToTransform
+from NaviNIBS.util.numpy import array_equalish
+from NaviNIBS.util.Transforms import transformToString, stringToTransform
 
 
 invalidRegex = re.compile(r'(\[\[\[)|([a-zA-Z]+)|(\d+ +[\d.]+)|(]]])|(,,)|(\.\.)|(] +\[)')

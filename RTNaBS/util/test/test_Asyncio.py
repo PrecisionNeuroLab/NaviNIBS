@@ -2,7 +2,7 @@ import asyncio
 import logging
 import pytest
 
-from RTNaBS.util.Asyncio import asyncNonCancellable, asyncAtomicCancel
+from NaviNIBS.util.Asyncio import asyncNonCancellable, asyncAtomicCancel
 
 logger = logging.getLogger(__name__)
 

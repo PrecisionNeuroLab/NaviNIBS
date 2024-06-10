@@ -1,7 +1,7 @@
 import attrs
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
-from RTNaBS.Navigator.Model.Tools import Tool, Tools
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
+from NaviNIBS.Navigator.Model.Tools import Tool, Tools
 
 
 @attrs.define(slots=False)

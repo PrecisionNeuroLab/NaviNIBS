@@ -198,7 +198,7 @@ class QFlowLayout(QtWidgets.QLayout):
 
 
 if __name__ == '__main__':
-    import RTNaBS
+    import NaviNIBS
 
     app = QtWidgets.QApplication([])
     win = QtWidgets.QMainWindow()

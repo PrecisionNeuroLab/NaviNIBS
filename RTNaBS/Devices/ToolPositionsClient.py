@@ -7,14 +7,14 @@ import typing as tp
 import zmq
 import zmq.asyncio as azmq
 
-from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
-from RTNaBS.util import ZMQAsyncioFix
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.ZMQConnector import ZMQConnectorClient, logger as logger_ZMQConnector
-from RTNaBS.util.numpy import array_equalish
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import concatenateTransforms
-from RTNaBS.util import exceptionToStr
+from NaviNIBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
+from NaviNIBS.util import ZMQAsyncioFix
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.ZMQConnector import ZMQConnectorClient, logger as logger_ZMQConnector
+from NaviNIBS.util.numpy import array_equalish
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import concatenateTransforms
+from NaviNIBS.util import exceptionToStr
 
 
 logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class ToolPositionsClient:
 
     @classmethod
     def createAndRun(cls, *args, **kwargs):
-        from RTNaBS.util.Asyncio import asyncioRunAndHandleExceptions
+        from NaviNIBS.util.Asyncio import asyncioRunAndHandleExceptions
         asyncioRunAndHandleExceptions(cls.createAndRun_async, *args, **kwargs)
 
 

@@ -3,11 +3,11 @@ import typing as tp
 
 from qtpy import QtWidgets, QtCore, QtGui
 
-from RTNaBS.Navigator.GUI.CollectionModels import \
+from NaviNIBS.Navigator.GUI.CollectionModels import \
     CollectionTableModel, CollectionTableModelBase,\
     FilteredCollectionModel, \
     K, logger
-from RTNaBS.Navigator.Model.Targets import Targets, Target
+from NaviNIBS.Navigator.Model.Targets import Targets, Target
 
 
 @attrs.define(slots=False, kw_only=True)

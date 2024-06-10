@@ -10,8 +10,8 @@ import typing as tp
 from typing import ClassVar
 
 from . import PlotViewLayer
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
-from RTNaBS.util.Transforms import applyTransform, concatenateTransforms, invertTransform, composeTransform
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from NaviNIBS.util.Transforms import applyTransform, concatenateTransforms, invertTransform, composeTransform
 
 
 logger = logging.getLogger(__name__)

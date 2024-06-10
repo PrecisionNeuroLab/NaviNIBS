@@ -2,7 +2,7 @@ import attrs
 import numpy as np
 import typing as tp
 
-from RTNaBS.util.attrs import attrsAsDict
+from NaviNIBS.util.attrs import attrsAsDict
 
 
 def array_equalish(a: tp.Optional[np.ndarray], b: tp.Optional[np.ndarray], *args, **kwargs):

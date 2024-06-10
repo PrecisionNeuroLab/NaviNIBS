@@ -8,9 +8,9 @@ from typing import ClassVar
 
 from . import PlotViewLayer
 from .PlotLayersGroup import PlotLayersGroup
-from RTNaBS.Navigator.TargetingCoordinator import ProjectionSpecification
-from RTNaBS.util.pyvista import setActorUserTransform
-from RTNaBS.util.Transforms import composeTransform
+from NaviNIBS.Navigator.TargetingCoordinator import ProjectionSpecification
+from NaviNIBS.util.pyvista import setActorUserTransform
+from NaviNIBS.util.Transforms import composeTransform
 
 
 logger = logging.getLogger(__name__)

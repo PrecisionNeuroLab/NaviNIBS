@@ -8,12 +8,12 @@ import pyvistaqt as pvqt
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.numpy import array_equalish
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import composeTransform, applyTransform
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.numpy import array_equalish
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import composeTransform, applyTransform
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
 

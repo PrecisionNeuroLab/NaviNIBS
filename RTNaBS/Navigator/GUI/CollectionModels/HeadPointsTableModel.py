@@ -2,10 +2,10 @@ import attrs
 import numpy as np
 import typing as tp
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
-from RTNaBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
-from RTNaBS.util.Transforms import applyTransform
-from RTNaBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
+from NaviNIBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
+from NaviNIBS.util.Transforms import applyTransform
+from NaviNIBS.util.pyvista.dataset import find_closest_point
 
 
 @attrs.define(slots=False)

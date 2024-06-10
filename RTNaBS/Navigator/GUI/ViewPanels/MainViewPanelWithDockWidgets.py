@@ -6,12 +6,12 @@ import logging
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.Model.Session import Session
-from RTNaBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
-from RTNaBS.Navigator.GUI.ViewPanels import MainViewPanel
-from RTNaBS.util import exceptionToStr
-from RTNaBS.util.GUI.Dock import Dock, DockArea
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
+from NaviNIBS.Navigator.GUI.ViewPanels import MainViewPanel
+from NaviNIBS.util import exceptionToStr
+from NaviNIBS.util.GUI.Dock import Dock, DockArea
+from NaviNIBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
 

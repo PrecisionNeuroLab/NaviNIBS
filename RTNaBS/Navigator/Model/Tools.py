@@ -15,12 +15,12 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
-from RTNaBS.util.attrs import attrsAsDict
-from RTNaBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ class Tool(GenericCollectionDictItem[str]):
     _romFilepath: tp.Optional[str] = None
     _trackerStlFilepath: tp.Optional[str] = None
     _toolStlFilepath: tp.Optional[str] = None
-    _filepathsRelTo: str = '<install>'  # <install> for relative to RTNaBS install dir, <session> for relative to session file
+    _filepathsRelTo: str = '<install>'  # <install> for relative to NaviNIBS install dir, <session> for relative to session file
     _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
     _toolStlToToolTransf: tp.Optional[
         np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual tool orientation

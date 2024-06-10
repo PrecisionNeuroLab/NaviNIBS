@@ -10,8 +10,8 @@ import tempfile
 import time
 
 
-from RTNaBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
-from RTNaBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+from NaviNIBS.Navigator.Model.Session import Session
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +193,7 @@ async def setSimulatedToolPose(navigatorGUI: NavigatorGUI, key: str, transf: np.
     from addons.NaviNIBS_Simulated_Tools.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
     simulatedToolsPanel: SimulatedToolsPanel = navigatorGUI._mainViewPanels['SimulatedToolsPanel']
 
-    from RTNaBS.Devices import TimestampedToolPosition
+    from NaviNIBS.Devices import TimestampedToolPosition
 
     logger.info(f'Setting simulated tool pose: {key} {transf}')
 

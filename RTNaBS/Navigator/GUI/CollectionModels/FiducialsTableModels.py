@@ -4,9 +4,9 @@ import qtawesome as qta
 from qtpy import QtGui
 import typing as tp
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
-from RTNaBS.Navigator.Model.SubjectRegistration import Fiducials, Fiducial
-from RTNaBS.util import makeStrUnique
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
+from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducials, Fiducial
+from NaviNIBS.util import makeStrUnique
 
 @attrs.define(slots=False)
 class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]):

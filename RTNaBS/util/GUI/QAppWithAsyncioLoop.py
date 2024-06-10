@@ -9,8 +9,8 @@ from .QWidgetWithCloseSignal import QMainWindowWithCloseSignal
 from ..Signaler import Signal
 
 
-from RTNaBS.util import exceptionToStr
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util import exceptionToStr
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 
 logger = logging.getLogger(__name__)
 

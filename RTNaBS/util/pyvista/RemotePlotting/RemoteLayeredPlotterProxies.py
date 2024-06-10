@@ -4,8 +4,8 @@ import multiprocessing as mp
 
 import attrs
 
-from RTNaBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePlotterProxy, RemotePlotterProxyBase
-from RTNaBS.util.pyvista.RemotePlotting.RemoteLayeredPlotter import RemoteLayeredPlotterApp
+from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePlotterProxy, RemotePlotterProxyBase
+from NaviNIBS.util.pyvista.RemotePlotting.RemoteLayeredPlotter import RemoteLayeredPlotterApp
 
 
 class RemoteSecondaryLayeredPlotterProxy(RemotePlotterProxyBase):

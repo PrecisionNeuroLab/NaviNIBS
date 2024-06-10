@@ -12,7 +12,7 @@ import zmq.asyncio as azmq
 from . import exceptionToStr
 from . import ZMQAsyncioFix
 
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 
 logger = logging.getLogger(__name__)
 

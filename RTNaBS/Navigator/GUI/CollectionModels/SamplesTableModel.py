@@ -1,8 +1,8 @@
 import attrs
 import logging
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K
-from RTNaBS.Navigator.Model.Samples import Samples, Sample
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K
+from NaviNIBS.Navigator.Model.Samples import Samples, Sample
 
 
 logger = logging.getLogger(__name__)

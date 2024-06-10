@@ -4,7 +4,7 @@ import json
 import logging
 import typing as tp
 
-from RTNaBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
 if tp.TYPE_CHECKING:
     from qtpy import QtWidgets, QtGui, QtCore

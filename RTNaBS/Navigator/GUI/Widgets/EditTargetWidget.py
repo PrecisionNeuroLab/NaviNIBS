@@ -8,16 +8,16 @@ from skspatial.objects import Line, Plane, Vector
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
-from RTNaBS.Navigator.Model.Targets import Target
-from RTNaBS.Devices.ToolPositionsClient import ToolPositionsClient
-from RTNaBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
-from RTNaBS.Navigator.Model.Session import Session, Tool
-from RTNaBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
-from RTNaBS.util.Signaler import Signal
-from RTNaBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
-from RTNaBS.util.GUI.QDial import AngleDial
-from RTNaBS.util.GUI.QScrollContainer import QScrollContainer
-from RTNaBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
+from NaviNIBS.Navigator.Model.Targets import Target
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
+from NaviNIBS.Navigator.Model.Session import Session, Tool
+from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
+from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
+from NaviNIBS.util.GUI.QDial import AngleDial
+from NaviNIBS.util.GUI.QScrollContainer import QScrollContainer
+from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
 
 logger = logging.getLogger(__name__)
 

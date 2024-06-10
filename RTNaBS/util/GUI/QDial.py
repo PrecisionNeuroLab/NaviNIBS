@@ -3,7 +3,7 @@ import logging
 from math import ceil, log10, trunc, fmod
 from qtpy import QtWidgets, QtCore, QtGui
 
-from RTNaBS.util.Signaler import Signal
+from NaviNIBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

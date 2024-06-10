@@ -12,12 +12,12 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import TargetingCoordinator
-from RTNaBS.util import classproperty
+from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import TargetingCoordinator
+from NaviNIBS.util import classproperty
 
-from RTNaBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
-from RTNaBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
-from RTNaBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 
 

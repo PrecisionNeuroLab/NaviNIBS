@@ -15,10 +15,10 @@ import zmq
 from qtpy import QtWidgets, QtGui, QtCore
 from zmq import asyncio as azmq
 
-from RTNaBS.util import exceptionToStr, makeStrUnique
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.pyvista.RemotePlotting import ActorRef
-from RTNaBS.util.pyvista.RemotePlotting.RemotePlotter import RemotePlotterApp
+from NaviNIBS.util import exceptionToStr, makeStrUnique
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.pyvista.RemotePlotting import ActorRef
+from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotter import RemotePlotterApp
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

@@ -4,8 +4,8 @@ import typing as tp
 import qtawesome as qta
 from qtpy import QtGui
 
-from RTNaBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
-from RTNaBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
+from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
 
 
 logger = logging.getLogger()

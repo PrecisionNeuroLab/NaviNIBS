@@ -6,7 +6,7 @@ import pyigtl
 import typing as tp
 from typing import ClassVar
 
-from RTNaBS.Devices.ToolPositionsServer import ToolPositionsServer, TimestampedToolPosition
+from NaviNIBS.Devices.ToolPositionsServer import ToolPositionsServer, TimestampedToolPosition
 
 
 logger = logging.getLogger(__name__)

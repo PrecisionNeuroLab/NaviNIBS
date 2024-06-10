@@ -13,14 +13,14 @@ import zmq
 from qtpy import QtWidgets, QtCore
 from zmq import asyncio as azmq
 
-from RTNaBS.util import exceptionToStr
-from RTNaBS.util import ZMQAsyncioFix
-from RTNaBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from RTNaBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
+from NaviNIBS.util import exceptionToStr
+from NaviNIBS.util import ZMQAsyncioFix
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 
-from RTNaBS.util.pyvista import Actor
-from RTNaBS.util.pyvista.plotting import BackgroundPlotter
-from RTNaBS.util.pyvista.RemotePlotting import ActorRef
+from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
+from NaviNIBS.util.pyvista.RemotePlotting import ActorRef
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
