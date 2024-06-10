@@ -389,7 +389,7 @@ class NavigatorGUI(RunnableAsApp):
         logger.info('Switched to view "{}"'.format(viewKey))
 
 
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -415,4 +415,5 @@ if __name__ == '__main__':
         NavigatorGUI.createAndRun(sesFilepath=args.sesFilepath)
 
 
-
+if __name__ == '__main__':
+    main()
