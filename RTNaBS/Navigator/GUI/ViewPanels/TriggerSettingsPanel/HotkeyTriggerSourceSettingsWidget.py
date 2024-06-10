@@ -75,7 +75,11 @@ class HotkeyTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[HotkeyTrigge
     def _onHotkeyKeyChanged(self, oldKey: str, newKey: str):
         pass  # wil be registered by onHotkeysChanged
 
-    def _onKeyPressed(self, whichKey: str, evt: keyboard.KeyboardEvent):
+    def _onKeyPressedStage1(self, whichKey, evt: keyboard.KeyboardEvent) -> bool:
+        logger.debug(f'Key pressed stage 1: {whichKey} {evt}')
+        return True  # don't block
+
+    def _onKeyPressed(self, whichKey: str, evt: keyboard.KeyboardEvent) -> bool:
         hotkey = self.triggerSource.hotkeys[whichKey]
         if hotkey.keyboardDeviceID is None or str(evt.device) == str(hotkey.keyboardDeviceID):
             logger.info(f'Hotkey pressed: {whichKey} ({evt})')
@@ -83,17 +87,29 @@ class HotkeyTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[HotkeyTrigge
             self.triggerSource.trigger(triggerEvt)
         else:
             logger.debug(f'Hotkey pressed but did not match keyboardDeviceID: {whichKey} {evt}')
+        return True  # don't block
 
     def _registerHotkey(self, key: str):
         logger.info(f'Registering hotkey {key}')
         assert key not in self._hotkeyCallbacks
         hotkey = self.triggerSource.hotkeys[key]
-        callback = lambda evt, key=key: self._onKeyPressed(whichKey=key, evt=evt)
-        self._hotkeyCallbacks[key] = callback
-        if False:
-            keyboard.hook_key(keyboard.key_to_scan_codes(key)[-1], callback=callback)
+        if True:
+            keyToHook = key
         else:
-            keyboard.hook_key(key, callback=callback)
+            keyToHook = keyboard.key_to_scan_codes(key)[-1]
+
+        if True:
+            callback1 = lambda evt, key=key: self._onKeyPressedStage1(whichKey=key, evt=evt)
+            callback2 = lambda evt, key=key: self._onKeyPressed(whichKey=key, evt=evt)
+            callback = (callback1, callback2)
+            kwargs = dict(suppress=True)
+        else:
+            callback = lambda evt, key=key: self._onKeyPressed(whichKey=key, evt=evt)
+            kwargs = dict()
+
+        self._hotkeyCallbacks[key] = callback
+
+        keyboard.hook_key(keyToHook, callback=callback, **kwargs)
 
     def _unregisterHotkey(self, key: str):
         logger.info(f'Unregistering hotkey {key}')
