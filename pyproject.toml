@@ -29,8 +29,8 @@ pyigtl = "^0.3.1"
 jsbeautifier = "^1.14.6"
 pylsl = "^1.16.0"
 scikit-spatial = "^6.4.1"
-#simpleicp = "^2.0.12"
-simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
+simpleicp = "^2.0.14"
+#simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
 nitransforms = "^23.0.1"
 keyboard = {git = "https://github.com/chriscline/keyboard.git"}
 darkdetect = "^0.8.0"
