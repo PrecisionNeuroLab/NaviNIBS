@@ -10,6 +10,7 @@ import logging
 import numpy as np
 import os
 import pandas as pd
+import platformdirs
 import pyvista as pv
 import tempfile
 import typing as tp
@@ -59,7 +60,14 @@ class Tool(GenericCollectionDictItem[str]):
     _romFilepath: tp.Optional[str] = None
     _trackerStlFilepath: tp.Optional[str] = None
     _toolStlFilepath: tp.Optional[str] = None
-    _filepathsRelTo: str = '<install>'  # <install> for relative to NaviNIBS install dir, <session> for relative to session file
+    _filepathsRelTo: str = '<userDataDir>'
+    """
+    Can be one of:
+    - '<install>': relative to NaviNIBS install dir
+    - '<userDataDir>': relative to user data dir
+    - '<session>': relative to session file
+    - absolute path
+    """
     _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
     _toolStlToToolTransf: tp.Optional[
         np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual tool orientation
@@ -252,18 +260,21 @@ class Tool(GenericCollectionDictItem[str]):
 
     @property
     def filepathsRelTo(self):
-        if self._filepathsRelTo == '<install>':
-            assert self._installPath is not None
-            return self._installPath
-        elif self._filepathsRelTo == '<session>':
-            assert self._sessionPath is not None
-            return self._sessionPath
-        else:
-            return self._filepathsRelTo
+        match self._filepathsRelTo:
+            case '<install>':
+                assert self._installPath is not None
+                return self._installPath
+            case '<userDataDir>':
+                return platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False)
+            case '<session>':
+                assert self._sessionPath is not None
+                return self._sessionPath
+            case _:
+                return self._filepathsRelTo
 
     @property
     def filepathsRelToKey(self):
-        if self._filepathsRelTo in ('<install>', '<session>'):
+        if self._filepathsRelTo in ('<install>', '<userDataDir>', '<session>'):
             return self._filepathsRelTo
         else:
             return None
