@@ -81,6 +81,7 @@ class Session:
     """
     Includes list of keys in info that were changed. If list is None, subscribers should assume that all info changed.
     """
+    sigDirtyKeysChanged: Signal[()] = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         if self._unpackedSessionDir is None:
@@ -236,6 +237,14 @@ class Session:
     def flagKeyAsDirty(self, key: str):
         self._dirtyKeys.add(key)
         self._dirtyKeys_autosave.add(key)
+        self.sigDirtyKeysChanged.emit()
+
+    @property
+    def dirtyKeys(self):
+        """
+        Result should not be modified.
+        """
+        return self._dirtyKeys
 
     def saveToUnpackedDir(self, saveDirtyOnly: bool = True, asAutosave: bool = False):
 
@@ -253,6 +262,7 @@ class Session:
             keysToSave = self._dirtyKeys.copy()
             self._dirtyKeys.clear()
             self._dirtyKeys_autosave.clear()
+            self.sigDirtyKeysChanged.emit()
             self._lastAutosaveFilenamePrefix = None
             autosaveFilenamePrefix = ''
 

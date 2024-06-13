@@ -10,7 +10,8 @@ import os
 import pathlib
 import platformdirs
 import pyvista as pv
-from qtpy import QtGui, QtCore
+import qtawesome as qta
+from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
@@ -34,6 +35,9 @@ from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
 from NaviNIBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
 
 logger = logging.getLogger(__name__)
+
+
+_VP = tp.TypeVar('_VP', bound=MainViewPanel)
 
 
 @attrs.define
@@ -86,6 +90,7 @@ class NavigatorGUI(RunnableAsApp):
         panel.sigAboutToFinishLoadingSession.connect(self._onSessionAboutToFinishLoading)
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
+        panel.addSaveButtonToDockTabStrip(dockArea=self._rootDockArea)
 
         self._addViewPanel(MRIPanel(session=self._session))
 
@@ -128,7 +133,7 @@ class NavigatorGUI(RunnableAsApp):
             self._win.resize(QtCore.QSize(1600, 1100))  # TODO: restore previous size if available
             self._win.show()
 
-    def _addViewPanel(self, panel: MainViewPanel) -> MainViewPanel:
+    def _addViewPanel(self, panel: _VP) -> _VP:
         logger.info(f'Adding view panel {panel.key}')
         self._rootDockArea.addDock(panel.dockWdgt, position='below')
         self._mainViewPanels[panel.key] = panel

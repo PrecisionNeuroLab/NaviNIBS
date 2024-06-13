@@ -15,7 +15,7 @@ import typing as tp
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.GUI.Dock import Dock, DockArea
+from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
 from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.Navigator.Model.Session import Session
@@ -36,8 +36,11 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _autosavePeriod: float = 60  # in sec
 
     _inProgressBaseDir: tp.Optional[str] = None
+    _rootDockArea: DockArea | None = attrs.field(init=False, default=None) # used for tabSaveBtn
     _newSessionBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _tabSaveBtn: QtWidgets.QPushButton | None = attrs.field(init=False, default=None)
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _saveBtnShowsDirty: bool | None = attrs.field(init=False, default=None)
     _saveShortcut: QtWidgets.QShortcut = attrs.field(init=False)
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveToDirBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -48,6 +51,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
     _autosaveTask: asyncio.Task = attrs.field(init=False)
+    _addAddonBtn: QtWidgets.QPushButton = attrs.field(init=False)  # TODO
 
     sigAboutToFinishLoadingSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
     sigLoadedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
@@ -154,18 +158,71 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         self._autosaveTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._autosaveOccasionally))
 
+    def addSaveButtonToDockTabStrip(self, dockArea: DockArea):
+        # hack in a save button next to root dock area tab strip
+        if self._rootDockArea is not None:
+            assert self._rootDockArea is dockArea
+            assert self._tabSaveBtn is not None
+            btn = self._tabSaveBtn
+        else:
+            assert self._tabSaveBtn is None, 'Save button already added to dock tab strip'
+            self._rootDockArea = dockArea
+            btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save')
+            btn.clicked.connect(self._onSaveSessionBtnClicked)
+            btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+            self._tabSaveBtn = btn
+
+        # TODO: set up some visual indicator of whether current session is "dirty" (needs to be saved)
+        tCnt = dockArea.topContainer
+        assert isinstance(tCnt, TContainer)
+
+        tCnt.layout.addWidget(btn, 0, 0)  # other widgets in TContainer already start at column index 1
+
+        # update tCnt.stack to span two columns in grid layout
+        tCnt.layout.takeAt(tCnt.layout.indexOf(tCnt.stack))
+        tCnt.layout.addWidget(tCnt.stack, 1, 0, 1, 2)
+
+        self._updateEnabledWdgts()
+        self._updateSaveBtnStyle()
+
     def _onSessionSet(self):
         self._updateEnabledWdgts()
         if self.session is not None:
             self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
+            self.session.sigDirtyKeysChanged.connect(self._updateSaveBtnStyle)
         self._onSessionInfoChanged()
 
     def _getNewInProgressSessionDir(self) -> str:
         return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
-        for wdgt in (self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer):
+        wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer]
+        if self._tabSaveBtn is not None:
+            wdgts.append(self._tabSaveBtn)
+        for wdgt in wdgts:
             wdgt.setEnabled(self.session is not None)
+
+    def _updateSaveBtnStyle(self):
+        btn = self._tabSaveBtn
+        if btn is None:
+            return
+        isDirty = self.session is not None and len(self.session.dirtyKeys) > 0
+        if self._saveBtnShowsDirty is not None and isDirty == self._saveBtnShowsDirty:
+            return
+        self._saveBtnShowsDirty = isDirty
+        palette = self.wdgt.palette()
+        if isDirty:
+            fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
+        else:
+            fg = palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text).name()
+        btn.setStyleSheet(f"""
+                QPushButton {{
+                    border: none;
+                    color: {fg};
+                }}
+                QPushButton:hover {{background-color: rgba(0, 0, 0, 0.1);}}
+                QPushButton:pressed {{background-color: rgba(0, 0, 0, 0.2);}}
+            """)
 
     def _updateLayoutsBeforeSave(self):
         """
@@ -409,3 +466,12 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         while True:
             await asyncio.sleep(self._autosavePeriod)
             await self._autosave()
+
+    def restoreLayoutIfAvailable(self) -> bool:
+        if not super().restoreLayoutIfAvailable():
+            return False
+
+        if self._rootDockArea is not None:
+            self.addSaveButtonToDockTabStrip(self._rootDockArea)
+
+        return True
