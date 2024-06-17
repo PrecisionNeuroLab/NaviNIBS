@@ -228,7 +228,7 @@ class FiducialsPanel(MainViewPanel):
                 subReg.fiducials[label] = Fiducial(key=label,
                                                    plannedCoord=coords[iLabel, :])
 
-        if True:
+        if False:
             # also set approximate nose tip
             downDir = -1 * np.cross(coords[2, :] - coords[0, :], coords[1, :] - coords[0, :])
             downDir /= np.linalg.norm(downDir)
