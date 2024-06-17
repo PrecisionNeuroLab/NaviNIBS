@@ -143,6 +143,15 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
 
     await asyncio.sleep(1.)
 
+    # dodge pointer position slightly to update distance readouts
+    newPose = pointerPose_worldSpace.copy()
+    newPose[2, 3] += 2
+    await utils.setSimulatedToolPose(navigatorGUI=navigatorGUI,
+                                     key=pointerKey,
+                                     transf=newPose)
+
+    await asyncio.sleep(1.)
+
     screenshotPath = os.path.join(sessionPath, 'HeadRegistration_InitialFiducials.png')
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))

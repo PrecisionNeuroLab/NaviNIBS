@@ -44,6 +44,9 @@ class MNIRegistration:
 
 @attrs.define
 class Session:
+    """
+    Primary data model for a NaviNIBS session. Contains all session-specific data and methods for saving/loading.
+    """
     _filepath: str  # path to compressed session file
     _subjectID: tp.Optional[str] = attrs.field(default=None)
     _sessionID: tp.Optional[str] = None

@@ -12,7 +12,8 @@ from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
     existingResourcesDataPath,
     navigatorGUIWithoutSession,
-    workingDir)
+    workingDir,
+    screenshotsDataSourcePath)
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ async def test_createNewSessionFileWithUserInput(navigatorGUIWithoutSession: Nav
 
 @pytest.mark.asyncio
 async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
-                                   workingDir: str):
+                                   workingDir: str,
+                                   screenshotsDataSourcePath: str):
     sessionPath = utils.getSessionPath(workingDir, 'InfoOnly', deleteIfExists=True)
     assert not os.path.exists(sessionPath)
 
@@ -79,6 +81,16 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
 
     # resize window to smaller size so that screenshots are more readable when used in documentation
     navigatorGUIWithoutSession._win.resize(QtCore.QSize(1200, 800))
+
+    await asyncio.sleep(1.)
+
+    screenshotPath = os.path.join(workingDir, 'NoSession.png')
+    utils.captureScreenshot(navigatorGUIWithoutSession, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'NoSession.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
 
     # note: can't click and test new session file dialog due it being modal
     # so test one level lower
@@ -122,3 +134,12 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
     # TODO: verify contents of saved files
 
     utils.assertSavedSessionIsValid(sessionPath)
+
+    screenshotPath = os.path.join(sessionPath, 'CreateSession.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'CreateSession.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+

@@ -19,10 +19,10 @@ class Signal(tp.Generic[*ET]):
     """
 
     _connections: dict[int, set[Connection]] = attr.ib(init=False, factory=dict, repr=False)
+    """
+    Connections grouped by priority
+    """
 
-    """
-    Connections groupded by priority
-    """
     _blockedSemaphoreCounter: int = attr.ib(init=False, default=0, repr=False)
 
     def __attrs_post_init__(self):

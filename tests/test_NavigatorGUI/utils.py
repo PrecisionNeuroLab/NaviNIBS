@@ -8,6 +8,7 @@ import pytest_asyncio
 import shutil
 import tempfile
 import time
+import typing as tp
 
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -38,7 +39,7 @@ def workingDir(request):
     path = request.config.cache.get('workingDir', None)
     if True:
         if path is None:
-            path = tempfile.mkdtemp(prefix='NaviNIBS_Tests')
+            path = tempfile.mkdtemp(prefix='NaviNIBS_Tests_')
             request.config.cache.set('workingDir', path)
         # note this directory will not be auto-deleted
         yield path
@@ -87,7 +88,7 @@ def test_copyWorkingDirToClipboard(workingDir):
 
 def getSessionPath(workingDir: str, key: str, ext: str | None = None,
                    deleteIfExists: bool = False):
-    sesPath = os.path.join(workingDir, f'TestSession_{key}_NaviNIBS')
+    sesPath = os.path.join(workingDir, f'Test_{key}.navinibsdir')
     if ext is not None:
         sesPath += ext
 
