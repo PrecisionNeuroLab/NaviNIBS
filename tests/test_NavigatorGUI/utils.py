@@ -142,11 +142,13 @@ async def waitForever():
         await asyncio.sleep(1.)
 
 
-def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str):
+def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str, wdgt: tp.Any | None = None):
     from PIL import ImageGrab
 
-    pos = navigatorGUI._win.frameGeometry()
-    bbox = tuple(x * navigatorGUI._win.devicePixelRatio() for x in (pos.left(), pos.top(), pos.right(), pos.bottom()))
+    if wdgt is None:
+        wdgt = navigatorGUI._win
+    pos = wdgt.frameGeometry()
+    bbox = tuple(x * wdgt.devicePixelRatio() for x in (pos.left(), pos.top(), pos.right(), pos.bottom()))
     logger.info(f'Saving screenshot to {saveToPath}')
     ImageGrab.grab(bbox).save(saveToPath)
 
