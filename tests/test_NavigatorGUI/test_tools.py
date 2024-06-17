@@ -119,34 +119,62 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
 
     # edit session config to enable simulated tools addon
     # TODO: do this via GUI once have support for editing addons in GUI
+    if True:
+        # add via GUI
 
-    addonConfig = dict()
-    addonConfig['addonInstallPath'] = '../addons/NaviNIBS_Simulated_Tools'
-    addonConfigName = 'SessionConfig_Addon_NaviNIBS_Simulated_Tools.json'
-    addonConfigPath = os.path.join(sessionPath, addonConfigName)
-    with open(addonConfigPath, 'w') as f:
-        json.dump(addonConfig, f)
+        # open session (without addon)
+        navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
 
-    baseConfigPath = os.path.join(sessionPath, 'SessionConfig.json')
-    with open(baseConfigPath, 'r+') as f:
-        baseConfig = json.load(f)
-        if 'addons' not in baseConfig:
-            baseConfig['addons'] = []
-        baseConfig['addons'].append(addonConfigName)
+        await asyncio.sleep(1.)
 
-        del baseConfig['dockWidgetLayouts']  # remove previous saved layouts since they don't include view pane for new addon
+        from NaviNIBS.Navigator.Model.Addons import installPath as addonBaseInstallPath
 
-        opts = jsbeautifier.default_options()
-        opts.indent_size = 2
-        beautifier = jsbeautifier.Beautifier(opts)
-        f.seek(0)
-        f.write(beautifier.beautify(json.dumps(baseConfig)))
-        f.truncate()
+        addonConfigPath = os.path.join(addonBaseInstallPath, '..', 'addons', 'NaviNIBS_Simulated_Tools', 'addon_configuration.json')
 
-    from addons.NaviNIBS_Simulated_Tools.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+        navigatorGUI.manageSessionPanel._addAddon(addonConfigPath)
 
-    # open session
-    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+        await asyncio.sleep(5.)
+
+        screenshotPath = os.path.join(sessionPath, 'SimulateTools_AddonAdded.png')
+        utils.captureScreenshot(navigatorGUI, screenshotPath)
+        pyperclip.copy(str(screenshotPath))
+
+        utils.compareImages(screenshotPath,
+                            os.path.join(screenshotsDataSourcePath, 'SimulateTools_AddonAdded.png'),
+                            doAssertEqual=utils.doAssertScreenshotsEqual)
+
+        # equivalent to clicking save button
+        navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+        ses = utils.assertSavedSessionIsValid(sessionPath)
+
+    else:
+        # add to saved session config before loading session
+        addonConfig = dict()
+        addonConfig['addonInstallPath'] = '../addons/NaviNIBS_Simulated_Tools/'
+        addonConfigName = 'SessionConfig_Addon_NaviNIBS_Simulated_Tools.json'
+        addonConfigPath = os.path.join(sessionPath, addonConfigName)
+        with open(addonConfigPath, 'w') as f:
+            json.dump(addonConfig, f)
+
+        baseConfigPath = os.path.join(sessionPath, 'SessionConfig.json')
+        with open(baseConfigPath, 'r+') as f:
+            baseConfig = json.load(f)
+            if 'addons' not in baseConfig:
+                baseConfig['addons'] = []
+            baseConfig['addons'].append(addonConfigName)
+
+            del baseConfig['dockWidgetLayouts']  # remove previous saved layouts since they don't include view pane for new addon
+
+            opts = jsbeautifier.default_options()
+            opts.indent_size = 2
+            beautifier = jsbeautifier.Beautifier(opts)
+            f.seek(0)
+            f.write(beautifier.beautify(json.dumps(baseConfig)))
+            f.truncate()
+
+        # open session
+        navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
 
     await asyncio.sleep(1.)
 
@@ -213,7 +241,7 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_1.png')
     await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    utils.captureScreenshot(navigatorGUI, screenshotPath, coilWdgt._calibrationWindow.wdgt)
     pyperclip.copy(str(screenshotPath))
     utils.compareImages(screenshotPath,
                         os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_1.png'),
@@ -225,7 +253,7 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_2.png')
     await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    utils.captureScreenshot(navigatorGUI, screenshotPath, coilWdgt._calibrationWindow.wdgt)
     pyperclip.copy(str(screenshotPath))
     utils.compareImages(screenshotPath,
                         os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_2.png'),
@@ -241,7 +269,7 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_3.png')
     await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    utils.captureScreenshot(navigatorGUI, screenshotPath, coilWdgt._calibrationWindow.wdgt)
     pyperclip.copy(str(screenshotPath))
     utils.compareImages(screenshotPath,
                         os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_3.png'),

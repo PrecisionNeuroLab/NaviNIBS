@@ -107,6 +107,7 @@ class Session:
         self.tools.sigPositionsServerInfoChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
         self.triggerSources.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('triggerSources'))
         self._dockWidgetLayouts.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('dockWidgetLayouts'))
+        self.addons.sigItemsAboutToChange.connect(self._onAddonsAboutToChange)
         self.addons.sigItemsChanged.connect(self._onAddonsChanged)
         self.targets.sigItemKeyChanged.connect(self._updateSamplesForNewTargetKey)
         self.targets.sigItemsAboutToChange.connect(self._onTargetsAboutToChange, priority=1)  # use higher priority to make sure we handle adding historical samples before notifying GUIs of this change
@@ -457,6 +458,12 @@ class Session:
                 break
         if isDirty:
             self.flagKeyAsDirty('coordinateSystems')
+
+    def _onAddonsAboutToChange(self, addonKeys: list[str], changingAttrs: tp.Optional[list[str]] = None):
+        for addonKey in addonKeys:
+            if addonKey not in self.addons:
+                # completely new addon
+                self.flagKeyAsDirty('addons')
 
     def _onAddonsChanged(self, addonKeys: list[str], attribKeys: tp.Optional[list[str]] = None):
         for addonKey in addonKeys:

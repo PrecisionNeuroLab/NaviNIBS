@@ -19,6 +19,7 @@ from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
 from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.Addons import Addon, installPath as addonBaseInstallPath
 
 if tp.TYPE_CHECKING:
     from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -45,13 +46,13 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveToDirBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _addAddonBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _fileDW: Dock = attrs.field(init=False)
     _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoDW: Dock = attrs.field(init=False)
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
     _autosaveTask: asyncio.Task = attrs.field(init=False)
-    _addAddonBtn: QtWidgets.QPushButton = attrs.field(init=False)  # TODO
 
     sigAboutToFinishLoadingSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
     sigLoadedSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
@@ -122,6 +123,14 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         btn.clicked.connect(lambda checked: self._tryVerifyThenCloseSession())
         container.layout().addWidget(btn)
         self._closeBtn = btn
+
+        container.layout().addSpacing(10)
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.plus'), text='Enable addon')
+        btn.clicked.connect(lambda checked: self._addAddon())
+        container.layout().addWidget(btn)
+        self._addAddonBtn = btn
+
 
         container.layout().addStretch()
 
@@ -287,6 +296,29 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 raise NotImplementedError()  # TODO: prompt user to confirm whether they want to save or discard changes to previous session
                 # TODO: close session to trigger clearing of various GUI components
             self._closeSession()
+
+    def _addAddon(self, addonFilepath: str | None = None):
+        if addonFilepath is None:
+            addonFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self._wdgt,
+                'Select addon configuration file',
+                addonBaseInstallPath,
+                'Addon configuration file (*.json)')
+            if len(addonFilepath) == 0:
+                logger.info('Browse addon file cancelled')
+                return
+
+        logger.info('Selected addon file: {}'.format(addonFilepath))
+
+        addonDict = dict()
+        addonDirPath = os.path.dirname(addonFilepath)
+        addonDict['addonInstallPath'] = os.path.relpath(addonDirPath, addonBaseInstallPath)
+
+        addon = Addon.fromDict(addonDict)
+
+        self.session.addons.addItem(addon)
+
+        logger.info(f'Added addon {addon.key}')
 
     def _createNewSession(self, sesFilepath: tp.Optional[str] = None):
         self._tryVerifyThenCloseSession()

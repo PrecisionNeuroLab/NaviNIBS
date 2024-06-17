@@ -270,34 +270,46 @@ class NavigatorGUI(RunnableAsApp):
         assert session is not None
         logger.info('Loaded session {}'.format(session.filepath))
 
-        self._onAddonsAboutToChange()
+        self._onAddonsAboutToChange(session.addons.keys())
 
         self._session = session
 
         for pane in self._mainViewPanels.values():
             pane.session = session
 
-        self._onAddonsChanged(triggeredBySessionLoad=True)
+        self._onAddonsChanged(session.addons.keys(), triggeredBySessionLoad=True)
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self.restoreLayoutIfAvailable))
 
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
-        session.addons.sigItemsChanged.connect(lambda *args: self._onAddonsChanged())
+        session.addons.sigItemsAboutToChange.connect(lambda *args: self._onAddonsAboutToChange(*args))
+        session.addons.sigItemsChanged.connect(lambda *args: self._onAddonsChanged(*args, triggeredBySessionLoad=False))
 
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
         self.session.tools.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
 
-    def _onAddonsAboutToChange(self):
+    def _onAddonsAboutToChange(self, itemKeys: list[str],
+                               attribKeys: list[str] | None = None):
         if self._session is not None:
             if len(self._session.addons) > 0:
-                pass  # TODO: unload any addons changed not present in new session
+                if attribKeys is None:
+                    raise NotImplementedError  # TODO
+                    # TODO: unload any addons changed not present in new session
+                else:
+                    pass  # assume any other changes don't need to be handled here
 
-    def _onAddonsChanged(self, triggeredBySessionLoad: bool = False):
+    def _onAddonsChanged(self, itemKeys: list[str],
+                         attribKeys: list[str] | None = None,
+                         triggeredBySessionLoad: bool = False):
         needToUpdateEnabledPanels = False
         prevActiveViewKey = self.activeViewKey
-        for addonKey, addon in self._session.addons.items():
+        for addonKey in itemKeys:
+            if addonKey not in self._session.addons:
+                continue  # assume addon was already unloaded
+
+            addon = self._session.addons[addonKey]
 
             if addon.needsToInstantiateExtras:
                 addon.instantiateExtras(navigatorGUI=self, session=self._session)
@@ -311,7 +323,6 @@ class NavigatorGUI(RunnableAsApp):
                     self._mainViewPanels[panelKey].session = self._session
 
                     if not triggeredBySessionLoad:
-                        self._mainViewPanels[panelKey].session = self._session
                         needToUpdateEnabledPanels = True
 
                 else:

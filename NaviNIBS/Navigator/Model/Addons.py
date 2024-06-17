@@ -25,7 +25,7 @@ if tp.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_installPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
+installPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 
 
 ACE = tp.TypeVar('ACE')  # type (e.g. MainViewPanel) referenced by each addon class element
@@ -198,8 +198,10 @@ class Addon(GenericCollectionDictItem[str]):
         d = attrsAsDict(self, exclude=predefinedAttrs + ['sessionAttrs'])
         for key, sessionAttr in self._sessionAttrs.items():
             d[key] = sessionAttr.asDict()
+            if len(d[key]) == 0:
+                del d[key]
 
-        d['addonInstallPath'] = os.path.relpath(self.addonInstallPath, _installPath)
+        d['addonInstallPath'] = os.path.relpath(self.addonInstallPath, installPath)
 
         return d
 
@@ -223,7 +225,7 @@ class Addon(GenericCollectionDictItem[str]):
         assert 'addonInstallPath' in d
 
         # specified path in config is relative to root NaviNIBS installPath
-        addonInstallPath = os.path.join(_installPath, d['addonInstallPath'])
+        addonInstallPath = os.path.join(installPath, d['addonInstallPath'])
         del d['addonInstallPath']
         addonConfigPath = os.path.join(addonInstallPath, 'addon_configuration.json')
 
