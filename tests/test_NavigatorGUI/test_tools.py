@@ -178,6 +178,8 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
+    from addons.NaviNIBS_Simulated_Tools.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+
     # equivalent to clicking on tab
     simulatedToolsPanel: SimulatedToolsPanel = navigatorGUI._mainViewPanels['SimulatedToolsPanel']
     navigatorGUI._activateView(simulatedToolsPanel.key)
@@ -187,6 +189,14 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
     await asyncio.sleep(10.)
 
     assert navigatorGUI.activeViewKey == simulatedToolsPanel.key
+
+    screenshotPath = os.path.join(sessionPath, 'SimulateTools_Blank.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'SimulateTools_Blank.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
 
     await simulatedToolsPanel.importPositionsSnapshot(simulatedPositionsPath1)
 
@@ -199,6 +209,20 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
     utils.compareImages(screenshotPath,
                         os.path.join(screenshotsDataSourcePath, 'SimulateTools_Example1.png'),
                         doAssertEqual=utils.doAssertScreenshotsEqual)
+
+
+    # equivalent to clicking "Move tool..." and then clicking on subject tracker
+    task = asyncio.create_task(simulatedToolsPanel.selectAndMoveTool(simulatedToolsPanel._actors['CB60Calibration_tool']))
+
+    await asyncio.sleep(1.)
+    screenshotPath = os.path.join(sessionPath, 'SimulateTools_Example2.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'SimulateTools_Example2.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+
 
 
 @pytest.mark.asyncio
