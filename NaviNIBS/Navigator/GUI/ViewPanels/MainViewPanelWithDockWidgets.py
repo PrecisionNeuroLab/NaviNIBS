@@ -52,9 +52,9 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
 
     def restoreLayoutIfAvailable(self) -> bool:
         """
-        Must be called by subclass (if desired) after all necessary initialization is complete.
-
         Returns True if layout was restored, False otherwise.
+
+        Can be called by subclass after delayed initialization to restore layout at that time.
         """
         if self.session is None:
             return False

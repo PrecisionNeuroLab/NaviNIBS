@@ -77,6 +77,9 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
 
     # create new session
 
+    # resize window to smaller size so that screenshots are more readable when used in documentation
+    navigatorGUIWithoutSession._win.resize(QtCore.QSize(1200, 800))
+
     # note: can't click and test new session file dialog due it being modal
     # so test one level lower
     navigatorGUIWithoutSession.manageSessionPanel._createNewSession(

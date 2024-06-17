@@ -154,6 +154,8 @@ class NavigatorGUI(RunnableAsApp):
             )
             self.session.dockWidgetLayouts.addItem(layout)
 
+        sz = self._win.size()
+        layout.winSize = (sz.width(), sz.height())
         layout.state = self._rootDockArea.saveState()
 
     def saveLayout(self):
@@ -169,6 +171,10 @@ class NavigatorGUI(RunnableAsApp):
 
         await asyncio.sleep(0.01)
         layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
+
+        if layout is not None and layout.winSize is not None:
+            self._win.resize(QtCore.QSize(*layout.winSize))
+
         if layout is not None and layout.state is not None:
 
             async with self._restoringLayoutLock if needsLock else contextlib.nullcontext():
