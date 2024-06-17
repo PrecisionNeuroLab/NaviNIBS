@@ -169,21 +169,23 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
     def addSaveButtonToDockTabStrip(self, dockArea: DockArea):
         # hack in a save button next to root dock area tab strip
+
+        tCnt = dockArea.topContainer
+        assert isinstance(tCnt, TContainer)
+
         if self._rootDockArea is not None:
             assert self._rootDockArea is dockArea
             assert self._tabSaveBtn is not None
-            btn = self._tabSaveBtn
+            #tCnt.layout.takeAt(tCnt.layout.indexOf(self._tabSaveBtn))
+            self._tabSaveBtn = None
         else:
             assert self._tabSaveBtn is None, 'Save button already added to dock tab strip'
             self._rootDockArea = dockArea
-            btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save')
-            btn.clicked.connect(self._onSaveSessionBtnClicked)
-            btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
-            self._tabSaveBtn = btn
 
-        # TODO: set up some visual indicator of whether current session is "dirty" (needs to be saved)
-        tCnt = dockArea.topContainer
-        assert isinstance(tCnt, TContainer)
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save')
+        btn.clicked.connect(self._onSaveSessionBtnClicked)
+        btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+        self._tabSaveBtn = btn
 
         tCnt.layout.addWidget(btn, 0, 0)  # other widgets in TContainer already start at column index 1
 
@@ -205,7 +207,8 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
-        wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer]
+        wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn,
+                 self._closeBtn, self._addAddonBtn, self._infoContainer]
         if self._tabSaveBtn is not None:
             wdgts.append(self._tabSaveBtn)
         for wdgt in wdgts:
