@@ -110,6 +110,39 @@ class AltTContainer(QtWidgets.QTabWidget, pgdc.TContainer):
         self.setCurrentIndex(index)
 
 
+class StackedWidget(pgdc.StackedWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.currentChanged.connect(self._onCurrentChanged)
+
+    def sizeHint(self) -> QtCore.QSize:
+        """
+        Modify size hint to return current widget size hint instead of maximum size
+        """
+        if self.currentWidget() is not None:
+            return self.currentWidget().sizeHint()
+        else:
+            return super().sizeHint()
+
+    def minimumSizeHint(self) -> QtCore.QSize:
+        """
+        Modify size hint to return current widget size hint instead of maximum size
+        """
+        if self.currentWidget() is not None:
+            return self.currentWidget().minimumSizeHint()
+        else:
+            return super().minimumSizeHint()
+
+    def _onCurrentChanged(self, index: int):
+        if self.currentWidget() is not None:
+            self.setSizePolicy(self.currentWidget().sizePolicy())
+            self.adjustSize()
+
+    def childEvent(self, ev):
+        super().childEvent(ev)
+        self.container.childEvent_(ev)
+
+
 class TContainer(pgdc.TContainer):
     def __init__(self, area):
         QtWidgets.QWidget.__init__(self)
@@ -136,8 +169,9 @@ class TContainer(pgdc.TContainer):
         else:
             self.layout.addWidget(self.hTabBox, 0, 1)
 
-        self.stack = pgdc.StackedWidget(container=self)
+        self.stack = StackedWidget(container=self)
         self.layout.addWidget(self.stack, 1, 1)
+        self.stack.currentChanged.connect(self._onStackCurrentChanged)
 
         self.setLayout(self.layout)
         for n in ['count', 'widget', 'indexOf']:
@@ -159,6 +193,11 @@ class TContainer(pgdc.TContainer):
             self.raiseDock(self.stack.widget(prevIndex))
         else:
             self.tabClicked(item.label)
+
+    def _onStackCurrentChanged(self, index: int):
+        if self.stack.currentWidget() is not None:
+            self.setSizePolicy(self.stack.currentWidget().sizePolicy())
+            self.adjustSize()
 
     def restoreState(self, state):
         super().restoreState(state)
@@ -301,6 +340,7 @@ class DockLabel(QtWidgets.QFrame):
             self._label.setMinimumWidth(1)
             fg = '#444444'
             bg = '#dddddd'
+            hbg = '#cccccc'
             border = borderColor
             borderBottom = borderColor
             thisBorderWidth = '0px'
@@ -309,6 +349,7 @@ class DockLabel(QtWidgets.QFrame):
             self._label.setMinimumWidth(0)
             fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
             bg = '#bbbbbb'
+            hbg = bg
             border = borderColor
             borderBottom = bg
             thisBorderWidth = borderWidth
@@ -329,6 +370,11 @@ class DockLabel(QtWidgets.QFrame):
             padding-right: 1px;
             font-size: {self.fontSize};
         """
+        if False:
+            # (for some reason, this causes crash when mouse hovers over the label, so disabled for now)
+            setStyleSheetForInstanceOnly(self, f"""
+                background-color: {hbg};
+                """, selectorSuffix=':hover')
         setStyleSheetForInstanceOnly(self, self.hStyle)
 
         setStyleSheetForInstanceOnly(self._label, f"""
@@ -402,8 +448,9 @@ class Dock(pgd.Dock):
     """
     This signal must be emitted by slot connected to root focusObjectChanged to function.
     """
-    sigShown: Signal  # TODO: implement emit of this signal
-    sigHidden: Signal  # TODO: implement emit of this signal
+    sigShown: Signal[()]
+    sigHidden: Signal[()]
+    sigResized: Signal[()]
 
     # noinspection PyMissingConstructor
     def __init__(self, name, title: str = None, area=None, size=(10, 10), widget=None, hideTitle=False, autoOrientation=False, closable=False, fontSize="12px", affinities: list[str] | None = None,
@@ -484,6 +531,7 @@ class Dock(pgd.Dock):
         self.sigFocused = Signal()
         self.sigShown = Signal()
         self.sigHidden = Signal()
+        self.sigResized = Signal()
 
     def implements(self, name=None):
         if name is None:
@@ -518,6 +566,10 @@ class Dock(pgd.Dock):
     def showEvent(self, *args):
         super().showEvent(*args)
         self.sigShown.emit()
+
+    def resizeEvent(self, *args):
+        super().resizeEvent(*args)
+        self.sigResized.emit()
 
 
 class DockArea(pgd.DockArea):

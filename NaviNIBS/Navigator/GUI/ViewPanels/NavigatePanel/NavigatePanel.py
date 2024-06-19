@@ -239,13 +239,14 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         self._targetsTableWdgt = TargetsTableWidget()
         self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
-        self._targetsTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
+        self._targetsTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         container.layout().addWidget(self._targetsTableWdgt.wdgt)
 
         dock, container = self._createDockWidget(
             title='Targets',
             widget=self._targetsTableWdgt.wdgt
         )
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.addDock(dock, position='bottom')
 
         poseGroupDicts = [
@@ -253,6 +254,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             dict(title='Selected sample metrics', calculatorKey='currentSamplePoseMetrics')
         ]
 
+        prevPoseDock = None
         for poseGroupDict in poseGroupDicts:
             dock, container = self._createDockWidget(
                 title=poseGroupDict['title'],
@@ -265,13 +267,18 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
                 calculatorKey=poseGroupDict['calculatorKey']
             )
 
-            self._wdgt.addDock(dock, position='bottom')
+            if prevPoseDock is None:
+                self._wdgt.addDock(dock, position='bottom')
+            else:
+                self._wdgt.addDock(dock, position='below', relativeTo=prevPoseDock)
+            prevPoseDock = dock
 
             self._poseMetricGroups.append(poseGroup)
 
         dock, container = self._createDockWidget(
             title='Samples',
             layout=QtWidgets.QVBoxLayout())
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         self._wdgt.addDock(dock, position='bottom')
 
         btnContainer = QtWidgets.QWidget()
