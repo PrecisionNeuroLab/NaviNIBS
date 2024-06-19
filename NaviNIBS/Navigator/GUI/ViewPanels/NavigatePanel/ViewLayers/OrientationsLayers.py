@@ -70,7 +70,9 @@ class VisualizedOrientation:
                                                          scalars=scalars,
                                                          scalar_bar_args=scalar_bar_args,
                                                          width=self._lineWidth,
-                                                         opacity=self._opacity)
+                                                         opacity=self._opacity,
+                                                         userTransform=self._orientation.coilToMRITransf,
+                )
 
 
                 actorKey = self._actorKeyPrefix + 'handleLine'
@@ -92,7 +94,9 @@ class VisualizedOrientation:
                                                          scalars=scalars,
                                                          scalar_bar_args=scalar_bar_args,
                                                          width=self._lineWidth,
-                                                         opacity=self._opacity)
+                                                         opacity=self._opacity,
+                                                         userTransform=self._orientation.coilToMRITransf,
+                )
 
             case _:
                 raise NotImplementedError(f'Unexpected style: {self._style}')

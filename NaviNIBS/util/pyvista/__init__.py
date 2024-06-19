@@ -4,6 +4,13 @@ import typing as tp
 
 Actor = pv._vtk.vtkActor
 
+
+def setActorUserTransform(actor: Actor, transf: np.ndarray):
+    t = pv._vtk.vtkTransform()
+    t.SetMatrix(pv.vtkmatrix_from_array(transf))
+    actor.SetUserTransform(t)
+
+
 # test if running on mac
 import platform
 isMac = platform.system() == 'Darwin'
@@ -21,12 +28,6 @@ else:
     DefaultBackgroundPlotter = RemotePlotterProxy
     DefaultPrimaryLayeredPlotter = RemotePrimaryLayeredPlotterProxy
     DefaultSecondaryLayeredPlotter = RemoteSecondaryLayeredPlotterProxy
-
-
-def setActorUserTransform(actor: Actor, transf: np.ndarray):
-    t = pv._vtk.vtkTransform()
-    t.SetMatrix(pv.vtkmatrix_from_array(transf))
-    actor.SetUserTransform(t)
 
 
 def getActorUserTransform(actor: Actor) -> np.ndarray:
