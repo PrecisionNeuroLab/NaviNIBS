@@ -5,6 +5,7 @@ import asyncio
 import attrs
 import logging
 import multiprocessing as mp
+import numpy as np
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui
 import typing as tp
@@ -17,7 +18,8 @@ from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainV
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
-from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
+from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 
@@ -63,6 +65,39 @@ class CameraObjectsView(QueuedRedrawMixin):
         self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._queueRedraw('toolPositions'))
 
         self._redraw('all')
+
+        # if necessary info available, reorient camera view based on subject location
+        if not self.session.subjectRegistration.isRegistered:
+            logger.info('Not setting camera due lack of subject registration')
+        else:
+            subTracker = self.session.tools.subjectTracker
+            if subTracker is None:
+                logger.info('Not setting camera due lack of defined subject tracker')
+            else:
+                transf_subTrackToWorld = self._positionsClient.getLatestTransf(subTracker.key, None)
+                if transf_subTrackToWorld is None:
+                    logger.info('Not setting camera due to lack of valid subject tracker position')
+                else:
+                    transf_MRIToWorld = concatenateTransforms([
+                        invertTransform(self.session.subjectRegistration.trackerToMRITransf),
+                        transf_subTrackToWorld,
+                    ])
+
+                    # for now, assume MRI direction is consistent
+                    # could alternatively look for "standard" fiducial names and define relative to those here
+                    # or use MNI space
+                    cameraPts_MRI = np.asarray([
+                        [0, 0, 0],  # focal point
+                        np.asarray([-0.8, 1, 0.3]) * 1000,  # position
+                        [0, 0, 1]])  # up
+
+                    cameraPts_world = applyTransform(transf_MRIToWorld, cameraPts_MRI)
+
+                    plotter = self._plotter
+                    with plotter.allowNonblockingCalls():
+                        plotter.camera.focal_point = cameraPts_world[0, :]
+                        plotter.camera.position = cameraPts_world[1, :]
+                        plotter.camera.up = cameraPts_world[2, :] - cameraPts_world[1, :]
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
         super()._redraw(which=which, **kwargs)
