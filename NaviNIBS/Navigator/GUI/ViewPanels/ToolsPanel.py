@@ -219,7 +219,7 @@ class ToolWidget:
                     name=actorKey,
                     mesh=self._tool.toolSurf,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.8
                 )
                 self._toolSpaceActors[actorKey] = actor
@@ -232,7 +232,7 @@ class ToolWidget:
                 actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.toolSurf,
                     color=meshColor_tool,  # noqa
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -261,7 +261,7 @@ class ToolWidget:
                 actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -275,7 +275,7 @@ class ToolWidget:
                     actor = self._toolSpacePlotter.addMesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
-                        defaultMeshColor='#2222ff',
+                        defaultMeshColor='#444444',
                         opacity=0.8,
                         name=actorKey
                     )
