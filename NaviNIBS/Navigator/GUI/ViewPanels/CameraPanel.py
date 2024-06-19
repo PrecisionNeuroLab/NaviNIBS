@@ -331,7 +331,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             title='Tracked objects',
             widget=self._mainCameraView.plotter)
         dock.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        dock.setStretch(10, 10)
+        dock.setStretch(1, 10)
         self._wdgt.addDock(dock, position='right')
         self._mainCameraDock = dock
 

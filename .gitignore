@@ -4,3 +4,6 @@ data/*
 **/__pycache__/*
 addons/*
 sandbox/*
+# TODO: debug, delete
+docs
+dist

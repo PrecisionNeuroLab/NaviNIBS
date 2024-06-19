@@ -98,6 +98,7 @@ def getSessionPath(workingDir: str, key: str, ext: str | None = None,
 
     return sesPath
 
+
 def getNewSessionPath(workingDir: str, key: str, ext: str | None = None):
     sesPath = getSessionPath(workingDir, key)
     counter = 0

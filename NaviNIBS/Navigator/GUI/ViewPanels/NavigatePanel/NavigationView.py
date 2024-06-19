@@ -353,7 +353,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         plotter.render()
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None):
 
         if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # plotter not yet ready
