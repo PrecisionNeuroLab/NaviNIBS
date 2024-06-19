@@ -7,6 +7,7 @@ from datetime import datetime
 import logging
 import os
 import pathlib
+import pyqtgraph.dockarea.Container as pgdc
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
@@ -171,6 +172,28 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         # hack in a save button next to root dock area tab strip
 
         tCnt = dockArea.topContainer
+        if not isinstance(tCnt, TContainer):
+            # find shallowest TContainer child
+
+            def findTContainer(child) -> tuple[TContainer | None, int | None]:
+                if isinstance(child, TContainer):
+                    return child, 0
+
+                if not isinstance(child, pgdc.SplitContainer):
+                    return None, None
+
+                tCnt = None
+                depth = None
+                for i in range(child.count()):
+                    tCnt_i, depth_i = findTContainer(child.widget(i))
+                    if tCnt_i is not None:
+                        if depth is None or depth_i < depth:
+                            tCnt = tCnt_i
+                            depth = depth_i + 1
+                return tCnt, depth
+
+            tCnt, _ = findTContainer(tCnt)
+
         assert isinstance(tCnt, TContainer)
 
         if self._rootDockArea is not None:
