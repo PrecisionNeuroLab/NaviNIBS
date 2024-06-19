@@ -240,9 +240,16 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     In the future, can update to have a more device-agnostic base class that is subclassed for specific localization systems
     """
     _key: str = 'Camera'
+    _autoLayout: str | bool = True
+    """
+    Set to False to disable auto layout 
+    """
+
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
+    _trackingStatusDock: Dock = attrs.field(init=False)
+
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
 
@@ -250,11 +257,15 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _serverAddressEdit: QtWidgets.QLineEdit = attrs.field(init=False)
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _serverGUIContainer: QtWidgets.QGroupBox = attrs.field(init=False)
+    _serverGUIDock: Dock = attrs.field(init=False)
 
     _mainCameraView: CameraObjectsView = attrs.field(init=False)
+    _mainCameraDock: Dock = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        self.dockWdgt.sigResized.connect(self._onResized)
 
     def canBeEnabled(self) -> tuple[bool, str | None]:
         if self.session is None:
@@ -268,17 +279,19 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         dock, _ = self._createDockWidget(
             title='Tracking status',
             widget=self._trackingStatusWdgt.wdgt)
-        dock.setStretch(1, 10)
+        dock.setStretch(1, 1)
         dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.addDock(dock, position='left')
+        self._trackingStatusDock = dock
 
         dock, container = self._createDockWidget(
             title='Camera connection',
             layout=QtWidgets.QVBoxLayout(),
         )
-        dock.setStretch(1, 10)
+        dock.setStretch(1, 1)
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         self._wdgt.addDock(dock, position='bottom')
-
+        self._serverGUIDock = dock
         self._serverGUIContainer = container
 
         # TODO: add GUI controls for configuring, launching, stopping Plus Server
@@ -317,7 +330,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         dock, _ = self._createDockWidget(
             title='Tracked objects',
             widget=self._mainCameraView.plotter)
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        dock.setStretch(10, 10)
         self._wdgt.addDock(dock, position='right')
+        self._mainCameraDock = dock
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
@@ -327,6 +343,9 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             self._onPanelInitializedAndSessionSet()
 
         self._onClientIsConnectedChanged()
+
+        await asyncio.sleep(0.5)
+        self._updateAutoLayout()  # run after delay to allow others to resize first
 
     def _onSessionSet(self):
         super()._onSessionSet()
@@ -407,6 +426,49 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     def _onLatestPositionsChanged(self):
         if not self._hasInitialized and not self.isInitializing:
             return
+
+    def _onResized(self):
+        self._updateAutoLayout()
+
+    def _updateAutoLayout(self):
+        if not self._hasInitialized:
+            # not ready for auto layout yet
+            return
+
+        if isinstance(self._autoLayout, bool) and not self._autoLayout:
+            # auto layout is disabled
+            return
+
+        if self.dockWdgt.width() > self.dockWdgt.height():
+            newAutoLayout = 'horizontal'
+        elif self.dockWdgt.width() > 800 and False:
+            newAutoLayout = 'tallbig'
+        else:
+            newAutoLayout = 'tallsmall'
+
+        if newAutoLayout == self._autoLayout:
+            return
+
+        self._autoLayout = newAutoLayout
+
+        logger.info('Auto rearranging layout for panel size')
+
+        match newAutoLayout:
+            case 'horizontal':
+                self._wdgt.moveDock(self._mainCameraDock, 'right', self._trackingStatusDock)
+                self._wdgt.moveDock(self._serverGUIDock, 'bottom', self._trackingStatusDock)
+                # TODO: maybe set stretches
+            case 'tallbig':
+                self._wdgt.moveDock(self._mainCameraDock, 'bottom', self._trackingStatusDock)
+                self._wdgt.moveDock(self._serverGUIDock, 'right', self._trackingStatusDock)
+            case 'tallsmall':
+                self._wdgt.moveDock(self._mainCameraDock, 'bottom', self._trackingStatusDock)
+                self._wdgt.moveDock(self._serverGUIDock, 'below', self._mainCameraDock)
+
+            case _:
+                raise NotImplementedError
+
+
 
     def close(self):
         if self._positionsServerProc is not None:
