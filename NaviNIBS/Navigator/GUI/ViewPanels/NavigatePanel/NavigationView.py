@@ -102,8 +102,6 @@ class NavigationView(QueuedRedrawMixin):
         return self._wdgt
 
 
-
-
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
     _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
@@ -204,7 +202,9 @@ class SinglePlotterNavigationView(NavigationView):
             cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist], [0, 1, 0]])  # focal point, position, and up respectively
 
             if self._alignCameraTo is None:
-                pass
+                with self._plotter.allowNonblockingCalls:
+                    self._plotter.reset_camera()
+                    self._plotter.render()
 
             elif self._alignCameraTo.startswith('target'):
                 extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('target'):])
@@ -275,10 +275,20 @@ class SinglePlotterNavigationView(NavigationView):
 
         except NoValidCameraPoseAvailable:
             #logger.debug('No camera pose available')
-            with self._plotter.allowNonblockingCalls():
-                self._plotter.reset_camera_clipping_range()
-                self._plotter.render()
-            return  # TODO: change display to indicate view is out-of-date / invalid
+            if False:
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.reset_camera()
+                    self._plotter.reset_camera_clipping_range()
+                    self._plotter.render()
+                return  # TODO: change display to indicate view is out-of-date / invalid
+            else:
+                if False:
+                    # continue plotting, but with generic position
+                    cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist * 3], [0, 1, 0]])  # focal point, position, and up respectively
+                else:
+                    # hide plot until we have necessary info
+                    self._wdgt.setVisible(False)
+                    return
 
         with self._plotter.allowNonblockingCalls():
             self._plotter.camera.focal_point = cameraPts[0, :]
@@ -298,6 +308,9 @@ class SinglePlotterNavigationView(NavigationView):
             else:
                 self._plotter.reset_camera_clipping_range()
             self._plotter.render()
+
+        if not self._wdgt.isVisible():
+            self._wdgt.setVisible(True)
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
                  plotterLayer: tp.Optional[int] = None, **kwargs):
@@ -393,7 +406,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
 
-        if True and self._alignCameraTo == 'target':
+        if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='Brain',
                           surfKey='gmSurf',
