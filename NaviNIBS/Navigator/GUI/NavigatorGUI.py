@@ -303,6 +303,11 @@ class NavigatorGUI(RunnableAsApp):
     def _onAddonsChanged(self, itemKeys: list[str],
                          attribKeys: list[str] | None = None,
                          triggeredBySessionLoad: bool = False):
+
+        if attribKeys is not None and all(attribKey.startswith('SessionAttrs.') for attribKey in attribKeys):
+            # change was only within addon session attributes, no need to do anything here
+            return
+
         needToUpdateEnabledPanels = False
         prevActiveViewKey = self.activeViewKey
         for addonKey in itemKeys:

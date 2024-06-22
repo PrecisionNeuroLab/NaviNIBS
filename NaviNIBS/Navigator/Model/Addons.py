@@ -155,8 +155,8 @@ class Addon(GenericCollectionDictItem[str]):
 
         for key, sessionAttr in self._sessionAttrs.items():
             assert isinstance(sessionAttr, self._SessionAttrs[key].Class)
-            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit(self.key, [key]))
-            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit(self.key, [key]))
+            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit(self.key, ['SessionAttrs.' + key]))
+            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit(self.key, ['SessionAttrs.' + key]))
 
     @property
     def MainViewPanels(self):
