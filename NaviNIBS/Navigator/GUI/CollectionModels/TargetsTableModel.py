@@ -12,7 +12,7 @@ from NaviNIBS.Navigator.Model.Targets import Targets, Target
 
 @attrs.define(slots=False, kw_only=True)
 class FullTargetsTableModel(CollectionTableModel[str, Targets, Target]):
-    _collection: Targets = attrs.field(init=False)
+    _collection: Targets = attrs.field(init=False, repr=False)
     _isSelectedAttr: str = 'isSelected'
 
     def __attrs_post_init__(self):

@@ -119,7 +119,7 @@ class _PoseMetricGroup:
 
 @attrs.define
 class BackgroundSamplePoseMetadataSetter:
-    _session: Session | None = attrs.field(init=False, default=None)
+    _session: Session | None = attrs.field(init=False, default=None, repr=False)
     _pendingSampleKeys: list[str] = attrs.field(init=False, factory=list)
     _needsUpdateEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _calculator: PoseMetricCalculator | None = attrs.field(init=False, default=None)
@@ -193,20 +193,22 @@ class BackgroundSamplePoseMetadataSetter:
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
-    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
-    _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False)
-    _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
-    _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
-    _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
+    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False, repr=False)
+    _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False, repr=False)
+    _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list, repr=False)
+    _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False, repr=False)
+    _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict, repr=False)
 
-    _coordinator: TargetingCoordinator = attrs.field(init=False)
-    _triggerReceiver: TriggerReceiver | None = attrs.field(init=False, default=None)
+    _coordinator: TargetingCoordinator = attrs.field(init=False, repr=False)
+    _triggerReceiver: TriggerReceiver | None = attrs.field(init=False, default=None, repr=False)
     _backgroundSamplePoseMetadataSetter: BackgroundSamplePoseMetadataSetter = attrs.field(
         init=False,
-        factory=BackgroundSamplePoseMetadataSetter)
+        factory=BackgroundSamplePoseMetadataSetter,
+        repr=False
+    )
 
     _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
 

@@ -30,7 +30,7 @@ class VisualizedOrientation:
     re-instantiate for any changes as needed
     """
     _orientation: tp.Union[Sample, Target]
-    _plotter: DefaultBackgroundPlotter
+    _plotter: DefaultBackgroundPlotter = attrs.field(repr=False)
     _colorDepthIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _colorHandleIndicator: str | tuple[float, str]  # string color, or tuple of (float scalar, string colorbar label)
     _opacity: float
@@ -38,7 +38,7 @@ class VisualizedOrientation:
     _style: str
     _actorKeyPrefix: str
 
-    _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict)
+    _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
 
     def __attrs_post_init__(self):
         match self._style:

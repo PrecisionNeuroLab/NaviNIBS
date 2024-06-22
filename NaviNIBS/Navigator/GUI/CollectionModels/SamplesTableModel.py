@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @attrs.define(slots=False)
 class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
-    _collection: Samples = attrs.field(init=False)
+    _collection: Samples = attrs.field(init=False, repr=False)
     _isSelectedAttr: str = 'isSelected'
 
     def __attrs_post_init__(self):

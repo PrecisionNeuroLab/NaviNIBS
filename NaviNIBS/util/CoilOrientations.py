@@ -37,7 +37,7 @@ class PoseMetricCalculator:
     _session: Session = attrs.field(repr=False)
     _sample: tp.Optional[Sample]
 
-    _cachedValues: dict[str, tp.Any] = attrs.field(init=False, factory=dict)
+    _cachedValues: dict[str, tp.Any] = attrs.field(init=False, factory=dict, repr=False)
     _supportedMetrics: list[MetricSpecification] = attrs.field(init=False, factory=list)
 
     sigCacheReset: Signal = attrs.field(init=False, factory=Signal)

@@ -70,17 +70,17 @@ class TargetingCoordinator:
     _isOnTarget: bool = attrs.field(init=False, default=False)
     _onTargetMaybeChangedAtTime: float | None = None
     _needToCheckIfOnTarget: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
-    _monitorOnTargetTask: asyncio.Task | None = attrs.field(init=False, default=None)
-    sigIsOnTargetChanged: Signal = attrs.field(init=False, factory=Signal)  # only emitted when doMonitorOnTarget is True and isOnTarget changes
+    _monitorOnTargetTask: asyncio.Task | None = attrs.field(init=False, default=None, repr=False)
+    sigIsOnTargetChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)  # only emitted when doMonitorOnTarget is True and isOnTarget changes
 
-    sigActiveCoilKeyChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigActiveCoilKeyChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
+    sigCurrentTargetChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
     """
     Emitted when a different target becomes current AND when an attribute of the current target changes. 
     """
-    sigCurrentSampleChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigCurrentCoilPositionChanged: Signal = attrs.field(init=False, factory=Signal)
-    sigCurrentSubjectPositionChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigCurrentSampleChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
+    sigCurrentCoilPositionChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
+    sigCurrentSubjectPositionChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
 
     def __attrs_post_init__(self):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)

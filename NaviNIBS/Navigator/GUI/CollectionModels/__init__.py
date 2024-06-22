@@ -94,7 +94,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         addNewRowFromEditedPlaceholder=addNewRow 
     """
 
-    _collection: C = attrs.field(init=False)
+    _collection: C = attrs.field(init=False, repr=False)
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
 

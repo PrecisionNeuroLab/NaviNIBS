@@ -127,7 +127,7 @@ class AddonExtra(ABC):
     Any AddonCode class elements defined in an addion configuration will be instantiated and passed references to the root NavigatorGUI instance and the session model when the addon is loaded.
     """
     _navigatorGUI: NavigatorGUI
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
     def __attrs_post_init__(self):
         pass

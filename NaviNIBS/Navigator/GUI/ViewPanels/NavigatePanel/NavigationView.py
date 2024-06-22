@@ -47,7 +47,7 @@ class NavigationView(QueuedRedrawMixin):
     _contextMenu: QtWidgets.QMenu = attrs.field(init=False)
 
     _layers: tp.Dict[str, ViewLayer] = attrs.field(init=False, factory=dict)
-    _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict)
+    _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -104,7 +104,7 @@ class NavigationView(QueuedRedrawMixin):
 
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
-    _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
+    _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False, repr=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
     _cameraDist: float = 100
@@ -118,7 +118,7 @@ class SinglePlotterNavigationView(NavigationView):
     _doShowLegend: bool = False
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
-    _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)
+    _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()

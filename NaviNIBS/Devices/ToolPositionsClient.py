@@ -31,22 +31,22 @@ class ToolPositionsClient:
     _serverPubPort: int = positionsServerPubPort
     _serverCmdPort: int = positionsServerCmdPort
 
-    _latestPositions: dict[str, tp.Optional[TimestampedToolPosition]] | None = attrs.field(init=False, default=None)
+    _latestPositions: dict[str, tp.Optional[TimestampedToolPosition]] | None = attrs.field(init=False, default=None, repr=False)
 
     _subSocket: azmq.Socket = attrs.field(init=False)
-    _connector: ZMQConnectorClient = attrs.field(init=False)
+    _connector: ZMQConnectorClient = attrs.field(init=False, repr=False)
 
-    sigLatestPositionsChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigLatestPositionsChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
 
     _timeLastHeardFromServer: tp.Optional[float] = None
     _isConnected: bool = False
     _serverStatusTimeout: float = 10.  # consider server offline if we haven't heard from it for this long
 
-    _pollTask: asyncio.Task | None = attrs.field(init=False)
-    _monitorTask: asyncio.Task | None = attrs.field(init=False)
-    _startupTask: asyncio.Task | None = attrs.field(init=False)
+    _pollTask: asyncio.Task | None = attrs.field(init=False, repr=False)
+    _monitorTask: asyncio.Task | None = attrs.field(init=False, repr=False)
+    _startupTask: asyncio.Task | None = attrs.field(init=False, repr=False)
 
-    sigIsConnectedChanged: Signal = attrs.field(init=False, factory=Signal)
+    sigIsConnectedChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
 
     def __attrs_post_init__(self):
         ctx = azmq.Context()

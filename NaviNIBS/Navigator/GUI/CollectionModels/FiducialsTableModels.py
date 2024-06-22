@@ -10,7 +10,7 @@ from NaviNIBS.util import makeStrUnique
 
 @attrs.define(slots=False)
 class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]):
-    _collection: Fiducials = attrs.field(init=False)
+    _collection: Fiducials = attrs.field(init=False, repr=False)
 
     _checkIcon_planned: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.checkbox-marked-circle', color='blue'))
     _checkIcon_sampled: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.checkbox-marked-circle', color='green'))
@@ -107,12 +107,12 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
 
 
 
-
 # TODO: implement PlanningFiducialsTableModel for planning fiducials tab (not showing sampled fiducials at all)
+
 
 @attrs.define(slots=False)
 class PlanningFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]):
-    _collection: Fiducials = attrs.field(init=False)
+    _collection: Fiducials = attrs.field(init=False, repr=False)
 
     _hasPlaceholderNewRow: bool = True
     _placeholderNewRowDefaults: dict[str, tp.Any] = attrs.field(factory=lambda: dict(key='<NewFiducial>'))

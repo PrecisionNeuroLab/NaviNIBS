@@ -13,7 +13,7 @@ logger = logging.getLogger()
 
 @attrs.define(slots=False)
 class DigitizedLocationsTableModel(CollectionTableModel[str, DigitizedLocations, DigitizedLocation]):
-    _collection: DigitizedLocations = attrs.field(init=False)
+    _collection: DigitizedLocations = attrs.field(init=False, repr=False)
 
     _hasPlaceholderNewRow: bool = True
     _placeholderNewRowDefaults: dict[str, tp.Any] = attrs.field(factory=lambda: dict(key='<NewEntry>'))

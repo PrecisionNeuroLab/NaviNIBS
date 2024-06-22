@@ -30,11 +30,11 @@ logger.setLevel(logging.INFO)
 @attrs.define
 class CameraObjectsView(QueuedRedrawMixin):
     _positionsClient: ToolPositionsClient
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
-    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False, repr=False)
 
-    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict, repr=False)
 
     def __attrs_post_init__(self):
         QueuedRedrawMixin.__attrs_post_init__(self)

@@ -6,7 +6,7 @@ from NaviNIBS.Navigator.Model.Tools import Tool, Tools
 
 @attrs.define(slots=False)
 class ToolsTableModel(CollectionTableModel[int, Tools, Tool]):
-    _collection: Tools = attrs.field(init=False)
+    _collection: Tools = attrs.field(init=False, repr=False)
 
     def __attrs_post_init__(self):
         self._collection = self._session.tools
