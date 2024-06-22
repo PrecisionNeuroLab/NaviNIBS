@@ -186,7 +186,9 @@ class NavigatorGUI(RunnableAsApp):
                     logger.debug(f'About to restore root layout when winSize={winSize}')
 
                     try:
-                        self._rootDockArea.restoreState(layout.state)
+                        self._rootDockArea.restoreState(layout.state,
+                                                        extraPosition='below',
+                                                        extraNeighbor=self.manageSessionPanel.dockWdgt)
                     except ValueError:
                         # sometimes can get errors during restore if other parts of layout have changed
                         logger.error('Unable to restore root dock area state')

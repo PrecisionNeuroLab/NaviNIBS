@@ -673,5 +673,40 @@ class DockArea(pgd.DockArea):
                 obj.apoptose(propagate=False)
             obj.restoreState(state)  ## this has to be done later?
 
+    def restoreState(self, state, missing='error', extraPosition='bottom', extraNeighbor=None):
+        """
+        Similar to superclass, but allows specifying neighbor for extra relative position
+        """
+        ## 1) make dict of all docks and list of existing containers
+        containers, docks = self.findAll()
+        oldTemps = self.tempAreas[:]
+        # print "found docks:", docks
+
+        ## 2) create container structure, move docks into new containers
+        if state['main'] is not None:
+            self.buildFromState(state['main'], docks, self, missing=missing)
+
+        ## 3) create floating areas, populate
+        for s in state['float']:
+            a = self.addTempArea()
+            a.buildFromState(s[0]['main'], docks, a, missing=missing)
+            a.win.setGeometry(*s[1])
+            a.apoptose()  # ask temp area to close itself if it is empty
+
+        ## 4) Add any remaining docks to a float
+        for d in docks.values():
+            if extraPosition == 'float':
+                assert extraNeighbor is None
+                a = self.addTempArea()
+                a.addDock(d, 'below')
+            else:
+                self.moveDock(d, extraPosition, extraNeighbor)
+
+        # print "\nKill old containers:"
+        ## 5) kill old containers
+        for c in containers:
+            c.close()
+        for a in oldTemps:
+            a.apoptose()
 
 
