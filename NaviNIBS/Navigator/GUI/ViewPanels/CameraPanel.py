@@ -66,6 +66,9 @@ class CameraObjectsView(QueuedRedrawMixin):
 
         self._redraw('all')
 
+        self._autoOrientCamera()
+
+    def _autoOrientCamera(self, distance: float = 1000):
         # if necessary info available, reorient camera view based on subject location
         if not self.session.subjectRegistration.isRegistered:
             logger.info('Not setting camera due lack of subject registration')
@@ -88,7 +91,7 @@ class CameraObjectsView(QueuedRedrawMixin):
                     # or use MNI space
                     cameraPts_MRI = np.asarray([
                         [0, 0, 0],  # focal point
-                        np.asarray([-0.8, 1, 0.3]) * 1000,  # position
+                        np.asarray([-0.8, 1, 0.3]) * distance,  # position
                         [0, 0, 1]])  # up
 
                     cameraPts_world = applyTransform(transf_MRIToWorld, cameraPts_MRI)
@@ -98,6 +101,7 @@ class CameraObjectsView(QueuedRedrawMixin):
                         plotter.camera.focal_point = cameraPts_world[0, :]
                         plotter.camera.position = cameraPts_world[1, :]
                         plotter.camera.up = cameraPts_world[2, :] - cameraPts_world[1, :]
+
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
         super()._redraw(which=which, **kwargs)
