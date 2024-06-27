@@ -21,9 +21,10 @@ from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingT
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.Transforms import applyTransform, composeTransform
+from NaviNIBS.util.Transforms import applyTransform, composeTransform, concatenateTransforms
 from NaviNIBS.util.GUI.Dock import Dock
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
+from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class SinglePlotterNavigationView(NavigationView):
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
     _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict, repr=False)
+    _lastAlignedToolPose: Transform | None = attrs.field(init=False, default=None, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -154,6 +156,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
+        self._coordinator.positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
 
         if self._doParallelProjection:
             self._plotter.camera.enable_parallel_projection()
@@ -171,6 +174,33 @@ class SinglePlotterNavigationView(NavigationView):
     def _onCurrentCoilPositionChanged(self):
         if self._alignCameraTo.startswith('coil'):
             self._queueRedraw(which='camera')
+
+    def _onLatestPositionsChanged(self):
+        if self._alignCameraTo.startswith('tool-'):
+            if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
+                toolKey = self._alignCameraTo[len('tool-'):-2]
+            else:
+                toolKey = self._alignCameraTo[len('tool-'):]
+
+            tool = self._coordinator.session.tools[toolKey]
+            trackerKey = tool.trackerKey
+
+            newTrackerPose = self._coordinator.positionsClient.getLatestTransf(trackerKey, None)
+            if newTrackerPose is None:
+                newToolPose = None
+            else:
+                if tool.toolToTrackerTransf is None:
+                    newToolPose = None
+                else:
+                    # TODO: do some extra caching to not recalculate this with every position change
+                    # (since the tool we align to may not actually be changing frequently)
+                    # but then would also need to connect to toolTrackerTransf changed signal.
+                    newToolPose = concatenateTransforms((tool.toolToTrackerTransf, newTrackerPose))
+
+            if not array_equalish(newToolPose, self._lastAlignedToolPose):
+                self._lastAlignedToolPose = newToolPose  # not actually aligned yet due to queueing, but should be okay unless there
+                # are rapid bursts of switching between a small set of discrete poses
+                self._queueRedraw(which='camera')
 
     @staticmethod
     def _getExtraRotationForToAlignCamera(rotSuffix: str) -> np.ndarray:
