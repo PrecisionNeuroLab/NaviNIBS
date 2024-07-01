@@ -283,7 +283,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         dock, _ = self._createDockWidget(
             title='Tracking status',
             widget=self._trackingStatusWdgt.wdgt)
-        dock.setStretch(1, 1)
+        dock.setStretch(.1, 1)
         dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.addDock(dock, position='left')
         self._trackingStatusDock = dock
@@ -292,7 +292,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             title='Camera connection',
             layout=QtWidgets.QVBoxLayout(),
         )
-        dock.setStretch(1, 1)
+        dock.setStretch(.1, 1)
         dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         self._wdgt.addDock(dock, position='bottom')
         self._serverGUIDock = dock
@@ -335,7 +335,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             title='Tracked objects',
             widget=self._mainCameraView.plotter)
         dock.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        dock.setStretch(1, 10)
+        dock.setStretch(2, 10)
         self._wdgt.addDock(dock, position='right')
         self._mainCameraDock = dock
 
