@@ -72,5 +72,10 @@ class TriggerSettingsPanel(MainViewPanelWithDockWidgets):
     def _onPanelInitializedAndSessionSet(self):
         pass
 
+    def canBeEnabled(self) -> tuple[bool, str | None]:
+        if self.session is None:
+            return False, 'No session set'
+        return True, None
+
     def _onTriggered(self, triggerEvt: TriggerEvent):
         pass  # TODO: show GUI indicator about time of last trigger(s)
