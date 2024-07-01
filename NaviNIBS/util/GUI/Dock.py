@@ -533,6 +533,10 @@ class Dock(pgd.Dock):
         self.sigHidden = Signal()
         self.sigResized = Signal()
 
+    def setEnabled(self, doEnable: bool):
+        self.label.setEnabled(doEnable)
+        super().setEnabled(doEnable)
+
     def implements(self, name=None):
         if name is None:
             return ['dock', 'dockWithAffinities']

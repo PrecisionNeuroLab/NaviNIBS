@@ -111,6 +111,20 @@ class MainViewPanel:
         """
         return True, None  # can be implemented by subclass to indicate when panel is missing critical information and can't yet show anything useful
 
+    def updateEnabled(self):
+        if self.canBeEnabled()[0]:
+            self.dockWdgt.setEnabled(True)
+            if self.isVisible:
+                if not self.hasInitialized and not self.isInitializing:
+                    self.finishInitialization()
+            else:
+                self.wdgt.setEnabled(True)
+            self.dockWdgt.label.setToolTip(self.label)
+        else:
+            self.wdgt.setEnabled(False)
+            self.dockWdgt.setEnabled(False)
+            self.dockWdgt.label.setToolTip(f'{self.label}\n({self.canBeEnabled()[1]})')
+
     def finishInitialization(self):
         if self._isInitializing:
             logger.warning(f"{self.key} is already finishing initializing, skipping.")

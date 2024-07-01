@@ -398,12 +398,7 @@ class NavigatorGUI(RunnableAsApp):
     def _updateEnabledPanels(self):
 
         for key, panel in self._mainViewPanels.items():
-            if panel.canBeEnabled()[0]:
-                if panel.isVisible:
-                    if not panel.hasInitialized and not panel.isInitializing:
-                        panel.finishInitialization()
-            else:
-                panel.wdgt.setEnabled(False)
+            panel.updateEnabled()
 
         # TODO: if we just disabled the only active view, change to a useful fallback view
         fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
