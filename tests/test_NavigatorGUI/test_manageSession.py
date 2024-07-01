@@ -114,6 +114,7 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
     QtBot.mouseDClick(wdgt, QtCore.Qt.MouseButton.LeftButton)
     QtBot.keyClicks(wdgt, subjectID)
     QtBot.keyClick(wdgt, QtCore.Qt.Key.Key_Enter)
+    await asyncio.sleep(1.)
     assert navigatorGUI.session.subjectID == subjectID
 
     await asyncio.sleep(1.)
@@ -121,7 +122,11 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
     wdgt = navigatorGUI.manageSessionPanel._infoWdgts['sessionID']
     QtBot.mouseDClick(wdgt, QtCore.Qt.MouseButton.LeftButton)
     QtBot.keyClicks(wdgt, sessionID)
-    QtBot.keyClick(wdgt, QtCore.Qt.Key.Key_Tab)
+    if False:
+        QtBot.keyClick(wdgt, QtCore.Qt.Key.Key_Tab)
+    else:
+        QtBot.keyClick(wdgt, QtCore.Qt.Key.Key_Enter)
+    await asyncio.sleep(1.)
     assert navigatorGUI.session.sessionID == sessionID
 
     await asyncio.sleep(1.)
