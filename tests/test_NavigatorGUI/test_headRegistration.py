@@ -86,8 +86,8 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
     navigatorGUI._activateView(navigatorGUI.subjectRegistrationPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
 
@@ -194,8 +194,8 @@ async def test_acquireHeadPoints(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.subjectRegistrationPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
 
@@ -256,8 +256,8 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.subjectRegistrationPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
 

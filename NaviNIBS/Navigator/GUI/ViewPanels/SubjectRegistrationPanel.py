@@ -318,6 +318,8 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     _positionsClient: tp.Optional[ToolPositionsClient] = attrs.field(init=False, default=None)
 
+    finishedAsyncInitializationEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -514,6 +516,8 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
+
+        self.finishedAsyncInitializationEvent.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()
