@@ -136,6 +136,7 @@ class AddonExtra(ABC):
 @attrs.define
 class Addon(GenericCollectionDictItem[str]):
     _addonInstallPath: str
+    _addonVersion: str | None = None
     _MainViewPanels: tp.Dict[str, AddonClassElement[MainViewPanel]] = attrs.field(factory=dict)
     _NavigationViews: tp.Dict[str, AddonClassElement[NavigationView]] = attrs.field(factory=dict)
     _NavigationViewLayers: tp.Dict[str, AddonClassElement[ViewLayer]] = attrs.field(factory=dict)
@@ -148,6 +149,8 @@ class Addon(GenericCollectionDictItem[str]):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        logger.info(f'Initializing addon {self.key} (version {self._addonVersion if self._addonVersion is not None else "not set"})')
 
         for key, SessionAttr in self._SessionAttrs.items():
             if key not in self._sessionAttrs:
@@ -201,6 +204,8 @@ class Addon(GenericCollectionDictItem[str]):
             if len(d[key]) == 0:
                 del d[key]
 
+        if self._addonVersion is not None:
+            d['addonVersion'] = self._addonVersion
         d['addonInstallPath'] = os.path.relpath(self.addonInstallPath, installPath)
 
         return d
@@ -244,6 +249,16 @@ class Addon(GenericCollectionDictItem[str]):
             addonInstallPath=addonInstallPath,
             key=dc['key']
         )
+
+        if 'addonVersion' in dc:
+            if 'addonVersion' in d:
+                if d['addonVersion'] != dc['addonVersion']:
+                    logger.warning(
+                        f'Addon version mismatch: session config version {d["addonVersion"]} does not match addon configuration version {dc["addonVersion"]}. Using addon configuration version.')
+                del d['addonVersion']
+            initKwargs['addonVersion'] = dc['addonVersion']
+        else:
+            assert 'addonVersion' not in d, 'Addon version specified in session config but not in addon configuration'
 
         for elementAttr in elementAttrs:
             if elementAttr in dc:
