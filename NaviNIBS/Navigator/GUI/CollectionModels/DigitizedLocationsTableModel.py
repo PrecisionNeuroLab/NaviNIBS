@@ -6,6 +6,7 @@ from qtpy import QtGui
 
 from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
 from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
+from NaviNIBS.util import makeStrUnique
 
 
 logger = logging.getLogger()
@@ -52,6 +53,8 @@ class DigitizedLocationsTableModel(CollectionTableModel[str, DigitizedLocations,
         self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
         self._collection.sigItemsChanged.connect(self._onCollectionChanged)
 
+        self._addNewRowFromEditedPlaceholder = self.__addNewRowFromEditedPlaceholder
+
         super().__attrs_post_init__()
 
     def _getPlannedIsSet(self, key: tp.Optional[str]) -> tuple[tp.Optional[QtGui.QIcon], str]:
@@ -69,3 +72,16 @@ class DigitizedLocationsTableModel(CollectionTableModel[str, DigitizedLocations,
             return self._xIcon, ''
         else:
             return self._checkIcon_sampled, ''
+
+    def __addNewRowFromEditedPlaceholder(self, **kwargs) -> str | None:
+        if 'key' not in kwargs:
+            if len(kwargs) == 0:
+                # nothing set, assume adding new row was cancelled
+                return None
+            kwargs['key'] = makeStrUnique('Loc', self._collection.keys())
+        item = DigitizedLocation(**kwargs)
+        if item.key in self._collection:
+            # key already existed, reject
+            return None
+        self._collection.addItem(item)
+        return item.key
