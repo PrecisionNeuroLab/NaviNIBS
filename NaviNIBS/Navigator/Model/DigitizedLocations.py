@@ -58,6 +58,14 @@ class DigitizedLocation(GenericCollectionDictItem[str]):
     def type(self):
         return self._type
 
+    @type.setter
+    def type(self, newType: tp.Optional[str]):
+        if newType == self._type:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['type'])
+        self._type = newType
+        self.sigItemChanged.emit(self.key, ['type'])
+
     @property
     def color(self):
         return self._color
