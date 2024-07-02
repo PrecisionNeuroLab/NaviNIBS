@@ -184,7 +184,9 @@ class FiducialsPanel(MainViewPanel):
                         point_color='blue',
                         text_color='blue',
                         point_size=15,
+                        font_size=15,
                         shape=None,
+                        always_visible=True,
                         render_points_as_spheres=True,
                         reset_camera=False,
                         render=False
