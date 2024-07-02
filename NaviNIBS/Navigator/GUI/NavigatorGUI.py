@@ -32,7 +32,7 @@ from NaviNIBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettin
 from NaviNIBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
-from NaviNIBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.DigitizeLocationsPanel import DigitizeLocationsPanel
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class NavigatorGUI(RunnableAsApp):
 
         self._addViewPanel(NavigatePanel(session=self._session))
 
-        self._addViewPanel(DigitizedLocationsPanel(session=self._session))
+        self._addViewPanel(DigitizeLocationsPanel(session=self._session))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
@@ -389,6 +389,10 @@ class NavigatorGUI(RunnableAsApp):
     def navigatePanel(self) -> NavigatePanel:
         return self._mainViewPanels['Navigate']
 
+    @property
+    def digitizeLocationsPanel(self) -> DigitizeLocationsPanel:
+        return self._mainViewPanels['Digitize']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
@@ -436,7 +440,7 @@ def main():
                 # sesFilepath = r'G:\My Drive\KellerLab\RTNaBS\data\sub-2355\ses-230209\sub-2355_ses-230209_RTNaBS'
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test9.rtnabsdir')
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-demo.navinibsdir')
-                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-cobotDemo.navinibsdir')
+                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-cobotDemo-simPos.navinibsdir')
             else:
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
                                            'data/TestSession1.rtnabs')
