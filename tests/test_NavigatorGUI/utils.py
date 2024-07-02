@@ -42,6 +42,8 @@ def workingDir(request):
             path = tempfile.mkdtemp(prefix='NaviNIBS_Tests_')
             request.config.cache.set('workingDir', path)
         # note this directory will not be auto-deleted
+        if not os.path.exists(path):
+            os.makedirs(path)
         yield path
     else:
         with tempfile.TemporaryDirectory(suffix='NaviNIBS_Test_Session') as path:
