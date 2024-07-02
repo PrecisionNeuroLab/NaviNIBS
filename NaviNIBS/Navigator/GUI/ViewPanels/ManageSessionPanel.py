@@ -41,6 +41,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _rootDockArea: DockArea | None = attrs.field(init=False, default=None) # used for tabSaveBtn
     _newSessionBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _tabSaveBtn: QtWidgets.QPushButton | None = attrs.field(init=False, default=None)
+    _augmentBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveBtnShowsDirty: bool | None = attrs.field(init=False, default=None)
     _saveShortcut: QtWidgets.QShortcut = attrs.field(init=False)
@@ -89,6 +90,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-plus-outline'), text='Augment session')
         btn.clicked.connect(lambda checked: self.augmentSession())
         container.layout().addWidget(btn)
+        self._augmentBtn = btn
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
         btn.clicked.connect(lambda checked: self._recoverSession())
@@ -231,6 +233,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
     def _updateEnabledWdgts(self):
         wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn,
+                 self._augmentBtn,
                  self._closeBtn, self._addAddonBtn, self._infoContainer]
         if self._tabSaveBtn is not None:
             wdgts.append(self._tabSaveBtn)
