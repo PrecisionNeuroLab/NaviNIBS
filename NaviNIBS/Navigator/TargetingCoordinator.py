@@ -571,3 +571,8 @@ class TargetingCoordinator:
             assert _targetingCoordinatorSingleton.session is session
         return _targetingCoordinatorSingleton
 
+    @staticmethod
+    def _resetSingleton():
+        global _targetingCoordinatorSingleton
+        _targetingCoordinatorSingleton = None
+

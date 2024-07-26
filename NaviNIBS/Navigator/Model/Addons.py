@@ -124,7 +124,7 @@ class AddonExtra(ABC):
 
     Use this when an addon needs to provide custom code not part of a main view panel, navigation view layer, etc. This may be used for code-only addon pieces (such as providing a data output stream), or for patching existing GUI functionality (using the reference to the root NavigatorGUI instance).
 
-    Any AddonCode class elements defined in an addion configuration will be instantiated and passed references to the root NavigatorGUI instance and the session model when the addon is loaded.
+    Any AddonCode class elements defined in an addon configuration will be instantiated and passed references to the root NavigatorGUI instance and the session model when the addon is loaded.
     """
     _navigatorGUI: NavigatorGUI
     _session: Session = attrs.field(repr=False)

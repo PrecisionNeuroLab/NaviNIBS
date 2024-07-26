@@ -53,6 +53,12 @@ def workingDir(request):
 
 @pytest_asyncio.fixture
 async def navigatorGUIWithoutSession() -> NavigatorGUI:
+
+    if True:
+        # make sure specific globals are cleared between tests
+        from NaviNIBS.Navigator.TargetingCoordinator import TargetingCoordinator
+        TargetingCoordinator._resetSingleton()
+
     navGUI = NavigatorGUI.createAndRunAsTask()
     if True:
         await raiseMainNavigatorGUI()
@@ -123,6 +129,7 @@ def copySessionFolder(workingDir: str, fromPathKey: str, toPathKey: str) -> str:
     shutil.copytree(fromPath, toPath)
 
     return toPath
+
 
 def assertSavedSessionIsValid(sessionPath: str) -> Session:
     if os.path.isfile(sessionPath):

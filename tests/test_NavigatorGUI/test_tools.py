@@ -224,7 +224,6 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
                         doAssertEqual=utils.doAssertScreenshotsEqual)
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_simulateTools')
 async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
