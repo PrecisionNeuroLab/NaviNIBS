@@ -49,7 +49,8 @@ class TargetingCoordinator:
     _currentTargetKey: tp.Optional[str] = None
     _currentSampleKey: tp.Optional[str] = None
     _positionsClient: ToolPositionsClient = attrs.field(factory=ToolPositionsClient)
-    _activeCoilKey: tp.Optional[str] = None
+    __cachedActiveCoilKey: str | None = attrs.field(init=False, default=None)
+    __cachedActiveCoil: CoilTool | None = attrs.field(init=False, default=None)
 
     _currentCoilToMRITransform: tp.Optional[Transform] = attrs.field(init=False, default=None)  # relative to head tracker
     _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
@@ -84,6 +85,8 @@ class TargetingCoordinator:
 
     def __attrs_post_init__(self):
         self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+        self._session.tools.sigItemsAboutToChange.connect(self._onToolsAboutToChange)
+        self._session.tools.sigItemsChanged.connect(self._onToolsChanged)
         self._session.targets.sigItemsChanged.connect(self._onSessionTargetsChanged)
         self._session.targets.sigItemKeyAboutToChange.connect(self._onSessionTargetKeyAboutToChange)
         self._session.targets.sigItemKeyChanged.connect(
@@ -107,18 +110,48 @@ class TargetingCoordinator:
 
         self.sigCurrentTargetChanged.connect(lambda: self._needToCheckIfOnTarget.set())
 
-        if self._activeCoilKey is not None:
-            self.activeCoilTool.sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
-            self.activeCoilTool.sigItemChanged.connect(self._onActiveCoilToolChanged)
-
         if self._doMonitorOnTarget:
             self._startMonitoringOnTarget()
 
-    def _onActiveCoilToolKeyChanged(self, oldKey: str, newKey: str):
+    @property
+    def _cachedActiveCoilKey(self):
+        return self.__cachedActiveCoilKey
+
+    @_cachedActiveCoilKey.setter
+    def _cachedActiveCoilKey(self, newKey: str | None):
+        if newKey == self.__cachedActiveCoilKey:
+            return
+        oldKey = self.__cachedActiveCoilKey
         logger.info(f'Recording active coil key change from {oldKey} to {newKey}')
-        assert oldKey == self._activeCoilKey
-        self._activeCoilKey = newKey
+
+        if newKey is not None and self.__cachedActiveCoil is self._session.tools[newKey]:
+            # key of existing active coil changed, don't need to disconnect/reconnect signals
+            self.__cachedActiveCoilKey = newKey
+        else:
+            if self.__cachedActiveCoil is not None:
+                self.__cachedActiveCoil.sigKeyChanged.disconnect(self._onActiveCoilToolKeyChanged)
+                self.__cachedActiveCoil.sigItemChanged.disconnect(self._onActiveCoilToolChanged)
+                self.__cachedActiveCoil = None
+
+            self.__cachedActiveCoilKey = newKey
+            if newKey is not None:
+                self.__cachedActiveCoil = self._session.tools[newKey]
+                self.__cachedActiveCoil.sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
+                self.__cachedActiveCoil.sigItemChanged.connect(self._onActiveCoilToolChanged)
+
         self.sigActiveCoilKeyChanged.emit()
+
+    def _onToolsAboutToChange(self, keys: list[str], attribs: list[str] | None = None):
+        if attribs is None or 'isActive' in attribs:
+            self._cachedActiveCoilKey = None  # clear cache so that active coil is re-detected on next request
+
+    def _onToolsChanged(self, keys: list[str], attribs: list[str] | None = None):
+        if attribs is None or 'isActive' in attribs:
+            self._cachedActiveCoilKey = None  # clear cache so that active coil is re-detected on next request
+
+    def _onActiveCoilToolKeyChanged(self, oldKey: str, newKey: str):
+        assert oldKey == self._cachedActiveCoilKey
+        self._cachedActiveCoilKey = newKey
 
     def _onActiveCoilToolChanged(self, key: str, attribs: tp.Optional[list[str]] = None):
         """
@@ -137,12 +170,7 @@ class TargetingCoordinator:
             return
 
         # tool is no longer active
-        logger.info(f'Clearing previously active coil key {self._activeCoilKey}')
-        if self._activeCoilKey in self._session.tools:
-            self._session.tools[self._activeCoilKey].sigKeyChanged.disconnect(self._onActiveCoilToolKeyChanged)
-            self._session.tools[self._activeCoilKey].sigItemChanged.disconnect(self._onActiveCoilToolChanged)
-        self._activeCoilKey = None  # clear cached active coil key, will be replaced with autodiscovered active key later as needed
-        self.sigActiveCoilKeyChanged.emit()
+        self._cachedActiveCoilKey = None
 
         self._currentCoilToMRITransform = None  # clear any previously cached value
         self.sigCurrentCoilPositionChanged.emit()
@@ -332,40 +360,30 @@ class TargetingCoordinator:
 
     @property
     def activeCoilTool(self):
-        return self._session.tools[self.activeCoilKey]
+        if self.activeCoilKey is None:
+            return None
+        else:
+            return self._session.tools[self.activeCoilKey]
 
     @property
-    def activeCoilKey(self):
-        if self._activeCoilKey is None:
+    def activeCoilKey(self) -> str | None:
+        if self._cachedActiveCoilKey is None:
             # if no active coil specified, use first active coil in list
             for toolKey, tool in self._session.tools.items():
                 if tool.isActive and isinstance(tool, CoilTool):
-                    self._activeCoilKey = toolKey
-                    logger.info(f'Detected active coil key {self._activeCoilKey}')
-                    self._session.tools[self._activeCoilKey].sigKeyChanged.connect(self._onActiveCoilToolKeyChanged)
-                    self._session.tools[self._activeCoilKey].sigItemChanged.connect(self._onActiveCoilToolChanged)
+                    self._cachedActiveCoilKey = toolKey
+                    logger.info(f'Detected active coil key {self._cachedActiveCoilKey}')
                     break
-            if self._activeCoilKey is None:
-                raise KeyError('No active coil tool!')
-        return self._activeCoilKey
-
-    @activeCoilKey.setter
-    def activeCoilKey(self, newKey: tp.Optional[str]):
-        if newKey is not None:
-            assert newKey in self._session.tools
-            coilTool = self._session.tools[newKey]
-            assert coilTool.isActive
-            assert isinstance(coilTool, CoilTool)
-
-        raise NotImplementedError()  # TODO
-        # TODO: disconnect signals for previous active coil key
-        # TODO: connect signals for new active coil key
-
-        self.sigActiveCoilKeyChanged.emit()
+            if self._cachedActiveCoilKey is None:
+                return None
+        return self._cachedActiveCoilKey
 
     @property
     def currentCoilToMRITransform(self) -> tp.Optional[Transform]:
         if self._currentCoilToMRITransform is None:
+            if self.activeCoilTool is None:
+                # no coil active
+                return None
             coilTrackerToCameraTransf = self._positionsClient.getLatestTransf(self.activeCoilTool.trackerKey, None)
             subjectTrackerToCameraTransf = self._positionsClient.getLatestTransf(self._session.tools.subjectTracker.trackerKey,
                                                                                  None)
