@@ -279,5 +279,61 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
     utils.assertSavedSessionIsValid(sessionPath)
 
 
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_basicNavigation')
+async def test_basicNavigation_coilChanges(navigatorGUIWithoutSession: NavigatorGUI,
+                               workingDir: str,
+                               screenshotsDataSourcePath: str,
+                               simulatedPositionsBasicNav1Path: str):
+    navigatorGUI = navigatorGUIWithoutSession
 
+    sessionPath = utils.copySessionFolder(workingDir, 'BasicNavigation', 'BasicNavigationCoilChanges')
 
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(5.)
+
+    for view in navigatorGUI.navigatePanel._views.values():
+        if hasattr(view, 'plotter'):
+            await view.plotter.isReadyEvent.wait()
+
+    await asyncio.sleep(5.)
+
+    # make sure that "active coil" is always the first (of possibly multiple) active coil in tools list
+
+    coordinator = navigatorGUI.navigatePanel._coordinator
+    assert coordinator.activeCoilKey == 'Coil1'
+
+    # equivalent to clicking on tab
+    navigatorGUI._activateView(navigatorGUI.toolsPanel.key)
+
+    navigatorGUI.toolsPanel._tblWdgt.currentCollectionItemKey = 'Coil1'
+
+    await asyncio.sleep(10.)
+
+    navigatorGUI.toolsPanel._toolWdgt._isActive.setChecked(False)
+    await asyncio.sleep(1.)
+
+    assert coordinator.activeCoilKey is None
+
+    navigatorGUI.session.tools['Coil2'].isActive = True
+    await asyncio.sleep(1.)
+
+    assert coordinator.activeCoilKey == 'Coil2'
+
+    navigatorGUI.session.tools['Coil1'].isActive = True
+    await asyncio.sleep(1.)
+
+    assert coordinator.activeCoilKey == 'Coil1'
+
+    navigatorGUI.session.tools['Coil1'].isActive = False
+    await asyncio.sleep(1.)
+
+    assert coordinator.activeCoilKey == 'Coil2'
+
+    navigatorGUI.session.tools['Coil1'].isActive = True
+
+    # make sure that calibrating coil after navigation, then returning to navigation,
+    # doesn't cause any issues
+    # TODO
