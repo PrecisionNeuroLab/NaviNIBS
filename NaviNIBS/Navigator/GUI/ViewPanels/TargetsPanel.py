@@ -24,11 +24,10 @@ from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 from NaviNIBS.util.Signaler import Signal
-from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
-from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from NaviNIBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
 from NaviNIBS.Navigator.Model.Session import Session, Target
 
@@ -211,7 +210,7 @@ class VisualizedTarget:
 
 
 @attrs.define
-class TargetsPanel(MainViewPanelWithDockWidgets):
+class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
@@ -227,8 +226,11 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
 
     _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget | EditTargetWidget] = attrs.field(init=False, factory=list)
 
+    _redrawTargetKeys: set[str] = attrs.field(init=False, factory=set)
+
     def __attrs_post_init__(self):
-        super().__attrs_post_init__()
+        MainViewPanelWithDockWidgets.__attrs_post_init__(self)
+        QueuedRedrawMixin.__attrs_post_init__(self)
 
     def canBeEnabled(self) -> tuple[bool, str | None]:
         if self.session is None:
@@ -488,19 +490,39 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
                     if actorKey in self._targetActors:
                         self._targetActors[actorKey].visible = target.isVisible
                     elif target.isVisible:
-                        self._createVisualForTarget(viewKey=viewKey, target=target)
+                        self._redrawTargetKeys.add(targetKey)
+                        self._queueRedraw(which='targets')
 
         elif changedTargetAttrs == ['isSelected']:
             pass  # selection update will be handled separately
 
         else:
             # assume anything/everything changed, clear target and start over
+            self._redrawTargetKeys.update(changedTargetKeys)
+            self._queueRedraw(which='targets')
+
+    def _redraw(self, which: tp.Union[str | None, list[str]] = None, **kwargs):
+        super()._redraw(which=which)
+
+        if which is None:
+            self._redraw(which='all', **kwargs)
+            return
+
+        if not isinstance(which, str):
+            for subWhich in which:
+                self._redraw(which=subWhich, **kwargs)
+            return
+
+        if which == 'all':
+            self._redraw(which=['targets'])
+            return
+
+        if which == 'targets':
+            changedTargetKeys = self._redrawTargetKeys.copy()
+            self._redrawTargetKeys.clear()
             if self._hasInitialized or self._isInitializing:
                 # update views
                 for viewKey, view in self._views.items():
-                    if changedTargetKeys is None:
-                        changedTargetKeys = self.session.targets.keys()
-
                     for key in changedTargetKeys:
                         try:
                             target = self.session.targets[key]
