@@ -238,7 +238,10 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         if self._tabSaveBtn is not None:
             wdgts.append(self._tabSaveBtn)
         for wdgt in wdgts:
-            wdgt.setEnabled(self.session is not None)
+            try:
+                wdgt.setEnabled(self.session is not None)
+            except Exception as e:
+                pass  # widget may have been deleted
 
     def _updateSaveBtnStyle(self):
         btn = self._tabSaveBtn
@@ -253,14 +256,18 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
         else:
             fg = palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text).name()
-        btn.setStyleSheet(f"""
-                QPushButton {{
-                    border: none;
-                    color: {fg};
-                }}
-                QPushButton:hover {{background-color: rgba(0, 0, 0, 0.1);}}
-                QPushButton:pressed {{background-color: rgba(0, 0, 0, 0.2);}}
-            """)
+        try:
+            btn.setStyleSheet(f"""
+                    QPushButton {{
+                        border: none;
+                        color: {fg};
+                    }}
+                    QPushButton:hover {{background-color: rgba(0, 0, 0, 0.1);}}
+                    QPushButton:pressed {{background-color: rgba(0, 0, 0, 0.2);}}
+                """)
+        except Exception as e:
+            # button may have been deleted
+            pass
 
     def _updateLayoutsBeforeSave(self):
         """
