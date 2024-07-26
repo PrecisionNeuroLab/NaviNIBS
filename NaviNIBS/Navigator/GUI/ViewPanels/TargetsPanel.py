@@ -540,7 +540,16 @@ class TargetsPanel(MainViewPanelWithDockWidgets):
         # create new target at current crosshair location, and autoset entry
         targetCoord = self._getCrosshairCoord()
         targetKey = makeStrUnique('Target-1', existingStrs=self.session.targets.keys(), delimiter='-')
-        target = Target(targetCoord=targetCoord, key=targetKey, session=self.session)
+        currentTargetKey = self._tableWdgt.currentCollectionItemKey
+        if currentTargetKey is not None:
+            # match angle from midline of current target for target in new position
+            nextTargetAngle = self.session.targets[currentTargetKey].angle
+        else:
+            nextTargetAngle = 0
+        target = Target(targetCoord=targetCoord,
+                        angle=nextTargetAngle,
+                        key=targetKey,
+                        session=self.session)
         target.autosetEntryCoord()
         self.session.targets.addItem(target)
         self._tableWdgt.currentCollectionItemKey = targetKey  # select new target
