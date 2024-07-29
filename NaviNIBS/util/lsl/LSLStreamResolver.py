@@ -49,7 +49,7 @@ class LSLStreamResolver:
                 if len(streamID) == 0:
                     # if no source_id specified, construct unique(ish) key from stream name + hostname
                     # NOTE: could add other metadata into this ID to make more likely to be unique (e.g. num chan, srate)
-                    streamID = streamInfo().name() + '_' + streamInfo.hostname()
+                    streamID = streamInfo.name() + '_' + streamInfo.hostname()
                 else:
                     streamID += '@' + streamInfo.hostname()
                 streamIDs.append(streamID)
