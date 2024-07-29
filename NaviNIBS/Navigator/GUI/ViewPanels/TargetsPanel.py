@@ -565,7 +565,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         currentTargetKey = self._tableWdgt.currentCollectionItemKey
         if currentTargetKey is not None:
             # match angle from midline of current target for target in new position
-            nextTargetAngle = self.session.targets[currentTargetKey].angle
+            nextTargetAngle = self.session.targets[currentTargetKey].calculatedAngle
         else:
             nextTargetAngle = 0
         target = Target(targetCoord=targetCoord,
