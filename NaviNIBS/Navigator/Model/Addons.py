@@ -25,7 +25,7 @@ if tp.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_installPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
+installPath = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 
 
 ACE = tp.TypeVar('ACE')  # type (e.g. MainViewPanel) referenced by each addon class element
@@ -124,10 +124,10 @@ class AddonExtra(ABC):
 
     Use this when an addon needs to provide custom code not part of a main view panel, navigation view layer, etc. This may be used for code-only addon pieces (such as providing a data output stream), or for patching existing GUI functionality (using the reference to the root NavigatorGUI instance).
 
-    Any AddonCode class elements defined in an addion configuration will be instantiated and passed references to the root NavigatorGUI instance and the session model when the addon is loaded.
+    Any AddonCode class elements defined in an addon configuration will be instantiated and passed references to the root NavigatorGUI instance and the session model when the addon is loaded.
     """
     _navigatorGUI: NavigatorGUI
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
     def __attrs_post_init__(self):
         pass
@@ -136,6 +136,7 @@ class AddonExtra(ABC):
 @attrs.define
 class Addon(GenericCollectionDictItem[str]):
     _addonInstallPath: str
+    _addonVersion: str | None = None
     _MainViewPanels: tp.Dict[str, AddonClassElement[MainViewPanel]] = attrs.field(factory=dict)
     _NavigationViews: tp.Dict[str, AddonClassElement[NavigationView]] = attrs.field(factory=dict)
     _NavigationViewLayers: tp.Dict[str, AddonClassElement[ViewLayer]] = attrs.field(factory=dict)
@@ -149,14 +150,16 @@ class Addon(GenericCollectionDictItem[str]):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+        logger.info(f'Initializing addon {self.key} (version {self._addonVersion if self._addonVersion is not None else "not set"})')
+
         for key, SessionAttr in self._SessionAttrs.items():
             if key not in self._sessionAttrs:
                 self._sessionAttrs[key] = SessionAttr.Class()
 
         for key, sessionAttr in self._sessionAttrs.items():
             assert isinstance(sessionAttr, self._SessionAttrs[key].Class)
-            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit(self.key, [key]))
-            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit(self.key, [key]))
+            sessionAttr.sigConfigAboutToChange.connect(lambda *args: self.sigItemAboutToChange.emit(self.key, ['SessionAttrs.' + key]))
+            sessionAttr.sigConfigChanged.connect(lambda *args: self.sigItemChanged.emit(self.key, ['SessionAttrs.' + key]))
 
     @property
     def MainViewPanels(self):
@@ -198,8 +201,12 @@ class Addon(GenericCollectionDictItem[str]):
         d = attrsAsDict(self, exclude=predefinedAttrs + ['sessionAttrs'])
         for key, sessionAttr in self._sessionAttrs.items():
             d[key] = sessionAttr.asDict()
+            if len(d[key]) == 0:
+                del d[key]
 
-        d['addonInstallPath'] = os.path.relpath(self.addonInstallPath, _installPath)
+        if self._addonVersion is not None:
+            d['addonVersion'] = self._addonVersion
+        d['addonInstallPath'] = os.path.relpath(self.addonInstallPath, installPath)
 
         return d
 
@@ -223,7 +230,7 @@ class Addon(GenericCollectionDictItem[str]):
         assert 'addonInstallPath' in d
 
         # specified path in config is relative to root NaviNIBS installPath
-        addonInstallPath = os.path.join(_installPath, d['addonInstallPath'])
+        addonInstallPath = os.path.join(installPath, d['addonInstallPath'])
         del d['addonInstallPath']
         addonConfigPath = os.path.join(addonInstallPath, 'addon_configuration.json')
 
@@ -242,6 +249,16 @@ class Addon(GenericCollectionDictItem[str]):
             addonInstallPath=addonInstallPath,
             key=dc['key']
         )
+
+        if 'addonVersion' in dc:
+            if 'addonVersion' in d:
+                if d['addonVersion'] != dc['addonVersion']:
+                    logger.warning(
+                        f'Addon version mismatch: session config version {d["addonVersion"]} does not match addon configuration version {dc["addonVersion"]}. Using addon configuration version.')
+                del d['addonVersion']
+            initKwargs['addonVersion'] = dc['addonVersion']
+        else:
+            assert 'addonVersion' not in d, 'Addon version specified in session config but not in addon configuration'
 
         for elementAttr in elementAttrs:
             if elementAttr in dc:

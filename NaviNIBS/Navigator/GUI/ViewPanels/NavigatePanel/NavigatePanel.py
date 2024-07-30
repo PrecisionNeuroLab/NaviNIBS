@@ -119,7 +119,7 @@ class _PoseMetricGroup:
 
 @attrs.define
 class BackgroundSamplePoseMetadataSetter:
-    _session: Session | None = attrs.field(init=False, default=None)
+    _session: Session | None = attrs.field(init=False, default=None, repr=False)
     _pendingSampleKeys: list[str] = attrs.field(init=False, factory=list)
     _needsUpdateEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _calculator: PoseMetricCalculator | None = attrs.field(init=False, default=None)
@@ -193,20 +193,22 @@ class BackgroundSamplePoseMetadataSetter:
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
-    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
-    _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False)
-    _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list)
-    _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False)
-    _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False)
-    _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict)
+    _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False, repr=False)
+    _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False, repr=False)
+    _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list, repr=False)
+    _samplesTableWdgt: SamplesTableWidget = attrs.field(init=False, repr=False)
+    _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict, repr=False)
 
-    _coordinator: TargetingCoordinator = attrs.field(init=False)
-    _triggerReceiver: TriggerReceiver | None = attrs.field(init=False, default=None)
+    _coordinator: TargetingCoordinator = attrs.field(init=False, repr=False)
+    _triggerReceiver: TriggerReceiver | None = attrs.field(init=False, default=None, repr=False)
     _backgroundSamplePoseMetadataSetter: BackgroundSamplePoseMetadataSetter = attrs.field(
         init=False,
-        factory=BackgroundSamplePoseMetadataSetter)
+        factory=BackgroundSamplePoseMetadataSetter,
+        repr=False
+    )
 
     _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
 
@@ -239,13 +241,14 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         self._targetsTableWdgt = TargetsTableWidget()
         self._targetsTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
-        self._targetsTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
+        self._targetsTableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
         container.layout().addWidget(self._targetsTableWdgt.wdgt)
 
         dock, container = self._createDockWidget(
             title='Targets',
             widget=self._targetsTableWdgt.wdgt
         )
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.addDock(dock, position='bottom')
 
         poseGroupDicts = [
@@ -253,6 +256,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             dict(title='Selected sample metrics', calculatorKey='currentSamplePoseMetrics')
         ]
 
+        prevPoseDock = None
         for poseGroupDict in poseGroupDicts:
             dock, container = self._createDockWidget(
                 title=poseGroupDict['title'],
@@ -265,13 +269,18 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
                 calculatorKey=poseGroupDict['calculatorKey']
             )
 
-            self._wdgt.addDock(dock, position='bottom')
+            if prevPoseDock is None:
+                self._wdgt.addDock(dock, position='bottom')
+            else:
+                self._wdgt.addDock(dock, position='below', relativeTo=prevPoseDock)
+            prevPoseDock = dock
 
             self._poseMetricGroups.append(poseGroup)
 
         dock, container = self._createDockWidget(
             title='Samples',
             layout=QtWidgets.QVBoxLayout())
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
         self._wdgt.addDock(dock, position='bottom')
 
         btnContainer = QtWidgets.QWidget()

@@ -86,8 +86,8 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
     navigatorGUI._activateView(navigatorGUI.subjectRegistrationPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
 
@@ -143,6 +143,15 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
 
     await asyncio.sleep(1.)
 
+    # dodge pointer position slightly to update distance readouts
+    newPose = pointerPose_worldSpace.copy()
+    newPose[2, 3] += 2
+    await utils.setSimulatedToolPose(navigatorGUI=navigatorGUI,
+                                     key=pointerKey,
+                                     transf=newPose)
+
+    await asyncio.sleep(1.)
+
     screenshotPath = os.path.join(sessionPath, 'HeadRegistration_InitialFiducials.png')
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
@@ -158,6 +167,73 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
 
     # new transform should be identical(ish) to planned transform
     assert array_equalish(ses.subjectRegistration.trackerToMRITransf, trackerToMRITransf)
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_initialFiducialRegistration')
+async def test_acquireHeadPoints(navigatorGUIWithoutSession: NavigatorGUI,
+                                   workingDir: str,
+                                   screenshotsDataSourcePath: str,
+                                   trackerToMRITransf: np.ndarray,
+                                   headPoints_trackerSpace: np.ndarray):
+    """
+    Make this a separate test from later head point refinement test so that we have a deterministic output
+    (i.e. without non-deterministic head point alignment) for use in later tests, e.g. basic navigation, while
+    still displaying some acquired head points.
+    """
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'InitialFiducialRegistration', 'HeadPointAcquisition')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on tab
+    navigatorGUI._activateView(navigatorGUI.subjectRegistrationPanel.key)
+
+    # give time for initialization
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
+
+    offset_MRISpace = np.asarray([0., 0., 5.])  # add an offset to simulate fiducials having been slightly off, will be refined by head points
+    transf_MRI1ToMRI2 = composeTransform(np.eye(3), offset_MRISpace)
+
+    logger.debug(f'Getting subject tracker pose')
+    trackerKey = navigatorGUI.session.tools.subjectTracker.key
+    trackerPose_worldSpace = navigatorGUI.subjectRegistrationPanel._positionsClient.getLatestTransf(trackerKey)
+
+    pointerKey = navigatorGUI.session.tools.pointer.key
+    for iCoord, coord in enumerate(headPoints_trackerSpace):
+        logger.debug(f'Sampling head point {iCoord}')
+        adjCoord = applyTransform((trackerToMRITransf, transf_MRI1ToMRI2, invertTransform(trackerToMRITransf)), coord)
+        pointerPose_trackerSpace = composeTransform(np.eye(3), adjCoord)
+        pointerPose_worldSpace = concatenateTransforms((pointerPose_trackerSpace,
+                                                        trackerPose_worldSpace))
+        await utils.setSimulatedToolPose(navigatorGUI=navigatorGUI,
+                                         key=pointerKey,
+                                         transf=pointerPose_worldSpace)
+
+        await asyncio.sleep(1.)
+
+        # equivalent to clicking on sample head point button
+        navigatorGUI.subjectRegistrationPanel._sampleHeadPtsBtn.click()
+
+    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_HeadPointAcquisition.png')
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_HeadPointAcquisition.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
 
 
 @pytest.mark.asyncio
@@ -180,8 +256,8 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.subjectRegistrationPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
 

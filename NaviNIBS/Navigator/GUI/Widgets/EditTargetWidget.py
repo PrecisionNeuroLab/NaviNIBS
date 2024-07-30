@@ -28,6 +28,12 @@ class CoordinateWidget:
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _target: Target | None = None
     _whichCoord: str = 'target'  # target or entry
+    _whichOtherCoord: str = 'entry'  # entry or target
+    _doAutoUpdateOtherCoord: bool = True
+    """
+    Whether to automatically update entry coordinate if we are changing target coordinate
+    (e.g. to keep overall trajectory roughly perpendicular to scalp)
+    """
 
     _onNewCoordRequested: tp.Callable[[], np.ndarray] | None = attrs.field(default=None)
     """
@@ -42,6 +48,7 @@ class CoordinateWidget:
     _layout: QtWidgets.QFormLayout = attrs.field(init=False, factory=QtWidgets.QFormLayout)
     _coordInSysWdgts: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
     _setCoordButton: QtWidgets.QPushButton | None = attrs.field(init=False, default=None)
+    _autoUpdateOtherCoordCheckbox: QtWidgets.QCheckBox | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
         self._wdgt.setLayout(self._layout)
@@ -50,6 +57,10 @@ class CoordinateWidget:
             self._setCoordButton = QtWidgets.QPushButton(self._setCoordButtonLabel)
             self._setCoordButton.clicked.connect(self._onSetCoordButtonClicked)
             self._layout.addRow(self._setCoordButton)
+            self._autoUpdateOtherCoordCheckbox = QtWidgets.QCheckBox('')
+            self._autoUpdateOtherCoordCheckbox.setChecked(self._doAutoUpdateOtherCoord)
+            self._layout.addRow(f'Auto-update {self._whichOtherCoord} on set', self._autoUpdateOtherCoordCheckbox)
+
 
     @property
     def session(self):
@@ -96,6 +107,15 @@ class CoordinateWidget:
         newCoord = self._onNewCoordRequested()
         logger.info(f'Changing {self.target.key} {self.coordAttrib} to {newCoord}')
         setattr(self.target, self.coordAttrib, newCoord)
+        if self._autoUpdateOtherCoordCheckbox is not None and self._autoUpdateOtherCoordCheckbox.isChecked():
+            match self._whichOtherCoord:
+                case 'entry':
+                    self.target.autosetEntryCoord()
+                case 'target':
+                    raise NotImplementedError('Auto-updating target from entry not yet implemented')
+                    # TODO: add support for this in Target class, similar to ``autosetEntryCoord``
+                case _:
+                    raise NotImplementedError
 
     def _redraw(self):
         if self._session is None:
@@ -118,13 +138,13 @@ class CoordinateWidget:
 
         assert 'World' not in self._session.coordinateSystems
         coordSysKeys = ['World'] + list(self._session.coordinateSystems.keys())
-        for key in coordSysKeys:
+        for iKey, key in enumerate(coordSysKeys):
             if key not in self._coordInSysWdgts:
                 wdgt = QtWidgets.QLabel()
                 if key != 'World':
                     wdgt.setToolTip(self._session.coordinateSystems[key].description)
                 self._coordInSysWdgts[key] = wdgt
-                self._layout.addRow(key, wdgt)
+                self._layout.insertRow(iKey, key, wdgt)
 
             # TODO: make mainCoord widget an editable lineedit, keep others readonly unless user
             #  specifically chooses to switch main coordinate system defining the coordinate (if allowed)
@@ -431,6 +451,8 @@ class EditTargetWidget:
 
         self._entryCoordWdgt = CoordinateWidget(self._session,
                                                 whichCoord='entry',
+                                                whichOtherCoord='target',
+                                                doAutoUpdateOtherCoord=False,
                                                 wdgt=QtWidgets.QGroupBox('Entry coordinate'),
                                                 onNewCoordRequested=self._getNewEntryCoord,
                                                 setCoordButtonLabel=self._setEntryCoordButtonLabel)
@@ -438,6 +460,8 @@ class EditTargetWidget:
 
         self._targetCoordWdgt = CoordinateWidget(self._session,
                                                  whichCoord='target',
+                                                 whichOtherCoord='entry',
+                                                 doAutoUpdateOtherCoord=True,
                                                  wdgt=QtWidgets.QGroupBox('Target coordinate'),
                                                  onNewCoordRequested=self._getNewTargetCoord,
                                                  setCoordButtonLabel=self._setTargetCoordButtonLabel)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 from datetime import datetime, timedelta
 import inspect
@@ -234,58 +233,58 @@ class _PointerDistanceReadouts:
 @attrs.define
 class SubjectRegistrationPanel(MainViewPanel):
     """
-
+    SubjectRegistrationPanel
 
     Note: need to carefully manage sequencing / interaction between fiducials and head points.
     Example scenario:
-        1. Plan fiducials
-        2. Sample planned fiducials
-        3. Align fiducials
-        4. Sample head points
-        5. Refine alignment with head points
-        6. Convert sampled fiducials to planned
-        7. Create another fiducial from pointer position (e.g. head ref)
-        Some time later, tracker moves and we must reregister:
-        8. Re-sample (sampled-converted-to-planned) fiducials and head ref
-        9. Align fiducials
-        10. Don't resample head points, but expect them to update their alignment
+    1. Plan fiducials
+    2. Sample planned fiducials
+    3. Align fiducials
+    4. Sample head points
+    5. Refine alignment with head points
+    6. Convert sampled fiducials to planned
+    7. Create another fiducial from pointer position (e.g. head ref)
+    Some time later, tracker moves and we must reregister:
+    8. Re-sample (sampled-converted-to-planned) fiducials and head ref
+    9. Align fiducials
+    10. Don't resample head points, but expect them to update their alignment
     This last point is what requires careful attention in sequencing.
     Head points are defined in tracker space. If the tracker moves, the old points
     are no longer valid (but we may want to update them for the new alignment for display purposes).
 
     Another example scenario, not using sample->planned fiducial conversion:
-        1. Plan fiducials
-        2. Sample planned fiducials
-        3. Align fiducials
-        4. Sample head points
-        5. Refine alignment with head points
-        Some time later, tracker moves and we must reregister:
-        8. Re-sample planned fiducials
-        9. Align fiducials
-        10. Don't resample head points, but expect them to update their alignment(?)
+    1. Plan fiducials
+    2. Sample planned fiducials
+    3. Align fiducials
+    4. Sample head points
+    5. Refine alignment with head points
+    Some time later, tracker moves and we must reregister:
+    8. Re-sample planned fiducials
+    9. Align fiducials
+    10. Don't resample head points, but expect them to update their alignment(?)
 
     But also must allow this scenario:
-        1. Plan fiducials
-        2. Sample planned fiducials
-        3. Align fiducials
-        4. Sample head points
-        5. Refine alignment with head points
-        6. Align to fiducials again to "undo" head point refinement
-        7. Change a refinement setting (e.g. weight) and refine again, without needing to resample head points
+    1. Plan fiducials
+    2. Sample planned fiducials
+    3. Align fiducials
+    4. Sample head points
+    5. Refine alignment with head points
+    6. Align to fiducials again to "undo" head point refinement
+    7. Change a refinement setting (e.g. weight) and refine again, without needing to resample head points
 
     Less common scenario that would also be nice to support:
-        1. Plan fiducials
-        2. Sample planned fiducials
-        3. Align fiducials
-        4. Sample head points
-        5. Refine alignment with head points
-        6. Edit a *planned* fiducial to make it align better with reality.
-        7. Align fiducials.
-        8. Refine alignment with head points, without needing to resample.
+    1. Plan fiducials
+    2. Sample planned fiducials
+    3. Align fiducials
+    4. Sample head points
+    5. Refine alignment with head points
+    6. Edit a *planned* fiducial to make it align better with reality.
+    7. Align fiducials.
+    8. Refine alignment with head points, without needing to resample.
 
-     So, if re-aligning to fiducials but *sampled* fiducials haven't actually changed, we should assume that tracker position hasn't changed, and so head points don't need to be adjusted.
+    So, if re-aligning to fiducials but *sampled* fiducials haven't actually changed, we should assume that tracker position hasn't changed, and so head points don't need to be adjusted.
 
-     But if fiducials have changed, and then we re-align to those fiducials, then we should assume
+    But if fiducials have changed, and then we re-align to those fiducials, then we should assume
         that the tracker position did change. If we do nothing, head points will then be
         incorrect/nonnsensical. We must either convert head points into the new tracker space,
         or delete them.
@@ -295,8 +294,6 @@ class SubjectRegistrationPanel(MainViewPanel):
 
     TODO: maybe use fiducial history or add a "last edited" timestamp to fiducial fields and
     head points to not be responsible for tracking this sequencing here.
-
-
     """
     _key: str = 'Register'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake'))
@@ -320,6 +317,8 @@ class SubjectRegistrationPanel(MainViewPanel):
     _pointerDistanceReadouts: _PointerDistanceReadouts = attrs.field(init=False)
 
     _positionsClient: tp.Optional[ToolPositionsClient] = attrs.field(init=False, default=None)
+
+    finishedAsyncInitializationEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -517,6 +516,8 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
+
+        self.finishedAsyncInitializationEvent.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

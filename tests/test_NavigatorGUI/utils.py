@@ -8,6 +8,7 @@ import pytest_asyncio
 import shutil
 import tempfile
 import time
+import typing as tp
 
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -38,9 +39,11 @@ def workingDir(request):
     path = request.config.cache.get('workingDir', None)
     if True:
         if path is None:
-            path = tempfile.mkdtemp(prefix='NaviNIBS_Tests')
+            path = tempfile.mkdtemp(prefix='NaviNIBS_Tests_')
             request.config.cache.set('workingDir', path)
         # note this directory will not be auto-deleted
+        if not os.path.exists(path):
+            os.makedirs(path)
         yield path
     else:
         with tempfile.TemporaryDirectory(suffix='NaviNIBS_Test_Session') as path:
@@ -50,6 +53,12 @@ def workingDir(request):
 
 @pytest_asyncio.fixture
 async def navigatorGUIWithoutSession() -> NavigatorGUI:
+
+    if True:
+        # make sure specific globals are cleared between tests
+        from NaviNIBS.Navigator.TargetingCoordinator import TargetingCoordinator
+        TargetingCoordinator._resetSingleton()
+
     navGUI = NavigatorGUI.createAndRunAsTask()
     if True:
         await raiseMainNavigatorGUI()
@@ -87,7 +96,7 @@ def test_copyWorkingDirToClipboard(workingDir):
 
 def getSessionPath(workingDir: str, key: str, ext: str | None = None,
                    deleteIfExists: bool = False):
-    sesPath = os.path.join(workingDir, f'TestSession_{key}_NaviNIBS')
+    sesPath = os.path.join(workingDir, f'Test_{key}.navinibsdir')
     if ext is not None:
         sesPath += ext
 
@@ -96,6 +105,7 @@ def getSessionPath(workingDir: str, key: str, ext: str | None = None,
         shutil.rmtree(sesPath)
 
     return sesPath
+
 
 def getNewSessionPath(workingDir: str, key: str, ext: str | None = None):
     sesPath = getSessionPath(workingDir, key)
@@ -120,6 +130,7 @@ def copySessionFolder(workingDir: str, fromPathKey: str, toPathKey: str) -> str:
 
     return toPath
 
+
 def assertSavedSessionIsValid(sessionPath: str) -> Session:
     if os.path.isfile(sessionPath):
         ses = Session.loadFromFile(filepath=sessionPath)
@@ -141,11 +152,13 @@ async def waitForever():
         await asyncio.sleep(1.)
 
 
-def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str):
+def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str, wdgt: tp.Any | None = None):
     from PIL import ImageGrab
 
-    pos = navigatorGUI._win.frameGeometry()
-    bbox = tuple(x * navigatorGUI._win.devicePixelRatio() for x in (pos.left(), pos.top(), pos.right(), pos.bottom()))
+    if wdgt is None:
+        wdgt = navigatorGUI._win
+    pos = wdgt.frameGeometry()
+    bbox = tuple(x * wdgt.devicePixelRatio() for x in (pos.left(), pos.top(), pos.right(), pos.bottom()))
     logger.info(f'Saving screenshot to {saveToPath}')
     ImageGrab.grab(bbox).save(saveToPath)
 

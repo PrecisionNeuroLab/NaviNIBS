@@ -44,6 +44,9 @@ class MNIRegistration:
 
 @attrs.define
 class Session:
+    """
+    Primary data model for a NaviNIBS session. Contains all session-specific data and methods for saving/loading.
+    """
     _filepath: str  # path to compressed session file
     _subjectID: tp.Optional[str] = attrs.field(default=None)
     _sessionID: tp.Optional[str] = None
@@ -81,6 +84,7 @@ class Session:
     """
     Includes list of keys in info that were changed. If list is None, subscribers should assume that all info changed.
     """
+    sigDirtyKeysChanged: Signal[()] = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         if self._unpackedSessionDir is None:
@@ -106,6 +110,7 @@ class Session:
         self.tools.sigPositionsServerInfoChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
         self.triggerSources.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('triggerSources'))
         self._dockWidgetLayouts.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('dockWidgetLayouts'))
+        self.addons.sigItemsAboutToChange.connect(self._onAddonsAboutToChange)
         self.addons.sigItemsChanged.connect(self._onAddonsChanged)
         self.targets.sigItemKeyChanged.connect(self._updateSamplesForNewTargetKey)
         self.targets.sigItemsAboutToChange.connect(self._onTargetsAboutToChange, priority=1)  # use higher priority to make sure we handle adding historical samples before notifying GUIs of this change
@@ -236,6 +241,14 @@ class Session:
     def flagKeyAsDirty(self, key: str):
         self._dirtyKeys.add(key)
         self._dirtyKeys_autosave.add(key)
+        self.sigDirtyKeysChanged.emit()
+
+    @property
+    def dirtyKeys(self):
+        """
+        Result should not be modified.
+        """
+        return self._dirtyKeys
 
     def saveToUnpackedDir(self, saveDirtyOnly: bool = True, asAutosave: bool = False):
 
@@ -253,6 +266,7 @@ class Session:
             keysToSave = self._dirtyKeys.copy()
             self._dirtyKeys.clear()
             self._dirtyKeys_autosave.clear()
+            self.sigDirtyKeysChanged.emit()
             self._lastAutosaveFilenamePrefix = None
             autosaveFilenamePrefix = ''
 
@@ -447,6 +461,12 @@ class Session:
                 break
         if isDirty:
             self.flagKeyAsDirty('coordinateSystems')
+
+    def _onAddonsAboutToChange(self, addonKeys: list[str], changingAttrs: tp.Optional[list[str]] = None):
+        for addonKey in addonKeys:
+            if addonKey not in self.addons:
+                # completely new addon
+                self.flagKeyAsDirty('addons')
 
     def _onAddonsChanged(self, addonKeys: list[str], attribKeys: tp.Optional[list[str]] = None):
         for addonKey in addonKeys:

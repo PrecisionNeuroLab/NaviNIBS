@@ -126,18 +126,16 @@ class Target(GenericCollectionDictItem[str]):
 
     @property
     def angle(self):
+        """
+        Angle from midline, in degrees.
+
+        Can be manually specified. If not specified, will be autocalculated
+        based on coilToMRITransf (if available)
+        """
         if self._angle is not None:
             return self._angle
         else:
-            if self._cachedCoilAngle is None:
-                if self._coilToMRITransf is not None:
-                    self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._coilToMRITransf)
-                elif self._cachedCoilToMRITransf is not None:
-                    self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._cachedCoilToMRITransf)
-                if self._cachedCoilAngle is None:
-                    return 0
-
-            return self._cachedCoilAngle
+            return self.calculatedAngle
 
     @angle.setter
     def angle(self, newAngle: tp.Optional[float]):
@@ -161,6 +159,24 @@ class Target(GenericCollectionDictItem[str]):
         self._coilToMRITransf = None  # previous transform is invalid with new angle
         self._cachedCoilToMRITransf = newCoilToMRITransf
         self.sigItemChanged.emit(self.key, attribsChanging)
+
+    @property
+    def calculatedAngle(self) -> float:
+        """
+        Angle from midline (in degrees), calculated from coilToMRITransf (if available)
+        """
+        if self._cachedCoilAngle is None:
+            if self._coilToMRITransf is not None:
+                self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._coilToMRITransf)
+            elif self._cachedCoilToMRITransf is not None:
+                self._cachedCoilAngle = calculateAngleFromMidlineFromCoilToMRITransf(self.session, self._cachedCoilToMRITransf)
+            if self._cachedCoilAngle is None:
+                if self._angle is not None:
+                    return self._angle
+                else:
+                    return 0
+
+        return self._cachedCoilAngle
 
     @property
     def depthOffset(self) -> float:

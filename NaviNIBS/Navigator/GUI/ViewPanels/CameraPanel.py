@@ -5,6 +5,7 @@ import asyncio
 import attrs
 import logging
 import multiprocessing as mp
+import numpy as np
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui
 import typing as tp
@@ -17,7 +18,8 @@ from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainV
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
-from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
+from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 
@@ -28,11 +30,11 @@ logger.setLevel(logging.INFO)
 @attrs.define
 class CameraObjectsView(QueuedRedrawMixin):
     _positionsClient: ToolPositionsClient
-    _session: Session
+    _session: Session = attrs.field(repr=False)
 
-    _plotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _plotter: DefaultBackgroundPlotter = attrs.field(init=False, repr=False)
 
-    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
+    _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict, repr=False)
 
     def __attrs_post_init__(self):
         QueuedRedrawMixin.__attrs_post_init__(self)
@@ -63,6 +65,43 @@ class CameraObjectsView(QueuedRedrawMixin):
         self._positionsClient.sigLatestPositionsChanged.connect(lambda: self._queueRedraw('toolPositions'))
 
         self._redraw('all')
+
+        self._autoOrientCamera()
+
+    def _autoOrientCamera(self, distance: float = 1000):
+        # if necessary info available, reorient camera view based on subject location
+        if not self.session.subjectRegistration.isRegistered:
+            logger.info('Not setting camera due lack of subject registration')
+        else:
+            subTracker = self.session.tools.subjectTracker
+            if subTracker is None:
+                logger.info('Not setting camera due lack of defined subject tracker')
+            else:
+                transf_subTrackToWorld = self._positionsClient.getLatestTransf(subTracker.key, None)
+                if transf_subTrackToWorld is None:
+                    logger.info('Not setting camera due to lack of valid subject tracker position')
+                else:
+                    transf_MRIToWorld = concatenateTransforms([
+                        invertTransform(self.session.subjectRegistration.trackerToMRITransf),
+                        transf_subTrackToWorld,
+                    ])
+
+                    # for now, assume MRI direction is consistent
+                    # could alternatively look for "standard" fiducial names and define relative to those here
+                    # or use MNI space
+                    cameraPts_MRI = np.asarray([
+                        [0, 0, 0],  # focal point
+                        np.asarray([-0.8, 1, 0.3]) * distance,  # position
+                        [0, 0, 1]])  # up
+
+                    cameraPts_world = applyTransform(transf_MRIToWorld, cameraPts_MRI)
+
+                    plotter = self._plotter
+                    with plotter.allowNonblockingCalls():
+                        plotter.camera.focal_point = cameraPts_world[0, :]
+                        plotter.camera.position = cameraPts_world[1, :]
+                        plotter.camera.up = cameraPts_world[2, :] - cameraPts_world[1, :]
+
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
         super()._redraw(which=which, **kwargs)
@@ -131,7 +170,7 @@ class CameraObjectsView(QueuedRedrawMixin):
 
                                             self._actors[actorKey] = self._plotter.addMesh(mesh=mesh,
                                                                                            color=meshColor,
-                                                                                           defaultMeshColor='#2222ff',
+                                                                                           defaultMeshColor='#444444',
                                                                                            opacity=1.0 if meshOpacity is None else meshOpacity,
                                                                                            name=actorKey)
 
@@ -205,9 +244,16 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     In the future, can update to have a more device-agnostic base class that is subclassed for specific localization systems
     """
     _key: str = 'Camera'
+    _autoLayout: str | bool = True
+    """
+    Set to False to disable auto layout 
+    """
+
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
+    _trackingStatusDock: Dock = attrs.field(init=False)
+
     _positionsServerProc: tp.Optional[mp.Process] = attrs.field(init=False, default=None)
     _positionsClient: ToolPositionsClient = attrs.field(init=False)
 
@@ -215,11 +261,15 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _serverAddressEdit: QtWidgets.QLineEdit = attrs.field(init=False)
     _serverStartStopBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _serverGUIContainer: QtWidgets.QGroupBox = attrs.field(init=False)
+    _serverGUIDock: Dock = attrs.field(init=False)
 
     _mainCameraView: CameraObjectsView = attrs.field(init=False)
+    _mainCameraDock: Dock = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+        self.dockWdgt.sigResized.connect(self._onResized)
 
     def canBeEnabled(self) -> tuple[bool, str | None]:
         if self.session is None:
@@ -233,17 +283,19 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         dock, _ = self._createDockWidget(
             title='Tracking status',
             widget=self._trackingStatusWdgt.wdgt)
-        dock.setStretch(1, 10)
+        dock.setStretch(.1, 1)
         dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.addDock(dock, position='left')
+        self._trackingStatusDock = dock
 
         dock, container = self._createDockWidget(
             title='Camera connection',
             layout=QtWidgets.QVBoxLayout(),
         )
-        dock.setStretch(1, 10)
+        dock.setStretch(.1, 1)
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
         self._wdgt.addDock(dock, position='bottom')
-
+        self._serverGUIDock = dock
         self._serverGUIContainer = container
 
         # TODO: add GUI controls for configuring, launching, stopping Plus Server
@@ -282,7 +334,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         dock, _ = self._createDockWidget(
             title='Tracked objects',
             widget=self._mainCameraView.plotter)
+        dock.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        dock.setStretch(2, 10)
         self._wdgt.addDock(dock, position='right')
+        self._mainCameraDock = dock
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
@@ -292,6 +347,9 @@ class CameraPanel(MainViewPanelWithDockWidgets):
             self._onPanelInitializedAndSessionSet()
 
         self._onClientIsConnectedChanged()
+
+        await asyncio.sleep(0.5)
+        self._updateAutoLayout()  # run after delay to allow others to resize first
 
     def _onSessionSet(self):
         super()._onSessionSet()
@@ -372,6 +430,49 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     def _onLatestPositionsChanged(self):
         if not self._hasInitialized and not self.isInitializing:
             return
+
+    def _onResized(self):
+        self._updateAutoLayout()
+
+    def _updateAutoLayout(self):
+        if not self._hasInitialized:
+            # not ready for auto layout yet
+            return
+
+        if isinstance(self._autoLayout, bool) and not self._autoLayout:
+            # auto layout is disabled
+            return
+
+        if self.dockWdgt.width() > self.dockWdgt.height():
+            newAutoLayout = 'horizontal'
+        elif self.dockWdgt.width() > 800 and False:
+            newAutoLayout = 'tallbig'
+        else:
+            newAutoLayout = 'tallsmall'
+
+        if newAutoLayout == self._autoLayout:
+            return
+
+        self._autoLayout = newAutoLayout
+
+        logger.info('Auto rearranging layout for panel size')
+
+        match newAutoLayout:
+            case 'horizontal':
+                self._wdgt.moveDock(self._mainCameraDock, 'right', self._trackingStatusDock)
+                self._wdgt.moveDock(self._serverGUIDock, 'bottom', self._trackingStatusDock)
+                # TODO: maybe set stretches
+            case 'tallbig':
+                self._wdgt.moveDock(self._mainCameraDock, 'bottom', self._trackingStatusDock)
+                self._wdgt.moveDock(self._serverGUIDock, 'right', self._trackingStatusDock)
+            case 'tallsmall':
+                self._wdgt.moveDock(self._mainCameraDock, 'bottom', self._trackingStatusDock)
+                self._wdgt.moveDock(self._serverGUIDock, 'below', self._mainCameraDock)
+
+            case _:
+                raise NotImplementedError
+
+
 
     def close(self):
         if self._positionsServerProc is not None:

@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 class DockWidgetLayout(GenericCollectionDictItem[str]):
     _affinities: list[str]
     _state: dict[str, tp.Any] | None = None
+    _winSize: tuple[int, int] | None = None
+    """
+    Mainly used for root window size, using for other windows may conflict with saved dock states.
+    """
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -35,6 +39,18 @@ class DockWidgetLayout(GenericCollectionDictItem[str]):
         self.sigItemAboutToChange.emit(self.key, ['state'])
         self._state = state
         self.sigItemChanged.emit(self.key, ['state'])
+
+    @property
+    def winSize(self):
+        return self._winSize
+
+    @winSize.setter
+    def winSize(self, winSize: tuple[int, int] | None):
+        if self._winSize == winSize:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['winSize'])
+        self._winSize = winSize
+        self.sigItemChanged.emit(self.key, ['winSize'])
 
 
 @attrs.define

@@ -5,10 +5,13 @@ classifiers = [
 
 [tool.poetry]
 name = "NaviNIBS"
-version = "0.0.1"
+version = "0.1.5"
 description = "Software for neuronavigated non-invasive brain stimulation"
+repository = "https://github.com/PrecisionNeuroLab/NaviNIBS"
+documentation = "https://precisionneurolab.github.io/NaviNIBS_Documentation"
+readme = "README.md"
 authors = ["Christopher C. Cline <chriscline@users.noreply.github.com>"]
-license = "LGPLv3"
+license = "LGPL-3.0-only"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -16,12 +19,11 @@ pyzmq = "^25.1.0"
 attrs = "^23.1.0"
 numpy = "^1.25.1"
 PySide6 = "^6.5.1.1"
-pyqtgraph = "^0.13.3"
+pyqtgraph = "==0.13.3"
 pyvista = "^0.40.1"
 QtPy = "^2.3.1"
 matplotlib = "^3.7.2"
 QtAwesome = "^1.1.1"
-appdirs = "^1.4.4"
 nibabel = "^5.1.0"
 pytransform3d = "^3.2.0"
 pandas = "^2.0.3"
@@ -30,13 +32,14 @@ pyigtl = "^0.3.1"
 jsbeautifier = "^1.14.6"
 pylsl = "^1.16.0"
 scikit-spatial = "^6.4.1"
-#simpleicp = "^2.0.12"
-simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
+simpleicp = "^2.0.14"
+#simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
 nitransforms = "^23.0.1"
-keyboard = {git = "https://github.com/chriscline/keyboard.git"}
+keyboard = "^0.13.5"
 darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
 xmltodict = "^0.13.0"
+platformdirs = "^4.2.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"
@@ -53,7 +56,10 @@ pillow = "^10.2.0"  # for screenshots
 [tool.poetry.group.dev.dependencies]
 setuptools = "^68.0.0"
 
+[tool.poetry.scripts]
+navinibs = "NaviNIBS.Navigator.GUI.NavigatorGUI:main"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+

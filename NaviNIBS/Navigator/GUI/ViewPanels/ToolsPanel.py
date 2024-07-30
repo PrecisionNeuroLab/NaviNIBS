@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 
-import appdirs
 import attrs
 import json
 import logging
@@ -163,14 +162,14 @@ class ToolWidget:
         # TODO: make sure these plotters (when RemotePlotterProxies) are appropriately terminated when switching between tools
         # TODO: ideally actually repurpose previous RemotePlotter when switching between tools to avoid unnecessary process init times
 
-        plotterContainer = QtWidgets.QGroupBox('Tool-space')
+        plotterContainer = QtWidgets.QGroupBox('Tool space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
         plotterContainer.layout().addWidget(self._toolSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
         self._trackerSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
 
-        plotterContainer = QtWidgets.QGroupBox('Tracker-space')
+        plotterContainer = QtWidgets.QGroupBox('Tracker space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
@@ -220,7 +219,7 @@ class ToolWidget:
                     name=actorKey,
                     mesh=self._tool.toolSurf,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.8
                 )
                 self._toolSpaceActors[actorKey] = actor
@@ -233,7 +232,7 @@ class ToolWidget:
                 actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.toolSurf,
                     color=meshColor_tool,  # noqa
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -262,7 +261,7 @@ class ToolWidget:
                 actor = self._trackerSpacePlotter.addMesh(
                     mesh=self._tool.trackerSurf,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.8,
                     name=actorKey
                 )
@@ -276,7 +275,7 @@ class ToolWidget:
                     actor = self._toolSpacePlotter.addMesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
-                        defaultMeshColor='#2222ff',
+                        defaultMeshColor='#444444',
                         opacity=0.8,
                         name=actorKey
                     )
@@ -576,17 +575,40 @@ class ToolsPanel(MainViewPanel):
         if any(tool.initialTrackerPose is not None for tool in self.session.tools.values()):
             asyncio.create_task(asyncTryAndLogExceptionOnError(self._recordInitialToolPoses))
 
+        self._session.tools.sigItemsChanged.connect(self._onToolsChanged)
+
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
 
-    async def _recordInitialToolPoses(self):
+    def _onToolsChanged(self, toolKeys: list[str], changedAttribs: list[str] | None = None):
+        if changedAttribs is None \
+                or any(x in changedAttribs for x in (
+                'initialTrackerPose',
+                'initialTrackerPoseRelativeTo')):
+            asyncio.create_task(asyncTryAndLogExceptionOnError(self._recordInitialToolPoses, toolKeys=toolKeys, timestamp=time.time()))
+
+    async def _recordInitialToolPoses(self, toolKeys: list[str] | None = None,
+                                      timestamp: float | None = None):
+
+        if toolKeys is None:
+            toolKeys = self.session.tools.keys()
+
+        if timestamp is None:
+            timestamp = time.time()
+
         positionsClient = ToolPositionsClient()
-        for tool in self.session.tools.values():
+        for toolKey in toolKeys:
+            try:
+                tool = self.session.tools[toolKey]
+            except KeyError as e:
+                # tool presumably removed since task was started
+                continue
             if tool.initialTrackerPose is not None:
+                logger.info(f'Recording initial tracker pose for {toolKey}: {tool.initialTrackerPose}')
                 await positionsClient.recordNewPosition_async(
                     tool.trackerKey,
                     position=TimestampedToolPosition(
-                        time=time.time(),
+                        time=timestamp,
                         transf=tool.initialTrackerPose,
                         relativeTo=tool.initialTrackerPoseRelativeTo
                     ))

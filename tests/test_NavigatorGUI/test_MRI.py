@@ -62,12 +62,9 @@ async def test_setMRIInfo(navigatorGUIWithoutSession: NavigatorGUI,
     assert os.path.normpath(ses.MRI.filepath) == os.path.normpath(mriDataTestPath)
 
     if True:
-        screenshotPath = os.path.join(sessionPath, 'MRI1.png')
-        utils.captureScreenshot(navigatorGUI, screenshotPath)
-        pyperclip.copy(str(screenshotPath))
         # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
         await asyncio.sleep(10.)
-        screenshotPath = os.path.join(sessionPath, 'MRI2.png')
+        screenshotPath = os.path.join(sessionPath, 'SetMRI.png')
         utils.captureScreenshot(navigatorGUI, screenshotPath)
         pyperclip.copy(str(screenshotPath))
 

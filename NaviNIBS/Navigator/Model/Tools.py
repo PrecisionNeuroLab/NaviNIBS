@@ -10,6 +10,7 @@ import logging
 import numpy as np
 import os
 import pandas as pd
+import platformdirs
 import pyvista as pv
 import tempfile
 import typing as tp
@@ -34,11 +35,11 @@ class Tool(GenericCollectionDictItem[str]):
     _usedFor: str  # e.g. 'subject', 'coil', 'pointer'
     _label: tp.Optional[str] = None
     """
-    Optional "nice" label for display. If not specified, `key` will be used instead. Label does not need to be unique, but could be confusing in some GUI displays if multiple tools with the same label are shown.
+    Optional "nice" label for display. If not specified, ``key`` will be used instead. Label does not need to be unique, but could be confusing in some GUI displays if multiple tools with the same label are shown.
     """
     _trackerKey: tp.Optional[str] = None
     """
-    Optional key to match up to tracking data. If not specified, `key` will be used instead.
+    Optional key to match up to tracking data. If not specified, ``key`` will be used instead.
     """
     _isActive: bool = True
     """
@@ -57,12 +58,35 @@ class Tool(GenericCollectionDictItem[str]):
     Whether to include this tool in tracking status widget(s). To actually show, must not also be excluded by other hide filters on the widget.
     """
     _romFilepath: tp.Optional[str] = None
+    """
+    Path to a .rom file describing optical marker positions on a rigid body tracker, as used by NDI Polaris systems.
+    """
     _trackerStlFilepath: tp.Optional[str] = None
+    """
+    Path to a surface mesh file (e.g. .stl, .ply) for visualization of the tracker.
+    """
     _toolStlFilepath: tp.Optional[str] = None
-    _filepathsRelTo: str = '<install>'  # <install> for relative to NaviNIBS install dir, <session> for relative to session file
-    _toolToTrackerTransf: tp.Optional[np.ndarray] = None  # used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
+    """
+    Path to a surface mesh file (e.g. .stl, .ply) for visualization of the tool.
+    """
+    _filepathsRelTo: str = '<userDataDir>'
+    """
+    Can be one of:
+    
+    - ``'<install>'``: relative to NaviNIBS install dir
+    - ``'<userDataDir>'``: relative to user data dir
+    - ``'<session>'``: relative to session file
+    - absolute path
+    """
+    _toolToTrackerTransf: tp.Optional[np.ndarray] = None
+    """
+    Used for aligning actual tool position to Polaris-reported tracker position (e.g. actual coil to coil tracker, or actual pointer to uncalibrated pointer tracker)
+    """
     _toolStlToToolTransf: tp.Optional[
-        np.ndarray] = None  # used for visualization of tool STL only; can be used to align STL with actual tool orientation
+        np.ndarray] = None
+    """
+    Used for visualization of tool surface mesh only; can be used to align mesh with actual tool orientation
+    """
     _trackerStlToTrackerTransf: tp.Optional[np.ndarray] = None  # used for visualization of tracker STL only; can be used to align STL with actual reported tracker orientation
     _toolColor: str | None = None
     _trackerColor: str | None = None
@@ -252,18 +276,21 @@ class Tool(GenericCollectionDictItem[str]):
 
     @property
     def filepathsRelTo(self):
-        if self._filepathsRelTo == '<install>':
-            assert self._installPath is not None
-            return self._installPath
-        elif self._filepathsRelTo == '<session>':
-            assert self._sessionPath is not None
-            return self._sessionPath
-        else:
-            return self._filepathsRelTo
+        match self._filepathsRelTo:
+            case '<install>':
+                assert self._installPath is not None
+                return self._installPath
+            case '<userDataDir>':
+                return platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False)
+            case '<session>':
+                assert self._sessionPath is not None
+                return self._sessionPath
+            case _:
+                return self._filepathsRelTo
 
     @property
     def filepathsRelToKey(self):
-        if self._filepathsRelTo in ('<install>', '<session>'):
+        if self._filepathsRelTo in ('<install>', '<userDataDir>', '<session>'):
             return self._filepathsRelTo
         else:
             return None

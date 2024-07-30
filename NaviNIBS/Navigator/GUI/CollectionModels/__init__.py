@@ -75,7 +75,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
     This is a mapping from columnKey -> default value. If a column is not present in mapping, its default
     will be empty or false.
     """
-    _addNewRowFromEditedPlaceholder: tp.Optional[tp.Callable[[tp.Any,...], K]] = attrs.field(default=None)
+    _addNewRowFromEditedPlaceholder: tp.Optional[tp.Callable[[tp.Any,...], K | None]] = attrs.field(default=None)
     """
     When user tries editing the placeholder row, a new row should be added to the collection. Specify how to
     create a new collection entry by providing a function that accepts as arguments any edited kwargs (e.g.
@@ -94,7 +94,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         addNewRowFromEditedPlaceholder=addNewRow 
     """
 
-    _collection: C = attrs.field(init=False)
+    _collection: C = attrs.field(init=False, repr=False)
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
 
@@ -359,7 +359,14 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                     if self._hasPlaceholderNewRow and itemKey is None:
                         # tried to edit placeholder row, so create a new row and apply the edit to it
                         assert self._addNewRowFromEditedPlaceholder is not None
+                        if (colKey in self._placeholderNewRowDefaults and value == self._placeholderNewRowDefaults[colKey]) \
+                                or (colKey not in self._placeholderNewRowDefaults and len(value) == 0):
+                            # no change from default, assume addition was cancelled
+                            return False
                         newItemKey = self._addNewRowFromEditedPlaceholder(**{colKey: value})
+                        if newItemKey is None:
+                            # problem adding new row, reject change
+                            return False
                         # TODO: change current item to newly created row
                         return True
 

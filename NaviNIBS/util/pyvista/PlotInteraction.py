@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import pyvista as pv
 from pyvista import _vtk
+from qtpy import QtGui
 import typing as tp
 import weakref
 if pv.__version__ <= '0.39.1':
@@ -186,6 +187,8 @@ async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor, onNewTransf:
     wdgt.SetScalingEnabled(False)
     wdgt.SetMoveFacesEnabled(False)
     handleRep = wdgt.GetRepresentation()
+    palette = plotter.palette()
+    handleRep.SetForegroundColor(*palette.color(QtGui.QPalette.Highlight).getRgbF()[:-1])
     handleRep.SetPlaceFactor(1.)
     if True:
         # temporarily reset transform to get bounds of actor in local space

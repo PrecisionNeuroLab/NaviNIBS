@@ -13,7 +13,7 @@ logger = logging.getLogger()
 @attrs.define(slots=False, kw_only=True)
 class HotkeysTableModel(CollectionTableModel[str, Hotkeys, Hotkey]):
     _triggerSourceKey: str
-    _collection: Hotkeys = attrs.field(init=False)
+    _collection: Hotkeys = attrs.field(init=False, repr=False)
 
     _hasPlaceholderNewRow: bool = True
     _placeholderNewRowDefaults: dict[str, tp.Any] = attrs.field(factory=lambda: dict(key='<NewHotkey>'))

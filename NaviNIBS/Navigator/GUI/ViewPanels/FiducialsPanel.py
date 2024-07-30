@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 from datetime import datetime
 import logging
@@ -185,7 +184,9 @@ class FiducialsPanel(MainViewPanel):
                         point_color='blue',
                         text_color='blue',
                         point_size=15,
+                        font_size=15,
                         shape=None,
+                        always_visible=True,
                         render_points_as_spheres=True,
                         reset_camera=False,
                         render=False
@@ -229,7 +230,7 @@ class FiducialsPanel(MainViewPanel):
                 subReg.fiducials[label] = Fiducial(key=label,
                                                    plannedCoord=coords[iLabel, :])
 
-        if True:
+        if False:
             # also set approximate nose tip
             downDir = -1 * np.cross(coords[2, :] - coords[0, :], coords[1, :] - coords[0, :])
             downDir /= np.linalg.norm(downDir)

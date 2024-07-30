@@ -10,7 +10,7 @@ from NaviNIBS.util.pyvista.dataset import find_closest_point
 
 @attrs.define(slots=False)
 class HeadPointsTableModel(CollectionTableModel[int, HeadPoints, HeadPoint]):
-    _collection: HeadPoints = attrs.field(init=False)
+    _collection: HeadPoints = attrs.field(init=False, repr=False)
 
     def __attrs_post_init__(self):
         self._collection = self._session.subjectRegistration.sampledHeadPoints

@@ -229,7 +229,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 self._calibrationPlateToolActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.5
                 )
 
@@ -244,7 +244,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 self._calibrationPlateTrackerActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.5
                 )
                 setActorUserTransform(self._calibrationPlateTrackerActor, concatenateTransforms([
@@ -304,7 +304,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                 self._coilToolActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.5
                 )
                 doResetCamera = True
@@ -319,11 +319,11 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                         meshColor = None  # use color from surf file
                         scalars = mesh.array_names[-1]
                     else:
-                        meshColor = '#2222ff'  # default color if nothing else provided
+                        meshColor = '#444444'  # default color if nothing else provided
                 self._coilTrackerActor = self._plotterLowerLayer.addMesh(
                     mesh=mesh,
                     color=meshColor,
-                    defaultMeshColor='#2222ff',
+                    defaultMeshColor='#444444',
                     opacity=0.5)
                 doResetCamera = True
 

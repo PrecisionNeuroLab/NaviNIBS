@@ -2,7 +2,11 @@ from enum import Enum
 import logging
 from qtpy import QtWidgets, QtCore, QtGui
 
+from NaviNIBS.util.Signaler import Signal
+
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class QFlowLayout(QtWidgets.QLayout):
@@ -26,6 +30,11 @@ class QFlowLayout(QtWidgets.QLayout):
         self._itemList: list[QtWidgets.QLayoutItem] = []
         self._spacing = spacing
         self._layoutMode = layoutMode
+
+        self._prevWidth: int | None = None
+        self._prevHeight: int | None = None
+
+        self.sigLayoutChanged: Signal[()] = Signal()
 
     def __del__(self):
         self._clear()
@@ -53,13 +62,21 @@ class QFlowLayout(QtWidgets.QLayout):
         height = self._doLayout(QtCore.QRect(0, 0, width, 0), True)
         return height
 
+    def expandingDirections(self):
+        return QtCore.Qt.Orientations()
+
     def setGeometry(self, rect: QtCore.QRect) -> None:
         super().setGeometry(rect)
-        self._doLayout(rect, False)
+        height = self._doLayout(rect, False)
+        if self._prevHeight != height:
+            self._prevHeight = height
+            self.update()
+            # self.invalidate()
+            self.sigLayoutChanged.emit()
 
     def sizeHint(self) -> QtCore.QSize:
         size = self.minimumSize()
-        rect = self.contentsRect()
+        rect = self.geometry()
         if rect.width() > 0:
             layoutHeight = self._doLayout(rect, True)
             size.setHeight(layoutHeight)
@@ -74,33 +91,49 @@ class QFlowLayout(QtWidgets.QLayout):
         margins = self.contentsMargins()
         size += QtCore.QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
 
+        if True:
+            width = self.contentsRect().width() + margins.left() + margins.right()
+            if width <= 0 and self._prevWidth is not None:
+                width = self._prevWidth
+            size.setHeight(self.heightForWidth(width))
+
         return size
+
+    def clear(self):
+        self._clear()
 
     def _clear(self) -> None:
         while self.count():
             item = self.takeAt(0)
 
             if item is not None:
-                item.widget().deleteLater()
+                if item.widget() is not None:
+                    item.widget().deleteLater()
 
     def _doLayout(self, rect: QtCore.QRect, testOnly: bool) -> int:
         """
         Returns height
         """
+
+        if not testOnly and rect.width() > 0:
+            self._prevWidth = rect.width()
+
         x = rect.x() + self.contentsMargins().left()
         y = rect.y() + self.contentsMargins().top()
         lineHeight = 0
 
         match self._layoutMode:
             case QFlowLayout.LayoutMode.minimum:
+                maxSpaceY = 0
                 for item in self._itemList:
                     wid = item.widget()
                     spaceX = self.spacing() + wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton,
-                                                                         QtWidgets.QSizePolicy.PushButton,
+                                                                          QtWidgets.QSizePolicy.PushButton,
                                                                          QtCore.Qt.Horizontal)
                     spaceY = self.spacing() + wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton,
                                                                          QtWidgets.QSizePolicy.PushButton,
                                                                          QtCore.Qt.Vertical)
+                    maxSpaceY = max(maxSpaceY, spaceY)
 
                     nextX = x + item.sizeHint().width() + spaceX
 
@@ -116,40 +149,7 @@ class QFlowLayout(QtWidgets.QLayout):
                     x = nextX
                     lineHeight = max(lineHeight, item.sizeHint().height())
 
-            case QFlowLayout.LayoutMode.equalMinimum:
-                maxMinWidth = 0
-                maxMinHeight = 0
-                maxSpaceX = 0
-                maxSpaceY = 0
-                for item in self._itemList:
-                    wid = item.widget()
-                    maxMinWidth = max(maxMinWidth, item.sizeHint().width())
-                    maxMinHeight = max(maxMinHeight, item.sizeHint().height())
-                    maxSpaceX = max(maxSpaceX, self.spacing() + wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton,
-                                                                            QtWidgets.QSizePolicy.PushButton,
-                                                                            QtCore.Qt.Horizontal))
-                    maxSpaceY = max(maxSpaceY, self.spacing() + wid.style().layoutSpacing(QtWidgets.QSizePolicy.PushButton,
-                                                                                    QtWidgets.QSizePolicy.PushButton,
-                                                                                    QtCore.Qt.Vertical))
-
-                for item in self._itemList:
-                    wid = item.widget()
-
-                    nextX = x + maxMinWidth + maxSpaceX
-
-                    if nextX - maxSpaceX > rect.right() - self.contentsMargins().right() and lineHeight > 0:
-                        x = rect.x() + self.contentsRect().left()
-                        y = y + lineHeight + maxSpaceY
-                        nextX = x + maxMinWidth + maxSpaceX
-                        lineHeight = 0
-
-                    if not testOnly:
-                        item.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), QtCore.QSize(maxMinWidth, maxMinHeight)))
-
-                    x = nextX
-                    lineHeight = max(lineHeight, maxMinHeight)
-
-            case QFlowLayout.LayoutMode.equal:
+            case QFlowLayout.LayoutMode.equal | QFlowLayout.LayoutMode.equalMinimum:
                 maxMinWidth = 0
                 maxMinHeight = 0
                 maxSpaceX = 0
@@ -165,24 +165,44 @@ class QFlowLayout(QtWidgets.QLayout):
                                                                                           QtWidgets.QSizePolicy.PushButton,
                                                                                           QtCore.Qt.Vertical))
 
-                numCols = max((rect.width() - 1 - self.contentsMargins().left() - self.contentsMargins().right() - maxMinWidth), 0) // (maxMinWidth + maxSpaceX) + 1
+                if rect.width() == 0 and testOnly:
+                    # special case: being tested without assigned size
+                    return self.contentsMargins().top() + maxMinHeight + self.contentsMargins().bottom()
+
+                try:
+                    numCols = max((rect.width() - 1 - self.contentsMargins().left() - self.contentsMargins().right() - maxMinWidth), 0) // (maxMinWidth + maxSpaceX) + 1
+                except ZeroDivisionError:
+                    numCols = 1
                 numRows = (len(self._itemList) - 1) // numCols + 1
-                numEmptyLastRow = numCols - (len(self._itemList) % numCols)
-                while numEmptyLastRow > numRows:
+                numEmptyLastRow = numCols * numRows - len(self._itemList)
+                while numCols > 1 and numEmptyLastRow >= numRows:
                     numCols -= 1
-                    numEmptyLastRow = numCols - (len(self._itemList) % numCols)
+                    numRows = (len(self._itemList) - 1) // numCols + 1
+                    numEmptyLastRow = numCols * numRows - len(self._itemList)
 
-                actualWidth = (rect.width() - 1 - maxSpaceX * (numCols - 1) - self.contentsMargins().left() - self.contentsMargins().right()) // numCols
+                if not testOnly and self._layoutMode == QFlowLayout.LayoutMode.equalMinimum:
+                    actualWidth = maxMinWidth
+                else:
+                    actualWidth = (rect.width() - 1 - maxSpaceX * (numCols - 1) - self.contentsMargins().left() - self.contentsMargins().right()) // numCols
+                logger.debug(f'actualWidth: {actualWidth}')
+                if actualWidth < 0:
+                    logger.error('negative width')
 
+                numInRow = 0
+                numActualRows = 1
                 for item in self._itemList:
                     wid = item.widget()
                     nextX = x + actualWidth + maxSpaceX
 
-                    if nextX - maxSpaceX > rect.right() - self.contentsMargins().right() and lineHeight > 0:
+                    numInRow += 1
+
+                    if numInRow > numCols or (nextX - maxSpaceX > rect.right() - self.contentsMargins().right() + 1 and lineHeight > 0):
                         x = rect.x() + self.contentsMargins().left()
                         y = y + lineHeight + maxSpaceY
                         nextX = x + actualWidth + maxSpaceX
                         lineHeight = 0
+                        numInRow = 1
+                        numActualRows += 1
 
                     if not testOnly:
                         item.setGeometry(QtCore.QRect(QtCore.QPoint(x, y), QtCore.QSize(actualWidth, maxMinHeight)))
@@ -190,10 +210,22 @@ class QFlowLayout(QtWidgets.QLayout):
                     x = nextX
                     lineHeight = max(lineHeight, maxMinHeight)
 
+                logger.debug(f'numActualRows: {numActualRows}')
+
             case _:
                 raise NotImplementedError('Invalid layout mode')
 
-        return y + lineHeight + self.contentsMargins().bottom() - rect.y()
+        logger.debug(f'lineHeight: {lineHeight}')
+
+        if rect.width() < 0 and self._layoutMode != QFlowLayout.LayoutMode.equal:
+            # calculated y is not meaningful
+            return rect.y() + self.contentsMargins().top() + lineHeight + maxSpaceY + self.contentsMargins().bottom() - rect.y()
+        else:
+            height = y + lineHeight + self.contentsMargins().bottom() - rect.y()
+
+        logger.debug(f'height: {height}')
+
+        return height
 
 
 
@@ -208,8 +240,8 @@ if __name__ == '__main__':
 
     for layoutMode in (
             QFlowLayout.LayoutMode.minimum,
-            QFlowLayout.LayoutMode.equalMinimum,
             QFlowLayout.LayoutMode.equal,
+            QFlowLayout.LayoutMode.equalMinimum,
     ):
         w = QtWidgets.QGroupBox(f'Layout mode: {layoutMode.name}')
         layout = QFlowLayout(layoutMode=layoutMode)
@@ -230,5 +262,10 @@ if __name__ == '__main__':
             layout.addWidget(QtWidgets.QPushButton(f'Button {k} {"-"*k}'), i, j)
             k += 1
 
+    superLayout.addStretch()
+
     win.show()
+
+    win.adjustSize()
+
     app.exec_()

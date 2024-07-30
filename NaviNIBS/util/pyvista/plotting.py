@@ -12,7 +12,7 @@ import typing as tp
 from typing import ClassVar
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -110,13 +110,15 @@ class PlotterImprovementsMixin:
         scalar_bar_args: dict | None = None,
         scalars: str | None = None,
         show_scalar_bar: bool | None = None,
-        cmap: str | tp.Any | None = None) -> pv.Actor:
+        cmap: str | tp.Any | None = None,
+        userTransform: np.ndarray | None = None) -> pv.Actor:
         """
         Similar to plotter.add_lines but with a few improvements:
         - Allows `lines` arg to already be pv.PolyData (e.g. to already been passed through `pv.lines_from_points`.) This
             allows for the possibility of grouping multiple discontinuous line segments into one actor.
         - Added opacity arg
         - Added reset_camera arg
+        - Allows specifying user transform in same call
         """
         assert isinstance(lines, pv.PolyData)
 
@@ -171,6 +173,8 @@ class PlotterImprovementsMixin:
 
         # Create actor
         actor = pv._vtk.vtkActor()
+        if userTransform is not None:
+            setActorUserTransform(actor, userTransform)
         actor.SetMapper(mapper)
         actor.GetProperty().SetLineWidth(width)
         actor.GetProperty().EdgeVisibilityOn()
@@ -272,7 +276,7 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
                                                  auto_update=auto_update,
                                                  **kwargs)
 
-        # self.enable_anti_aliasing()  # for nice visuals
+        #self.enable_anti_aliasing(aa_type='msaa')  # for nice visuals
 
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
 

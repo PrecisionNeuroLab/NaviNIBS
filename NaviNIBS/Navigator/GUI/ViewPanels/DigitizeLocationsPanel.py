@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 from datetime import datetime
 import logging
@@ -35,7 +34,7 @@ logger.setLevel(logging.INFO)
 
 
 @attrs.define
-class DigitizedLocationsPanel(MainViewPanel):
+class DigitizeLocationsPanel(MainViewPanel):
     _key: str = 'Digitize'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.dots-hexagon'))
     _surfKey: str = 'skinSurf'
@@ -50,6 +49,8 @@ class DigitizedLocationsPanel(MainViewPanel):
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict)
     _positionsClient: tp.Optional[ToolPositionsClient] = attrs.field(init=False, default=None)
     _tblWdgt: DigitizedLocationsTableWidget = attrs.field(init=False)
+
+    finishedAsyncInitializationEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -113,6 +114,7 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton('Delete row')
         btn.clicked.connect(self._onDeleteLocationBtnClicked)
+        btn.setEnabled(False)
         btnContainer.layout().addWidget(btn, 3, 0)
         # TODO: change this to "clear sampled locations" when multiple selected
         self._deleteLocationBtn = btn
@@ -139,6 +141,8 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         self._redraw(which='all')
 
+        self.finishedAsyncInitializationEvent.set()
+
     def _onSessionSet(self):
         super()._onSessionSet()
         # TODO: connect relevant session changed signals to _redraw calls
@@ -164,6 +168,20 @@ class DigitizedLocationsPanel(MainViewPanel):
             self._redraw(which='initSampledLocations')
         # TODO: add support for redrawing plannedCoords as needed
 
+    def _onSelectedLocationsChanged(self, selectedIndices: list[int]):
+        numSelLocs = len(self._tblWdgt.selectedCollectionItemKeys)
+        if numSelLocs > 0:
+            if numSelLocs == 1:
+                self._deleteLocationBtn.setText('Delete row')
+            else:
+                self._deleteLocationBtn.setText('Delete rows')
+            self._deleteLocationBtn.setEnabled(True)
+        else:
+            self._deleteLocationBtn.setText('Delete row')
+            self._deleteLocationBtn.setEnabled(False)
+
+
+
     def _onSelectedLocationsChanged(self, selKeys: list[str]):
         if len(selKeys) == 0:
             self._clearSampleLocationBtn.setEnabled(False)
@@ -174,12 +192,20 @@ class DigitizedLocationsPanel(MainViewPanel):
             if numSelLocationsWithSamples == 0:
                 self._clearSampleLocationBtn.setEnabled(False)
                 self._clearSampleLocationBtn.setText('Clear sampled location')
+                self._deleteLocationBtn.setEnabled(False)
+                self._deleteLocationBtn.setText('Delete row')
             elif numSelLocationsWithSamples == 1:
                 self._clearSampleLocationBtn.setEnabled(True)
                 self._clearSampleLocationBtn.setText('Clear sampled location')
+                self._deleteLocationBtn.setEnabled(True)
+                self._deleteLocationBtn.setText('Delete row')
             else:
                 self._clearSampleLocationBtn.setEnabled(True)
                 self._clearSampleLocationBtn.setText('Clear sampled locations')
+                self._deleteLocationBtn.setEnabled(True)
+                self._deleteLocationBtn.setText('Delete rows')
+
+            self._redraw(which='initSampledLocations')  # TODO: redraw just previously and currently selected points instead of all
 
     def _currentTblLocKey(self) -> tp.Optional[str]:
         return self._tblWdgt.currentCollectionItemKey
@@ -225,7 +251,7 @@ class DigitizedLocationsPanel(MainViewPanel):
         locKey = self._currentTblLocKey()
         if locKey is None:
             # placeholder new row selected
-            locKey = makeStrUnique(baseStr=f'Electrode_{len(self.session.digitizedLocations) + 1}',
+            locKey = makeStrUnique(baseStr=f'Loc_{len(self.session.digitizedLocations) + 1}',
                                    existingStrs=self.session.digitizedLocations.keys(),
                                    delimiter='_')
             loc = DigitizedLocation(key=locKey,
@@ -406,45 +432,80 @@ class DigitizedLocationsPanel(MainViewPanel):
 
         elif which == 'initSampledLocations':
 
-            actorKeys = ('sampledLocations',)
+            actorKeys = ('sampledLocations_unselected', 'sampledLocations_selected')
 
             sampledLocKeys = [key for key, loc in self.session.digitizedLocations.items() if loc.sampledCoord is not None]
             doShowSampledLocs = len(sampledLocKeys) > 0
 
             if not doShowSampledLocs:
                 # no sampled locations (yet)
-                for actorKey in actorKeys:
-                    if actorKey in self._actors:
-                        self._plotter.remove_actor(actorKey)
-                        self._actors.pop(actorKey)
+                with self._plotter.allowNonblockingCalls():
+                    for actorKey in actorKeys:
+                        if actorKey in self._actors:
+                            self._plotter.remove_actor(actorKey)
+                            self._actors.pop(actorKey)
                 return
 
             labels = []
-            coords = np.full((len(self.session.digitizedLocations), 3), np.nan)
+            locsToPlot = {key: loc for key, loc in self.session.digitizedLocations.items()
+                          if loc.sampledCoord is not None}
+            coords = np.full((len(locsToPlot), 3), np.nan)
 
+            selectedKeys = self._tblWdgt.selectedCollectionItemKeys
 
-
-            for iLoc, (label, loc) in enumerate(self.session.digitizedLocations.items()):
+            for iLoc, (label, loc) in enumerate(locsToPlot.items()):
                 labels.append(label)
-                if loc.sampledCoord is not None:
-                    coords[iLoc, :] = loc.sampledCoord
+                coords[iLoc, :] = loc.sampledCoord
 
-            locColor = list(self.session.digitizedLocations.values())[0].color
+            locColor = list(locsToPlot.values())[0].color
             # TODO: add support for per-electrode colors instead of using same for all
             # (will probably require multiple actors, at least one per unique color)
 
-            self._actors[actorKeys[0]] = self._plotter.add_point_labels(
-                name=actorKeys[0],
-                points=coords,
-                labels=labels,
-                point_color=locColor,
-                text_color=locColor,
-                point_size=25,
-                shape=None,
-                render_points_as_spheres=True,
-                reset_camera=False,
-                render=True
-            )
+            unselectedLabels = [label for label in labels if label not in selectedKeys]
+            unselectedCoords = coords[np.isin(labels, unselectedLabels), :]
+
+            if len(unselectedCoords) > 0:
+                self._actors[actorKeys[0]] = self._plotter.add_points(
+                    name=actorKeys[0],
+                    points=unselectedCoords,
+                    color=locColor,
+                    point_size=25,
+                    render_points_as_spheres=True,
+                    reset_camera=False,
+                    render=True
+                )
+            else:
+                actorKey = actorKeys[0]
+                with self._plotter.allowNonblockingCalls():
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(actorKey)
+                        self._actors.pop(actorKey)
+
+            selectedLocColor = '#0096FF'
+            selectedLabels = [label for label in labels if label in selectedKeys]
+            selectedCoords = coords[np.isin(labels, selectedKeys), :]
+
+            if len(selectedCoords) > 0:
+                self._actors[actorKeys[1]] = self._plotter.add_point_labels(
+                    name=actorKeys[1],
+                    points=selectedCoords,
+                    labels=selectedLabels,
+                    point_color=selectedLocColor,
+                    text_color=selectedLocColor,
+                    point_size=25,
+                    font_size=15,
+                    always_visible=True,
+                    shape=None,
+                    render_points_as_spheres=True,
+                    reset_camera=False,
+                    render=True
+                )
+            else:
+                actorKey = actorKeys[1]
+                with self._plotter.allowNonblockingCalls():
+                    if actorKey in self._actors:
+                        self._plotter.remove_actor(actorKey)
+                        self._actors.pop(actorKey)
 
         else:
             raise NotImplementedError('Unexpected redraw key: {}'.format(which))

@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 import contextlib
 import darkdetect
 import logging
 import os
 import pathlib
+import platformdirs
 import pyvista as pv
-from qtpy import QtGui, QtCore
+import qtawesome as qta
+from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
@@ -31,9 +32,12 @@ from NaviNIBS.Navigator.GUI.ViewPanels.TriggerSettingsPanel import TriggerSettin
 from NaviNIBS.Navigator.GUI.ViewPanels.CameraPanel import CameraPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.SubjectRegistrationPanel import SubjectRegistrationPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel import NavigatePanel
-from NaviNIBS.Navigator.GUI.ViewPanels.DigitizedLocationsPanel import DigitizedLocationsPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.DigitizeLocationsPanel import DigitizeLocationsPanel
 
 logger = logging.getLogger(__name__)
+
+
+_VP = tp.TypeVar('_VP', bound=MainViewPanel)
 
 
 @attrs.define
@@ -65,7 +69,7 @@ class NavigatorGUI(RunnableAsApp):
         super().__attrs_post_init__()
 
         if self._inProgressBaseDir is None:
-            self._inProgressBaseDir = os.path.join(appdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
+            self._inProgressBaseDir = os.path.join(platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
 
         self._rootDockArea = DockArea(affinities=['MainViewPanel'])
         self._rootDockArea.setContentsMargins(2, 2, 2, 2)
@@ -86,6 +90,7 @@ class NavigatorGUI(RunnableAsApp):
         panel.sigAboutToFinishLoadingSession.connect(self._onSessionAboutToFinishLoading)
         panel.sigLoadedSession.connect(self._onSessionLoaded)
         panel.sigClosedSession.connect(self._onSessionClosed)
+        panel.addSaveButtonToDockTabStrip(dockArea=self._rootDockArea)
 
         self._addViewPanel(MRIPanel(session=self._session))
 
@@ -112,7 +117,7 @@ class NavigatorGUI(RunnableAsApp):
 
         self._addViewPanel(NavigatePanel(session=self._session))
 
-        self._addViewPanel(DigitizedLocationsPanel(session=self._session))
+        self._addViewPanel(DigitizeLocationsPanel(session=self._session))
 
         # set initial view widget visibility
         # TODO: default to MRI if new session, otherwise default to something else...
@@ -128,7 +133,7 @@ class NavigatorGUI(RunnableAsApp):
             self._win.resize(QtCore.QSize(1600, 1100))  # TODO: restore previous size if available
             self._win.show()
 
-    def _addViewPanel(self, panel: MainViewPanel) -> MainViewPanel:
+    def _addViewPanel(self, panel: _VP) -> _VP:
         logger.info(f'Adding view panel {panel.key}')
         self._rootDockArea.addDock(panel.dockWdgt, position='below')
         self._mainViewPanels[panel.key] = panel
@@ -149,6 +154,8 @@ class NavigatorGUI(RunnableAsApp):
             )
             self.session.dockWidgetLayouts.addItem(layout)
 
+        sz = self._win.size()
+        layout.winSize = (sz.width(), sz.height())
         layout.state = self._rootDockArea.saveState()
 
     def saveLayout(self):
@@ -164,6 +171,10 @@ class NavigatorGUI(RunnableAsApp):
 
         await asyncio.sleep(0.01)
         layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
+
+        if layout is not None and layout.winSize is not None:
+            self._win.resize(QtCore.QSize(*layout.winSize))
+
         if layout is not None and layout.state is not None:
 
             async with self._restoringLayoutLock if needsLock else contextlib.nullcontext():
@@ -175,7 +186,9 @@ class NavigatorGUI(RunnableAsApp):
                     logger.debug(f'About to restore root layout when winSize={winSize}')
 
                     try:
-                        self._rootDockArea.restoreState(layout.state)
+                        self._rootDockArea.restoreState(layout.state,
+                                                        extraPosition='below',
+                                                        extraNeighbor=self.manageSessionPanel.dockWdgt)
                     except ValueError:
                         # sometimes can get errors during restore if other parts of layout have changed
                         logger.error('Unable to restore root dock area state')
@@ -259,34 +272,51 @@ class NavigatorGUI(RunnableAsApp):
         assert session is not None
         logger.info('Loaded session {}'.format(session.filepath))
 
-        self._onAddonsAboutToChange()
+        self._onAddonsAboutToChange(session.addons.keys())
 
         self._session = session
 
         for pane in self._mainViewPanels.values():
             pane.session = session
 
-        self._onAddonsChanged(triggeredBySessionLoad=True)
+        self._onAddonsChanged(session.addons.keys(), triggeredBySessionLoad=True)
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self.restoreLayoutIfAvailable))
 
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)
         session.headModel.sigFilepathChanged.connect(self._updateEnabledPanels)
-        session.addons.sigItemsChanged.connect(lambda *args: self._onAddonsChanged())
+        session.addons.sigItemsAboutToChange.connect(lambda *args: self._onAddonsAboutToChange(*args))
+        session.addons.sigItemsChanged.connect(lambda *args: self._onAddonsChanged(*args, triggeredBySessionLoad=False))
 
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
         self.session.tools.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
 
-    def _onAddonsAboutToChange(self):
+    def _onAddonsAboutToChange(self, itemKeys: list[str],
+                               attribKeys: list[str] | None = None):
         if self._session is not None:
             if len(self._session.addons) > 0:
-                pass  # TODO: unload any addons changed not present in new session
+                if attribKeys is None:
+                    raise NotImplementedError  # TODO
+                    # TODO: unload any addons changed not present in new session
+                else:
+                    pass  # assume any other changes don't need to be handled here
 
-    def _onAddonsChanged(self, triggeredBySessionLoad: bool = False):
+    def _onAddonsChanged(self, itemKeys: list[str],
+                         attribKeys: list[str] | None = None,
+                         triggeredBySessionLoad: bool = False):
+
+        if attribKeys is not None and all(attribKey.startswith('SessionAttrs.') for attribKey in attribKeys):
+            # change was only within addon session attributes, no need to do anything here
+            return
+
         needToUpdateEnabledPanels = False
         prevActiveViewKey = self.activeViewKey
-        for addonKey, addon in self._session.addons.items():
+        for addonKey in itemKeys:
+            if addonKey not in self._session.addons:
+                continue  # assume addon was already unloaded
+
+            addon = self._session.addons[addonKey]
 
             if addon.needsToInstantiateExtras:
                 addon.instantiateExtras(navigatorGUI=self, session=self._session)
@@ -300,7 +330,6 @@ class NavigatorGUI(RunnableAsApp):
                     self._mainViewPanels[panelKey].session = self._session
 
                     if not triggeredBySessionLoad:
-                        self._mainViewPanels[panelKey].session = self._session
                         needToUpdateEnabledPanels = True
 
                 else:
@@ -352,6 +381,18 @@ class NavigatorGUI(RunnableAsApp):
     def subjectRegistrationPanel(self) -> SubjectRegistrationPanel:
         return self._mainViewPanels['Register']
 
+    @property
+    def cameraPanel(self) -> CameraPanel:
+        return self._mainViewPanels['Camera']
+
+    @property
+    def navigatePanel(self) -> NavigatePanel:
+        return self._mainViewPanels['Navigate']
+
+    @property
+    def digitizeLocationsPanel(self) -> DigitizeLocationsPanel:
+        return self._mainViewPanels['Digitize']
+
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
@@ -361,12 +402,7 @@ class NavigatorGUI(RunnableAsApp):
     def _updateEnabledPanels(self):
 
         for key, panel in self._mainViewPanels.items():
-            if panel.canBeEnabled()[0]:
-                if panel.isVisible:
-                    if not panel.hasInitialized and not panel.isInitializing:
-                        panel.finishInitialization()
-            else:
-                panel.wdgt.setEnabled(False)
+            panel.updateEnabled()
 
         # TODO: if we just disabled the only active view, change to a useful fallback view
         fallbackViews = ['Manage session', 'Set MRI', 'Set head model', 'Plan fiducials', 'Register']
@@ -389,7 +425,7 @@ class NavigatorGUI(RunnableAsApp):
         logger.info('Switched to view "{}"'.format(viewKey))
 
 
-if __name__ == '__main__':
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -404,7 +440,7 @@ if __name__ == '__main__':
                 # sesFilepath = r'G:\My Drive\KellerLab\RTNaBS\data\sub-2355\ses-230209\sub-2355_ses-230209_RTNaBS'
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-2003_ses-test9.rtnabsdir')
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-demo.navinibsdir')
-                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-cobotDemo.navinibsdir')
+                sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'data/sub-1_ses-cobotDemo-simPos.navinibsdir')
             else:
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
                                            'data/TestSession1.rtnabs')
@@ -415,4 +451,5 @@ if __name__ == '__main__':
         NavigatorGUI.createAndRun(sesFilepath=args.sesFilepath)
 
 
-
+if __name__ == '__main__':
+    main()

@@ -21,9 +21,10 @@ from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingT
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.Transforms import applyTransform, composeTransform
+from NaviNIBS.util.Transforms import applyTransform, composeTransform, concatenateTransforms
 from NaviNIBS.util.GUI.Dock import Dock
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
+from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.pyvista import DefaultPrimaryLayeredPlotter, RemotePlotterProxy
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class NavigationView(QueuedRedrawMixin):
     _contextMenu: QtWidgets.QMenu = attrs.field(init=False)
 
     _layers: tp.Dict[str, ViewLayer] = attrs.field(init=False, factory=dict)
-    _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict)
+    _layerLibrary: tp.Dict[str, tp.Callable[..., ViewLayer]] = attrs.field(init=False, factory=dict, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -102,11 +103,9 @@ class NavigationView(QueuedRedrawMixin):
         return self._wdgt
 
 
-
-
 @attrs.define
 class SinglePlotterNavigationView(NavigationView):
-    _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False)
+    _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False, repr=False)
     _plotInSpace: str = 'MRI'
     _alignCameraTo: tp.Optional[str] = None
     _cameraDist: float = 100
@@ -120,7 +119,8 @@ class SinglePlotterNavigationView(NavigationView):
     _doShowLegend: bool = False
 
     _layers: tp.Dict[str, PlotViewLayer] = attrs.field(init=False, factory=dict)
-    _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict)
+    _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict, repr=False)
+    _lastAlignedToolPose: Transform | None = attrs.field(init=False, default=None, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -156,6 +156,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
+        self._coordinator.positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
 
         if self._doParallelProjection:
             self._plotter.camera.enable_parallel_projection()
@@ -173,6 +174,33 @@ class SinglePlotterNavigationView(NavigationView):
     def _onCurrentCoilPositionChanged(self):
         if self._alignCameraTo.startswith('coil'):
             self._queueRedraw(which='camera')
+
+    def _onLatestPositionsChanged(self):
+        if self._alignCameraTo.startswith('tool-'):
+            if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
+                toolKey = self._alignCameraTo[len('tool-'):-2]
+            else:
+                toolKey = self._alignCameraTo[len('tool-'):]
+
+            tool = self._coordinator.session.tools[toolKey]
+            trackerKey = tool.trackerKey
+
+            newTrackerPose = self._coordinator.positionsClient.getLatestTransf(trackerKey, None)
+            if newTrackerPose is None:
+                newToolPose = None
+            else:
+                if tool.toolToTrackerTransf is None:
+                    newToolPose = None
+                else:
+                    # TODO: do some extra caching to not recalculate this with every position change
+                    # (since the tool we align to may not actually be changing frequently)
+                    # but then would also need to connect to toolTrackerTransf changed signal.
+                    newToolPose = concatenateTransforms((tool.toolToTrackerTransf, newTrackerPose))
+
+            if not array_equalish(newToolPose, self._lastAlignedToolPose):
+                self._lastAlignedToolPose = newToolPose  # not actually aligned yet due to queueing, but should be okay unless there
+                # are rapid bursts of switching between a small set of discrete poses
+                self._queueRedraw(which='camera')
 
     @staticmethod
     def _getExtraRotationForToAlignCamera(rotSuffix: str) -> np.ndarray:
@@ -204,7 +232,9 @@ class SinglePlotterNavigationView(NavigationView):
             cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist], [0, 1, 0]])  # focal point, position, and up respectively
 
             if self._alignCameraTo is None:
-                pass
+                with self._plotter.allowNonblockingCalls:
+                    self._plotter.reset_camera()
+                    self._plotter.render()
 
             elif self._alignCameraTo.startswith('target'):
                 extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('target'):])
@@ -275,10 +305,20 @@ class SinglePlotterNavigationView(NavigationView):
 
         except NoValidCameraPoseAvailable:
             #logger.debug('No camera pose available')
-            with self._plotter.allowNonblockingCalls():
-                self._plotter.reset_camera_clipping_range()
-                self._plotter.render()
-            return  # TODO: change display to indicate view is out-of-date / invalid
+            if False:
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.reset_camera()
+                    self._plotter.reset_camera_clipping_range()
+                    self._plotter.render()
+                return  # TODO: change display to indicate view is out-of-date / invalid
+            else:
+                if False:
+                    # continue plotting, but with generic position
+                    cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist * 3], [0, 1, 0]])  # focal point, position, and up respectively
+                else:
+                    # hide plot until we have necessary info
+                    self._wdgt.setVisible(False)
+                    return
 
         with self._plotter.allowNonblockingCalls():
             self._plotter.camera.focal_point = cameraPts[0, :]
@@ -298,6 +338,9 @@ class SinglePlotterNavigationView(NavigationView):
             else:
                 self._plotter.reset_camera_clipping_range()
             self._plotter.render()
+
+        if not self._wdgt.isVisible():
+            self._wdgt.setVisible(True)
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
                  plotterLayer: tp.Optional[int] = None, **kwargs):
@@ -340,7 +383,7 @@ class SinglePlotterNavigationView(NavigationView):
 
         plotter.render()
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None):
 
         if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # plotter not yet ready
@@ -393,7 +436,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
 
-        if True and self._alignCameraTo == 'target':
+        if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='Brain',
                           surfKey='gmSurf',

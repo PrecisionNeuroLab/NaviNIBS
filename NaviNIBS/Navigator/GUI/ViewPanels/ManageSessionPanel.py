@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import asyncio
 
-import appdirs
 import attrs
 from datetime import datetime
 import logging
 import os
 import pathlib
+import pyqtgraph.dockarea.Container as pgdc
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
@@ -16,10 +16,11 @@ import typing as tp
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.GUI.Dock import Dock, DockArea
+from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
 from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.Addons import Addon, installPath as addonBaseInstallPath
 
 if tp.TYPE_CHECKING:
     from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -37,12 +38,17 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _autosavePeriod: float = 60  # in sec
 
     _inProgressBaseDir: tp.Optional[str] = None
+    _rootDockArea: DockArea | None = attrs.field(init=False, default=None) # used for tabSaveBtn
     _newSessionBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _tabSaveBtn: QtWidgets.QPushButton | None = attrs.field(init=False, default=None)
+    _augmentBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _saveBtnShowsDirty: bool | None = attrs.field(init=False, default=None)
     _saveShortcut: QtWidgets.QShortcut = attrs.field(init=False)
     _saveToFileBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveToDirBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _closeBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _addAddonBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _fileDW: Dock = attrs.field(init=False)
     _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoDW: Dock = attrs.field(init=False)
@@ -84,6 +90,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-plus-outline'), text='Augment session')
         btn.clicked.connect(lambda checked: self.augmentSession())
         container.layout().addWidget(btn)
+        self._augmentBtn = btn
 
         btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
         btn.clicked.connect(lambda checked: self._recoverSession())
@@ -120,6 +127,14 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         container.layout().addWidget(btn)
         self._closeBtn = btn
 
+        container.layout().addSpacing(10)
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.plus'), text='Enable addon')
+        btn.clicked.connect(lambda checked: self._addAddon())
+        container.layout().addWidget(btn)
+        self._addAddonBtn = btn
+
+
         container.layout().addStretch()
 
         title = 'Info'
@@ -155,18 +170,104 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         self._autosaveTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._autosaveOccasionally))
 
+    def addSaveButtonToDockTabStrip(self, dockArea: DockArea):
+        # hack in a save button next to root dock area tab strip
+
+        tCnt = dockArea.topContainer
+        if not isinstance(tCnt, TContainer):
+            # find shallowest TContainer child
+
+            def findTContainer(child) -> tuple[TContainer | None, int | None]:
+                if isinstance(child, TContainer):
+                    return child, 0
+
+                if not isinstance(child, pgdc.SplitContainer):
+                    return None, None
+
+                tCnt = None
+                depth = None
+                for i in range(child.count()):
+                    tCnt_i, depth_i = findTContainer(child.widget(i))
+                    if tCnt_i is not None:
+                        if depth is None or depth_i < depth:
+                            tCnt = tCnt_i
+                            depth = depth_i + 1
+                return tCnt, depth
+
+            tCnt, _ = findTContainer(tCnt)
+
+        assert isinstance(tCnt, TContainer)
+
+        if self._rootDockArea is not None:
+            assert self._rootDockArea is dockArea
+            assert self._tabSaveBtn is not None
+            #tCnt.layout.takeAt(tCnt.layout.indexOf(self._tabSaveBtn))
+            self._tabSaveBtn = None
+        else:
+            assert self._tabSaveBtn is None, 'Save button already added to dock tab strip'
+            self._rootDockArea = dockArea
+
+        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save')
+        btn.clicked.connect(self._onSaveSessionBtnClicked)
+        btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+        self._tabSaveBtn = btn
+
+        tCnt.layout.addWidget(btn, 0, 0)  # other widgets in TContainer already start at column index 1
+
+        # update tCnt.stack to span two columns in grid layout
+        tCnt.layout.takeAt(tCnt.layout.indexOf(tCnt.stack))
+        tCnt.layout.addWidget(tCnt.stack, 1, 0, 1, 2)
+
+        self._updateEnabledWdgts()
+        self._updateSaveBtnStyle()
+
     def _onSessionSet(self):
         self._updateEnabledWdgts()
         if self.session is not None:
             self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
+            self.session.sigDirtyKeysChanged.connect(self._updateSaveBtnStyle)
         self._onSessionInfoChanged()
 
     def _getNewInProgressSessionDir(self) -> str:
         return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
-        for wdgt in (self._saveBtn, self._saveToFileBtn, self._saveToDirBtn, self._closeBtn, self._infoContainer):
-            wdgt.setEnabled(self.session is not None)
+        wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn,
+                 self._augmentBtn,
+                 self._closeBtn, self._addAddonBtn, self._infoContainer]
+        if self._tabSaveBtn is not None:
+            wdgts.append(self._tabSaveBtn)
+        for wdgt in wdgts:
+            try:
+                wdgt.setEnabled(self.session is not None)
+            except Exception as e:
+                pass  # widget may have been deleted
+
+    def _updateSaveBtnStyle(self):
+        btn = self._tabSaveBtn
+        if btn is None:
+            return
+        isDirty = self.session is not None and len(self.session.dirtyKeys) > 0
+        if self._saveBtnShowsDirty is not None and isDirty == self._saveBtnShowsDirty:
+            return
+        self._saveBtnShowsDirty = isDirty
+        palette = self.wdgt.palette()
+        if isDirty:
+            fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
+        else:
+            fg = palette.color(QtGui.QPalette.Disabled, QtGui.QPalette.Text).name()
+        try:
+            btn.setStyleSheet(f"""
+                    QPushButton {{
+                        border: none;
+                        color: {fg};
+                    }}
+                    QPushButton:hover {{background-color: rgba(0, 0, 0, 0.1);}}
+                    QPushButton:pressed {{background-color: rgba(0, 0, 0, 0.2);}}
+                """)
+        except Exception as e:
+            # button may have been deleted
+            pass
 
     def _updateLayoutsBeforeSave(self):
         """
@@ -232,6 +333,29 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 # TODO: close session to trigger clearing of various GUI components
             self._closeSession()
 
+    def _addAddon(self, addonFilepath: str | None = None):
+        if addonFilepath is None:
+            addonFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(
+                self._wdgt,
+                'Select addon configuration file',
+                addonBaseInstallPath,
+                'Addon configuration file (*.json)')
+            if len(addonFilepath) == 0:
+                logger.info('Browse addon file cancelled')
+                return
+
+        logger.info('Selected addon file: {}'.format(addonFilepath))
+
+        addonDict = dict()
+        addonDirPath = os.path.dirname(addonFilepath)
+        addonDict['addonInstallPath'] = os.path.relpath(addonDirPath, addonBaseInstallPath)
+
+        addon = Addon.fromDict(addonDict)
+
+        self.session.addons.addItem(addon)
+
+        logger.info(f'Added addon {addon.key}')
+
     def _createNewSession(self, sesFilepath: tp.Optional[str] = None):
         self._tryVerifyThenCloseSession()
 
@@ -288,7 +412,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 dir = 'todo'
             else:
                 dir = str(pathlib.Path.home())
-            sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.navinibs)')
+            sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.navinibs); Config file (*.json)')
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return
@@ -296,6 +420,10 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         sesFilepath = os.path.normpath(sesFilepath)
 
         logger.info('Load session filepath: {}'.format(sesFilepath))
+
+        if sesFilepath.endswith('.json'):
+            # assume this is a config file inside a larger session dir
+            sesFilepath = os.path.dirname(sesFilepath)
 
         try:
             if os.path.isdir(sesFilepath):
@@ -406,3 +534,12 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         while True:
             await asyncio.sleep(self._autosavePeriod)
             await self._autosave()
+
+    def restoreLayoutIfAvailable(self) -> bool:
+        if not super().restoreLayoutIfAvailable():
+            return False
+
+        if self._rootDockArea is not None:
+            self.addSaveButtonToDockTabStrip(self._rootDockArea)
+
+        return True
