@@ -296,7 +296,7 @@ class NavigatorGUI(RunnableAsApp):
                                attribKeys: list[str] | None = None):
         if self._session is not None:
             if len(self._session.addons) > 0:
-                if attribKeys is None:
+                if attribKeys is None and any(itemKey in self._session.addons for itemKey in itemKeys):
                     raise NotImplementedError  # TODO
                     # TODO: unload any addons changed not present in new session
                 else:
