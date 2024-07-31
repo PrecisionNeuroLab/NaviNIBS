@@ -233,7 +233,7 @@ class CameraObjectsView(QueuedRedrawMixin):
                 self._redraw('toolPositions')
 
         else:
-            raise NotImplementedError  # TODO
+            raise NotImplementedError
 
 
 @attrs.define

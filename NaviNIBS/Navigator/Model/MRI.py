@@ -74,7 +74,6 @@ class MRI:
             return
         self._data = None
         self._dataAsUniformGrid = None
-        self.sigDataChanged.emit()  # TODO: determine if necessary (since underlying uncached data didn't necessarily change)
 
     def _onFilepathChanged(self):
         with self.sigDataChanged.blocked():
