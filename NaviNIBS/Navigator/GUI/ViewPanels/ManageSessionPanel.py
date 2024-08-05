@@ -13,6 +13,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
+from NaviNIBS import __version__
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
@@ -165,6 +166,10 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         wdgt.editingFinished.connect(lambda key='sessionID': self._onInfoTextEdited(key))
         self._infoWdgts['sessionID'] = wdgt
         container.layout().addRow('Session ID', wdgt)
+
+        wdgt = QtWidgets.QLabel(__version__)
+        self._infoWdgts['version'] = wdgt
+        container.layout().addRow('NaviNIBS version', wdgt)
 
         self._updateEnabledWdgts()
 
