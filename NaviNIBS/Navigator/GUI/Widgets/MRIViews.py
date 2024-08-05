@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 class MRISliceView(QueuedRedrawMixin):
     _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
-    _clim: tp.Tuple[float, float] = (300, 2000)  # TODO: set to auto-initialize instead of hardcoding default
     _cameraOffsetDist: float = 100  # distance from slice to camera
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _sliceOrigin: tp.Optional[np.ndarray] = None
@@ -98,10 +97,12 @@ class MRISliceView(QueuedRedrawMixin):
 
         if self._session is not None:
             self._session.MRI.sigDataChanged.disconnect(self._onMRIDataChanged)
+            self._session.MRI.sigClimChanged.disconnect(self._onMRIClimChanged)
 
         self._session = newSession
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
+            self._session.MRI.sigClimChanged.connect(self._onMRIClimChanged)
 
         self.updateView()
 
@@ -198,6 +199,28 @@ class MRISliceView(QueuedRedrawMixin):
             self._clearPlot()
         self.updateView()
 
+    def _onMRIClimChanged(self, dim: str):
+        if dim == '2D':
+            self._queueRedraw(which='updateClim')
+
+    def _updateClim(self):
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
+
+        if not self._plotterInitialized:
+            # initial plot not created yet
+            return
+
+        if self.session is not None and self.session.MRI.isSet:
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.updateScalarBarRangeWithVol(
+                    clim=self.session.MRI.clim2D,
+                    volumeKey='MRI',
+                    volume=self.session.MRI.dataAsUniformGrid
+                )
+                self._plotter.render()
+
     def _clearPlot(self):
         logger.debug('Clearing plot for {} slice'.format(self.label))
         with self._plotter.allowNonblockingCalls():
@@ -225,6 +248,9 @@ class MRISliceView(QueuedRedrawMixin):
 
             case 'updateView':
                 self._updateView()
+
+            case 'updateClim':
+                self._updateClim()
 
             case _:
                 raise NotImplementedError
@@ -476,3 +502,25 @@ class MRI3DView(MRISliceView):
 
         with self.plotter.allowNonblockingCalls():
             self.plotter.render()
+
+    def _onMRIClimChanged(self, dim: str):
+        if dim == '3D':
+            self._queueRedraw(which='updateClim')
+
+    def _updateClim(self):
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
+
+        if not self._plotterInitialized:
+            # initial plot not created yet
+            return
+
+        if self.session is not None and self.session.MRI.isSet:
+            with self.plotter.allowNonblockingCalls():
+                self._plotter.updateScalarBarRangeWithVol(
+                    clim=self.session.MRI.clim3D,
+                    volumeKey='MRI',
+                    volume=self.session.MRI.dataAsUniformGrid.gaussian_smooth()
+                )
+                self._plotter.render()

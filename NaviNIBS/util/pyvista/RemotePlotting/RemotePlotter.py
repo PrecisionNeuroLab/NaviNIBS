@@ -117,7 +117,38 @@ class RemotePlotManagerBase:
                 return self._callActorMethod(msg[1], msg[2:])
 
             case 'callActorMapperMethod':
-                result = self._callActorMapperMethod(msg[1], msg[2:])
+                return self._callMapperMethod(msg[2:], msg[1])
+
+            case 'actorMapperGet':
+                assert isinstance(msg[1], ActorRef)
+                assert isinstance(msg[2], str)
+                assert len(msg) == 5 and len(msg[3]) == 0 and len(msg[4]) == 0
+                return getattr(self._actorManager.getActor(msg[1]).GetMapper(), msg[2])
+
+            case 'actorMapperSet':
+                assert isinstance(msg[1], ActorRef)
+                assert isinstance(msg[2], str)
+                assert len(msg) == 5
+                assert len(msg[3]) == 1
+                assert len(msg[4]) == 0
+                setattr(self._actorManager.getActor(msg[1]).GetMapper(), msg[2], msg[3][0])
+                return None
+
+            case 'callMapperMethod':
+                return self._callMapperMethod(msg[1:], None)
+
+            case 'mapperGet':
+                assert isinstance(msg[1], str)
+                assert len(msg) == 4 and len(msg[2]) == 0 and len(msg[3]) == 0
+                return getattr(self._plotter.mapper, msg[1])
+
+            case 'mapperSet':
+                assert isinstance(msg[1], str)
+                assert len(msg) == 4
+                assert len(msg[2]) == 1
+                assert len(msg[3]) == 0
+                setattr(self._plotter.mapper, msg[1], msg[2][0])
+                return None
 
             case 'cameraGet':
                 assert isinstance(msg[1], str)
@@ -173,9 +204,12 @@ class RemotePlotManagerBase:
 
         return self._callMethod(fn, args, kwargs)
 
-    def _callActorMapperMethod(self, actor: ActorRef, msg):
-        actor = self._actorManager.getActor(actor)
-        mapper = actor.GetMapper()
+    def _callMapperMethod(self, msg, actor: ActorRef | None):
+        if actor is not None:
+            actor = self._actorManager.getActor(actor)
+            mapper = actor.GetMapper()
+        else:
+            mapper = self._plotter.mapper  # only set by some plotting functions (e.g. add_volume)
         fn = getattr(mapper, msg[0])
         args = list(msg[1])
         kwargs = msg[2]

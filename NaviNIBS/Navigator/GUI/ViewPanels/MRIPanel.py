@@ -22,6 +22,7 @@ from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ class MRIPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.image'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, MRI3DView]] = attrs.field(init=False, factory=dict)
+
+    _climSpinboxWidgets: dict[str, QtWidgets.QDoubleSpinBox] = attrs.field(init=False, factory=dict)
+    _climCheckboxWidgets: dict[str, QtWidgets.QCheckBox] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -61,17 +65,57 @@ class MRIPanel(MainViewPanel):
         containerLayout = QtWidgets.QGridLayout()
         containerWdgt.setLayout(containerLayout)
         self._wdgt.layout().addWidget(containerWdgt)
-        for iRow, iCol, key in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
-            if key in ('x', 'y', 'z'):
-                self._views[key] = MRISliceView(normal=key)
-            elif key == '3D':
-                self._views[key] = MRI3DView(label=key)
+
+        for iDim, dim in enumerate(('2D', '3D')):
+            dimOuterContainer = QtWidgets.QWidget()
+            dimOuterContainer.setLayout(QtWidgets.QVBoxLayout())
+            containerWdgt.layout().addWidget(dimOuterContainer, iDim, 2)
+            dimContainer = QtWidgets.QGroupBox(f'{dim} colorbar limits')
+            dimContainer.setLayout(QtWidgets.QGridLayout())
+            dimContainer.setContentsMargins(0, 0, 0, 0)
+            dimOuterContainer.layout().addWidget(dimContainer)
+            dimOuterContainer.layout().addStretch()
+
+            for iRow, minOrMax in enumerate(('Max', 'Min')):
+                wdgt = QtWidgets.QLabel(f'{minOrMax}:')
+                dimContainer.layout().addWidget(wdgt, iRow, 0)
+
+                wdgt = QtWidgets.QDoubleSpinBox()
+                preventAnnoyingScrollBehaviour(wdgt)
+                wdgt.editingFinished.connect(
+                    lambda *args, dim=dim, minOrMax=minOrMax:
+                    self._onClimSpinboxChanged(dim, minOrMax))
+                wdgt.setDecimals(1)
+                wdgt.setMinimum(0)
+                wdgt.setMaximum(float('inf'))
+                wdgt.setMinimumWidth(100)
+                dimContainer.layout().addWidget(wdgt, iRow, 1)
+                self._climSpinboxWidgets[f'clim{dim}{minOrMax}'] = wdgt
+
+                wdgt = QtWidgets.QLabel('Auto:')
+                dimContainer.layout().addWidget(wdgt, iRow, 3)
+
+                wdgt = QtWidgets.QCheckBox()
+                wdgt.stateChanged.connect(
+                    lambda *args, dim=dim, minOrMax=minOrMax:
+                    self._onClimCheckboxChanged(dim, minOrMax))
+                dimContainer.layout().addWidget(wdgt, iRow, 4)
+                self._climCheckboxWidgets[f'clim{dim}{minOrMax}'] = wdgt
+
+            self._updateClimWidgetsFromModel(dim)
+
+
+        for iRow, iCol, dim in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
+            if dim in ('x', 'y', 'z'):
+                self._views[dim] = MRISliceView(normal=dim)
+            elif dim == '3D':
+                self._views[dim] = MRI3DView(label=dim)
             else:
                 raise NotImplementedError()
 
-            self._views[key].sigSliceOriginChanged.connect(lambda key=key: self._onSliceOriginChanged(sourceKey=key))
+            self._views[dim].sigSliceOriginChanged.connect(lambda key=dim: self._onSliceOriginChanged(sourceKey=key))
 
-            containerLayout.addWidget(self._views[key].wdgt, iRow, iCol)
+            containerLayout.addWidget(self._views[dim].wdgt, iRow, iCol)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
@@ -93,6 +137,7 @@ class MRIPanel(MainViewPanel):
         self._updateRelativeToPath()
         self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
         self.session.MRI.sigFilepathChanged.connect(self._updateFilepath)
+        self.session.MRI.sigClimChanged.connect(self._updateClimWidgetsFromModel)
 
         for key, view in self._views.items():
             view.session = self.session
@@ -110,3 +155,57 @@ class MRIPanel(MainViewPanel):
 
     def _onBrowsedNewFilepath(self, newFilepath: str):
         self.session.MRI.filepath = newFilepath
+
+    def _onClimSpinboxChanged(self, dim: str, minOrMax: str):
+        logger.debug(f'Clim spinbox changed for {dim}{minOrMax}')
+        valKey = f'clim{dim}{minOrMax}'
+        isChecked = self._climCheckboxWidgets[valKey].isChecked()
+        if not isChecked:
+            setattr(self.session.MRI, valKey, self._climSpinboxWidgets[valKey].value())
+
+    def _onClimCheckboxChanged(self, dim: str, minOrMax: str):
+        logger.debug(f'Clim checkbox changed for {dim}{minOrMax}')
+        valKey = f'clim{dim}{minOrMax}'
+        autovalKey = f'autoClim{dim}{minOrMax}'
+        isChecked = self._climCheckboxWidgets[valKey].isChecked()
+        self._climSpinboxWidgets[valKey].setEnabled(not isChecked)
+
+        if isChecked:
+            val = getattr(self.session.MRI, autovalKey)
+            setattr(self.session.MRI, valKey, None)  # clear any previous manually set value
+        else:
+            val = getattr(self.session.MRI, valKey)
+            if val is None:
+                val = getattr(self.session.MRI, autovalKey)
+
+        if val is None:
+            # can't set value, assume we are initializing and will update again later
+            return
+
+        self._climSpinboxWidgets[valKey].setValue(val)
+
+    def _updateClimWidgetsFromModel(self, dim: str):
+        logger.debug(f'Updating clim widgets from model for {dim}')
+        for minOrMax in ('Min', 'Max'):
+            valKey = f'clim{dim}{minOrMax}'
+            autovalKey = f'autoClim{dim}{minOrMax}'
+
+            if self.session is None or self.session.MRI.filepath is None:
+                self._climSpinboxWidgets[valKey].setEnabled(False)
+                self._climCheckboxWidgets[valKey].setEnabled(False)
+            else:
+                self._climCheckboxWidgets[valKey].setEnabled(True)
+
+                isChecked = getattr(self.session.MRI, valKey) is None
+                self._climCheckboxWidgets[valKey].setChecked(isChecked)
+                self._climSpinboxWidgets[valKey].setEnabled(not isChecked)
+
+                if isChecked:
+                    val = getattr(self.session.MRI, autovalKey)
+                else:
+                    val = getattr(self.session.MRI, valKey)
+                    if val is None:
+                        val = getattr(self.session.MRI, autovalKey)
+
+                self._climSpinboxWidgets[valKey].setValue(val)
+
