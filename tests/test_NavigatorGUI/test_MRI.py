@@ -23,6 +23,12 @@ def mriDataSourcePath(existingResourcesDataPath):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openMRISession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'SetMRI')
+
+
+@pytest.mark.asyncio
 @pytest.mark.order(after='test_manageSession.py::test_createSessionViaGUI')
 async def test_setMRIInfo(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,

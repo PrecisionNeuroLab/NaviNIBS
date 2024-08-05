@@ -5,6 +5,7 @@ import asyncio
 import attrs
 from datetime import datetime
 import logging
+from math import ceil
 import numpy as np
 import os
 import pathlib
@@ -60,8 +61,9 @@ class HeadModelPanel(MainViewPanel):
         containerWdgt.setLayout(QtWidgets.QFormLayout())
         self._activeSurfWidget = QtWidgets.QListWidget()
         self._activeSurfWidget.itemSelectionChanged.connect(lambda *args, **kwargs: self._onSurfSelectionChanged())
-        self._activeSurfWidget.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
+        #self._activeSurfWidget.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
         containerWdgt.layout().addRow('Surfaces', self._activeSurfWidget)
+        containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
         self._wdgt.layout().addWidget(containerWdgt)
 
         containerWdgt = QtWidgets.QWidget()
@@ -121,6 +123,8 @@ class HeadModelPanel(MainViewPanel):
             else:
                 selectKey = 'gmSurf'
             self._activeSurfWidget.setCurrentItem(self._activeSurfWidget.findItems(selectKey, QtCore.Qt.MatchExactly)[0])
+
+        self._activeSurfWidget.setMaximumHeight(ceil(self._activeSurfWidget.sizeHintForRow(0) * (self._activeSurfWidget.count() + 0.2)))
 
         for key, view in self._views.items():
             view.updateView()

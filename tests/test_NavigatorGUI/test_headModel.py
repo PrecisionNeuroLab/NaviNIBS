@@ -24,6 +24,12 @@ def headModelDataSourcePath(existingResourcesDataPath):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openHeadModelSession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'SetHeadModel')
+
+
+@pytest.mark.asyncio
 @pytest.mark.order(after='test_MRI.py::test_setMRIInfo')
 async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
