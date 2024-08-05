@@ -13,8 +13,8 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.Signaler import Signal
-from NaviNIBS.util.Transforms import composeTransform, applyTransform
-from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.util.Transforms import composeTransform, applyTransform, applyDirectionTransform
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy, setActorUserTransform, Actor
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class MRISliceView(QueuedRedrawMixin):
     _plotterInitialized: bool = attrs.field(init=False, default=False)
     _plotterPickerInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
+    _volActor: Actor | None = attrs.field(init=False, factory=dict)
 
     _backgroundColor: str = '#000000'
     _opacity: float = 0.5
@@ -267,7 +268,10 @@ class MRISliceView(QueuedRedrawMixin):
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
-            slice = self.session.MRI.dataAsUniformGrid.slice(normal=self._normal, origin=self._sliceOrigin)  # this is very slow for some reason
+            slice = self.session.MRI.dataAsUniformGrid.slice(
+                normal=applyDirectionTransform(self.session.MRI.scannerToDataTransf, self._normal),
+                origin=applyTransform(self.session.MRI.scannerToDataTransf, self._sliceOrigin))
+            # this slicing is very slow for some reason
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_mesh(slice,
                                        name='slice',
@@ -285,22 +289,26 @@ class MRISliceView(QueuedRedrawMixin):
                 logger.debug('Getting MRI data as uniform grid')
                 vol = self.session.MRI.dataAsUniformGrid
                 logger.debug('Initializing volume plot of data')
+                self._volActor = self._plotter.add_volume(vol,
+                                         scalars='MRI',
+                                         name='MRI',
+                                         mapper='gpu',
+                                         clim=self.session.MRI.clim2D,
+                                         scalar_bar_args=dict(
+                                             title='',
+                                             color='white',
+                                             vertical=True,
+                                             position_x=0.02,
+                                             position_y=0.55,
+                                             height=0.4,
+                                             label_font_size=12
+                                         ),
+                                         opacity=[0, self._opacity, self._opacity],
+                                         cmap='gray',
+                                         render=False,
+                                         reset_camera=False)
                 with self._plotter.allowNonblockingCalls():
-                    self._plotter.add_volume(vol,
-                                             scalars='MRI',
-                                             name='MRI',
-                                             mapper='gpu',
-                                             clim=self._clim,
-                                             scalar_bar_args=dict(
-                                                 title='',
-                                                 color='white',
-                                                 vertical=True,
-                                             ),
-                                             opacity=[0, self._opacity, self._opacity],
-                                             cmap='gray',
-                                             render=False,
-                                             reset_camera=False)
-
+                    setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
@@ -419,20 +427,29 @@ class MRI3DView(MRISliceView):
 
         if not self._plotterInitialized:
             logger.debug('Initializing 3D plot')
+
+            self._volActor = self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
+                                                scalars='MRI',
+                                                scalar_bar_args=dict(
+                                                    title='',
+                                                    color='white',
+                                                    vertical=True,
+                                                    position_x=0.02,
+                                                    position_y=0.55,
+                                                    height=0.4,
+                                                    label_font_size=12
+                                                ),
+                                                name='vol',
+                                                clim=self.session.MRI.clim3D,
+                                                cmap='gray',
+                                                mapper='gpu',
+                                                opacity=[0, self._opacity, self._opacity],
+                                                shade=False,
+                                                render=False,
+                                                reset_camera=False)
+
             with self._plotter.allowNonblockingCalls():
-                self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
-                                         scalars='MRI',
-                                         scalar_bar_args=dict(
-                                             title='',
-                                             color='white',
-                                             vertical=True,
-                                         ),
-                                         name='vol',
-                                         clim=self._clim,
-                                         cmap='gray',
-                                         mapper='gpu',
-                                         opacity=[0, self._opacity, self._opacity],
-                                         shade=False)
+                setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
                 self.plotter.reset_camera()
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))

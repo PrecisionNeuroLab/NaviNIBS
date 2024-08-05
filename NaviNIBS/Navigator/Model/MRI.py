@@ -17,6 +17,7 @@ from typing import ClassVar
 
 from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Transforms import invertTransform
 from NaviNIBS.util.numpy import array_equalish
 
 
@@ -29,6 +30,7 @@ class MRI:
 
     _data: tp.Optional[nib.Nifti1Image] = attrs.field(init=False, default=None)
     _dataAsUniformGrid: tp.Optional[pv.ImageData] = attrs.field(init=False, default=None)
+    _inverseAffine: np.ndarray | None = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     sigDataChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -48,24 +50,18 @@ class MRI:
         if True:
             # create pyvista data object
 
-            # get grid spacing from affine transform
-            if np.all((self._data.affine[:-1, :-1] * (1-np.eye(3))) == 0):
-                # for now, only on-diagonal transform supported
-                gridSpacing = self._data.affine.diagonal()[:-1]
-            else:
-                raise NotImplementedError()
-
             if pv.__version__ <= '0.39.1':
                 self._dataAsUniformGrid = pv.UniformGrid(
                     dims=self._data.shape)
             else:
                 self._dataAsUniformGrid = pv.ImageData(
-                    dimensions=self._data.shape,
-                    spacing=gridSpacing,
-                    origin=self._data.affine[:-1, 3]
-                )
+                    dimensions=self._data.shape)
 
             self._dataAsUniformGrid.point_data['MRI'] = np.asanyarray(self.data.dataobj).ravel(order='F')
+
+        if True:
+            # cache inverse of affine transform
+            self._inverseAffine = invertTransform(self._data.affine)
 
         self.sigDataChanged.emit()
 
@@ -74,6 +70,7 @@ class MRI:
             return
         self._data = None
         self._dataAsUniformGrid = None
+        self._inverseAffine = None
 
     def _onFilepathChanged(self):
         with self.sigDataChanged.blocked():
@@ -97,19 +94,44 @@ class MRI:
     def isSet(self):
         return self._filepath is not None
 
-    @property
-    def data(self):
+    def loadCacheIfNeeded(self):
         if self.isSet and self._data is None:
             # data was not previously loaded, but it is available. Load now.
             self.loadCache()
+
+    @property
+    def data(self):
+        self.loadCacheIfNeeded()
         return self._data
 
     @property
     def dataAsUniformGrid(self):
-        if self.isSet and self._data is None:
-            # data was not previously loaded, but it is available. Load now.
-            self.loadCache()
+        """
+        Note: this data is in the original image space (coordinate indices), without any transformations applied.
+        """
+        self.loadCacheIfNeeded()
         return self._dataAsUniformGrid
+
+    @property
+    def dataToScannerTransf(self) -> np.ndarray | None:
+        """
+        Transform from image array (coordinate indices) to native MRI space.
+
+        See https://nipy.org/nibabel/coordinate_systems.html for more info.
+        """
+        self.loadCacheIfNeeded()
+        if self._data is None:
+            return None
+        else:
+            return self._data.affine
+
+    @property
+    def scannerToDataTransf(self) -> np.ndarray | None:
+        """
+        Inverse of ``dataToScannerTransf``
+        """
+        self.loadCacheIfNeeded()
+        return self._inverseAffine
 
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
         d = attrsAsDict(self)
