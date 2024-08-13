@@ -19,6 +19,7 @@ from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWi
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.logging import getLogFilepath
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
@@ -387,9 +388,13 @@ class CameraPanel(MainViewPanelWithDockWidgets):
                 Server = ToolPositionsServer
             case _:
                 raise NotImplementedError(f'Unexpected positionsServerInfo type: {self.session.tools.positionsServerInfo.type}')
-        self._positionsServerProc = mp.Process(target=Server.createAndRun,
-                                               daemon=True,
-                                               kwargs=self.session.tools.positionsServerInfo.initKwargs)
+
+        kwargs = self.session.tools.positionsServerInfo.initKwargs.copy()
+        kwargs['logFilepath'] = getLogFilepath(self.session)
+        self._positionsServerProc = mp.Process(
+            target=Server.createAndRun,
+            daemon=True,
+            kwargs=kwargs)
         self._positionsServerProc.start()
         if self._hasInitialized:
             self._serverStartStopBtn.setText('Stop server')

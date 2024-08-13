@@ -17,7 +17,7 @@ from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util import ZMQAsyncioFix
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
-
+from NaviNIBS.util.logging import createLogFileHandler
 from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
 from NaviNIBS.util.pyvista.RemotePlotting import ActorRef
@@ -380,13 +380,19 @@ class RemotePlotterApp(RunnableAsApp):
     _reqPort: int
     _repPort: int | None = None
     _appName: str = 'RemotePlotter'
+    _logFilepath: str | None = None
     _plotterKwargs: dict = attrs.field(factory=dict)
 
     _plotManager: RemotePlotManager = attrs.field(init=False, default=None)
     _rootWdgt: QtWidgets.QWidget = attrs.field(init=False)
     _debugTimer: QtCore.QTimer = attrs.field(init=False)
+    _logFileHandler: logging.FileHandler = attrs.field(init=False)
 
     def __attrs_post_init__(self):
+        if self._logFilepath is not None:
+            self._logFileHandler = createLogFileHandler(self._logFilepath)
+            logging.getLogger('').addHandler(self._logFileHandler)
+
         logger.debug(f'Initializing {self.__class__.__name__}')
         super().__attrs_post_init__()
         wdgt = QtWidgets.QWidget()

@@ -10,6 +10,7 @@ import zmq.asyncio as azmq
 from NaviNIBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
 from NaviNIBS.util import ZMQAsyncioFix
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.logging import createLogFileHandler
 from NaviNIBS.util.ZMQConnector import ZMQConnectorServer, logger as logger_ZMQConnector
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ class ToolPositionsServer:
     _pubPort: int = positionsServerPubPort
     _cmdPort: int = positionsServerCmdPort
 
+    _logFilepath: str | None = None
+
     _latestPositions: tp.Dict[str, tp.Optional[TimestampedToolPosition]] = attrs.field(init=False, factory=dict)
     _publishingLatestLock: asyncio.Condition = attrs.field(init=False, factory=asyncio.Condition)
     _publishPending: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
@@ -35,6 +38,7 @@ class ToolPositionsServer:
 
     _pubSocket: azmq.Socket = attrs.field(init=False)
     _connector: ZMQConnectorServer = attrs.field(init=False)
+    _logFileHandler: logging.FileHandler = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         ctx = azmq.Context()
@@ -48,6 +52,10 @@ class ToolPositionsServer:
             reqRepPort=self._cmdPort,
             bindAddr=self._hostname
         )
+
+        if self._logFilepath is not None:
+            self._logFileHandler = createLogFileHandler(self._logFilepath)
+            logging.getLogger('').addHandler(self._logFileHandler)
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._publishLatestPositionsLoop))
 

@@ -18,6 +18,7 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from NaviNIBS.util.GUI.Dock import DockArea
 from NaviNIBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
+from NaviNIBS.util.logging import getLogFilepath, createLogFileHandler
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
 from NaviNIBS.Navigator.GUI.ViewPanels import MainViewPanel
@@ -265,13 +266,7 @@ class NavigatorGUI(RunnableAsApp):
             # remove previous session log file handler
             logging.getLogger('').removeHandler(self._logFileHandler)
             self._logFileHandler = None
-        self._logFileHandler = logging.FileHandler(
-            filename=os.path.join(session.unpackedSessionDir, 'NaviNIBS_Log.txt'),
-        )
-        self._logFileHandler.setFormatter(logging.Formatter(
-            fmt='%(asctime)s.%(msecs)03d  %(process)6d %(filename)20s %(lineno)4d %(levelname)5s: %(message)s',
-            datefmt='%H:%M:%S'))
-        self._logFileHandler.setLevel(logging.DEBUG)  # TODO: set to info instead
+        self._logFileHandler = createLogFileHandler(getLogFilepath(session))
         logging.getLogger('').addHandler(self._logFileHandler)
 
     def _onSessionLoaded(self, session: Session):

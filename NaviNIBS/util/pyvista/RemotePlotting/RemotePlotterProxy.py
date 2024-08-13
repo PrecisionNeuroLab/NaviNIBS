@@ -477,6 +477,15 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
     def _startRemoteProc(self, procKwargs, **kwargs):
         assert self.remoteProc is None
+
+        if True:
+            # set log filepath of remote proc based on filepath of root logger file handler
+            handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+            if len(handlers) > 0:
+                logFilepath = handlers[-1].baseFilename
+                procKwargs = procKwargs.copy()
+                procKwargs['logFilepath'] = logFilepath
+
         self.remoteProc = mp.Process(target=RemotePlotterApp.createAndRun,
                                      daemon=True,
                                      kwargs=procKwargs)

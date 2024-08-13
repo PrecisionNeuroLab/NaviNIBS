@@ -40,6 +40,7 @@ darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
 xmltodict = "^0.13.0"
 platformdirs = "^4.2.2"
+concurrent-log-handler = "^0.9.25"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"
