@@ -10,19 +10,19 @@ import typing as tp
 
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.Signaler import Signal
-from NaviNIBS.util.Transforms import composeTransform, applyTransform
-from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+from NaviNIBS.util.Transforms import composeTransform, applyTransform, applyDirectionTransform
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy, setActorUserTransform, Actor
 
 logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class MRISliceView:
+class MRISliceView(QueuedRedrawMixin):
     _normal: tp.Union[str, np.ndarray] = 'x'  # if an ndarray, should actually be 3x3 transform matrix from view pos to world space, not just 3-elem normal direction
     _label: tp.Optional[str] = None  # if none, will be labelled according to normal; this assumes normal won't change
-    _clim: tp.Tuple[float, float] = (300, 2000)  # TODO: set to auto-initialize instead of hardcoding default
     _cameraOffsetDist: float = 100  # distance from slice to camera
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     _sliceOrigin: tp.Optional[np.ndarray] = None
@@ -33,6 +33,7 @@ class MRISliceView:
     _plotterInitialized: bool = attrs.field(init=False, default=False)
     _plotterPickerInitialized: bool = attrs.field(init=False, default=False)
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
+    _volActor: Actor | None = attrs.field(init=False, factory=dict)
 
     _backgroundColor: str = '#000000'
     _opacity: float = 0.5
@@ -44,6 +45,8 @@ class MRISliceView:
     sigSliceTransformChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
+        QueuedRedrawMixin.__attrs_post_init__(self)
+
         self.sigSliceTransformChanged.connect(self.updateView)
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
@@ -94,10 +97,12 @@ class MRISliceView:
 
         if self._session is not None:
             self._session.MRI.sigDataChanged.disconnect(self._onMRIDataChanged)
+            self._session.MRI.sigClimChanged.disconnect(self._onMRIClimChanged)
 
         self._session = newSession
         if self._session is not None:
             self._session.MRI.sigDataChanged.connect(self._onMRIDataChanged)
+            self._session.MRI.sigClimChanged.connect(self._onMRIClimChanged)
 
         self.updateView()
 
@@ -194,6 +199,28 @@ class MRISliceView:
             self._clearPlot()
         self.updateView()
 
+    def _onMRIClimChanged(self, dim: str):
+        if dim == '2D':
+            self._queueRedraw(which='updateClim')
+
+    def _updateClim(self):
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
+
+        if not self._plotterInitialized:
+            # initial plot not created yet
+            return
+
+        if self.session is not None and self.session.MRI.isSet:
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.updateScalarBarRangeWithVol(
+                    clim=self.session.MRI.clim2D,
+                    volumeKey='MRI',
+                    volume=self.session.MRI.dataAsUniformGrid
+                )
+                self._plotter.render()
+
     def _clearPlot(self):
         logger.debug('Clearing plot for {} slice'.format(self.label))
         with self._plotter.allowNonblockingCalls():
@@ -201,16 +228,41 @@ class MRISliceView:
         self.sliceOrigin = None
         self._plotterInitialized = False
 
+    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
+        super()._redraw(which=which, **kwargs)
+
+        if which is None:
+            which = 'all'
+            self._redraw(which=which, **kwargs)
+            return
+
+        if not isinstance(which, str):
+            for subWhich in which:
+                self._redraw(which=subWhich, **kwargs)
+            return
+
+        match which:
+            case 'all':
+                self._redraw(which=['updateView'])
+                return
+
+            case 'updateView':
+                self._updateView()
+
+            case 'updateClim':
+                self._updateClim()
+
+            case _:
+                raise NotImplementedError
+
     def updateView(self):
+        self._queueRedraw(which='updateView')
+
+    def _updateView(self):
         if self.session is None or self.session.MRI.data is None:
             # no data available
             if self._plotterInitialized:
-                logger.debug('Clearing plot for {} slice'.format(self.label))
-                with self._plotter.allowNonblockingCalls():
-                    self._plotter.clear()
-
-                self.sliceOrigin = None
-                self._plotterInitialized = False
+                self._clearPlot()
             return
 
         # data available, update display
@@ -242,7 +294,10 @@ class MRISliceView:
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
-            slice = self.session.MRI.dataAsUniformGrid.slice(normal=self._normal, origin=self._sliceOrigin)  # this is very slow for some reason
+            slice = self.session.MRI.dataAsUniformGrid.slice(
+                normal=applyDirectionTransform(self.session.MRI.scannerToDataTransf, self._normal),
+                origin=applyTransform(self.session.MRI.scannerToDataTransf, self._sliceOrigin))
+            # this slicing is very slow for some reason
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_mesh(slice,
                                        name='slice',
@@ -260,22 +315,26 @@ class MRISliceView:
                 logger.debug('Getting MRI data as uniform grid')
                 vol = self.session.MRI.dataAsUniformGrid
                 logger.debug('Initializing volume plot of data')
+                self._volActor = self._plotter.add_volume(vol,
+                                         scalars='MRI',
+                                         name='MRI',
+                                         mapper='gpu',
+                                         clim=self.session.MRI.clim2D,
+                                         scalar_bar_args=dict(
+                                             title='',
+                                             color='white',
+                                             vertical=True,
+                                             position_x=0.02,
+                                             position_y=0.55,
+                                             height=0.4,
+                                             label_font_size=12
+                                         ),
+                                         opacity=[0, self._opacity, self._opacity],
+                                         cmap='gray',
+                                         render=False,
+                                         reset_camera=False)
                 with self._plotter.allowNonblockingCalls():
-                    self._plotter.add_volume(vol,
-                                             scalars='MRI',
-                                             name='MRI',
-                                             mapper='gpu',
-                                             clim=self._clim,
-                                             scalar_bar_args=dict(
-                                                 title='',
-                                                 color='white',
-                                                 vertical=True,
-                                             ),
-                                             opacity=[0, self._opacity, self._opacity],
-                                             cmap='gray',
-                                             render=False,
-                                             reset_camera=False)
-
+                    setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
@@ -369,7 +428,7 @@ class MRI3DView(MRISliceView):
         else:
             return self._label
 
-    def updateView(self):
+    def _updateView(self):
 
         if self.session is None or self.session.MRI.data is None:
             # no data available
@@ -394,20 +453,29 @@ class MRI3DView(MRISliceView):
 
         if not self._plotterInitialized:
             logger.debug('Initializing 3D plot')
+
+            self._volActor = self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
+                                                scalars='MRI',
+                                                scalar_bar_args=dict(
+                                                    title='',
+                                                    color='white',
+                                                    vertical=True,
+                                                    position_x=0.02,
+                                                    position_y=0.55,
+                                                    height=0.4,
+                                                    label_font_size=12
+                                                ),
+                                                name='vol',
+                                                clim=self.session.MRI.clim3D,
+                                                cmap='gray',
+                                                mapper='gpu',
+                                                opacity=[0, self._opacity, self._opacity],
+                                                shade=False,
+                                                render=False,
+                                                reset_camera=False)
+
             with self._plotter.allowNonblockingCalls():
-                self._plotter.add_volume(self.session.MRI.dataAsUniformGrid.gaussian_smooth(),
-                                         scalars='MRI',
-                                         scalar_bar_args=dict(
-                                             title='',
-                                             color='white',
-                                             vertical=True,
-                                         ),
-                                         name='vol',
-                                         clim=self._clim,
-                                         cmap='gray',
-                                         mapper='gpu',
-                                         opacity=[0, self._opacity, self._opacity],
-                                         shade=False)
+                setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
                 self.plotter.reset_camera()
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
@@ -424,12 +492,35 @@ class MRI3DView(MRISliceView):
                     line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
                     self._lineActors[lineKey] = line
                 else:
-                    logger.debug('Moving previous crosshairs')
-                    line = self._lineActors[lineKey]
-                    pts_pv = pv.lines_from_points(pts)
-                    line.GetMapper().SetInputData(pts_pv)
+                    with self._plotter.allowNonblockingCalls():
+                        logger.debug('Moving previous crosshairs')
+                        line = self._lineActors[lineKey]
+                        pts_pv = pv.lines_from_points(pts)
+                        line.GetMapper().SetInputData(pts_pv)
 
         self._plotterInitialized = True
 
         with self.plotter.allowNonblockingCalls():
             self.plotter.render()
+
+    def _onMRIClimChanged(self, dim: str):
+        if dim == '3D':
+            self._queueRedraw(which='updateClim')
+
+    def _updateClim(self):
+        if not self._finishedAsyncInit.is_set():
+            # plotter not available yet
+            return
+
+        if not self._plotterInitialized:
+            # initial plot not created yet
+            return
+
+        if self.session is not None and self.session.MRI.isSet:
+            with self.plotter.allowNonblockingCalls():
+                self._plotter.updateScalarBarRangeWithVol(
+                    clim=self.session.MRI.clim3D,
+                    volumeKey='MRI',
+                    volume=self.session.MRI.dataAsUniformGrid.gaussian_smooth()
+                )
+                self._plotter.render()

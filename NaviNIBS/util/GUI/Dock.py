@@ -10,8 +10,6 @@ from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
 
 
-DockArea = pgd.DockArea
-
 
 borderColor = '#bbbbbb'
 borderWidth = '2px'

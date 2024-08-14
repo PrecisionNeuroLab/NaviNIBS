@@ -18,6 +18,7 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from NaviNIBS.util.GUI.Dock import DockArea
 from NaviNIBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
+from NaviNIBS.util.logging import getLogFilepath, createLogFileHandler
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayout
 from NaviNIBS.Navigator.GUI.ViewPanels import MainViewPanel
@@ -135,7 +136,13 @@ class NavigatorGUI(RunnableAsApp):
 
     def _addViewPanel(self, panel: _VP) -> _VP:
         logger.info(f'Adding view panel {panel.key}')
-        self._rootDockArea.addDock(panel.dockWdgt, position='below')
+        if len(self._mainViewPanels) > 0:
+            relTo = self._mainViewPanels[list(self._mainViewPanels.keys())[-1]].dockWdgt
+        else:
+            relTo = None
+
+        self._rootDockArea.addDock(panel.dockWdgt, position='below',
+                                         relativeTo=relTo)
         self._mainViewPanels[panel.key] = panel
         if isinstance(panel, MainViewPanelWithDockWidgets):
             panel.sigAboutToRestoreLayout.connect(self._onAboutToRestorePanelLayout)
@@ -259,13 +266,7 @@ class NavigatorGUI(RunnableAsApp):
             # remove previous session log file handler
             logging.getLogger('').removeHandler(self._logFileHandler)
             self._logFileHandler = None
-        self._logFileHandler = logging.FileHandler(
-            filename=os.path.join(session.unpackedSessionDir, 'NaviNIBS_Log.txt'),
-        )
-        self._logFileHandler.setFormatter(logging.Formatter(
-            fmt='%(asctime)s.%(msecs)03d  %(process)6d %(filename)20s %(lineno)4d %(levelname)5s: %(message)s',
-            datefmt='%H:%M:%S'))
-        self._logFileHandler.setLevel(logging.DEBUG)  # TODO: set to info instead
+        self._logFileHandler = createLogFileHandler(getLogFilepath(session))
         logging.getLogger('').addHandler(self._logFileHandler)
 
     def _onSessionLoaded(self, session: Session):
@@ -296,7 +297,7 @@ class NavigatorGUI(RunnableAsApp):
                                attribKeys: list[str] | None = None):
         if self._session is not None:
             if len(self._session.addons) > 0:
-                if attribKeys is None:
+                if attribKeys is None and any(itemKey in self._session.addons for itemKey in itemKeys):
                     raise NotImplementedError  # TODO
                     # TODO: unload any addons changed not present in new session
                 else:
@@ -413,9 +414,9 @@ class NavigatorGUI(RunnableAsApp):
         Note: This doesn't account for "active" views is secondary windows, split views, etc.
         """
         try:
-            return self._rootDockArea.topContainer.stack.currentWidget().name()
+            return self.manageSessionPanel.dockWdgt.parent().parent().stack.currentWidget().name()
         except:
-            # can happen if root is not a tabbed container (?)
+            # can happen if manage session is not in a tabbed container
             return None
 
     def _activateView(self, viewKey: str):

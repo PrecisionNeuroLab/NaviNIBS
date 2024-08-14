@@ -75,6 +75,16 @@ class PlotterImprovementsMixin:
     def __init__(self):
         pass
 
+    def updateScalarBarRangeWithVol(self, clim: tuple[float, float], volumeKey: str, volume: pv.UniformGrid):
+        """
+        Handle manual update of volume scalars that were hard-converted to previous scale within add_volume
+        """
+        scalars = self.mapper.GetInput()
+        scalars[volumeKey] = volume[volumeKey].copy().astype(np.float64)
+        scalars[volumeKey].clip(clim[0], clim[1], out=scalars[volumeKey])
+        scalars[volumeKey] = (scalars[volumeKey] - clim[0]) / (clim[1] - clim[0]) * 255
+        self.update_scalar_bar_range(clim)
+
     def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
         """
         Fix some issues with update_scalar_bar_ranges and handling of all nan values

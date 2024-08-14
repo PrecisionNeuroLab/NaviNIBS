@@ -40,6 +40,10 @@ class RemoteActorProxy:
     def plotter(self):
         return self._plotter
 
+    @property
+    def mapper(self):
+        return self.GetMapper()
+
     def SetUserTransform(self, transform: vtkmodules.vtkCommonTransforms.vtkTransform):
 
         # convert to ndarray since vtkTransform is not pickleable
@@ -129,6 +133,7 @@ class RemoteCameraProxy:
 
 class RemotePlotterProxyBase:
     _camera: RemoteCameraProxy | None = None
+    _mapper: RemoteMapper | None = None
 
     _doQueueCallsAndReturnImmediately: bool = False
     _queuedCalls: list[tuple[str, str, tuple, dict | None, tuple]]
@@ -169,6 +174,12 @@ class RemotePlotterProxyBase:
             self._remoteQueryProperty('camera')
             self._camera = RemoteCameraProxy(plotter=self)
         return self._camera
+
+    @property
+    def mapper(self):
+        if self._mapper is None:
+            self._mapper = RemoteMapper(parentPlotter=self)
+        return self._mapper
 
     @contextmanager
     def allowNonblockingCalls(self):
@@ -288,10 +299,26 @@ class RemotePlotterProxyBase:
 
         return self._remoteCall('callActorMethod', fnStr, args, kwargs, cmdArgs=(actorRef,))
 
-    def _remoteActorMapperCall(self, actor: RemoteActorProxy, fnStr, *args, **kwargs):
+    def _remoteActorMapperCall(self, actor: RemoteActorProxy, fnStr: str, *args, **kwargs):
         actorRef = ActorRef(actorID=actor.actorID)
-
         return self._remoteCall('callActorMapperMethod', fnStr, args, kwargs, cmdArgs=(actorRef,))
+
+    def _remoteActorMapperGet(self, actor: RemoteActorProxy, key: str):
+        actorRef = ActorRef(actorID=actor.actorID)
+        return self._remoteCall('actorMapperGet', key, cmdArgs=(actorRef,))
+
+    def _remoteActorMapperSet(self, actor: RemoteActorProxy, key: str, value):
+        actorRef = ActorRef(actorID=actor.actorID)
+        return self._remoteCall('actorMapperSet', key, (value,), cmdArgs=(actorRef,))
+
+    def _remoteMapperCall(self, fnStr: str, *args, **kwargs):
+        return self._remoteCall('callMapperMethod', fnStr, args, kwargs)
+
+    def _remoteMapperGet(self, key: str):
+        return self._remoteCall('mapperGet', key)
+
+    def _remoteMapperSet(self, key: str, value):
+        return self._remoteCall('mapperSet', key, (value,))
 
     def _remoteCameraGet(self, key: str):
         return self._remoteCall('cameraGet', key)
@@ -398,6 +425,12 @@ class RemotePlotterProxyBase:
     def update_scalars(self, *args, **kwargs):
         return self._remotePlotterCall('update_scalars', *args, **kwargs)
 
+    def update_scalar_bar_range(self, *args, **kwargs):
+        return self._remotePlotterCall('update_scalar_bar_range', *args, **kwargs)
+
+    def updateScalarBarRangeWithVol(self, *args, **kwargs):
+        return self._remotePlotterCall('updateScalarBarRangeWithVol', *args, **kwargs)
+
 
 class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
     """
@@ -444,6 +477,15 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
     def _startRemoteProc(self, procKwargs, **kwargs):
         assert self.remoteProc is None
+
+        if True:
+            # set log filepath of remote proc based on filepath of root logger file handler
+            handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+            if len(handlers) > 0:
+                logFilepath = handlers[-1].baseFilename
+                procKwargs = procKwargs.copy()
+                procKwargs['logFilepath'] = logFilepath
+
         self.remoteProc = mp.Process(target=RemotePlotterApp.createAndRun,
                                      daemon=True,
                                      kwargs=procKwargs)
@@ -572,11 +614,35 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         super().close()
 
 
-@attrs.define(frozen=True)
+@attrs.define
 class RemoteMapper:
-    parentActor: RemoteActorProxy
+    _parentActor: RemoteActorProxy | None = None
+    _parentPlotter: RemotePlotterProxy | None = None
 
     def SetInputData(self, *args, **kwargs):
-        return self.parentActor.plotter._remoteActorMapperCall(
-            self.parentActor,
+        if self._parentActor is None:
+            raise NotImplementedError('Only supported when mapper created from a specific parent actor')
+
+        return self._parentActor.plotter._remoteActorMapperCall(
+            self._parentActor,
             'SetInputData', *args, **kwargs)
+
+    @property
+    def scalar_range(self):
+        if self._parentActor is None:
+            return self._parentPlotter._remoteMapperGet('scalar_range')
+        else:
+            return self._parentActor.plotter._remoteActorMapperGet(self._parentActor, 'scalar_range')
+
+    @scalar_range.setter
+    def scalar_range(self, value: tuple):
+        if self._parentActor is None:
+            self._parentPlotter._remoteMapperSet('scalar_range', value)
+        else:
+            self._parentActor.plotter._remoteActorMapperSet(self._parentActor, 'scalar_range', value)
+
+    def update(self):
+        if self._parentActor is None:
+            return self._parentPlotter._remoteMapperCall('update')
+        else:
+            return self._parentActor.plotter._remoteActorMapperCall(self._parentActor, 'update')

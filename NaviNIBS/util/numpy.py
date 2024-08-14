@@ -19,6 +19,11 @@ def array_equalish(a: tp.Optional[np.ndarray], b: tp.Optional[np.ndarray], *args
     if not np.array_equal(a.shape, b.shape):
         return False
 
+    # as a quick short-circuit test, compare the first element of array to avoid
+    # running isclose on every array element if the first value is already different
+    if a.size > 0 and not np.isclose(a.flat[0], b.flat[0], *args, **kwargs):
+        return False
+
     return np.allclose(a, b, *args, **kwargs)
 
 

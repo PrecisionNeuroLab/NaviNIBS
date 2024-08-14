@@ -129,9 +129,9 @@ class SurfSliceView(MRISliceView):
             # ignore other changes
             pass
 
-    def updateView(self):
+    def _updateView(self):
 
-        super().updateView()
+        super()._updateView()
 
         if not self._finishedAsyncInit.is_set():
             # plotter not available yet
@@ -169,11 +169,6 @@ class SurfSliceView(MRISliceView):
 
             self._surfPlotActors.extend(actors)
 
-        if self._slicePlotMethod != 'cameraClippedVolume':
-            # clip camera for surface
-            with self.plotter.allowNonblockingCalls:
-                self.plotter.camera.clipping_range = (90, 110)
-
         if self._slicePlotMethod == 'cameraClippedVolume':
             with self._primaryPlotter.allowNonblockingCalls():
                 self._primaryPlotter.set_camera_clipping_range((self._cameraOffsetDist * 0.98, self._cameraOffsetDist * 1.02))
@@ -200,7 +195,7 @@ class Surf3DView(SurfSliceView):
 
         super().__attrs_post_init__()
 
-    def updateView(self):
+    def _updateView(self):
 
         if not self._finishedAsyncInit.is_set():
             # plotter not available yet
@@ -295,10 +290,11 @@ class Surf3DView(SurfSliceView):
                         line = self._surfPlotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
                         self._lineActors[lineKey] = line
                     else:
-                        logger.debug('Moving previous crosshairs')
-                        line = self._lineActors[lineKey]
-                        pts_pv = pv.lines_from_points(pts)
-                        line.GetMapper().SetInputData(pts_pv)
+                        with self._plotter.allowNonblockingCalls():
+                            logger.debug('Moving previous crosshairs')
+                            line = self._lineActors[lineKey]
+                            pts_pv = pv.lines_from_points(pts)
+                            line.GetMapper().SetInputData(pts_pv)
 
         self._plotterInitialized = True
 
