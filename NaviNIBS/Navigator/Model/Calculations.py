@@ -88,8 +88,8 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
             raise NotImplementedError
 
     # convert refDirs to MRI space
-    refDir1_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir1)
-    refDir2_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir2)
+    refDir1_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir1, doCheck=False)
+    refDir2_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir2, doCheck=False)
 
     return refDir1_MRI, refDir2_MRI
 
@@ -103,7 +103,7 @@ def calculateAngleFromMidlineFromCoilToMRITransf(session: Session, coilToMRITran
         return None
 
     handleDir_coilSpace = np.asarray([0, -1, 0])
-    handleDir_MRI = applyDirectionTransform(coilToMRITransf, handleDir_coilSpace)
+    handleDir_MRI = applyDirectionTransform(coilToMRITransf, handleDir_coilSpace, doCheck=False)
 
     handleComp1 = np.dot(handleDir_MRI, refDir1_MRI)
     handleComp2 = np.dot(handleDir_MRI, refDir2_MRI)
@@ -166,15 +166,15 @@ def calculateCoilToMRITransfFromTargetEntryAngle(session: Session | None,
     refDir1_MRI, refDir2_MRI = calculateMidlineRefDirectionsFromCoilToMRITransf(session, coilToMRITransf)
     #logger.debug(f'refDir1_MRI: {refDir1_MRI} refDir2_MRI: {refDir2_MRI}')
 
-    refDir1_coil = Vector(applyDirectionTransform(invertTransform(coilToMRITransf), refDir1_MRI))
-    refDir2_coil = Vector(applyDirectionTransform(invertTransform(coilToMRITransf), refDir2_MRI))
+    refDir1_coil = Vector(applyDirectionTransform(invertTransform(coilToMRITransf), refDir1_MRI, doCheck=False))
+    refDir2_coil = Vector(applyDirectionTransform(invertTransform(coilToMRITransf), refDir2_MRI, doCheck=False))
     #logger.debug(f'refDir1_coil: {refDir1_coil} refDir2_coil: {refDir2_coil}')
     refPlaneNormal_coil = refDir1_coil.cross(refDir2_coil)
     #logger.debug(f'refPlaneNormal_coil: {refPlaneNormal_coil}')
     # note: this reference plane is likely tilted out of the XY plane of the coil space
     rotHandleInRefPlaneTransf = np.eye(4)
     rotHandleInRefPlaneTransf[:3, :3] = ptr.matrix_from_axis_angle(np.append(refPlaneNormal_coil, np.deg2rad(angle)))
-    handleDirInRefPlane_coil = Vector(applyDirectionTransform(rotHandleInRefPlaneTransf, refDir1_coil))
+    handleDirInRefPlane_coil = Vector(applyDirectionTransform(rotHandleInRefPlaneTransf, refDir1_coil, doCheck=False))
     #logger.debug(f'handleDirInRefPlane_coil: {handleDirInRefPlane_coil}')
     if True:
         vec_rotAxis = refPlaneNormal_coil.cross(handleDirInRefPlane_coil)
