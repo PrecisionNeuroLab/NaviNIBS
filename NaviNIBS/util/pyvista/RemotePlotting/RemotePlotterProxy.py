@@ -416,8 +416,17 @@ class RemotePlotterProxyBase:
     def pauseRendering(self):
         return self._remotePlotterCall('pauseRendering')
 
+    def maybeResumeRendering(self):
+        return self._remotePlotterCall('maybeResumeRendering')
+
     def resumeRendering(self):
         return self._remotePlotterCall('resumeRendering')
+
+    @contextmanager
+    def renderingPaused(self):
+        self.pauseRendering()
+        yield
+        self.maybeResumeRendering()
 
     def update(self, *args, **kwargs):
         return self._remotePlotterCall('update', *args, **kwargs)

@@ -22,6 +22,7 @@ class _DelayedPlotter:
     _needsRender: asyncio.Event
     _renderTask: asyncio.Task
     _renderingNotPaused: asyncio.Event
+    _pauseStackCount_: int
     minRenderPeriod: float
 
     def __init__(self, minRenderPeriod: float = 0.05):
@@ -29,24 +30,40 @@ class _DelayedPlotter:
         self._renderingNotPaused = asyncio.Event()
         self._renderingNotPaused.set()
 
+        self._pauseStackCount_ = 0
+
         self.minRenderPeriod = minRenderPeriod
 
         self._renderTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._renderLoop))
 
+    @property
+    def _pauseStackCount(self):
+        return self._pauseStackCount_
+
+    @_pauseStackCount.setter
+    def _pauseStackCount(self, value: int):
+        if value < 0:
+            value = 0
+        self._pauseStackCount_ = value
+        if self._pauseStackCount_ == 0:
+            self._renderingNotPaused.set()
+        else:
+            self._renderingNotPaused.clear()
+
     def pauseRendering(self):
-        self._renderingNotPaused.clear()
+        self._pauseStackCount += 1
+
+    def maybeResumeRendering(self):
+        self._pauseStackCount -= 1
 
     def resumeRendering(self):
-        self._renderingNotPaused.set()
+        self._pauseStackCount = 0
 
     @contextmanager
     def renderingPaused(self):
-        prevNotPaused = self._renderingNotPaused.is_set()
-        if not prevNotPaused:
-            self.pauseRendering()
+        self.pauseRendering()
         yield
-        if prevNotPaused:
-            self.resumeRendering()
+        self.maybeResumeRendering()
 
     def _renderNow(self):
         self._needsRender.clear()

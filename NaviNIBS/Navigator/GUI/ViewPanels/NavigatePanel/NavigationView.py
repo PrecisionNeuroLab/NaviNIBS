@@ -321,22 +321,23 @@ class SinglePlotterNavigationView(NavigationView):
                     return
 
         with self._plotter.allowNonblockingCalls():
-            self._plotter.camera.focal_point = cameraPts[0, :]
-            self._plotter.camera.position = cameraPts[1, :]
-            self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
-            if True:
-                # force fixed zoom in parallel camera views
-                self.plotter.camera.parallel_scale = self._cameraDist / 2
+            with self._plotter.renderingPaused():
+                self._plotter.camera.focal_point = cameraPts[0, :]
+                self._plotter.camera.position = cameraPts[1, :]
+                self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
+                if True:
+                    # force fixed zoom in parallel camera views
+                    self.plotter.camera.parallel_scale = self._cameraDist / 2
 
-            if False:
-                # force fixed zoom in perspective camera views
-                self.plotter.camera.view_angle = 60.
+                if False:
+                    # force fixed zoom in perspective camera views
+                    self.plotter.camera.view_angle = 60.
 
-            if self._alignCameraTo[-1] in 'XY' and False:
-                # orthogonal view, clip camera
-                self._plotter.camera.clipping_range = (self._cameraDist-0.1, self._cameraDist+0.1)
-            else:
-                self._plotter.reset_camera_clipping_range()
+                if self._alignCameraTo[-1] in 'XY' and False:
+                    # orthogonal view, clip camera
+                    self._plotter.camera.clipping_range = (self._cameraDist-0.1, self._cameraDist+0.1)
+                else:
+                    self._plotter.reset_camera_clipping_range()
             self._plotter.render()
 
         if not self._wdgt.isVisible():
