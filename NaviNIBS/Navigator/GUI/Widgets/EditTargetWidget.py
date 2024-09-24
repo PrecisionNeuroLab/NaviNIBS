@@ -7,12 +7,14 @@ import pytransform3d.rotations as ptr
 from skspatial.objects import Line, Plane, Vector
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
+import qtawesome as qta
 
 from NaviNIBS.Navigator.Model.Targets import Target
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
 from NaviNIBS.Navigator.Model.Session import Session, Tool
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
+from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
 from NaviNIBS.util.GUI.QDial import AngleDial
@@ -47,6 +49,7 @@ class CoordinateWidget:
     _wdgt: QtWidgets.QWidget = attrs.field(factory=QtWidgets.QWidget)
     _layout: QtWidgets.QFormLayout = attrs.field(init=False, factory=QtWidgets.QFormLayout)
     _coordInSysWdgts: dict[str, QtWidgets.QLabel] = attrs.field(init=False, factory=dict)
+    _editCoordInSysWdgts: dict[str, QtWidgets.QToolButton] = attrs.field(init=False, factory=dict)
     _setCoordButton: QtWidgets.QPushButton | None = attrs.field(init=False, default=None)
     _autoUpdateOtherCoordCheckbox: QtWidgets.QCheckBox | None = attrs.field(init=False, default=None)
 
@@ -60,7 +63,6 @@ class CoordinateWidget:
             self._autoUpdateOtherCoordCheckbox = QtWidgets.QCheckBox('')
             self._autoUpdateOtherCoordCheckbox.setChecked(self._doAutoUpdateOtherCoord)
             self._layout.addRow(f'Auto-update {self._whichOtherCoord} on set', self._autoUpdateOtherCoordCheckbox)
-
 
     @property
     def session(self):
@@ -117,11 +119,69 @@ class CoordinateWidget:
                 case _:
                     raise NotImplementedError
 
+    def _onEditCoordClicked(self, coordKey: str):
+
+        worldCoord = getattr(self._target, self.coordAttrib)
+
+        logger.info(f'Editing {coordKey} {self.coordAttrib} coordinates for target {self._target.key}')
+
+        if coordKey == 'World':
+            coord = worldCoord
+        else:
+            coord = self._session.coordinateSystems[coordKey].transformFromWorldToThis(worldCoord)
+
+        coordTxt = ', '.join([f'{c:.2f}' for c in coord])
+
+        respTxt, ok = QtWidgets.QInputDialog.getText(
+            self.wdgt,
+            f'Edit coordinates',
+            f'{coordKey} x, y, z',
+            QtWidgets.QLineEdit.Normal,
+            coordTxt)
+
+        if not ok:
+            # edit was cancelled
+            return
+
+        try:
+            newCoord = np.fromstring(respTxt, sep=',')
+
+            if len(newCoord) == 0:
+                raise ValueError('No coordinates entered')
+
+            elif len(newCoord) != 3:
+                raise ValueError('Expected 3 coordinates')
+        except Exception as e:
+            logger.warning(f'Unable to parse response {respTxt}. Canceling edit.\n{exceptionToStr(e)}')
+            return
+
+        logger.info(f'User specified coordinate: {newCoord}')
+
+        if coordKey == 'World':
+            newCoord_world = newCoord
+        else:
+            newCoord_world = self._session.coordinateSystems[coordKey].transformFromThisToWorld(newCoord)
+
+            logger.info(f'New coordinates in world space: {newCoord_world}')
+
+        setattr(self._target, self.coordAttrib, newCoord_world)
+
+        if self._autoUpdateOtherCoordCheckbox is not None and self._autoUpdateOtherCoordCheckbox.isChecked():
+            match self._whichOtherCoord:
+                case 'entry':
+                    self.target.autosetEntryCoord()
+                case 'target':
+                    raise NotImplementedError('Auto-updating target from entry not yet implemented')
+                    # TODO: add support for this in Target class, similar to ``autosetEntryCoord``
+                case _:
+                    raise NotImplementedError
+
     def _redraw(self):
         if self._session is None:
-            for key, wdgt in self._coordInSysWdgts.items():
-                self._layout.removeWidget(wdgt)
-            self._coordInSysWdgts.clear()
+            for wdgtsDict in (self._coordInSysWdgts, self._editCoordInSysWdgts):
+                for key, wdgt in wdgtsDict.items():
+                    self._layout.removeWidget(wdgt)
+                wdgtsDict.clear()
             if self._setCoordButton is not None:
                 self._setCoordButton.setEnabled(False)
             return
@@ -129,9 +189,14 @@ class CoordinateWidget:
         if self._target is None:
             for key, wdgt in self._coordInSysWdgts.items():
                 wdgt.setText('')
+            for key, wdgt in self._editCoordInSysWdgts.items():
+                wdgt.setEnabled(False)
             if self._setCoordButton is not None:
                 self._setCoordButton.setEnabled(False)
             return
+
+        for key, wdgt in self._editCoordInSysWdgts.items():
+            wdgt.setEnabled(True)
 
         if self._setCoordButton is not None:
             self._setCoordButton.setEnabled(True)
@@ -144,10 +209,23 @@ class CoordinateWidget:
                 if key != 'World':
                     wdgt.setToolTip(self._session.coordinateSystems[key].description)
                 self._coordInSysWdgts[key] = wdgt
-                self._layout.insertRow(iKey, key, wdgt)
+                if True:
+                    # add an edit button next to displayed coordinates
+                    container = QtWidgets.QWidget()
+                    self._layout.insertRow(iKey, key, container)
+                    container.setLayout(QtWidgets.QHBoxLayout())
+                    container.layout().setContentsMargins(0, 0, 0, 0)
+                    container.layout().addWidget(wdgt)
+                    container.layout().addStretch()
 
-            # TODO: make mainCoord widget an editable lineedit, keep others readonly unless user
-            #  specifically chooses to switch main coordinate system defining the coordinate (if allowed)
+                    editWdgt = QtWidgets.QToolButton()
+                    self._editCoordInSysWdgts[key] = editWdgt
+                    editWdgt.setIcon(qta.icon('mdi6.pencil'))
+                    editWdgt.clicked.connect(lambda *args, coordKey=key: self._onEditCoordClicked(coordKey))
+                    container.layout().addWidget(editWdgt)
+                else:
+                    # read-only, don't create an edit button
+                    self._layout.insertRow(iKey, key, wdgt)
 
             worldCoord = getattr(self._target, self.coordAttrib)
 
