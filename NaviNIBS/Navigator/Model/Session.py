@@ -521,10 +521,10 @@ class Session:
                     sections.remove('targets')
                 if isinstance(d, dict):
                     assert 'targets' in d, 'Targets to import/merge should be in json with "targets" as a field in a root-level dict'
-                    newTargets = Targets.fromList(d['targets'])
+                    newTargets = Targets.fromList(d['targets'], session=self)
                 else:
                     assert isinstance(d, list)
-                    newTargets = Targets.fromList(d)
+                    newTargets = Targets.fromList(d, session=self)
                 self.targets.merge(newTargets)
 
             if sections is None or 'tools' in sections:
@@ -532,10 +532,10 @@ class Session:
                     sections.remove('tools')
                 if isinstance(d, dict):
                     assert 'tools' in d, 'Tools to import/merge should be in json with "tools" as a field in a root-level dict'
-                    newTools = Tools.fromList(d['tools'])
+                    newTools = Tools.fromList(d['tools'], sessionPath=self._filepath)
                 else:
                     assert isinstance(d, list)
-                    newTools = Tools.fromList(d)
+                    newTools = Tools.fromList(d, sessionPath=self._filepath)
                 self.tools.merge(newTools)
 
             if sections is not None and len(sections) > 0:

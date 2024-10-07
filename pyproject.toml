@@ -5,7 +5,7 @@ classifiers = [
 
 [tool.poetry]
 name = "NaviNIBS"
-version = "0.1.7a1"
+version = "0.1.7a2"
 description = "Software for neuronavigated non-invasive brain stimulation"
 repository = "https://github.com/PrecisionNeuroLab/NaviNIBS"
 documentation = "https://precisionneurolab.github.io/NaviNIBS_Documentation"

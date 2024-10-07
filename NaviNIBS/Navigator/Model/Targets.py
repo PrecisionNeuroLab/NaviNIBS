@@ -317,7 +317,7 @@ class Target(GenericCollectionDictItem[str]):
         if closestPt_skin is None:
             raise ValueError('Missing information, cannot autoset entry coord')
 
-        logger.debug(f'Autosetting entry info to {closestPt_skin}')
+        logger.info(f'Autosetting entry info to {closestPt_skin}')
 
         self.entryCoord = closestPt_skin
 
@@ -328,6 +328,15 @@ class Target(GenericCollectionDictItem[str]):
     def fromDict(cls, d: tp.Dict[str, tp.Any], session: Session | None = None):
         o = attrsWithNumpyFromDict(cls, d, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
         o.session = session
+
+        if True:
+            # auto-set entry coordinate based on target if entryCoord or coilToMRITransf not specified
+            if o.targetCoord is not None and o.entryCoord is None and o._coilToMRITransf is None:
+                if session is not None:
+                    o.autosetEntryCoord()
+                else:
+                    logger.warning(f'No entry info for target {o.key}, no session info with which to autoset entry coord')
+
         return o
 
 
