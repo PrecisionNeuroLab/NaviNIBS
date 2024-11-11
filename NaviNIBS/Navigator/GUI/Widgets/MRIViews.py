@@ -28,6 +28,7 @@ class MRISliceView(QueuedRedrawMixin):
     _sliceOrigin: tp.Optional[np.ndarray] = None
 
     _slicePlotMethod: str = 'cameraClippedVolume'
+    _doShowScalarBar: bool = False
 
     _plotter: DefaultBackgroundPlotter = attrs.field(init=False, default=None)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
@@ -303,7 +304,8 @@ class MRISliceView(QueuedRedrawMixin):
                                        name='slice',
                                        cmap='gray',
                                        render=False,
-                                       reset_camera=False)
+                                       reset_camera=False,
+                                       show_scalar_bar=self._doShowScalarBar)
                 if isinstance(self._normal, str):
                     self.plotter.camera_position = 'xyz'.replace(self._normal, '')
                 else:
@@ -331,6 +333,7 @@ class MRISliceView(QueuedRedrawMixin):
                                          ),
                                          opacity=[0, self._opacity, self._opacity],
                                          cmap='gray',
+                                         show_scalar_bar=self._doShowScalarBar,
                                          render=False,
                                          reset_camera=False)
                 with self._plotter.allowNonblockingCalls():
@@ -468,6 +471,7 @@ class MRI3DView(MRISliceView):
                                                 name='vol',
                                                 clim=self.session.MRI.clim3D,
                                                 cmap='gray',
+                                                show_scalar_bar=self._doShowScalarBar,
                                                 mapper='gpu',
                                                 opacity=[0, self._opacity, self._opacity],
                                                 shade=False,

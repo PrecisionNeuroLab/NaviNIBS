@@ -123,6 +123,10 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                     assert key in self._columns, f'{key} not in main columns list'
 
     @property
+    def collection(self):
+        return self._collection
+
+    @property
     def collectionIsDict(self):
         return hasattr(self._collection, 'keys')
 

@@ -104,12 +104,11 @@ class MRIPanel(MainViewPanel):
 
             self._updateClimWidgetsFromModel(dim)
 
-
         for iRow, iCol, dim in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if dim in ('x', 'y', 'z'):
-                self._views[dim] = MRISliceView(normal=dim)
+                self._views[dim] = MRISliceView(normal=dim, doShowScalarBar=True)
             elif dim == '3D':
-                self._views[dim] = MRI3DView(label=dim)
+                self._views[dim] = MRI3DView(label=dim, doShowScalarBar=True)
             else:
                 raise NotImplementedError()
 
