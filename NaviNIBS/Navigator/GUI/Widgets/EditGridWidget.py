@@ -32,6 +32,7 @@ class EditGridWidget:
 
     _targetComboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
     _targetsModel: FullTargetsTableModel = attrs.field(init=False)
+    _preChangeTargetComboBoxIndex: list[int] = attrs.field(init=False, factory=list)
 
     _gridPrimaryAngleWdgt: AngleDial = attrs.field(init=False)
 
@@ -41,8 +42,6 @@ class EditGridWidget:
     _gridEntryAngleMethodWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
 
     _seedTarget: Target | None = attrs.field(init=False, default=None)
-
-
 
     _disableWidgetsWhenNoTarget: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
 
@@ -71,6 +70,12 @@ class EditGridWidget:
 
         self._targetsModel = FullTargetsTableModel(session=self._session)
         self._targetComboBox.setModel(self._targetsModel)
+        if True:
+            # because setting targets from empty to non-empty also sets current index to 0, need to monitor collection directly to block this
+            self._targetsModel.collection.sigItemsAboutToChange.connect(
+                self._onTargetsCollectionAboutToChange, priority=1)
+            self._targetsModel.collection.sigItemsChanged.connect(
+                self._onTargetsCollectionChanged, priority=-1)
         self._targetComboBox.setCurrentIndex(-1)
         self._targetComboBox.currentIndexChanged.connect(self._onTargetComboBoxCurrentIndexChanged)
         layout.addRow('Seed target:', self._targetComboBox)
@@ -210,6 +215,29 @@ class EditGridWidget:
             await asyncio.sleep(0.1)  # rate-limit
             self._gridNeedsUpdate.clear()
             self._regenerateGrid()
+
+    def _onTargetsCollectionAboutToChange(self, *args, **kwargs):
+        if len(self._preChangeTargetComboBoxIndex) == 0:
+            # don't respond to combo box index changes during a targets change,
+            # since if the starting selection is empty it will force reset to non-empty
+            self._targetComboBox.currentIndexChanged.disconnect(
+                self._onTargetComboBoxCurrentIndexChanged)
+        self._preChangeTargetComboBoxIndex.append(self._targetComboBox.currentIndex())
+
+    def _onTargetsCollectionChanged(self, *args, **kwargs):
+        if len(self._preChangeTargetComboBoxIndex) > 0:
+            # one a change is complete, restore previous index
+            # if it was empty, and respond to any other change
+            prevIndex = self._preChangeTargetComboBoxIndex.pop()
+
+            if len(self._preChangeTargetComboBoxIndex) == 0:
+                if prevIndex == -1:
+                    self._targetComboBox.setCurrentIndex(-1)
+                elif prevIndex != self._targetComboBox.currentIndex():
+                    self._onTargetComboBoxCurrentIndexChanged(self._targetComboBox.currentIndex())
+
+                self._targetComboBox.currentIndexChanged.connect(
+                    self._onTargetComboBoxCurrentIndexChanged)
 
     def _deleteAnyPendingGridTargets(self):
         if len(self._pendingGridTargetKeys) > 0:
@@ -371,7 +399,6 @@ class EditGridWidget:
         self._gridNeedsUpdate.set()
 
     def _onTargetComboBoxCurrentIndexChanged(self, index: int):
-
         if index == -1:
             self.seedTarget = None
             return

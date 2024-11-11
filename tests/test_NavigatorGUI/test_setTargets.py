@@ -57,6 +57,15 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
     # equivalent to clicking "Import targets from file..." button and browsing to file
     navigatorGUI.setTargetsPanel._importTargetsFromFile(targetsDataSourcePath)
 
+    screenshotPath = os.path.join(sessionPath, 'SetTargets_Imported.png')
+    await utils.raiseMainNavigatorGUI()
+    utils.captureScreenshot(navigatorGUI, screenshotPath)
+    pyperclip.copy(str(screenshotPath))
+
+    utils.compareImages(screenshotPath,
+                        os.path.join(screenshotsDataSourcePath, 'SetTargets_Imported.png'),
+                        doAssertEqual=utils.doAssertScreenshotsEqual)
+
     # equivalent to clicking on corresponding entry in table
     navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 't2-45'
 
@@ -67,15 +76,16 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert ses.targets['t2-45'].targetCoord.round(1).tolist() == [-30.1, 32.0, 52.9]
 
+    # assert that there are not yet any grid targets
+    # (due to a GUI quirk in previous version, grid targets may be created immediately)
+    assert not any('grid' in targetKey for targetKey in ses.targets.keys())
+
     # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
     await asyncio.sleep(60.)
     screenshotPath = os.path.join(sessionPath, 'SetTargets_ImportedAndSelected.png')
     await utils.raiseMainNavigatorGUI()
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
-
-    # TODO: update ground-truth screenshot to not include a new grid target by default immediately
-    # after import (currently there due to a grid edit GUI bug that applies grid too aggressively)
 
     utils.compareImages(screenshotPath,
                         os.path.join(screenshotsDataSourcePath, 'SetTargets_ImportedAndSelected.png'),
