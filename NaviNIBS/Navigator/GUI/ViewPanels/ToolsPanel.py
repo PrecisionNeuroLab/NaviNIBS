@@ -224,7 +224,7 @@ class ToolWidget:
                 )
                 self._toolSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.toolStlToToolTransf)
-                self._toolSpacePlotter.show_grid(
+                self._toolSpacePlotter.showGrid(
                     color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
                     **defaultGridKwargs)
 
@@ -238,7 +238,7 @@ class ToolWidget:
                 )
                 self._trackerSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
-                self._trackerSpacePlotter.show_grid(
+                self._trackerSpacePlotter.showGrid(
                     color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
                     **defaultGridKwargs)
 
@@ -267,7 +267,7 @@ class ToolWidget:
                 )
                 self._trackerSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
-                self._trackerSpacePlotter.show_grid(
+                self._trackerSpacePlotter.showGrid(
                     color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
                     **defaultGridKwargs)
 
@@ -281,7 +281,7 @@ class ToolWidget:
                     )
                     self._toolSpaceActors[actorKey] = actor
                     setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
-                    self._toolSpacePlotter.show_grid(
+                    self._toolSpacePlotter.showGrid(
                         color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
                         **defaultGridKwargs)
 

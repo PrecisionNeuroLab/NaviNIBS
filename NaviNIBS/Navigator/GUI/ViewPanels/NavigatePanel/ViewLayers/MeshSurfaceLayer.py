@@ -248,7 +248,7 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
                         setActorUserTransform(self._actors[actorKey], transf)
                         self._plotter.render()
                     else:
-                        pass  # assume since plotInSpace is always MRI (for now) that we don't need to update anything
+                        pass  # assume since plotInSpace is MRI that we don't need to update anything
                 case 'World':
 
                     actorKey = self._getActorKey('surf')

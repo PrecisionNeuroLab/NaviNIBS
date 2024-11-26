@@ -379,6 +379,8 @@ class MRISliceView(QueuedRedrawMixin):
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
+                    with self._plotter.allowNonblockingCalls():
+                        line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
                     self._lineActors[lineKey] = line
                 else:
                     with self._plotter.allowNonblockingCalls():
@@ -481,6 +483,7 @@ class MRI3DView(MRISliceView):
             with self._plotter.allowNonblockingCalls():
                 setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
                 self.plotter.reset_camera()
+                # self.plotter.camera.zoom('tight')
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
@@ -494,6 +497,8 @@ class MRI3DView(MRISliceView):
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
+                    with self._plotter.allowNonblockingCalls():
+                        line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
                     self._lineActors[lineKey] = line
                 else:
                     with self._plotter.allowNonblockingCalls():

@@ -198,8 +198,8 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
     transf_coilTrackerToWorld = navigatorGUI.navigatePanel._coordinator._positionsClient.getLatestTransf(coilTool.trackerKey)
     transf_coilToCoilTracker = navigatorGUI.navigatePanel._coordinator.activeCoilTool.toolToTrackerTransf
 
-    extraRot_newToOrigCoil = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi/32, np.pi/32, np.pi/8])
-    transf_newToOrigCoil = composeTransform(extraRot_newToOrigCoil, np.array([3, 4, 0]))
+    extraRot_newToOrigCoil = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi/32, np.pi/32, np.pi/16])
+    transf_newToOrigCoil = composeTransform(extraRot_newToOrigCoil, np.array([1, 2, 0]))
 
     newCoilTrackerPose = concatenateTransforms([
         invertTransform(transf_coilToCoilTracker),
@@ -228,9 +228,9 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
     random.seed(a=1)
     numSamples = 50
     sampleShifts = np.zeros((numSamples, 6))
-    shiftDist = 5.
+    shiftDist = 3.
     rotAngOutOfPlane = np.pi/64
-    rotAngInPlane = np.pi/8
+    rotAngInPlane = np.pi/16
     for i in range(numSamples):
         sampleShifts[i, :] = np.array([random.gauss(sigma=shiftDist),
                                     random.gauss(sigma=shiftDist),

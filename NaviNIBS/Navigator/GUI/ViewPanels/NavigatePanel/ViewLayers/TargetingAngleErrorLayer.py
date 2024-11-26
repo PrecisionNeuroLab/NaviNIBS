@@ -23,7 +23,7 @@ class TargetingAngleErrorLayer(PlotViewLayer):
     _color: str = '#ff5500'
     _opacity: float = 0.5
     _lineWidth: float = 4.
-    _radius: float = 7.5
+    _radius: float = 10
     _multiplier: float = 1.
 
     _numArcSegments: int = 90  # TODO: check whether this needs to be reduced to improve render performance
