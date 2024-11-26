@@ -64,6 +64,14 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
             asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsLoop))
 
+        """
+        Allow drag reordering of columns. However, these won't affect underlying
+        data models and won't be persistent.
+        """
+        self._tableView.horizontalHeader().setSectionsMovable(True)
+        # TODO: add extra infrastructure to make these reorderings persistent
+        # TODO: add right click context menu to hide / show columns
+
         if self._session is not None:
             self._onSessionSet()
 
@@ -214,6 +222,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._needsResizeToContents.clear()
         self._tableView.resizeColumnsToContents()
         self._resizeToContentsPending = False  # cancel any auto-queued resize
+
 
 @attrs.define
 class DigitizedLocationsTableWidget(CollectionTableWidget[str, DigitizedLocation, DigitizedLocations, DigitizedLocationsTableModel]):
