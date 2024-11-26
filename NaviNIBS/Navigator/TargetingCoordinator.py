@@ -59,7 +59,10 @@ class TargetingCoordinator:
     _isOnTargetWhenDistErrorUnder: float = 1  # in mm
     _isOnTargetWhenZAngleErrorUnder: float = 2.  # in deg
     _isOnTargetWhenHorizAngleErrorUnder: float = 4.  # in deg
-    _isOnTargetWhenZDistErrorUnder: float = 4.  # in mm
+    _isOnTargetWhenZDistErrorBetween: tuple[float, float] = (-8, 4.)  # in mm
+    """
+    in mm. Uses span to allow greater error in negative region (i.e. coil closer to head than planned).
+    """
     _isOnTargetMinTime: float = 0.5  # in sec, don't report being on target until after staying on target for at least this long
     _isOffTargetWhenDistErrorExceeds: float = 2.  # in mm
     _isOffTargetWhenZAngleErrorExceeds: float = 4.  # in deg
@@ -274,7 +277,10 @@ class TargetingCoordinator:
 
             if not isStillOffTarget:
                 depthDistError = self._currentPoseMetrics.getDepthOffsetError()
-                if np.isnan(depthDistError) or abs(depthDistError) > self._isOnTargetWhenZDistErrorUnder:
+                if (np.isnan(depthDistError) or
+                        self._isOnTargetWhenZDistErrorBetween[0] > depthDistError or
+                        depthDistError > self._isOnTargetWhenZDistErrorBetween[1]):
+
                     isStillOffTarget = True
 
             if self._onTargetMaybeChangedAtTime is not None:
