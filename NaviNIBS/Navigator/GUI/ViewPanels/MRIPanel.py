@@ -56,7 +56,6 @@ class MRIPanel(MainViewPanel):
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
                                  extFilters='Nifti (*.nii; *.nii.gz)')
         # TODO: set supported file formats to (.nii | .nii.gz) only
-        wdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
         self._wdgt.layout().addWidget(wdgt)
         self._filepathWdgt = wdgt
 
@@ -134,6 +133,7 @@ class MRIPanel(MainViewPanel):
     def _onPanelInitializedAndSessionSet(self):
         self._updateFilepath()
         self._updateRelativeToPath()
+        self._filepathWdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
         self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
         self.session.MRI.sigFilepathChanged.connect(self._updateFilepath)
         self.session.MRI.sigClimChanged.connect(self._updateClimWidgetsFromModel)

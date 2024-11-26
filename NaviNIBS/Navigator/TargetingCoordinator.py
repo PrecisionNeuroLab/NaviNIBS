@@ -368,7 +368,7 @@ class TargetingCoordinator:
     @property
     def activeCoilKey(self) -> str | None:
         if self._cachedActiveCoilKey is None:
-            # if no active coil specified, use first active coil in list
+            # if no active coil specified, use topmost active coil in list
             for toolKey, tool in self._session.tools.items():
                 if tool.isActive and isinstance(tool, CoilTool):
                     self._cachedActiveCoilKey = toolKey
