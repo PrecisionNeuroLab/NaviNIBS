@@ -56,7 +56,6 @@ class MRIPanel(MainViewPanel):
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
                                  extFilters='Nifti (*.nii; *.nii.gz)')
         # TODO: set supported file formats to (.nii | .nii.gz) only
-        wdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
         self._wdgt.layout().addWidget(wdgt)
         self._filepathWdgt = wdgt
 
@@ -104,12 +103,11 @@ class MRIPanel(MainViewPanel):
 
             self._updateClimWidgetsFromModel(dim)
 
-
         for iRow, iCol, dim in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if dim in ('x', 'y', 'z'):
-                self._views[dim] = MRISliceView(normal=dim)
+                self._views[dim] = MRISliceView(normal=dim, doShowScalarBar=True)
             elif dim == '3D':
-                self._views[dim] = MRI3DView(label=dim)
+                self._views[dim] = MRI3DView(label=dim, doShowScalarBar=True)
             else:
                 raise NotImplementedError()
 
@@ -135,6 +133,7 @@ class MRIPanel(MainViewPanel):
     def _onPanelInitializedAndSessionSet(self):
         self._updateFilepath()
         self._updateRelativeToPath()
+        self._filepathWdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
         self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
         self.session.MRI.sigFilepathChanged.connect(self._updateFilepath)
         self.session.MRI.sigClimChanged.connect(self._updateClimWidgetsFromModel)

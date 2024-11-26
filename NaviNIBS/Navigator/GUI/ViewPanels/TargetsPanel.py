@@ -17,6 +17,7 @@ import shutil
 import typing as tp
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.Dock import Dock, DockArea
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
@@ -219,6 +220,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
     _editTargetWdgt: EditTargetWidget = attrs.field(init=False)
     _editGridWdgt: EditGridWidget = attrs.field(init=False)
+    _editGridDock: Dock = attrs.field(init=False)
 
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
 
@@ -331,6 +333,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             widget=self._editGridWdgt.wdgt,
         )
         dock.setStretch(1, 10)
+        self._editGridDock = dock
         if False:
             self._wdgt.addDock(dock, position='bottom')
         else:

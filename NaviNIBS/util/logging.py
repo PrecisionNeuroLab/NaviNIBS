@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
-import typing as tp
+from typing import TYPE_CHECKING
 
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 
 

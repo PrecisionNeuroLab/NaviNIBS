@@ -111,7 +111,7 @@ class AltTContainer(QtWidgets.QTabWidget, pgdc.TContainer):
 class StackedWidget(pgdc.StackedWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.currentChanged.connect(self._onCurrentChanged)
+        self.currentChanged.connect(lambda *args: self._onCurrentChanged(*args))
 
     def sizeHint(self) -> QtCore.QSize:
         """

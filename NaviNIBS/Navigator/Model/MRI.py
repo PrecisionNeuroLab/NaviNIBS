@@ -126,6 +126,7 @@ class MRI:
         if self._filepath == newPath:
             return
         self.validateFilepath(newPath)
+        logger.info(f'Changing MRI filepath from {self._filepath} to {newPath}')
         self._filepath = newPath
         self.sigFilepathChanged.emit()
         # TODO: here or with slots connected to sigDataChanged, make sure any cached MRI data or metadata is cleared/reloaded

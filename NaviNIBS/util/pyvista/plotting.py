@@ -13,6 +13,7 @@ from typing import ClassVar
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform
+from NaviNIBS.util.pyvista.ticks import getNiceTicksForRange
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -22,6 +23,7 @@ class _DelayedPlotter:
     _needsRender: asyncio.Event
     _renderTask: asyncio.Task
     _renderingNotPaused: asyncio.Event
+    _pauseStackCount_: int
     minRenderPeriod: float
 
     def __init__(self, minRenderPeriod: float = 0.05):
@@ -29,24 +31,40 @@ class _DelayedPlotter:
         self._renderingNotPaused = asyncio.Event()
         self._renderingNotPaused.set()
 
+        self._pauseStackCount_ = 0
+
         self.minRenderPeriod = minRenderPeriod
 
         self._renderTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._renderLoop))
 
+    @property
+    def _pauseStackCount(self):
+        return self._pauseStackCount_
+
+    @_pauseStackCount.setter
+    def _pauseStackCount(self, value: int):
+        if value < 0:
+            value = 0
+        self._pauseStackCount_ = value
+        if self._pauseStackCount_ == 0:
+            self._renderingNotPaused.set()
+        else:
+            self._renderingNotPaused.clear()
+
     def pauseRendering(self):
-        self._renderingNotPaused.clear()
+        self._pauseStackCount += 1
+
+    def maybeResumeRendering(self):
+        self._pauseStackCount -= 1
 
     def resumeRendering(self):
-        self._renderingNotPaused.set()
+        self._pauseStackCount = 0
 
     @contextmanager
     def renderingPaused(self):
-        prevNotPaused = self._renderingNotPaused.is_set()
-        if not prevNotPaused:
-            self.pauseRendering()
+        self.pauseRendering()
         yield
-        if prevNotPaused:
-            self.resumeRendering()
+        self.maybeResumeRendering()
 
     def _renderNow(self):
         self._needsRender.clear()
@@ -254,6 +272,57 @@ class PlotterImprovementsMixin:
             raise e
 
         return toReturn
+
+    def showGrid(self,
+                 mesh: pv.PolyData | None = None,
+                 bounds: tp.Sequence[float] | None = None,
+                 n_xlabels=5,
+                 n_ylabels=5,
+                 n_zlabels=5,
+                 **kwargs):
+        """
+        Similar to show_grid, but simplified and with fixes for tick rounding issues
+        introduced in https://github.com/pyvista/pyvista/commit/344f8388841043e0ff68b5813c4560f55333f057.
+
+        As part of this, specified number of tick marks will be used as a suggestion, but actual number may be different.
+        """
+        r: pv.Renderer = self.renderer
+
+        if mesh is None and bounds is None:
+            # Use the bounds of all data in the rendering window
+            bounds = np.array(r.bounds)
+        elif bounds is None:
+            # otherwise, use the bounds of the mesh (if available)
+            bounds = np.array(mesh.bounds)
+        else:
+            bounds = np.asanyarray(bounds, dtype=float)
+
+        # round bounds so that tick marks are on nicer intervals
+        ticksPerDim = np.array([n_xlabels, n_ylabels, n_zlabels])
+        # if aspect ratio is far from 1, then adjust num ticks for narrow dimensions
+        widths = bounds[1::2] - bounds[::2]
+        for i in range(3):
+            while widths[i] / widths.max() / ticksPerDim[i] * ticksPerDim[widths.argmax()] < 0.3:
+                if ticksPerDim[i] == 2:
+                    break
+                ticksPerDim[i] -= 1
+
+        for i in range(3):
+            niceTicks = getNiceTicksForRange(bounds[2*i], bounds[2*i+1], ticksPerDim[i])
+            bounds[2*i] = niceTicks[0]
+            bounds[2*i+1] = niceTicks[-1]
+            ticksPerDim[i] = len(niceTicks)
+
+        n_xlabels = ticksPerDim[0]
+        n_ylabels = ticksPerDim[1]
+        n_zlabels = ticksPerDim[2]
+
+        return self.show_grid(mesh=mesh,
+                              bounds=bounds,
+                              n_xlabels=n_xlabels,
+                              n_ylabels=n_ylabels,
+                              n_zlabels=n_zlabels,
+                              **kwargs)
 
 
 class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImprovementsMixin):

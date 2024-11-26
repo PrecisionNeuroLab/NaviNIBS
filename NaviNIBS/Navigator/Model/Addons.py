@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import typing as tp
+from typing import TYPE_CHECKING
 
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.attrs import attrsAsDict
@@ -15,7 +16,7 @@ from NaviNIBS.util.json import jsonPrettyDumps
 
 from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
     from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
     from NaviNIBS.Navigator.GUI.ViewPanels import MainViewPanel

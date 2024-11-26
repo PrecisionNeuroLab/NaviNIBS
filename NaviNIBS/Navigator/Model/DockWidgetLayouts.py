@@ -3,10 +3,11 @@ import attrs
 import json
 import logging
 import typing as tp
+from typing import TYPE_CHECKING
 
 from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
 
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from qtpy import QtWidgets, QtGui, QtCore
 
 logger = logging.getLogger(__name__)

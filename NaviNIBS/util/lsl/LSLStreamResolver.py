@@ -46,12 +46,19 @@ class LSLStreamResolver:
         if True:
             for streamInfo in streamInfos:
                 streamID = streamInfo.source_id()
+                if streamInfo.hostname() == socket.gethostname():
+                    # if hostname matches our hostname, refer to as @localhost instead of @hostname
+                    # for easier config file migrations
+                    hostnameOrLocalhost = 'localhost'
+                else:
+                    hostnameOrLocalhost = streamInfo.hostname()
+
                 if len(streamID) == 0:
                     # if no source_id specified, construct unique(ish) key from stream name + hostname
                     # NOTE: could add other metadata into this ID to make more likely to be unique (e.g. num chan, srate)
-                    streamID = streamInfo.name() + '_' + streamInfo.hostname()
+                    streamID = streamInfo.name() + '_' + hostnameOrLocalhost
                 else:
-                    streamID += '@' + streamInfo.hostname()
+                    streamID += '@' + hostnameOrLocalhost
                 streamIDs.append(streamID)
         else:
             streamIDs = [streamInfo.source_id() for streamInfo in streamInfos]

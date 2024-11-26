@@ -198,8 +198,8 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
     transf_coilTrackerToWorld = navigatorGUI.navigatePanel._coordinator._positionsClient.getLatestTransf(coilTool.trackerKey)
     transf_coilToCoilTracker = navigatorGUI.navigatePanel._coordinator.activeCoilTool.toolToTrackerTransf
 
-    extraRot_newToOrigCoil = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi/32, np.pi/32, np.pi/8])
-    transf_newToOrigCoil = composeTransform(extraRot_newToOrigCoil, np.array([3, 4, 0]))
+    extraRot_newToOrigCoil = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi/32, np.pi/32, np.pi/16])
+    transf_newToOrigCoil = composeTransform(extraRot_newToOrigCoil, np.array([1, 2, 0]))
 
     newCoilTrackerPose = concatenateTransforms([
         invertTransform(transf_coilToCoilTracker),
@@ -228,9 +228,9 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
     random.seed(a=1)
     numSamples = 50
     sampleShifts = np.zeros((numSamples, 6))
-    shiftDist = 5.
+    shiftDist = 3.
     rotAngOutOfPlane = np.pi/64
-    rotAngInPlane = np.pi/8
+    rotAngInPlane = np.pi/16
     for i in range(numSamples):
         sampleShifts[i, :] = np.array([random.gauss(sigma=shiftDist),
                                     random.gauss(sigma=shiftDist),
@@ -337,3 +337,73 @@ async def test_basicNavigation_coilChanges(navigatorGUIWithoutSession: Navigator
     # make sure that calibrating coil after navigation, then returning to navigation,
     # doesn't cause any issues
     # TODO
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_basicNavigation')
+async def test_basicNavigation_rapidPoseUpdates(navigatorGUIWithoutSession: NavigatorGUI,
+                               workingDir: str,
+                               screenshotsDataSourcePath: str,
+                               simulatedPositionsBasicNav1Path: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'BasicNavigation', 'BasicNavigationRapidPoseUpdates')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(5.)
+
+    for view in navigatorGUI.navigatePanel._views.values():
+        if hasattr(view, 'plotter'):
+            await view.plotter.isReadyEvent.wait()
+
+    await asyncio.sleep(5.)
+
+    from addons.NaviNIBS_Simulated_Tools.Navigator.GUI.ViewPanels.SimulatedToolsPanel import SimulatedToolsPanel
+    simulatedToolsPanel: SimulatedToolsPanel = navigatorGUI._mainViewPanels['SimulatedToolsPanel']
+
+    coilTool = navigatorGUI.navigatePanel._coordinator.activeCoilTool
+    transf_coilTrackerToWorld = navigatorGUI.navigatePanel._coordinator._positionsClient.getLatestTransf(coilTool.trackerKey)
+    transf_coilToCoilTracker = navigatorGUI.navigatePanel._coordinator.activeCoilTool.toolToTrackerTransf
+
+    # equivalent to clicking on first target in table
+    targetKey = list(navigatorGUI.session.targets.keys())[0]
+    navigatorGUI.navigatePanel._targetsTableWdgt.currentCollectionItemKey = targetKey
+
+    await asyncio.sleep(2.)
+
+    random.seed(a=1)
+    numSteps = 5000
+    shiftDist = 10.
+    rotAngOutOfPlane = np.pi/64
+    rotAngInPlane = np.pi/8
+
+    finalShift = np.array([shiftDist,
+                                   0,
+                                   0,
+                                   rotAngOutOfPlane,
+                                   0,
+                                   rotAngInPlane])
+
+    for i in range(numSteps):
+        extraRot_newToOrigCoil = ptr.active_matrix_from_extrinsic_euler_xyz(finalShift[3:] * (i + 1) / numSteps)
+        transf_newToOrigCoil = composeTransform(extraRot_newToOrigCoil,finalShift[:3] * (i + 1) / numSteps)
+
+        newCoilTrackerPose = concatenateTransforms([
+            invertTransform(transf_coilToCoilTracker),
+            transf_newToOrigCoil,
+            transf_coilToCoilTracker,
+            transf_coilTrackerToWorld
+        ])
+
+        await utils.setSimulatedToolPose(navigatorGUI, coilTool.trackerKey, newCoilTrackerPose)
+
+        await asyncio.sleep(0.01)
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    utils.assertSavedSessionIsValid(sessionPath)
+
+

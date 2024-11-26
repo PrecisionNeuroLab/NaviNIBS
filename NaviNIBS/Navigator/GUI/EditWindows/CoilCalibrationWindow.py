@@ -73,6 +73,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
         splitRight = QtWidgets.QWidget()
         splitRight.setLayout(QtWidgets.QVBoxLayout())
         splitter.addWidget(splitRight)
+        splitter.setStretchFactor(1, 2)
 
         self._plotter = DefaultPrimaryLayeredPlotter()
         splitRight.layout().addWidget(self._plotter)
@@ -97,7 +98,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
 
         self.sigFinished.connect(self._onDialogFinished)
 
-        self._wdgt.resize(QtCore.QSize(1000, 1200))
+        self._wdgt.resize(QtCore.QSize(900, 700))
 
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
 
@@ -148,8 +149,10 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
             # plotter not yet ready
             return
 
-        self._plotter.camera.focal_point = (0, 0, 0)
-        self._plotter.camera.position = (0, 0, 700)
+        yOffset = -35  # since coil will typically extend to bottom of screen after calibration,
+        # offset view toward top to reduce excessive whitespace
+        self._plotter.camera.focal_point = (0, yOffset, 0)
+        self._plotter.camera.position = (0, yOffset, 500)
         self._plotter.camera.up = (0, 1, 0)
         self._plotter.camera.view_angle = 30.
         self._plotter.camera.clipping_range = (1, 1400)

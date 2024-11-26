@@ -78,6 +78,12 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     Which value in sample metadata to plot
     """
     _colorbarLabel: str | None = None
+    _scalarAnnotations: dict[float, str] | None = None
+    """
+    In form accepted by pyvista.mapper.set_scalars(..., annotations=...).
+    E.g.
+        {50e-6: '50 uV', 1e-3: '1 mV'}
+    """
     _relevantSampleDepth: str = 'target'
     """
     Which depth along sample entry vector to use for interpolation on surface.
@@ -152,8 +158,9 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             scalar_bar_args = dict(
                 title=colorbarLabel,
                 bold=True,
-                title_font_size=20,
-                label_font_size=12,
+                title_font_size=12,
+                label_font_size=10,
+                vertical=True,
             )
 
             self._mesh.clear_data()  # TODO: determine if this is necessary
@@ -171,6 +178,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                             nan_opacity=self._meshOpacityOutsideInterpolatedRegion,
                                                             scalars=self._scalarsKey,
                                                             scalar_bar_args=scalar_bar_args,
+                                                            annotations=self._scalarAnnotations,
                                                             opacity=opacity,
                                                             specular=0.5,
                                                             diffuse=0.5,
@@ -224,6 +232,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                     colorbarLabel = self._colorbarLabel
                 scalar_bar_args = dict(
                     title=colorbarLabel,
+                    bold=True,
+                    title_font_size=12,
+                    label_font_size=10,
+                    vertical=True,
                 )
 
                 self._interpolateValuesOntoMesh()
@@ -238,6 +250,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                                nan_color=self._color,
                                                                scalars=self._scalarsKey,
                                                                scalar_bar_args=scalar_bar_args,
+                                                               annotations=self._scalarAnnotations,
                                                                opacity=opacity,
                                                                specular=0.5,
                                                                diffuse=0.5,

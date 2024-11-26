@@ -13,12 +13,12 @@ import pandas as pd
 import pyvista as pv
 import tempfile
 import typing as tp
-from typing import ClassVar
+from typing import ClassVar, TYPE_CHECKING
 
 from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 
 from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
@@ -317,7 +317,7 @@ class Target(GenericCollectionDictItem[str]):
         if closestPt_skin is None:
             raise ValueError('Missing information, cannot autoset entry coord')
 
-        logger.debug(f'Autosetting entry info to {closestPt_skin}')
+        logger.info(f'Autosetting entry info to {closestPt_skin}')
 
         self.entryCoord = closestPt_skin
 
@@ -328,6 +328,15 @@ class Target(GenericCollectionDictItem[str]):
     def fromDict(cls, d: tp.Dict[str, tp.Any], session: Session | None = None):
         o = attrsWithNumpyFromDict(cls, d, npFields=('targetCoord', 'entryCoord', 'coilToMRITransf'))
         o.session = session
+
+        if True:
+            # auto-set entry coordinate based on target if entryCoord or coilToMRITransf not specified
+            if o.targetCoord is not None and o.entryCoord is None and o._coilToMRITransf is None:
+                if session is not None:
+                    o.autosetEntryCoord()
+                else:
+                    logger.warning(f'No entry info for target {o.key}, no session info with which to autoset entry coord')
+
         return o
 
 

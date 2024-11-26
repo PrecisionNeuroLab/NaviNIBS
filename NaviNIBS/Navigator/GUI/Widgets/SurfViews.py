@@ -288,6 +288,8 @@ class Surf3DView(SurfSliceView):
                     lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                     if not self._plotterInitialized:
                         line = self._surfPlotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
+                        with self._plotter.allowNonblockingCalls():
+                            line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
                         self._lineActors[lineKey] = line
                     else:
                         with self._plotter.allowNonblockingCalls():

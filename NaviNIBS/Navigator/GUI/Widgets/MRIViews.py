@@ -28,6 +28,7 @@ class MRISliceView(QueuedRedrawMixin):
     _sliceOrigin: tp.Optional[np.ndarray] = None
 
     _slicePlotMethod: str = 'cameraClippedVolume'
+    _doShowScalarBar: bool = False
 
     _plotter: DefaultBackgroundPlotter = attrs.field(init=False, default=None)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
@@ -303,7 +304,8 @@ class MRISliceView(QueuedRedrawMixin):
                                        name='slice',
                                        cmap='gray',
                                        render=False,
-                                       reset_camera=False)
+                                       reset_camera=False,
+                                       show_scalar_bar=self._doShowScalarBar)
                 if isinstance(self._normal, str):
                     self.plotter.camera_position = 'xyz'.replace(self._normal, '')
                 else:
@@ -331,6 +333,7 @@ class MRISliceView(QueuedRedrawMixin):
                                          ),
                                          opacity=[0, self._opacity, self._opacity],
                                          cmap='gray',
+                                         show_scalar_bar=self._doShowScalarBar,
                                          render=False,
                                          reset_camera=False)
                 with self._plotter.allowNonblockingCalls():
@@ -376,6 +379,8 @@ class MRISliceView(QueuedRedrawMixin):
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
+                    with self._plotter.allowNonblockingCalls():
+                        line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
                     self._lineActors[lineKey] = line
                 else:
                     with self._plotter.allowNonblockingCalls():
@@ -468,6 +473,7 @@ class MRI3DView(MRISliceView):
                                                 name='vol',
                                                 clim=self.session.MRI.clim3D,
                                                 cmap='gray',
+                                                show_scalar_bar=self._doShowScalarBar,
                                                 mapper='gpu',
                                                 opacity=[0, self._opacity, self._opacity],
                                                 shade=False,
@@ -477,6 +483,7 @@ class MRI3DView(MRISliceView):
             with self._plotter.allowNonblockingCalls():
                 setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
                 self.plotter.reset_camera()
+                # self.plotter.camera.zoom('tight')
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
@@ -490,6 +497,8 @@ class MRI3DView(MRISliceView):
                 lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
                 if not self._plotterInitialized:
                     line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
+                    with self._plotter.allowNonblockingCalls():
+                        line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
                     self._lineActors[lineKey] = line
                 else:
                     with self._plotter.allowNonblockingCalls():

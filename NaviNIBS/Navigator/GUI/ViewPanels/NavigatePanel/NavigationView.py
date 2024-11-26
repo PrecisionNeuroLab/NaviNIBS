@@ -107,7 +107,8 @@ class NavigationView(QueuedRedrawMixin):
 class SinglePlotterNavigationView(NavigationView):
     _plotter: DefaultPrimaryLayeredPlotter = attrs.field(init=False, repr=False)
     _plotInSpace: str = 'MRI'
-    _alignCameraTo: tp.Optional[str] = None
+    _alignCameraTo: str | None = None
+    _alignCameraOffset: tuple[float, float, float] | None = None
     _cameraDist: float = 100
     """
     None to use default camera perspective; 'target' to align camera space to target space, etc.
@@ -240,9 +241,8 @@ class SinglePlotterNavigationView(NavigationView):
                 extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('target'):])
                 extraTransf = composeTransform(extraRot)
 
-                if self._alignCameraTo[-1] in 'XY':
-                    # add negative z offset to reduce empty space above coil in camera view
-                    extraTransf[2, 3] = -20
+                if self._alignCameraOffset is not None:
+                    extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
@@ -257,12 +257,8 @@ class SinglePlotterNavigationView(NavigationView):
                 extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('coil'):])
                 extraTransf = composeTransform(extraRot)
 
-                if self._alignCameraTo[-1] in 'XY':
-                    # add negative z offset to reduce empty space above coil in camera view
-                    extraTransf[2, 3] = -20
-
-                    # reduce distance from camera to coil to zoom in tighter
-                    cameraPts[1, 2] = 100
+                if self._alignCameraOffset is not None:
+                    extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentCoilToMRITransform is not None:
@@ -280,6 +276,9 @@ class SinglePlotterNavigationView(NavigationView):
                 else:
                     extraTransf = np.eye(4)
                     toolKey = self._alignCameraTo[len('tool-'):]
+
+                if self._alignCameraOffset is not None:
+                    extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
 
                 trackerKey = self._coordinator.session.tools[toolKey].trackerKey
                 trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(trackerKey, None)
@@ -321,22 +320,23 @@ class SinglePlotterNavigationView(NavigationView):
                     return
 
         with self._plotter.allowNonblockingCalls():
-            self._plotter.camera.focal_point = cameraPts[0, :]
-            self._plotter.camera.position = cameraPts[1, :]
-            self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
-            if True:
-                # force fixed zoom in parallel camera views
-                self.plotter.camera.parallel_scale = self._cameraDist / 2
+            with self._plotter.renderingPaused():
+                self._plotter.camera.focal_point = cameraPts[0, :]
+                self._plotter.camera.position = cameraPts[1, :]
+                self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
+                if True:
+                    # force fixed zoom in parallel camera views
+                    self.plotter.camera.parallel_scale = self._cameraDist / 2
 
-            if False:
-                # force fixed zoom in perspective camera views
-                self.plotter.camera.view_angle = 60.
+                if False:
+                    # force fixed zoom in perspective camera views
+                    self.plotter.camera.view_angle = 60.
 
-            if self._alignCameraTo[-1] in 'XY' and False:
-                # orthogonal view, clip camera
-                self._plotter.camera.clipping_range = (self._cameraDist-0.1, self._cameraDist+0.1)
-            else:
-                self._plotter.reset_camera_clipping_range()
+                if self._alignCameraTo[-1] in 'XY' and False:
+                    # orthogonal view, clip camera
+                    self._plotter.camera.clipping_range = (self._cameraDist-0.1, self._cameraDist+0.1)
+                else:
+                    self._plotter.reset_camera_clipping_range()
             self._plotter.render()
 
         if not self._wdgt.isVisible():
@@ -442,6 +442,10 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           surfKey='gmSurf',
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
+                          scalarAnnotations={
+                              20*np.log10(50e-3): '50 uV',
+                              20*np.log10(1): '1 mV',
+                          },
                           relevantSampleDepth='intersection',
                           kernelRadius=8,
                           layeredPlotterKey='Brain',
@@ -461,6 +465,10 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           meshOpacityOutsideInterpolatedRegion=0.,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
+                          scalarAnnotations={
+                              20 * np.log10(50e-3): '50 uV',
+                              20 * np.log10(1): '1 mV',
+                          },
                           relevantSampleDepth='intersection',
                           layeredPlotterKey='ScalpVpps',
                           plotterLayer=plotLayer)
@@ -514,7 +522,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         if self._doShowTargetTangentialAngleError:
             plotOn = self._alignCameraTo[:-2]
             if plotOn == 'coil':
-                multiplier = 4.
+                multiplier = -4.
             elif plotOn == 'target':
                 multiplier = -4.
             else:
@@ -540,7 +548,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         if self._doShowScalpTangentialAngleError:
             plotOn = self._alignCameraTo[:-2]
             if plotOn == 'coil':
-                multiplier = 4.
+                multiplier = -4.
             elif plotOn == 'target':
                 multiplier = -4.
             else:

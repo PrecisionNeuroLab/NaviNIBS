@@ -74,6 +74,9 @@ class RemoteActorProxy:
         self._visibility = False
         return self._plotter._remoteActorCall(self, 'VisibilityOff')
 
+    def SetUseBounds(self, useBounds: bool):
+        return self._plotter._remoteActorCall(self, 'SetUseBounds', useBounds)
+
 
 @attrs.define
 class RemoteCameraProxy:
@@ -129,6 +132,9 @@ class RemoteCameraProxy:
 
     def enable_parallel_projection(self):
         self._plotter._remoteCameraCall('enable_parallel_projection')
+
+    def zoom(self, value):
+        self._plotter._remoteCameraCall('zoom', value)
 
 
 class RemotePlotterProxyBase:
@@ -410,14 +416,26 @@ class RemotePlotterProxyBase:
     def show_grid(self, *args, **kwargs):
         return self._remotePlotterCall('show_grid', *args, **kwargs)
 
+    def showGrid(self, *args, **kwargs):
+        return self._remotePlotterCall('showGrid', *args, **kwargs)
+
     def remove_actor(self, *args, **kwargs):
         return self._remotePlotterCall('remove_actor', *args, **kwargs)
 
     def pauseRendering(self):
         return self._remotePlotterCall('pauseRendering')
 
+    def maybeResumeRendering(self):
+        return self._remotePlotterCall('maybeResumeRendering')
+
     def resumeRendering(self):
         return self._remotePlotterCall('resumeRendering')
+
+    @contextmanager
+    def renderingPaused(self):
+        self.pauseRendering()
+        yield
+        self.maybeResumeRendering()
 
     def update(self, *args, **kwargs):
         return self._remotePlotterCall('update', *args, **kwargs)

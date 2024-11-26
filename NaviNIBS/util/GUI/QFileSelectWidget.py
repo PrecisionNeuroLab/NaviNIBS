@@ -101,8 +101,11 @@ class QFileSelectWidget(QtWidgets.QWidget):
             return os.path.normpath(self._filepath)
 
     @filepath.setter
-    def filepath(self, newFilepath: str):
-        if newFilepath == self._filepath:
+    def filepath(self, newFilepath: str | None):
+        if self._filepath is None and newFilepath is None:
+            return
+        if self._filepath is not None and newFilepath is not None and \
+                os.path.normpath(newFilepath) == os.path.normpath(self._filepath):
             return
         if newFilepath is not None:
             newFilepath = os.path.normpath(newFilepath)

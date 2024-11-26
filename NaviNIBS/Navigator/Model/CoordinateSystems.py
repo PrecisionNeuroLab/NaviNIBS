@@ -6,8 +6,9 @@ import nitransforms as nit
 import numpy as np
 import os
 import typing as tp
+from typing import TYPE_CHECKING
 
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
