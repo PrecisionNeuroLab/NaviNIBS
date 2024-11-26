@@ -201,6 +201,10 @@ class EditGridWidget:
         self._seedTarget = newTarget
 
         if self._seedTarget is not None:
+            index = self._targetsModel.getIndexFromCollectionItemKey(newTarget.key)
+            if index is not None:
+                self._targetComboBox.setCurrentIndex(index)
+
             self._seedTarget.sigItemChanged.connect(self._onSeedTargetItemChanged)
 
         for wdgt in self._disableWidgetsWhenNoTarget:
