@@ -13,12 +13,12 @@ import pandas as pd
 import pyvista as pv
 import tempfile
 import typing as tp
-from typing import ClassVar
+from typing import ClassVar, TYPE_CHECKING
 
 from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 
 from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem

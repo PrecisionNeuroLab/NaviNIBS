@@ -12,6 +12,7 @@ import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
+from typing import TYPE_CHECKING
 
 from NaviNIBS import __version__
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
@@ -23,7 +24,7 @@ from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Addons import Addon, installPath as addonBaseInstallPath
 
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 
 

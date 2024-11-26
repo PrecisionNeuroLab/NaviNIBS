@@ -7,8 +7,9 @@ import pytransform3d.rotations as ptr
 import pytransform3d.transformations as ptt
 from skspatial.objects import Vector, Plane
 import typing as tp
+from typing import TYPE_CHECKING
 
-if tp.TYPE_CHECKING:
+if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
 from NaviNIBS.util.pyvista.dataset import find_closest_point
