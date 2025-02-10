@@ -571,6 +571,7 @@ class EditTargetWidget:
             self._entryAngleWdgts.angleYWdgt.wdgt
         ]
 
+        self._targetComboBox.setCurrentIndex(-1)
         self._onTargetComboBoxCurrentIndexChanged(self._targetComboBox.currentIndex())  # enable/disable widgets
 
     @property
