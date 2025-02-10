@@ -584,7 +584,20 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self.session.targets.deleteItems(selectedTargetKeys)
 
     def _onDuplicateBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        currentTargetKey = self._tableWdgt.currentCollectionItemKey
+        assert currentTargetKey is not None
+        if '_' in currentTargetKey:
+            delim = '_'
+        elif ' ' in currentTargetKey:
+            delim = ' '
+        else:
+            delim = '-'
+        newTargetKey = makeStrUnique(f'{currentTargetKey}{delim}copy{delim}1', existingStrs=self.session.targets.keys(), delimiter=delim)
+        logger.info(f'Duplicating target {currentTargetKey} to {newTargetKey}')
+        currentTarget = self.session.targets[currentTargetKey]
+        newTarget = currentTarget.asDict()
+        newTarget['key'] = newTargetKey
+        self.session.targets.addItem(Target.fromDict(newTarget))
 
     def _onGotoBtnClicked(self, checked: bool):
         targetKey = self._getCurrentTargetKey()
