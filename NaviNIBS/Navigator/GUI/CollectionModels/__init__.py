@@ -270,8 +270,9 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         except IndexError:
             return None  # TODO: double check what would be correct to return here
 
-        if item is None:
-            assert self._hasPlaceholderNewRow
+        if item is None and not self._hasPlaceholderNewRow:
+            return None
+
         #logger.debug(f'Getting data for {self.getCollectionItemKeyFromIndex(index=index.row())} {colKey} role {role}')
         match role:
             case QtCore.Qt.DisplayRole | QtCore.Qt.ToolTipRole | QtCore.Qt.EditRole:
