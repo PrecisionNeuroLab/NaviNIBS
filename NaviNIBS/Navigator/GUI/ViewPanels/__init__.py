@@ -37,8 +37,7 @@ class MainViewPanel:
         self._dockWdgt = Dock(name=self._key,
                               title=self.label,
                               affinities=['MainViewPanel'],
-                              icon=self._icon,
-                              fontSize='14px')
+                              icon=self._icon)
         self._dockWdgt.addWidget(self._wdgt)
 
         self._dockWdgt.sigHidden.connect(self.sigPanelHidden.emit)

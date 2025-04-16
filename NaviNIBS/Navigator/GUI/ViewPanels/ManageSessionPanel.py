@@ -56,6 +56,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _infoDW: Dock = attrs.field(init=False)
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
+    _themeDropdown: QtWidgets.QComboBox = attrs.field(init=False)
+    _fontSizeField: QtWidgets.QSpinBox = attrs.field(init=False)
+
     _autosaveTask: asyncio.Task = attrs.field(init=False)
 
     sigAboutToFinishLoadingSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
@@ -136,7 +139,6 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         container.layout().addWidget(btn)
         self._addAddonBtn = btn
 
-
         container.layout().addStretch()
 
         title = 'Info'
@@ -167,6 +169,19 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         wdgt.editingFinished.connect(lambda key='sessionID': self._onInfoTextEdited(key))
         self._infoWdgts['sessionID'] = wdgt
         container.layout().addRow('Session ID', wdgt)
+
+        wdgt = QtWidgets.QComboBox()
+        wdgt.addItems(['Auto', 'Light', 'Dark'])
+        wdgt.currentIndexChanged.connect(lambda index: self._onThemeDropdownChanged())
+        container.layout().addRow('Theme', wdgt)
+        self._themeDropdown = wdgt
+
+        wdgt = QtWidgets.QSpinBox()
+        wdgt.setRange(4, 64)
+        wdgt.setSingleStep(1)
+        wdgt.valueChanged.connect(self._onFontSizeFieldChanged)
+        container.layout().addRow('Font size', wdgt)
+        self._fontSizeField = wdgt
 
         wdgt = QtWidgets.QLabel(__version__)
         self._infoWdgts['version'] = wdgt
@@ -232,7 +247,17 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         if self.session is not None:
             self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
             self.session.sigDirtyKeysChanged.connect(self._updateSaveBtnStyle)
+            self.session.miscSettings.sigAttribsChanged.connect(self._onSessionMiscSettingsChanged)
         self._onSessionInfoChanged()
+        self._onSessionMiscSettingsChanged()
+
+    def _onThemeDropdownChanged(self):
+        theme = self._themeDropdown.currentText()
+        self.session.miscSettings.theme = theme.lower()
+
+    def _onFontSizeFieldChanged(self, *args):
+        fontSize = self._fontSizeField.value()
+        self.session.miscSettings.mainFontSize = fontSize
 
     def _getNewInProgressSessionDir(self) -> str:
         return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
@@ -517,6 +542,15 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             for key in whatChanged:
                 val = getattr(self.session, key)
                 self._infoWdgts[key].setText('' if val is None else val)
+
+    def _onSessionMiscSettingsChanged(self, whatChanged: tp.Optional[list[str]] = None):
+        if whatChanged is None or 'theme' in whatChanged:
+            theme = self.session.miscSettings.theme.capitalize()
+            self._themeDropdown.setCurrentText(theme)
+
+        if whatChanged is None or 'mainFontSize' in whatChanged:
+            fontSize = self.session.miscSettings.mainFontSize
+            self._fontSizeField.setValue(fontSize)
 
     def _onInfoTextEdited(self, key: str):
         text = self._infoWdgts[key].text()

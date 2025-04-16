@@ -55,24 +55,36 @@ class RunnableAsApp:
                 self._app.setWindowIcon(QtGui.QIcon(self._appIconPath))
 
             theme = self._theme
-            if theme == 'auto':
-                import darkdetect
-                if darkdetect.isDark() and False:
-                    theme = 'dark'
-                else:
-                    theme = 'light'
-            match theme:
-                case 'light':
-                    pass  # do nothing
-                case 'dark':
-                    import qtawesome as qta
-                    qta.dark(self._app)
-                case _:
-                    raise NotImplementedError
+            self._theme = None
+            self.theme = theme  # trigger setter
 
             self._win = self._Win()
             self._win.setWindowTitle(self._appName)
             self._win.sigAboutToClose.connect(self._onAppAboutToQuit)
+
+    @property
+    def theme(self):
+        return self._theme
+
+    @theme.setter
+    def theme(self, theme):
+        if self._theme == theme:
+            return
+        self._theme = theme
+        if theme.lower() == 'auto':
+            import darkdetect
+            if darkdetect.isDark():
+                theme = 'dark'
+            else:
+                theme = 'light'
+        import qtawesome as qta
+        match theme.lower():
+            case 'light':
+                qta.light(self._app)
+            case 'dark':
+                qta.dark(self._app)
+            case _:
+                raise ValueError(f'Unknown theme: {theme}')
 
     def _onAppAboutToQuit(self):
         logger.info('About to quit')

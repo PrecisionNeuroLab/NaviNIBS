@@ -11,7 +11,6 @@ from NaviNIBS.util.GUI.StyleSheets import setStyleSheetForInstanceOnly
 
 
 
-borderColor = '#bbbbbb'
 borderWidth = '2px'
 
 
@@ -46,11 +45,10 @@ class AltTContainer(QtWidgets.QTabWidget, pgdc.TContainer):
 
             fg = '#444444'
             bg = '#dddddd'
+            borderColor = '#bbbbbb'
             border = borderColor
             borderBottom = borderColor
             thisBorderWidth = '0px'
-
-            fontSize='12px'
 
             setStyleSheetForInstanceOnly(self.tabBar(), f"""
                 background-color : {bg};
@@ -66,11 +64,11 @@ class AltTContainer(QtWidgets.QTabWidget, pgdc.TContainer):
                 border-right: {thisBorderWidth} solid {border};
                 padding-left: 1px;
                 padding-right: 1px;
-                font-size: {fontSize};
                 """, selectorSuffix='::tab')
 
             fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
             bg = '#bbbbbb'
+            borderColor = '#bbbbbb'
             border = borderColor
             borderBottom = bg
             thisBorderWidth = borderWidth
@@ -253,20 +251,19 @@ class DockLabel(QtWidgets.QFrame):
     _closeButton: QtWidgets.QToolButton | None = None
     _dock: Dock
     _dim: bool = False
-    _fontSize: str
     _iconSize: tuple[int, int]
+
+    _styleUpdateInProgress: bool = False
 
     sigClicked = QtCore.Signal(object, object)
     sigCloseClicked = QtCore.Signal()
 
     def __init__(self, text: str, dock: Dock, showCloseButton: bool,
-                 fontSize: str,
                  icon: QtGui.QIcon | None = None,
                  iconSize: tuple[int, int] = (20, 20),
                  **kwargs):
         QtWidgets.QFrame.__init__(self)
         self._dock = dock
-        self._fontSize = fontSize
         self._iconSize = iconSize
 
         self.setLayout(QtWidgets.QHBoxLayout())
@@ -310,10 +307,6 @@ class DockLabel(QtWidgets.QFrame):
             self.updateStyle()
 
     @property
-    def fontSize(self):
-        return self._fontSize
-
-    @property
     def dock(self):
         return self._dock
 
@@ -327,7 +320,18 @@ class DockLabel(QtWidgets.QFrame):
         else:
             raise NotImplementedError
 
+    def event(self, event: QtCore.QEvent):
+        if event.type() == QtCore.QEvent.Type.Polish:
+            self.updateStyle()
+        elif event.type() == QtCore.QEvent.Type.PaletteChange:
+            if not self._styleUpdateInProgress:
+                QtCore.QTimer.singleShot(0, self.updateStyle)
+        elif event.type() == QtCore.QEvent.Type.ApplicationPaletteChange:
+            self.updateStyle()
+        return super().event(event)
+
     def updateStyle(self):
+        self._styleUpdateInProgress = True
         r = '5px'
         if self.parent() is None:
             palette = self.palette()
@@ -336,17 +340,37 @@ class DockLabel(QtWidgets.QFrame):
         if self.dim:
             self._label.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
             self._label.setMinimumWidth(1)
-            fg = '#444444'
-            bg = '#dddddd'
-            hbg = '#cccccc'
+            if palette.color(QtGui.QPalette.Base).value() > 128:
+                # light theme
+                fg = '#333333'
+                bg = '#dddddd'
+                hbg = '#cccccc'
+                borderColor = '#bbbbbb'
+            else:
+                # dark theme
+                fg = '#cccccc'
+                bg = '#444444'
+                hbg = '#555555'
+                borderColor = '#666666'
+
             border = borderColor
             borderBottom = borderColor
             thisBorderWidth = '0px'
         else:
             self._label.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
             self._label.setMinimumWidth(0)
-            fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
-            bg = '#bbbbbb'
+
+            if palette.color(QtGui.QPalette.Base).value() > 128:
+                # light theme
+                fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()
+                bg = '#bbbbbb'
+                borderColor = '#bbbbbb'
+            else:
+                # dark theme
+                fg = '#eeeeee'
+                bg = '#666666'
+                borderColor = '#666666'
+
             hbg = bg
             border = borderColor
             borderBottom = bg
@@ -366,7 +390,6 @@ class DockLabel(QtWidgets.QFrame):
             border-right: {thisBorderWidth} solid {border};
             padding-left: 1px;
             padding-right: 1px;
-            font-size: {self.fontSize};
         """
         if False:
             # (for some reason, this causes crash when mouse hovers over the label, so disabled for now)
@@ -375,11 +398,11 @@ class DockLabel(QtWidgets.QFrame):
                 """, selectorSuffix=':hover')
         setStyleSheetForInstanceOnly(self, self.hStyle)
 
-        setStyleSheetForInstanceOnly(self._label, f"""
-            font-size: {self.fontSize}; 
+        setStyleSheetForInstanceOnly(self._label, f""" 
             font-weight: {400 if self.dim else 500};
             color: {fg};
             """)
+        self._styleUpdateInProgress = False
 
     def mousePressEvent(self, ev):
         lpos = ev.position() if hasattr(ev, 'position') else ev.localPos()
@@ -442,6 +465,8 @@ class DockDrop(pgdd.DockDrop):
 class Dock(pgd.Dock):
     _affinities: list[str] | None = None
 
+    _styleUpdateInProgress: bool = False
+
     sigFocused: Signal
     """
     This signal must be emitted by slot connected to root focusObjectChanged to function.
@@ -451,7 +476,7 @@ class Dock(pgd.Dock):
     sigResized: Signal[()]
 
     # noinspection PyMissingConstructor
-    def __init__(self, name, title: str = None, area=None, size=(10, 10), widget=None, hideTitle=False, autoOrientation=False, closable=False, fontSize="12px", affinities: list[str] | None = None,
+    def __init__(self, name, title: str = None, area=None, size=(10, 10), widget=None, hideTitle=False, autoOrientation=False, closable=False, affinities: list[str] | None = None,
                  icon: QtGui.QIcon | None = None):
         # completely override parent class init to specify different DockDrop class
 
@@ -462,7 +487,7 @@ class Dock(pgd.Dock):
         self.area = area
         if title is None:
             title = self._name
-        self.label = DockLabel(title, self, closable, fontSize, icon=icon)
+        self.label = DockLabel(title, self, closable, icon=icon)
         if closable:
             self.label.sigCloseClicked.connect(self.close)
         self.labelHidden = False
@@ -486,6 +511,44 @@ class Dock(pgd.Dock):
         self.currentRow = 0
         # self.titlePos = 'top'
         self.dockdrop.raiseOverlay()
+
+        self.setStretch(*size)
+
+        if widget is not None:
+            self.addWidget(widget)
+
+        if hideTitle:
+            self.hideTitleBar()
+
+        if affinities is not None:
+            self._affinities = affinities
+
+        self.sigFocused = Signal()
+        self.sigShown = Signal()
+        self.sigHidden = Signal()
+        self.sigResized = Signal()
+
+        self.updateStyle()
+
+    def event(self, event: QtCore.QEvent):
+        if event.type() == QtCore.QEvent.Type.Polish:
+            self.updateStyle()
+        elif event.type() == QtCore.QEvent.Type.PaletteChange:
+            if not self._styleUpdateInProgress:
+                QtCore.QTimer.singleShot(0, self.updateStyle)
+        elif event.type() == QtCore.QEvent.Type.ApplicationPaletteChange:
+            self.updateStyle()
+        return super().event(event)
+
+    def updateStyle(self):
+        self._styleUpdateInProgress = True
+
+        if self.parent() is None:
+            palette = self.palette()
+        else:
+            palette = self.parent().palette()
+        borderColor = palette.color(QtGui.QPalette.Active, QtGui.QPalette.AlternateBase).name()
+
         self.hStyle = f"""
         Dock > QWidget {{
             border: {borderWidth} solid {borderColor};
@@ -515,21 +578,7 @@ class Dock(pgd.Dock):
         self.setAutoFillBackground(False)
         self.widgetArea.setStyleSheet(self.hStyle)
 
-        self.setStretch(*size)
-
-        if widget is not None:
-            self.addWidget(widget)
-
-        if hideTitle:
-            self.hideTitleBar()
-
-        if affinities is not None:
-            self._affinities = affinities
-
-        self.sigFocused = Signal()
-        self.sigShown = Signal()
-        self.sigHidden = Signal()
-        self.sigResized = Signal()
+        self._styleUpdateInProgress = False
 
     def setEnabled(self, doEnable: bool):
         self.label.setEnabled(doEnable)
