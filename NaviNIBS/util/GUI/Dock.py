@@ -578,6 +578,8 @@ class Dock(pgd.Dock):
         self.setAutoFillBackground(False)
         self.widgetArea.setStyleSheet(self.hStyle)
 
+        super().updateStyle()
+
         self._styleUpdateInProgress = False
 
     def setEnabled(self, doEnable: bool):

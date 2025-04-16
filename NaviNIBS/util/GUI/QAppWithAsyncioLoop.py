@@ -23,7 +23,7 @@ class RunnableAsApp:
     _appLogEveryNLoops: tp.Optional[int] = None
     _theme: str = 'auto'  # auto, light, or dark
 
-    _app: QtGui.QGuiApplication = attr.ib(init=False)
+    _app: QtWidgets.QApplication = attr.ib(init=False)
     _appIconPath: str | None = attr.ib(init=False, default=None)
     _Win: tp.Callable[..., QMainWindowWithCloseSignal] = attr.ib(default=QMainWindowWithCloseSignal)
     """

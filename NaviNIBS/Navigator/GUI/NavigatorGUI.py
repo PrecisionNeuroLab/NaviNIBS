@@ -68,6 +68,8 @@ class NavigatorGUI(RunnableAsApp):
 
         super().__attrs_post_init__()
 
+        self._app.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseStyleSheetPropagationInWidgetStyles, True)
+
         if self._inProgressBaseDir is None:
             self._inProgressBaseDir = os.path.join(platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
 
@@ -312,10 +314,24 @@ class NavigatorGUI(RunnableAsApp):
         pv.global_theme.font.color = self._win.palette().color(QtGui.QPalette.Text).name()
 
         mainFontSize = self._session.miscSettings.mainFontSize
-        f = self._app.font()
-        if mainFontSize is not None:
-            f.setPointSizeF(mainFontSize)
-        self._app.setFont(f)
+        if True:
+            if mainFontSize is None:
+                styleContent = ''
+            else:
+                styleContent = f'font-size: {mainFontSize}pt;'
+
+            self._app.setStyleSheet(styleContent)
+            for win in self._app.topLevelWidgets():
+                # TODO: check to make sure we're not clearing other custom styles
+                win.setStyleSheet(styleContent)
+
+        else:
+            f = self._app.font()
+            if mainFontSize is not None:
+                f.setPointSizeF(mainFontSize)
+            self._app.setFont(f)
+            for win in self._app.topLevelWidgets():
+                win.setFont(f)
 
     def _onSessionMiscSettingsChanged(self, whatChanged: list[str] | None = None):
         if whatChanged is None or any(x in whatChanged for x in ('theme', 'mainFontSize')):
