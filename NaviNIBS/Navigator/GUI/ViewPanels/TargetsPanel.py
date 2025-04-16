@@ -230,6 +230,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
     _redrawTargetKeys: set[str] = attrs.field(init=False, factory=set)
 
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         MainViewPanelWithDockWidgets.__attrs_post_init__(self)
         QueuedRedrawMixin.__attrs_post_init__(self)
@@ -380,6 +382,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                 await view.plotter.isReadyEvent.wait()
 
         self._onTargetsChanged()
+
+        self.finishedAsyncInit.set()
 
     def _getCrosshairCoord(self) -> np.ndarray:
         """

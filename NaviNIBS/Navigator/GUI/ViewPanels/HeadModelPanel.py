@@ -18,6 +18,7 @@ import typing as tp
 from . import MainViewPanel
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import SurfSliceView, Surf3DView
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.Navigator.Model.Session import Session
@@ -33,6 +34,8 @@ class HeadModelPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
+
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -107,6 +110,14 @@ class HeadModelPanel(MainViewPanel):
 
         for key, view in self._views.items():
             view.session = self.session
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for view in self._views.values():
+            await view.finishedAsyncInit.wait()
+
+        self.finishedAsyncInit.set()
 
     def _onHeadModelUpdated(self, whatChanged: str):
         prevSelected = self._activeSurfWidget.selectedItems()

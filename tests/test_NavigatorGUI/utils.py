@@ -188,6 +188,8 @@ def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True, diff
                 imJoined.paste(im, (xOffset, 0))
                 xOffset += im.width
             imJoined.show()
+        else:
+            logger.info('Images are (approximately) equal')
         if doAssertEqual:
             assert diffAmt <= diffAmtThreshold, f'Images are different: {diffAmt}'
 

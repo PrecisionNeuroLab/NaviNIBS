@@ -48,8 +48,7 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.headModelPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await navigatorGUI.headModelPanel.finishedAsyncInit.wait()
 
     assert navigatorGUI.activeViewKey == navigatorGUI.headModelPanel.key
 
@@ -70,8 +69,9 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert os.path.normpath(ses.headModel.filepath) == os.path.normpath(headModelTestSourcePath)
 
-    # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
-    await asyncio.sleep(60.)
+    for view in navigatorGUI.headModelPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+    await asyncio.sleep(1.)
     screenshotPath = os.path.join(sessionPath, 'SetHeadModel.png')
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))

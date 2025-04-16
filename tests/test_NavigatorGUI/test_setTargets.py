@@ -56,8 +56,10 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.setTargetsPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(60.)
+    await navigatorGUI.setTargetsPanel.finishedAsyncInit.wait()
+    await asyncio.sleep(1.)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
 
     assert navigatorGUI.activeViewKey == navigatorGUI.setTargetsPanel.key
 
@@ -74,6 +76,8 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
 
     screenshotPath = os.path.join(sessionPath, 'SetTargets_Imported.png')
     await utils.raiseMainNavigatorGUI()
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
 
@@ -96,7 +100,8 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
     assert not any('grid' in targetKey for targetKey in ses.targets.keys())
 
     # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
-    await asyncio.sleep(60.)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
     screenshotPath = os.path.join(sessionPath, 'SetTargets_ImportedAndSelected.png')
     await utils.raiseMainNavigatorGUI()
     utils.captureScreenshot(navigatorGUI, screenshotPath)
@@ -146,8 +151,10 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.setTargetsPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(60.)
+    await navigatorGUI.setTargetsPanel.finishedAsyncInit.wait()
+    await asyncio.sleep(1.)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
 
     assert navigatorGUI.activeViewKey == navigatorGUI.setTargetsPanel.key
 
@@ -182,14 +189,18 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
         gridWdgt._gridWidthWdgts[i].setValue(20)
     gridWdgt._gridNeedsUpdate.set()
 
-    await asyncio.sleep(5.)
+    await asyncio.sleep(.1)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
 
     # equivalent to clicking on corresponding entry in table
     navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 'M1 grid point 13'
 
     navigatorGUI.setTargetsPanel._views['3D'].plotter.camera.zoom(3)  # closer view on head for screenshot
 
-    await asyncio.sleep(5.)
+    await asyncio.sleep(.1)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
 
     screenshotPath = os.path.join(sessionPath, 'SetTargetGrid_SpatialGrid.png')
     await utils.raiseMainNavigatorGUI()

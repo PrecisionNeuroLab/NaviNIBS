@@ -62,7 +62,7 @@ class ToolWidget:
     _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
 
     _asyncInitTask: asyncio.Task = attrs.field(init=False)
-    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
     _trackerSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
@@ -192,13 +192,13 @@ class ToolWidget:
                 plotter.enable_parallel_projection()
                 plotter.enable_depth_peeling(4)
 
-        self._finishedAsyncInit.set()
+        self.finishedAsyncInit.set()
 
         self.redraw()
 
     def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
 
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             return
 
         if whatToRedraw is None or 'tool' in whatToRedraw:
@@ -389,7 +389,7 @@ class ToolWidget:
             self.redraw(toRedraw)
 
     def close(self):
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             self._asyncInitTask.cancel()
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
         self._toolSpacePlotter.close()

@@ -55,7 +55,7 @@ async def test_electrodeDigitization(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.digitizeLocationsPanel.key)
 
     # give time for initialization
-    await navigatorGUI.digitizeLocationsPanel.finishedAsyncInitializationEvent.wait()
+    await navigatorGUI.digitizeLocationsPanel.finishedAsyncInit.wait()
     await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.digitizeLocationsPanel.key

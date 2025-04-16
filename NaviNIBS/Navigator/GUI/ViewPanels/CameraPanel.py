@@ -37,6 +37,8 @@ class CameraObjectsView(QueuedRedrawMixin):
 
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict, repr=False)
 
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         QueuedRedrawMixin.__attrs_post_init__(self)
 
@@ -68,6 +70,8 @@ class CameraObjectsView(QueuedRedrawMixin):
         self._redraw('all')
 
         self._autoOrientCamera()
+
+        self.finishedAsyncInit.set()
 
     def _autoOrientCamera(self, distance: float = 1000):
         # if necessary info available, reorient camera view based on subject location
@@ -267,6 +271,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     _mainCameraView: CameraObjectsView = attrs.field(init=False)
     _mainCameraDock: Dock = attrs.field(init=False)
 
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -351,6 +357,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         await asyncio.sleep(0.5)
         self._updateAutoLayout()  # run after delay to allow others to resize first
+
+        await self._mainCameraView.finishedAsyncInit.wait()
+
+        self.finishedAsyncInit.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

@@ -50,7 +50,7 @@ class DigitizeLocationsPanel(MainViewPanel):
     _positionsClient: tp.Optional[ToolPositionsClient] = attrs.field(init=False, default=None)
     _tblWdgt: DigitizedLocationsTableWidget = attrs.field(init=False)
 
-    finishedAsyncInitializationEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -141,7 +141,7 @@ class DigitizeLocationsPanel(MainViewPanel):
 
         self._redraw(which='all')
 
-        self.finishedAsyncInitializationEvent.set()
+        self.finishedAsyncInit.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

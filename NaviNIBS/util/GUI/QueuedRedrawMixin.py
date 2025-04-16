@@ -19,7 +19,10 @@ class QueuedRedrawMixin:
     _redrawQueue: list[str | tuple[str, dict]] = attrs.field(init=False, factory=list)
     _redrawQueueModified: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
+    redrawQueueIsEmpty: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
+        self.redrawQueueIsEmpty.set()
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_queuedRedraw))
 
     async def _loop_queuedRedraw(self):
@@ -36,6 +39,7 @@ class QueuedRedrawMixin:
                     assert len(toRedraw) == 2
                     self._redraw(which=toRedraw[0], **toRedraw[1])
             self._redrawQueueModified.clear()
+            self.redrawQueueIsEmpty.set()
             await asyncio.sleep(0.01)  # rate limit  # TODO: make this a parameter
 
     def _queueRedraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
@@ -67,6 +71,7 @@ class QueuedRedrawMixin:
             queueKey = (which, kwargs)
         logger.debug(f'Queueing redraw for {self.__class__.__name__} {queueKey}')
         self._redrawQueue.append(queueKey)
+        self.redrawQueueIsEmpty.clear()
         self._redrawQueueModified.set()
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
@@ -81,6 +86,8 @@ class QueuedRedrawMixin:
             except ValueError:
                 pass
             else:
+                if len(self._redrawQueue) == 0:
+                    self.redrawQueueIsEmpty.set()
                 self._redrawQueueModified.set()
 
         # subclass should handle the rest

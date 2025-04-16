@@ -212,6 +212,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
     _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
 
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -323,6 +325,15 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for view in self._views.values():
+            if isinstance(view, SinglePlotterNavigationView):
+                await view.finishedAsyncInit.wait()
+
+        self.finishedAsyncInit.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

@@ -67,7 +67,7 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
     sessionPath = utils.getSessionPath(workingDir, 'InfoOnly', deleteIfExists=True)
     assert not os.path.exists(sessionPath)
 
-    await asyncio.sleep(5.)
+    await asyncio.sleep(2.)
 
     assert navigatorGUIWithoutSession._win.isVisible()
 
@@ -75,7 +75,7 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
     # (at this time, session is None, but autosave should not generate error)
     await navigatorGUIWithoutSession.manageSessionPanel._autosave()
 
-    await asyncio.sleep(1.)
+    await asyncio.sleep(.1)
 
     # create new session
 

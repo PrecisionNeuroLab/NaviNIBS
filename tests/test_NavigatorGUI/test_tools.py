@@ -9,6 +9,7 @@ import shutil
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from NaviNIBS.Navigator.GUI.ViewPanels.ToolsPanel import CoilToolWidget
+from NaviNIBS.util.pyvista import RemotePlotterProxy
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
     existingResourcesDataPath,
@@ -56,8 +57,7 @@ async def test_setTools(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.toolsPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await asyncio.sleep(1.)
 
     assert navigatorGUI.activeViewKey == navigatorGUI.toolsPanel.key
 
@@ -74,8 +74,12 @@ async def test_setTools(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert 'Pointer' in ses.tools
 
-    # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
-    await asyncio.sleep(60.)
+    # wait for plots to initialize
+    await asyncio.sleep(1.)
+    toolWdgt = navigatorGUI.toolsPanel._toolWdgt
+    assert toolWdgt is not None
+    await toolWdgt.finishedAsyncInit.wait()
+    await asyncio.sleep(1.)
     screenshotPath = os.path.join(sessionPath, 'SetTools_ImportedAndSelected.png')
     utils.captureScreenshot(navigatorGUI, screenshotPath)
     pyperclip.copy(str(screenshotPath))
@@ -186,7 +190,8 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
 
     # give time for initialization
     # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(10.)
+    await asyncio.sleep(.1)
+    await simulatedToolsPanel.finishedAsyncInit.wait()
 
     assert navigatorGUI.activeViewKey == simulatedToolsPanel.key
 
@@ -200,7 +205,7 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
 
     await simulatedToolsPanel.importPositionsSnapshot(simulatedPositionsPath1)
 
-    await asyncio.sleep(2.)
+    await asyncio.sleep(1.)
 
     screenshotPath = os.path.join(sessionPath, 'SimulateTools_Example1.png')
     utils.captureScreenshot(navigatorGUI, screenshotPath)

@@ -38,6 +38,8 @@ class FiducialsPanel(MainViewPanel):
     _surfKey: str = 'skinSurf'
     _fiducialActors: tp.Dict[str, tp.Any] = attrs.field(init=False, factory=dict)
 
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -118,6 +120,9 @@ class FiducialsPanel(MainViewPanel):
                 await view.plotter.isReadyEvent.wait()
 
         self._onPlannedFiducialsChanged()  # update plot
+
+        self.finishedAsyncInit.set()
+
     def _onSliceOriginChanged(self, sourceKey: str):
         for key, view in self._views.items():
             if key == sourceKey:
@@ -247,6 +252,8 @@ class FiducialsPanel(MainViewPanel):
                                                    plannedCoord=noseCoord)
 
         # note: any pre-existing fiducials with non-standard names will remain unchanged
+
+        self._tblWdgt.resizeColumnsToContents()
 
     def _getTblCurrentFiducialKey(self) -> tp.Optional[str]:
         return self._tblWdgt.currentCollectionItemKey
