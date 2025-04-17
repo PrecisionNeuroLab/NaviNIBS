@@ -20,6 +20,7 @@ from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
 from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Addons import Addon, installPath as addonBaseInstallPath
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _navigatorGUI: NavigatorGUI
 
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.form-select'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.form-select'))
 
     _autosavePeriod: float = 60  # in sec
 
@@ -83,31 +84,31 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         dock.setStretch(1, 10)
         self._wdgt.addDock(dock, position='left')
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-plus'), text='New session')
         self._newSessionBtn = btn
         btn.clicked.connect(lambda checked: self._createNewSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-open'), text='Load session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.folder-open'), text='Load session')
         btn.clicked.connect(lambda checked: self.loadSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-plus-outline'), text='Augment session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.folder-plus-outline'), text='Augment session')
         btn.clicked.connect(lambda checked: self.augmentSession())
         container.layout().addWidget(btn)
         self._augmentBtn = btn
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-restore'), text='Recover in-progress session')
         btn.clicked.connect(lambda checked: self._recoverSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.clipboard-file'), text='Clone session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.clipboard-file'), text='Clone session')
         btn.clicked.connect(lambda checked: self._cloneSession())
         container.layout().addWidget(btn)
 
         container.layout().addSpacing(10)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save'), text='Save session')
         btn.clicked.connect(self._onSaveSessionBtnClicked)
         container.layout().addWidget(btn)
         self._saveBtn = btn
@@ -115,26 +116,26 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._saveShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.Save, self._navigatorGUI._win, None, None, QtCore.Qt.ApplicationShortcut)
         self._saveShortcut.activated.connect(self._onSaveSessionShortcutActivated)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit-outline'), text='Save session to dir...')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save-edit-outline'), text='Save session to dir...')
         btn.clicked.connect(lambda checked: self._saveSessionToDir())
         container.layout().addWidget(btn)
         self._saveToDirBtn = btn
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit'), text='Save session to file...')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save-edit'), text='Save session to file...')
         btn.clicked.connect(lambda checked: self._saveSessionToFile())
         container.layout().addWidget(btn)
         self._saveToFileBtn = btn
 
         container.layout().addSpacing(10)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-remove'), text='Close session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-remove'), text='Close session')
         btn.clicked.connect(lambda checked: self._tryVerifyThenCloseSession())
         container.layout().addWidget(btn)
         self._closeBtn = btn
 
         container.layout().addSpacing(10)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.plus'), text='Enable addon')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.plus'), text='Enable addon')
         btn.clicked.connect(lambda checked: self._addAddon())
         container.layout().addWidget(btn)
         self._addAddonBtn = btn
@@ -228,7 +229,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             assert self._tabSaveBtn is None, 'Save button already added to dock tab strip'
             self._rootDockArea = dockArea
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save'), text='Save')
         btn.clicked.connect(self._onSaveSessionBtnClicked)
         btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self._tabSaveBtn = btn

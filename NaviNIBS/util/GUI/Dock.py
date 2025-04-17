@@ -1,4 +1,5 @@
 from __future__ import annotations
+import typing as tp
 import pyqtgraph.dockarea as pgd
 from pyqtgraph.dockarea.Dock import DockLabel as pgdDockLabel, VerticalLabel as pgdVerticalLabel
 import pyqtgraph.dockarea.DockDrop as pgdd
@@ -247,11 +248,13 @@ class VContainer(pgdc.VContainer):
 
 class DockLabel(QtWidgets.QFrame):
     _icon: QtWidgets.QLabel | None = None
+    _iconSrc: QtGui.QIcon | None = None
+    _iconFn: tp.Callable[..., QtGui.QIcon] | None = None
     _label: QtWidgets.QLabel
     _closeButton: QtWidgets.QToolButton | None = None
     _dock: Dock
     _dim: bool = False
-    _iconSize: tuple[int, int]
+    _iconSize: tuple[int, int] | None = None
 
     _styleUpdateInProgress: bool = False
 
@@ -260,18 +263,20 @@ class DockLabel(QtWidgets.QFrame):
 
     def __init__(self, text: str, dock: Dock, showCloseButton: bool,
                  icon: QtGui.QIcon | None = None,
-                 iconSize: tuple[int, int] = (20, 20),
+                 iconFn: tp.Callable[..., QtGui.QIcon] | None = None,
+                 iconSize: tuple[int, int] | None = None,
                  **kwargs):
         QtWidgets.QFrame.__init__(self)
         self._dock = dock
         self._iconSize = iconSize
-
         self.setLayout(QtWidgets.QHBoxLayout())
         self.layout().setContentsMargins(1, 1, 1, 1)
+        self.layout().setSpacing(1)
 
-        if icon is not None:
+        if icon is not None or iconFn is not None:
+            self._iconSrc = icon
+            self._iconFn = iconFn
             self._icon = QtWidgets.QLabel(self)
-            self._icon.setPixmap(icon.pixmap(*self._iconSize))
             self.layout().addWidget(self._icon)
             self._icon.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
 
@@ -332,6 +337,19 @@ class DockLabel(QtWidgets.QFrame):
 
     def updateStyle(self):
         self._styleUpdateInProgress = True
+
+        if self._icon is not None:
+            if self._iconFn is not None:
+                icon = self._iconFn()
+            else:
+                icon = self._iconSrc
+
+            iconSize = self._iconSize
+            if iconSize is None:
+                # calculate iconSize from font size
+                iconSize = tuple(1.25 * self._label.fontMetrics().height() for i in range(2))
+            self._icon.setPixmap(icon.pixmap(*iconSize))
+
         r = '5px'
         if self.parent() is None:
             palette = self.palette()
@@ -477,7 +495,8 @@ class Dock(pgd.Dock):
 
     # noinspection PyMissingConstructor
     def __init__(self, name, title: str = None, area=None, size=(10, 10), widget=None, hideTitle=False, autoOrientation=False, closable=False, affinities: list[str] | None = None,
-                 icon: QtGui.QIcon | None = None):
+                 icon: QtGui.QIcon | None = None,
+                 iconFn: tp.Callable[..., QtGui.QIcon] | None = None):
         # completely override parent class init to specify different DockDrop class
 
         QtWidgets.QWidget.__init__(self)
@@ -487,7 +506,8 @@ class Dock(pgd.Dock):
         self.area = area
         if title is None:
             title = self._name
-        self.label = DockLabel(title, self, closable, icon=icon)
+        self.label = (
+            DockLabel(title, self, closable, icon=icon, iconFn=iconFn))
         if closable:
             self.label.sigCloseClicked.connect(self.close)
         self.labelHidden = False

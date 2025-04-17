@@ -25,6 +25,7 @@ from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
@@ -213,7 +214,7 @@ class VisualizedTarget:
 @attrs.define
 class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _key: str = 'Set targets'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-flash-outline'))
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)

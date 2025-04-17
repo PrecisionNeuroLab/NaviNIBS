@@ -19,6 +19,7 @@ from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWi
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.logging import getLogFilepath
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
@@ -254,7 +255,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     Set to False to disable auto layout 
     """
 
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.cctv'))
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _trackingStatusDock: Dock = attrs.field(init=False)

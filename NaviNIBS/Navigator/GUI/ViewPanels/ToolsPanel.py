@@ -29,6 +29,7 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -508,7 +509,7 @@ class PointerToolWidget(ToolWidget):
 @attrs.define
 class ToolsPanel(MainViewPanel):
     _key: str = 'Tools'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.hammer-screwdriver'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.hammer-screwdriver'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _tblWdgt: ToolsTableWidget = attrs.field(init=False)
     _toolWdgt: tp.Optional[ToolWidget] = attrs.field(init=False, default=None)

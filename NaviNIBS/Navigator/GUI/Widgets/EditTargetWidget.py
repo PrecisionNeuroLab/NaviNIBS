@@ -17,6 +17,7 @@ from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, 
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QDial import AngleDial
 from NaviNIBS.util.GUI.QScrollContainer import QScrollContainer
 from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
@@ -220,7 +221,7 @@ class CoordinateWidget:
 
                     editWdgt = QtWidgets.QToolButton()
                     self._editCoordInSysWdgts[key] = editWdgt
-                    editWdgt.setIcon(qta.icon('mdi6.pencil'))
+                    editWdgt.setIcon(getIcon('mdi6.pencil'))
                     editWdgt.clicked.connect(lambda *args, coordKey=key: self._onEditCoordClicked(coordKey))
                     container.layout().addWidget(editWdgt)
                 else:

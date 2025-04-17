@@ -33,6 +33,7 @@ from NaviNIBS.util.Transforms import applyTransform, invertTransform, transformT
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -296,7 +297,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     head points to not be responsible for tracking this sequencing here.
     """
     _key: str = 'Register'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-snowflake'))
     _surfKey: str = 'skinSurf'
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)

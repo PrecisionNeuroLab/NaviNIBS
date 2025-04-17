@@ -11,10 +11,11 @@ from . import HotkeyTriggerSourceSettingsWidget
 from .HotkeyTriggerSourceSettingsWidget import HotkeyTriggerSourceSettingsWidget
 
 from .. import MainViewPanel
-from NaviNIBS.Navigator.Model.Triggering import TriggerEvent
-from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from .LSLTriggerSourceSettingsWidget import LSLTriggerSourceSettingsWidget
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
+from NaviNIBS.Navigator.Model.Triggering import TriggerEvent
+from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.util.GUI.Icons import getIcon
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class TriggerSettingsPanel(MainViewPanelWithDockWidgets):
     _key: str = 'Trigger settings'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.database-import'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.database-import'))
 
     _lslSettingsWidgets: list[LSLTriggerSourceSettingsWidget] = attrs.field(init=False, factory=list)
     _hotkeySettings: dict[str, HotkeyTriggerSourceSettingsWidget] = attrs.field(init=False, factory=dict)

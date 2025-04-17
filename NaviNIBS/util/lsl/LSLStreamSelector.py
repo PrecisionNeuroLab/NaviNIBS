@@ -7,6 +7,7 @@ from qtpy import QtWidgets, QtCore, QtGui
 import typing as tp
 
 from NaviNIBS.util.lsl.LSLStreamResolver import ThreadedLSLStreamResolver
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.Signaler import Signal
 
 
@@ -22,7 +23,7 @@ class LSLStreamSelector:
     _resolver: ThreadedLSLStreamResolver = attrs.field(init=False)
     _comboBox: QtWidgets.QComboBox = attrs.field(init=False)
 
-    _icon_available: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.eye'))
+    _icon_available: QtGui.QIcon = attrs.field(factory=lambda: getIcon('mdi6.eye'))
     _icon_unavailable: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.eye-off', color='gray'))
 
     sigSelectedStreamKeyChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))

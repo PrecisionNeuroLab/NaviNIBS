@@ -21,9 +21,10 @@ from . import MainViewPanel
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
+from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 @attrs.define()
 class MRIPanel(MainViewPanel):
     _key: str = 'Set MRI'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.image'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.image'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, MRI3DView]] = attrs.field(init=False, factory=dict)
 

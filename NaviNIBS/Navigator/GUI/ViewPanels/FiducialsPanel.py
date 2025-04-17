@@ -20,6 +20,7 @@ from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import PlanningFiducialsTableWidget
 from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.pyvista import RemotePlotterProxy
 from NaviNIBS.Navigator.Model.Session import Session
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class FiducialsPanel(MainViewPanel):
     _key: str = 'Plan fiducials'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-snowflake-outline'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-snowflake-outline'))
     _tblWdgt: PlanningFiducialsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _surfKey: str = 'skinSurf'
