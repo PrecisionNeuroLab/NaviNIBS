@@ -131,13 +131,10 @@ async def test_electrodeDigitization(navigatorGUIWithoutSession: NavigatorGUI,
 
             await asyncio.sleep(1.)
 
-            screenshotPath = os.path.join(sessionPath, 'ElectrodeDigitization_Digitizing.png')
-            utils.captureScreenshot(navigatorGUI, screenshotPath)
-            pyperclip.copy(str(screenshotPath))
-
-            # utils.compareImages(screenshotPath,
-            #                     os.path.join(screenshotsDataSourcePath, 'ElectrodeDigitization_Digitizing.png'),
-            #                     doAssertEqual=utils.doAssertScreenshotsEqual)
+            await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                                    sessionPath=sessionPath,
+                                                    screenshotName='ElectrodeDigitization_Digitizing',
+                                                    screenshotsDataSourcePath=screenshotsDataSourcePath)
 
 
     # select a previous electrode to show highlighting
@@ -154,13 +151,10 @@ async def test_electrodeDigitization(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(0.5)
 
-    screenshotPath = os.path.join(sessionPath, 'ElectrodeDigitization_Digitized.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    # utils.compareImages(screenshotPath,
-    #                     os.path.join(screenshotsDataSourcePath, 'ElectrodeDigitization_Digitized.png'),
-    #                     doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='ElectrodeDigitization_Digitized',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     await asyncio.sleep(1.)
 

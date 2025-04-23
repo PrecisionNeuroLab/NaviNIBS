@@ -63,27 +63,18 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert navigatorGUI.activeViewKey == navigatorGUI.setTargetsPanel.key
 
-    screenshotPath = os.path.join(sessionPath, 'SetTargets_Empty.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SetTargets_Empty.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTargets_Empty',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking "Import targets from file..." button and browsing to file
     navigatorGUI.setTargetsPanel._importTargetsFromFile(targetsDataSourcePath)
 
-    screenshotPath = os.path.join(sessionPath, 'SetTargets_Imported.png')
-    await utils.raiseMainNavigatorGUI()
-    for view in navigatorGUI.setTargetsPanel._views.values():
-        await view.redrawQueueIsEmpty.wait()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SetTargets_Imported.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTargets_Imported',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking on corresponding entry in table
     navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 't2-45'
@@ -102,14 +93,11 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
     # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
     for view in navigatorGUI.setTargetsPanel._views.values():
         await view.redrawQueueIsEmpty.wait()
-    screenshotPath = os.path.join(sessionPath, 'SetTargets_ImportedAndSelected.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
 
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SetTargets_ImportedAndSelected.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTargets_ImportedAndSelected',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # TODO: add additional test procedures + assertions for manually editing existing targets
     #  creating new targets, and deleting existing targets
@@ -161,14 +149,10 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     # equivalent to clicking on "Edit grid" tab
     navigatorGUI.setTargetsPanel._editGridDock.raiseDock()
 
-    screenshotPath = os.path.join(sessionPath, 'SetTargetGrid_Empty.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SetTargetGrid_Empty.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTargetGrid_Empty',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     gridWdgt: EditGridWidget = navigatorGUI.setTargetsPanel._editGridWdgt
 
@@ -202,14 +186,10 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     for view in navigatorGUI.setTargetsPanel._views.values():
         await view.redrawQueueIsEmpty.wait()
 
-    screenshotPath = os.path.join(sessionPath, 'SetTargetGrid_SpatialGrid.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SetTargetGrid_SpatialGrid.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTargetGrid_SpatialGrid',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)

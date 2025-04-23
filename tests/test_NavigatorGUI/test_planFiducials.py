@@ -41,13 +41,10 @@ async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert navigatorGUI.activeViewKey == navigatorGUI.planFiducialsPanel.key
 
-    screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Empty.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                  os.path.join(screenshotsDataSourcePath, 'PlanFiducials_Empty.png'),
-                  doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='PlanFiducials_Empty',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking autoset button
     navigatorGUI.planFiducialsPanel._onAutosetBtnClicked(checked=False)
@@ -71,14 +68,10 @@ async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
         await view.redrawQueueIsEmpty.wait()
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Autoset.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'PlanFiducials_Autoset.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='PlanFiducials_Autoset',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # TODO: add additional test procedures + assertions for manually editing existing fiducials,
     #  creating new fiducials, and deleting existing fiducials

@@ -84,13 +84,10 @@ async def test_basicNavigation(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(2.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_NoTarget_NoTools.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_NoTarget_NoTools.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_NoTarget_NoTools',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     with open(simulatedPositionsBasicNav1Path, 'r') as f:
         positionsDict: dict[str, dict] = json.load(f)
@@ -111,38 +108,29 @@ async def test_basicNavigation(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(5.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_Target_SubOnly.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_Target_SubOnly.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_Target_SubOnly',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     await simulatedToolsPanel.importPositionsSnapshot(positionsDict=positions_coilOnly)
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_Target_CoilAndSub.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_Target_CoilAndSub.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_Target_CoilAndSub',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # clear coil position
     await simulatedToolsPanel.clearToolPos(activeCoilKey)
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_Target_CoilLost.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_Target_CoilLost.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_Target_CoilLost',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     await simulatedToolsPanel.importPositionsSnapshot(positionsDict=positions_coilOnly)
 
@@ -152,13 +140,10 @@ async def test_basicNavigation(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_Target_SubLost.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_Target_SubLost.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_Target_SubLost',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     await simulatedToolsPanel.importPositionsSnapshot(positionsDict=positions_subOnly)
 
@@ -217,13 +202,10 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
 
     await asyncio.sleep(2.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_ManualSample_FarTarget.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_ManualSample_FarTarget.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_ManualSample_FarTarget',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     random.seed(a=1)
     numSamples = 50
@@ -265,13 +247,10 @@ async def test_basicNavigation_manualSampling(navigatorGUIWithoutSession: Naviga
 
     await asyncio.sleep(2.)
 
-    screenshotPath = os.path.join(sessionPath, 'BasicNav_ManualSample_Samples.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'BasicNav_ManualSample_Samples.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_ManualSample_Samples',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)

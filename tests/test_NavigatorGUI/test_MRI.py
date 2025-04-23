@@ -71,10 +71,9 @@ async def test_setMRIInfo(navigatorGUIWithoutSession: NavigatorGUI,
         for view in navigatorGUI.mriPanel._views.values():
             await view.redrawQueueIsEmpty.wait()
         await asyncio.sleep(1.)
-        screenshotPath = os.path.join(sessionPath, 'SetMRI.png')
-        utils.captureScreenshot(navigatorGUI, screenshotPath)
-        pyperclip.copy(str(screenshotPath))
 
-        utils.compareImages(screenshotPath,
-                      os.path.join(screenshotsDataSourcePath, 'SetMRI.png'),
-                      doAssertEqual=utils.doAssertScreenshotsEqual)
+        await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                                sessionPath=sessionPath,
+                                                screenshotName='SetMRI',
+                                                screenshotsDataSourcePath=screenshotsDataSourcePath)
+

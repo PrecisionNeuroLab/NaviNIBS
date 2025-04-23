@@ -61,6 +61,12 @@ async def test_createNewSessionFileWithUserInput(navigatorGUIWithoutSession: Nav
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openMinimalSession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'InfoOnly')
+
+
+@pytest.mark.asyncio
 async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
                                    workingDir: str,
                                    screenshotsDataSourcePath: str):
@@ -84,13 +90,10 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(workingDir, 'NoSession.png')
-    utils.captureScreenshot(navigatorGUIWithoutSession, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'NoSession.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUIWithoutSession,
+                                            sessionPath=workingDir,
+                                            screenshotName='NoSession',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # note: can't click and test new session file dialog due it being modal
     # so test one level lower
@@ -140,11 +143,10 @@ async def test_createSessionViaGUI(navigatorGUIWithoutSession: NavigatorGUI,
 
     utils.assertSavedSessionIsValid(sessionPath)
 
-    screenshotPath = os.path.join(sessionPath, 'CreateSession.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
+    await utils.raiseMainNavigatorGUI()
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CreateSession',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'CreateSession.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
 

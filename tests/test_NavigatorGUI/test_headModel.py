@@ -72,10 +72,9 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
     for view in navigatorGUI.headModelPanel._views.values():
         await view.redrawQueueIsEmpty.wait()
     await asyncio.sleep(1.)
-    screenshotPath = os.path.join(sessionPath, 'SetHeadModel.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
 
-    utils.compareImages(screenshotPath,
-                  os.path.join(screenshotsDataSourcePath, 'SetHeadModel.png'),
-                  doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetHeadModel',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+

@@ -80,13 +80,11 @@ async def test_setTools(navigatorGUIWithoutSession: NavigatorGUI,
     assert toolWdgt is not None
     await toolWdgt.finishedAsyncInit.wait()
     await asyncio.sleep(1.)
-    screenshotPath = os.path.join(sessionPath, 'SetTools_ImportedAndSelected.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
 
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SetTools_ImportedAndSelected.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTools_ImportedAndSelected',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # TODO: add additional test procedures + assertions for manually editing existing tools
     #  creating new tools, and deleting existing tools, calibrating, etc.
@@ -139,13 +137,10 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
 
         await asyncio.sleep(5.)
 
-        screenshotPath = os.path.join(sessionPath, 'SimulateTools_AddonAdded.png')
-        utils.captureScreenshot(navigatorGUI, screenshotPath)
-        pyperclip.copy(str(screenshotPath))
-
-        utils.compareImages(screenshotPath,
-                            os.path.join(screenshotsDataSourcePath, 'SimulateTools_AddonAdded.png'),
-                            doAssertEqual=utils.doAssertScreenshotsEqual)
+        await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                                sessionPath=sessionPath,
+                                                screenshotName='SimulateTools_AddonAdded',
+                                                screenshotsDataSourcePath=screenshotsDataSourcePath)
 
         # equivalent to clicking save button
         navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
@@ -195,38 +190,29 @@ async def test_simulateTools(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert navigatorGUI.activeViewKey == simulatedToolsPanel.key
 
-    screenshotPath = os.path.join(sessionPath, 'SimulateTools_Blank.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SimulateTools_Blank.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SimulateTools_Blank',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     await simulatedToolsPanel.importPositionsSnapshot(simulatedPositionsPath1)
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'SimulateTools_Example1.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SimulateTools_Example1.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
-
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SimulateTools_Example1',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking "Move tool..." and then clicking on subject tracker
     task = asyncio.create_task(simulatedToolsPanel.selectAndMoveTool(simulatedToolsPanel._actors['CB60Calibration_tool']))
 
     await asyncio.sleep(1.)
-    screenshotPath = os.path.join(sessionPath, 'SimulateTools_Example2.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
 
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'SimulateTools_Example2.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SimulateTools_Example2',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
 
 @pytest.mark.asyncio
@@ -267,25 +253,21 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(10.)
 
-    screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_1.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath, coilWdgt._calibrationWindow.wdgt)
-    pyperclip.copy(str(screenshotPath))
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_1.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CalibrateCoiCalibrateCoil_1l_2',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath,
+                                            wdgt=coilWdgt._calibrationWindow.wdgt)
 
     await utils.importSimulatedPositionsSnapshot(navigatorGUI, simulatedPositionsCoilCalibrationPath1)
 
     await asyncio.sleep(0.5)
 
-    screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_2.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath, coilWdgt._calibrationWindow.wdgt)
-    pyperclip.copy(str(screenshotPath))
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_2.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CalibrateCoil_2',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath,
+                                            wdgt=coilWdgt._calibrationWindow.wdgt)
 
     # TODO import a simulated positions case where either coil or plate is NOT visible
     # and assert that calibrate button is disabled
@@ -295,13 +277,11 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(0.5)
 
-    screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_3.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath, coilWdgt._calibrationWindow.wdgt)
-    pyperclip.copy(str(screenshotPath))
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_3.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CalibrateCoil_3',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath,
+                                            wdgt=coilWdgt._calibrationWindow.wdgt)
 
     # TODO: simulate undoing calibration, closing window without changing original calibration
 
@@ -310,13 +290,10 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.0)
 
-    screenshotPath = os.path.join(sessionPath, 'CalibrateCoil_4.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'CalibrateCoil_4.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CalibrateCoil_4',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
