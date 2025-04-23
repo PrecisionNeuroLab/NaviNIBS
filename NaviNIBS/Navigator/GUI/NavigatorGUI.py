@@ -55,6 +55,10 @@ class NavigatorGUI(RunnableAsApp):
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
 
     _logFileHandler: tp.Optional[logging.FileHandler] = attrs.field(init=False, default=None)
+    _theme: str = 'light'
+    """
+    Default theme. Can be overriden by field in Session.miscSettings
+    """
 
     _restoringLayoutLock: asyncio.Lock = attrs.field(init=False, factory=asyncio.Lock)
 
@@ -314,24 +318,21 @@ class NavigatorGUI(RunnableAsApp):
         pv.global_theme.font.color = self._win.palette().color(QtGui.QPalette.Text).name()
 
         mainFontSize = self._session.miscSettings.mainFontSize
-        if True:
-            if mainFontSize is None:
-                styleContent = ''
-            else:
-                styleContent = f'font-size: {mainFontSize}pt;'
-
-            self._app.setStyleSheet(styleContent)
-            for win in self._app.topLevelWidgets():
-                # TODO: check to make sure we're not clearing other custom styles
-                win.setStyleSheet(styleContent)
-
+        if mainFontSize is None:
+            styleContent = ''
         else:
-            f = self._app.font()
-            if mainFontSize is not None:
-                f.setPointSizeF(mainFontSize)
+            styleContent = f'font-size: {mainFontSize}pt;'
+
+        self._app.setStyleSheet(styleContent)
+        for win in self._app.topLevelWidgets():
+            # TODO: check to make sure we're not clearing other custom styles
+            win.setStyleSheet(styleContent)
+
+        # also set font size outside of stylesheet so that it is applied to new windows
+        f = self._app.font()
+        if mainFontSize is not None:
+            f.setPointSizeF(mainFontSize)
             self._app.setFont(f)
-            for win in self._app.topLevelWidgets():
-                win.setFont(f)
 
     def _onSessionMiscSettingsChanged(self, whatChanged: list[str] | None = None):
         if whatChanged is None or any(x in whatChanged for x in ('theme', 'mainFontSize')):

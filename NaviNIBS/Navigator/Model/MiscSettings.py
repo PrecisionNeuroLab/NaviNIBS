@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 @attrs.define
 class MiscSettings:
-    _mainFontSize: float | None = 18  # TODO: set default to None
-    _theme: str = 'auto'  # TODO: set default to auto
+    _mainFontSize: float | None = None
+    _theme: str = 'light'
 
     sigAttribsChanged: Signal[list[str] | None] = attrs.field(init=False, factory=Signal)
     """

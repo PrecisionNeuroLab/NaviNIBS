@@ -567,7 +567,12 @@ class Dock(pgd.Dock):
             palette = self.palette()
         else:
             palette = self.parent().palette()
-        borderColor = palette.color(QtGui.QPalette.Active, QtGui.QPalette.AlternateBase).name()
+        if palette.color(QtGui.QPalette.Base).value() > 128:
+            # light theme
+            borderColor = '#bbbbbb'
+        else:
+            # dark theme
+            borderColor = '#666666'
 
         self.hStyle = f"""
         Dock > QWidget {{

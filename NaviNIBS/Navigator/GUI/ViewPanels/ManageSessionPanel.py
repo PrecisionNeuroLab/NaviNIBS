@@ -55,7 +55,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _fileDW: Dock = attrs.field(init=False)
     _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoDW: Dock = attrs.field(init=False)
+    _settingsContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
+    _appearanceContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
     _themeDropdown: QtWidgets.QComboBox = attrs.field(init=False)
     _fontSizeField: QtWidgets.QSpinBox = attrs.field(init=False)
@@ -142,7 +144,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         container.layout().addStretch()
 
-        title = 'Info'
+        title = 'Settings'
         dock = Dock(
             name=self._key + title,
             closable=False,
@@ -151,9 +153,14 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._wdgt.addDock(dock, position='right')
         self._infoDW = dock
         container = QtWidgets.QWidget()
-        self._infoContainer = container
+        self._settingsContainer = container
         dock.addWidget(container)
+        container.setLayout(QtWidgets.QVBoxLayout())
+
+        container = QtWidgets.QGroupBox('Session info')
+        self._settingsContainer.layout().addWidget(container)
         container.setLayout(QtWidgets.QFormLayout())
+        self._infoContainer = container
 
         wdgt = QtWidgets.QLineEdit()
         wdgt.setReadOnly(True)
@@ -171,8 +178,16 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._infoWdgts['sessionID'] = wdgt
         container.layout().addRow('Session ID', wdgt)
 
+        container = QtWidgets.QGroupBox('Appearance')
+        self._settingsContainer.layout().addWidget(container)
+        container.setLayout(QtWidgets.QFormLayout())
+        container.layout().setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        self._appearanceContainer = container
+
         wdgt = QtWidgets.QComboBox()
         wdgt.addItems(['Auto', 'Light', 'Dark'])
+        wdgt.setCurrentIndex(1)
+        wdgt.setMinimumWidth(80)
         wdgt.currentIndexChanged.connect(lambda index: self._onThemeDropdownChanged())
         container.layout().addRow('Theme', wdgt)
         self._themeDropdown = wdgt
@@ -180,13 +195,27 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         wdgt = QtWidgets.QSpinBox()
         wdgt.setRange(4, 64)
         wdgt.setSingleStep(1)
+        wdgt.setMinimumWidth(80)
         wdgt.valueChanged.connect(self._onFontSizeFieldChanged)
+        wdgt.clear()
+        wdgt.lineEdit().setPlaceholderText('Default')
         container.layout().addRow('Font size', wdgt)
         self._fontSizeField = wdgt
+
+        container = QtWidgets.QGroupBox('About')
+        self._settingsContainer.layout().addWidget(container)
+        container.setLayout(QtWidgets.QFormLayout())
+        container.layout().setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         wdgt = QtWidgets.QLabel(__version__)
         self._infoWdgts['version'] = wdgt
         container.layout().addRow('NaviNIBS version', wdgt)
+
+        wdgt = QtWidgets.QPushButton('Open NaviNIBS documentation')
+        wdgt.clicked.connect(lambda *args: QtGui.QDesktopServices.openUrl('https://precisionneurolab.github.io/navinibs-docs/'))
+        container.layout().addRow('Help', wdgt)
+
+        self._settingsContainer.layout().addStretch()
 
         self._updateEnabledWdgts()
 
@@ -266,7 +295,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     def _updateEnabledWdgts(self):
         wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn,
                  self._augmentBtn,
-                 self._closeBtn, self._addAddonBtn, self._infoContainer]
+                 self._closeBtn, self._addAddonBtn,
+                 self._infoContainer,
+                 self._appearanceContainer]
         if self._tabSaveBtn is not None:
             wdgts.append(self._tabSaveBtn)
         for wdgt in wdgts:
@@ -551,7 +582,10 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         if whatChanged is None or 'mainFontSize' in whatChanged:
             fontSize = self.session.miscSettings.mainFontSize
-            self._fontSizeField.setValue(fontSize)
+            if fontSize is None:
+                self._fontSizeField.clear()
+            else:
+                self._fontSizeField.setValue(fontSize)
 
     def _onInfoTextEdited(self, key: str):
         text = self._infoWdgts[key].text()

@@ -443,7 +443,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
 
-        if True and self._alignCameraTo == 'target':
+        if False and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
                           key='Brain',
                           surfKey='gmSurf',

@@ -23,6 +23,7 @@ class RunnableAsApp:
     _appLogEveryNLoops: tp.Optional[int] = None
     _theme: str = 'auto'  # auto, light, or dark
 
+    _prevSetTheme: str = attr.ib(init=False, default=None)
     _app: QtWidgets.QApplication = attr.ib(init=False)
     _appIconPath: str | None = attr.ib(init=False, default=None)
     _Win: tp.Callable[..., QMainWindowWithCloseSignal] = attr.ib(default=QMainWindowWithCloseSignal)
@@ -80,11 +81,17 @@ class RunnableAsApp:
         import qtawesome as qta
         match theme.lower():
             case 'light':
-                qta.light(self._app)
+                if self._prevSetTheme is None or self._prevSetTheme == 'light':
+                    # no change needed, avoid calling qta.light since it also changes app style
+                    pass
+                else:
+                    qta.light(self._app)
             case 'dark':
                 qta.dark(self._app)
             case _:
                 raise ValueError(f'Unknown theme: {theme}')
+
+        self._prevSetTheme = theme.lower()
 
     def _onAppAboutToQuit(self):
         logger.info('About to quit')
