@@ -465,6 +465,8 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
      adapted by the caller.
     """
 
+    _RemotePlotterApp: tp.Type[RemotePlotterApp] | None = None
+
     def __init__(self, parent=None, **kwargs):
         RemotePlotterProxyBase.__init__(self)
         QtWidgets.QWidget.__init__(self, parent=parent)
@@ -496,6 +498,9 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
     def _startRemoteProc(self, procKwargs, **kwargs):
         assert self.remoteProc is None
 
+        if self._RemotePlotterApp is None:
+            self._RemotePlotterApp = RemotePlotterApp
+
         if True:
             # set log filepath of remote proc based on filepath of root logger file handler
             handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
@@ -504,7 +509,10 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
                 procKwargs = procKwargs.copy()
                 procKwargs['logFilepath'] = logFilepath
 
-        self.remoteProc = mp.Process(target=RemotePlotterApp.createAndRun,
+        procKwargs['theme'] = 'light' if self.palette().color(QtGui.QPalette.Base).value() > 128 else 'dark'
+        # TODO: add support for dynamically updating theme on palette changes later
+
+        self.remoteProc = mp.Process(target=self._RemotePlotterApp.createAndRun,
                                      daemon=True,
                                      kwargs=procKwargs)
         logger.debug('Starting remote plotter process')

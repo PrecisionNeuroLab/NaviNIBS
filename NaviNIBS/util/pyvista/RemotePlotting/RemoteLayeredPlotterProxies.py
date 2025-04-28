@@ -52,11 +52,11 @@ class RemotePrimaryLayeredPlotterProxy(RemotePlotterProxy):
         return self._secondaryPlotters
 
     def _startRemoteProc(self, procKwargs, **kwargs):
-        assert self.remoteProc is None
-        self.remoteProc = mp.Process(target=RemoteLayeredPlotterApp.createAndRun,
-                                     daemon=True,
-                                     kwargs=procKwargs)
-        self.remoteProc.start()
+
+        if self._RemotePlotterApp is None:
+            self._RemotePlotterApp = RemoteLayeredPlotterApp
+
+        return super()._startRemoteProc(procKwargs, **kwargs)
 
     async def _sendReqAndRecv_async(self, msg, layerKey: str | None = '__primary'):
         # add plotter layer key to msg
