@@ -350,10 +350,11 @@ class RemotePlotManager(RemotePlotManagerBase):
                     try:
                         resp = await self._handleMsg(msg)
                     except Exception as e:
-                        logger.exception(f'Exception while handling msg {msg}: {exceptionToStr(e)}')
+                        logger.error(f'Exception while handling msg {msg}: {exceptionToStr(e)}')
                         resp = e
 
                     if replyOnSock is not None:
+                        logger.debug(f'Sending response: {resp}')
                         await replyOnSock.send_pyobj(resp)
                     else:
                         logger.debug(f'Non-blocking request complete, dropping response: {resp}')

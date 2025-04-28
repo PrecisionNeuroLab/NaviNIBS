@@ -398,7 +398,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             for view in self._views.values():
                 if isinstance(view, SinglePlotterNavigationView):
                     if not isinstance(view.plotter, RemotePlotterProxy) or view.plotter.isReadyEvent.is_set():
-                        view.plotter.pauseRendering()
+                        with view.plotter.allowNonblockingCalls():
+                            view.plotter.pauseRendering()
 
     def _onSamplesChanged(self, changesKeys: list[str], changedAttribs: tp.Optional[list[str]] = None):
         if changedAttribs is None or 'isVisible' in changedAttribs:
