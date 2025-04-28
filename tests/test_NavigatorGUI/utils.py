@@ -17,9 +17,6 @@ from NaviNIBS.Navigator.Model.Session import Session
 logger = logging.getLogger(__name__)
 
 
-doAssertScreenshotsEqual = False  # TODO: debug, delete / set to True / make a test-specific setting
-
-
 @pytest.fixture
 def existingResourcesDataPath():
     """
@@ -64,7 +61,6 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
         await raiseMainNavigatorGUI()
     yield navGUI
     navGUI._win.close()
-
 
 async def openSessionForInteraction(workingDir, sessionKey: str):
     sessionPath = getSessionPath(workingDir, sessionKey)
@@ -152,6 +148,28 @@ async def waitForever():
         await asyncio.sleep(1.)
 
 
+async def captureAndCompareScreenshot(navigatorGUI: NavigatorGUI, 
+                                      sessionPath: str, 
+                                      screenshotName: str, 
+                                      screenshotsDataSourcePath: str,
+                                      wdgt: tp.Any | None = None):
+    await raiseMainNavigatorGUI()
+
+    ext = '.png'
+    screenshotPath = os.path.join(sessionPath, screenshotName + ext)
+    captureScreenshot(navigatorGUI, screenshotPath, wdgt=wdgt)
+    pyperclip.copy(screenshotPath)
+
+    compareToPath = os.path.join(screenshotsDataSourcePath, screenshotName + ext)
+    if not os.path.exists(compareToPath):
+        logger.warning(f'No comparison screenshot found at {compareToPath}')
+        return
+
+    compareImages(screenshotPath,
+                        compareToPath,
+                        doAssertEqual=False)
+
+
 def captureScreenshot(navigatorGUI: NavigatorGUI, saveToPath: str, wdgt: tp.Any | None = None):
     from PIL import ImageGrab
 
@@ -188,6 +206,8 @@ def compareImages(img1Path: str, img2Path: str, doAssertEqual: bool = True, diff
                 imJoined.paste(im, (xOffset, 0))
                 xOffset += im.width
             imJoined.show()
+        else:
+            logger.info('Images are (approximately) equal')
         if doAssertEqual:
             assert diffAmt <= diffAmtThreshold, f'Images are different: {diffAmt}'
 

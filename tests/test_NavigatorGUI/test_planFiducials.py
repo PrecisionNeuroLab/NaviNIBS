@@ -34,18 +34,17 @@ async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI._activateView(navigatorGUI.planFiducialsPanel.key)
 
     # give time for initialization
-    # (TODO: wait for signal to indicate tab is ready instead of waiting fixed time here)
-    await asyncio.sleep(60.)
+    await navigatorGUI.planFiducialsPanel.finishedAsyncInit.wait()
+    await asyncio.sleep(.1)
+    for view in navigatorGUI.planFiducialsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
 
     assert navigatorGUI.activeViewKey == navigatorGUI.planFiducialsPanel.key
 
-    screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Empty.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                  os.path.join(screenshotsDataSourcePath, 'PlanFiducials_Empty.png'),
-                  doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='PlanFiducials_Empty',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking autoset button
     navigatorGUI.planFiducialsPanel._onAutosetBtnClicked(checked=False)
@@ -63,16 +62,16 @@ async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert ses.subjectRegistration.fiducials.plannedFiducials['RPA'].round(1).tolist() == [76.4, 5.1, -35.5]
 
-    # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
-    await asyncio.sleep(60.)
-    screenshotPath = os.path.join(sessionPath, 'PlanFiducials_Autoset.png')
-    await utils.raiseMainNavigatorGUI()
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
+    # TODO: trigger fiducials table column size refresh or wait for it to automatically refresh
 
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'PlanFiducials_Autoset.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    for view in navigatorGUI.planFiducialsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+    await asyncio.sleep(1.)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='PlanFiducials_Autoset',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # TODO: add additional test procedures + assertions for manually editing existing fiducials,
     #  creating new fiducials, and deleting existing fiducials

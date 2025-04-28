@@ -23,6 +23,7 @@ from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocation
 from NaviNIBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
@@ -36,7 +37,7 @@ logger.setLevel(logging.INFO)
 @attrs.define
 class DigitizeLocationsPanel(MainViewPanel):
     _key: str = 'Digitize'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.dots-hexagon'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.dots-hexagon'))
     _surfKey: str = 'skinSurf'
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
@@ -50,7 +51,7 @@ class DigitizeLocationsPanel(MainViewPanel):
     _positionsClient: tp.Optional[ToolPositionsClient] = attrs.field(init=False, default=None)
     _tblWdgt: DigitizedLocationsTableWidget = attrs.field(init=False)
 
-    finishedAsyncInitializationEvent: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -141,7 +142,7 @@ class DigitizeLocationsPanel(MainViewPanel):
 
         self._redraw(which='all')
 
-        self.finishedAsyncInitializationEvent.set()
+        self.finishedAsyncInit.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

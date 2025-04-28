@@ -18,6 +18,7 @@ import typing as tp
 from typing import ClassVar
 
 import NaviNIBS
+from NaviNIBS.Navigator.Model.MiscSettings import MiscSettings
 from NaviNIBS.Navigator.Model.MRI import MRI
 from NaviNIBS.Navigator.Model.HeadModel import HeadModel
 from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
@@ -50,6 +51,7 @@ class Session:
     _filepath: str  # path to compressed session file
     _subjectID: tp.Optional[str] = attrs.field(default=None)
     _sessionID: tp.Optional[str] = None
+    _miscSettings: MiscSettings = attrs.field(factory=MiscSettings)
     _MRI: MRI = attrs.field(factory=MRI)
     _headModel: HeadModel = attrs.field(factory=HeadModel)
     _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
@@ -98,6 +100,7 @@ class Session:
             self._tools = Tools(sessionPath=self._filepath)
 
         self.sigInfoChanged.connect(lambda *args: self.flagKeyAsDirty('info'))
+        self.miscSettings.sigAttribsChanged.connect(lambda *args: self.flagKeyAsDirty('miscSettings'))
         self.MRI.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('MRI'))
         self.MRI.sigManualClimChanged.connect(lambda *args: self.flagKeyAsDirty('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
@@ -155,6 +158,10 @@ class Session:
             self._filepath = newVal
             self.sigInfoChanged.emit(['filepath'])
             self.tools.sessionPath = self._filepath
+
+    @property
+    def miscSettings(self):
+        return self._miscSettings
 
     @property
     def MRI(self):
@@ -325,6 +332,8 @@ class Session:
             keysToSave.discard('info')
 
         otherPathsRelTo = self.filepath
+
+        saveConfigPartToFileIfNeeded('miscSettings', lambda: self.miscSettings.asDict())
 
         saveConfigPartToFileIfNeeded('MRI', lambda: self.MRI.asDict(filepathRelTo=otherPathsRelTo))
 
@@ -578,6 +587,11 @@ class Session:
             kwargs[key] = config[key]
 
         otherPathsRelTo = kwargs['filepath']
+
+        if 'miscSettings' in config:
+            configFilename_miscSettings = config['miscSettings']
+            with open(os.path.join(unpackedSessionDir, configFilename_miscSettings), 'r') as f:
+                kwargs['miscSettings'] = MiscSettings.fromDict(json.load(f))
 
         if 'MRI' in config:
             configFilename_MRI = config['MRI']

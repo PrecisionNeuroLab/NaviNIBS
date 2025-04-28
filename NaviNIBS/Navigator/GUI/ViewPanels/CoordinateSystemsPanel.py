@@ -22,6 +22,7 @@ from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.pyvista import setActorUserTransform
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -34,6 +35,6 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class CoordinateSystemsPanel(MainViewPanel):
     _key: str = 'Set transforms'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-sync-outline'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-sync-outline'))
 
     # TODO

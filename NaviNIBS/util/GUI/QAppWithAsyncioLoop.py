@@ -23,7 +23,8 @@ class RunnableAsApp:
     _appLogEveryNLoops: tp.Optional[int] = None
     _theme: str = 'auto'  # auto, light, or dark
 
-    _app: QtGui.QGuiApplication = attr.ib(init=False)
+    _prevSetTheme: str = attr.ib(init=False, default=None)
+    _app: QtWidgets.QApplication = attr.ib(init=False)
     _appIconPath: str | None = attr.ib(init=False, default=None)
     _Win: tp.Callable[..., QMainWindowWithCloseSignal] = attr.ib(default=QMainWindowWithCloseSignal)
     """
@@ -55,24 +56,42 @@ class RunnableAsApp:
                 self._app.setWindowIcon(QtGui.QIcon(self._appIconPath))
 
             theme = self._theme
-            if theme == 'auto':
-                import darkdetect
-                if darkdetect.isDark() and False:
-                    theme = 'dark'
-                else:
-                    theme = 'light'
-            match theme:
-                case 'light':
-                    pass  # do nothing
-                case 'dark':
-                    import qtawesome as qta
-                    qta.dark(self._app)
-                case _:
-                    raise NotImplementedError
+            self._theme = None
+            self.theme = theme  # trigger setter
 
             self._win = self._Win()
             self._win.setWindowTitle(self._appName)
             self._win.sigAboutToClose.connect(self._onAppAboutToQuit)
+
+    @property
+    def theme(self):
+        return self._theme
+
+    @theme.setter
+    def theme(self, theme):
+        if self._theme == theme:
+            return
+        self._theme = theme
+        if theme.lower() == 'auto':
+            import darkdetect
+            if darkdetect.isDark():
+                theme = 'dark'
+            else:
+                theme = 'light'
+        import qtawesome as qta
+        match theme.lower():
+            case 'light':
+                if self._prevSetTheme is None or self._prevSetTheme == 'light':
+                    # no change needed, avoid calling qta.light since it also changes app style
+                    pass
+                else:
+                    qta.light(self._app)
+            case 'dark':
+                qta.dark(self._app)
+            case _:
+                raise ValueError(f'Unknown theme: {theme}')
+
+        self._prevSetTheme = theme.lower()
 
     def _onAppAboutToQuit(self):
         logger.info('About to quit')

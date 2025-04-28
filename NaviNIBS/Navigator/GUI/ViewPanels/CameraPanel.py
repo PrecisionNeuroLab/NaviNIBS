@@ -19,6 +19,7 @@ from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWi
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
 from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.logging import getLogFilepath
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
@@ -36,6 +37,8 @@ class CameraObjectsView(QueuedRedrawMixin):
     _plotter: DefaultBackgroundPlotter = attrs.field(init=False, repr=False)
 
     _actors: tp.Dict[str, tp.Optional[Actor]] = attrs.field(init=False, factory=dict, repr=False)
+
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         QueuedRedrawMixin.__attrs_post_init__(self)
@@ -68,6 +71,8 @@ class CameraObjectsView(QueuedRedrawMixin):
         self._redraw('all')
 
         self._autoOrientCamera()
+
+        self.finishedAsyncInit.set()
 
     def _autoOrientCamera(self, distance: float = 1000):
         # if necessary info available, reorient camera view based on subject location
@@ -250,7 +255,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
     Set to False to disable auto layout 
     """
 
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.cctv'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.cctv'))
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _trackingStatusDock: Dock = attrs.field(init=False)
@@ -266,6 +271,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
     _mainCameraView: CameraObjectsView = attrs.field(init=False)
     _mainCameraDock: Dock = attrs.field(init=False)
+
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -351,6 +358,10 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         await asyncio.sleep(0.5)
         self._updateAutoLayout()  # run after delay to allow others to resize first
+
+        await self._mainCameraView.finishedAsyncInit.wait()
+
+        self.finishedAsyncInit.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

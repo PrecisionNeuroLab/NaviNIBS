@@ -133,7 +133,7 @@ class SurfSliceView(MRISliceView):
 
         super()._updateView()
 
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             # plotter not available yet
             return
 
@@ -197,7 +197,7 @@ class Surf3DView(SurfSliceView):
 
     def _updateView(self):
 
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             # plotter not available yet
             return
 

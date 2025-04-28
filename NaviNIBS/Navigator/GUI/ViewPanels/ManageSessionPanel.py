@@ -20,6 +20,7 @@ from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
 from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Addons import Addon, installPath as addonBaseInstallPath
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _navigatorGUI: NavigatorGUI
 
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.form-select'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.form-select'))
 
     _autosavePeriod: float = 60  # in sec
 
@@ -54,8 +55,13 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _fileDW: Dock = attrs.field(init=False)
     _fileContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoDW: Dock = attrs.field(init=False)
+    _settingsContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoContainer: QtWidgets.QWidget = attrs.field(init=False)
+    _appearanceContainer: QtWidgets.QWidget = attrs.field(init=False)
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
+    _themeDropdown: QtWidgets.QComboBox = attrs.field(init=False)
+    _fontSizeField: QtWidgets.QSpinBox = attrs.field(init=False)
+
     _autosaveTask: asyncio.Task = attrs.field(init=False)
 
     sigAboutToFinishLoadingSession: Signal = attrs.field(init=False, factory=lambda: Signal((Session,)))
@@ -80,31 +86,31 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         dock.setStretch(1, 10)
         self._wdgt.addDock(dock, position='left')
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-plus'), text='New session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-plus'), text='New session')
         self._newSessionBtn = btn
         btn.clicked.connect(lambda checked: self._createNewSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-open'), text='Load session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.folder-open'), text='Load session')
         btn.clicked.connect(lambda checked: self.loadSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.folder-plus-outline'), text='Augment session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.folder-plus-outline'), text='Augment session')
         btn.clicked.connect(lambda checked: self.augmentSession())
         container.layout().addWidget(btn)
         self._augmentBtn = btn
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-restore'), text='Recover in-progress session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-restore'), text='Recover in-progress session')
         btn.clicked.connect(lambda checked: self._recoverSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.clipboard-file'), text='Clone session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.clipboard-file'), text='Clone session')
         btn.clicked.connect(lambda checked: self._cloneSession())
         container.layout().addWidget(btn)
 
         container.layout().addSpacing(10)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save'), text='Save session')
         btn.clicked.connect(self._onSaveSessionBtnClicked)
         container.layout().addWidget(btn)
         self._saveBtn = btn
@@ -112,34 +118,33 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._saveShortcut = QtWidgets.QShortcut(QtGui.QKeySequence.Save, self._navigatorGUI._win, None, None, QtCore.Qt.ApplicationShortcut)
         self._saveShortcut.activated.connect(self._onSaveSessionShortcutActivated)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit-outline'), text='Save session to dir...')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save-edit-outline'), text='Save session to dir...')
         btn.clicked.connect(lambda checked: self._saveSessionToDir())
         container.layout().addWidget(btn)
         self._saveToDirBtn = btn
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save-edit'), text='Save session to file...')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save-edit'), text='Save session to file...')
         btn.clicked.connect(lambda checked: self._saveSessionToFile())
         container.layout().addWidget(btn)
         self._saveToFileBtn = btn
 
         container.layout().addSpacing(10)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.file-remove'), text='Close session')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-remove'), text='Close session')
         btn.clicked.connect(lambda checked: self._tryVerifyThenCloseSession())
         container.layout().addWidget(btn)
         self._closeBtn = btn
 
         container.layout().addSpacing(10)
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.plus'), text='Enable addon')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.plus'), text='Enable addon')
         btn.clicked.connect(lambda checked: self._addAddon())
         container.layout().addWidget(btn)
         self._addAddonBtn = btn
 
-
         container.layout().addStretch()
 
-        title = 'Info'
+        title = 'Settings'
         dock = Dock(
             name=self._key + title,
             closable=False,
@@ -148,9 +153,14 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._wdgt.addDock(dock, position='right')
         self._infoDW = dock
         container = QtWidgets.QWidget()
-        self._infoContainer = container
+        self._settingsContainer = container
         dock.addWidget(container)
+        container.setLayout(QtWidgets.QVBoxLayout())
+
+        container = QtWidgets.QGroupBox('Session info')
+        self._settingsContainer.layout().addWidget(container)
         container.setLayout(QtWidgets.QFormLayout())
+        self._infoContainer = container
 
         wdgt = QtWidgets.QLineEdit()
         wdgt.setReadOnly(True)
@@ -168,9 +178,44 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self._infoWdgts['sessionID'] = wdgt
         container.layout().addRow('Session ID', wdgt)
 
+        container = QtWidgets.QGroupBox('Appearance')
+        self._settingsContainer.layout().addWidget(container)
+        container.setLayout(QtWidgets.QFormLayout())
+        container.layout().setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        self._appearanceContainer = container
+
+        wdgt = QtWidgets.QComboBox()
+        wdgt.addItems(['Auto', 'Light', 'Dark'])
+        wdgt.setCurrentIndex(1)
+        wdgt.setMinimumWidth(80)
+        wdgt.currentIndexChanged.connect(lambda index: self._onThemeDropdownChanged())
+        container.layout().addRow('Theme', wdgt)
+        self._themeDropdown = wdgt
+
+        wdgt = QtWidgets.QSpinBox()
+        wdgt.setRange(4, 64)
+        wdgt.setSingleStep(1)
+        wdgt.setMinimumWidth(80)
+        wdgt.valueChanged.connect(self._onFontSizeFieldChanged)
+        wdgt.clear()
+        wdgt.lineEdit().setPlaceholderText('Default')
+        container.layout().addRow('Font size', wdgt)
+        self._fontSizeField = wdgt
+
+        container = QtWidgets.QGroupBox('About')
+        self._settingsContainer.layout().addWidget(container)
+        container.setLayout(QtWidgets.QFormLayout())
+        container.layout().setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+
         wdgt = QtWidgets.QLabel(__version__)
         self._infoWdgts['version'] = wdgt
         container.layout().addRow('NaviNIBS version', wdgt)
+
+        wdgt = QtWidgets.QPushButton('Open NaviNIBS documentation')
+        wdgt.clicked.connect(lambda *args: QtGui.QDesktopServices.openUrl('https://precisionneurolab.github.io/navinibs-docs/'))
+        container.layout().addRow('Help', wdgt)
+
+        self._settingsContainer.layout().addStretch()
 
         self._updateEnabledWdgts()
 
@@ -213,7 +258,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             assert self._tabSaveBtn is None, 'Save button already added to dock tab strip'
             self._rootDockArea = dockArea
 
-        btn = QtWidgets.QPushButton(icon=qta.icon('mdi6.content-save'), text='Save')
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.content-save'), text='Save')
         btn.clicked.connect(self._onSaveSessionBtnClicked)
         btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self._tabSaveBtn = btn
@@ -232,7 +277,17 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         if self.session is not None:
             self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
             self.session.sigDirtyKeysChanged.connect(self._updateSaveBtnStyle)
+            self.session.miscSettings.sigAttribsChanged.connect(self._onSessionMiscSettingsChanged)
         self._onSessionInfoChanged()
+        self._onSessionMiscSettingsChanged()
+
+    def _onThemeDropdownChanged(self):
+        theme = self._themeDropdown.currentText()
+        self.session.miscSettings.theme = theme.lower()
+
+    def _onFontSizeFieldChanged(self, *args):
+        fontSize = self._fontSizeField.value()
+        self.session.miscSettings.mainFontSize = fontSize
 
     def _getNewInProgressSessionDir(self) -> str:
         return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
@@ -240,7 +295,9 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     def _updateEnabledWdgts(self):
         wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn,
                  self._augmentBtn,
-                 self._closeBtn, self._addAddonBtn, self._infoContainer]
+                 self._closeBtn, self._addAddonBtn,
+                 self._infoContainer,
+                 self._appearanceContainer]
         if self._tabSaveBtn is not None:
             wdgts.append(self._tabSaveBtn)
         for wdgt in wdgts:
@@ -517,6 +574,18 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             for key in whatChanged:
                 val = getattr(self.session, key)
                 self._infoWdgts[key].setText('' if val is None else val)
+
+    def _onSessionMiscSettingsChanged(self, whatChanged: tp.Optional[list[str]] = None):
+        if whatChanged is None or 'theme' in whatChanged:
+            theme = self.session.miscSettings.theme.capitalize()
+            self._themeDropdown.setCurrentText(theme)
+
+        if whatChanged is None or 'mainFontSize' in whatChanged:
+            fontSize = self.session.miscSettings.mainFontSize
+            if fontSize is None:
+                self._fontSizeField.clear()
+            else:
+                self._fontSizeField.setValue(fontSize)
 
     def _onInfoTextEdited(self, key: str):
         text = self._infoWdgts[key].text()

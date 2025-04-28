@@ -20,9 +20,11 @@ import typing as tp
 from . import MainViewPanel
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
 from NaviNIBS.Navigator.Model.Session import Session
-from NaviNIBS.util.Signaler import Signal
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
+from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)
@@ -31,12 +33,14 @@ logger = logging.getLogger(__name__)
 @attrs.define()
 class MRIPanel(MainViewPanel):
     _key: str = 'Set MRI'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.image'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.image'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, MRI3DView]] = attrs.field(init=False, factory=dict)
 
     _climSpinboxWidgets: dict[str, QtWidgets.QDoubleSpinBox] = attrs.field(init=False, factory=dict)
     _climCheckboxWidgets: dict[str, QtWidgets.QCheckBox] = attrs.field(init=False, factory=dict)
+
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -140,6 +144,14 @@ class MRIPanel(MainViewPanel):
 
         for key, view in self._views.items():
             view.session = self.session
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for view in self._views.values():
+            await view.finishedAsyncInit.wait()
+
+        self.finishedAsyncInit.set()
 
     def _updateFilepath(self):
         self._filepathWdgt.filepath = self.session.MRI.filepath

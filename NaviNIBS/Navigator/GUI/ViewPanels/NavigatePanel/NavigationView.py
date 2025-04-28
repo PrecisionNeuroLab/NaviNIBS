@@ -123,6 +123,8 @@ class SinglePlotterNavigationView(NavigationView):
     _layerLibrary: tp.Dict[str, tp.Callable[..., PlotViewLayer]] = attrs.field(init=False, factory=dict, repr=False)
     _lastAlignedToolPose: Transform | None = attrs.field(init=False, default=None, repr=False)
 
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -149,7 +151,12 @@ class SinglePlotterNavigationView(NavigationView):
                     ):
             self._layerLibrary[cls.type] = cls
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self.__finishInitialization_async))
+
+    async def __finishInitialization_async(self):
+        # call _finishInitialization_async() here to allow extending in subclass while still setting event only after fully initialized
+        await self._finishInitialization_async()
+        self.finishedAsyncInit.set()
 
     async def _finishInitialization_async(self):
         if isinstance(self._plotter, RemotePlotterProxy):

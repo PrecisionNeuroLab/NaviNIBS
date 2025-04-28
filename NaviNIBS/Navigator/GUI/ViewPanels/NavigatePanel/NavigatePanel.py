@@ -23,6 +23,7 @@ from NaviNIBS.Navigator.Model.Samples import Sample
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.CoilOrientations import PoseMetricCalculator
 from NaviNIBS.util.GUI.Dock import Dock
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QScrollContainer import QScrollContainer
 from NaviNIBS.util.GUI.QFlowLayout import QFlowLayout
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
@@ -192,7 +193,7 @@ class BackgroundSamplePoseMetadataSetter:
 @attrs.define
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-flash'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False, repr=False)
     _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False, repr=False)
     _poseMetricGroups: list[_PoseMetricGroup] = attrs.field(init=False, factory=list, repr=False)
@@ -211,6 +212,8 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
     )
 
     _hasInitializedNavigationViews: bool = attrs.field(init=False, default=False)
+
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -323,6 +326,15 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+
+    async def _finishInitialization_async(self):
+        for view in self._views.values():
+            if isinstance(view, SinglePlotterNavigationView):
+                await view.finishedAsyncInit.wait()
+
+        self.finishedAsyncInit.set()
 
     def _onSessionSet(self):
         super()._onSessionSet()

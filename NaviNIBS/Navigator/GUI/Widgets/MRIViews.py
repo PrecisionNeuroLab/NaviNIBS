@@ -39,7 +39,7 @@ class MRISliceView(QueuedRedrawMixin):
     _backgroundColor: str = '#000000'
     _opacity: float = 0.5
 
-    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     sigSliceOriginChanged: Signal = attrs.field(init=False, factory=Signal)
     sigNormalChanged: Signal = attrs.field(init=False, factory=Signal)
@@ -67,7 +67,7 @@ class MRISliceView(QueuedRedrawMixin):
             self._plotter.set_background(self._backgroundColor)
             _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
 
-        self._finishedAsyncInit.set()
+        self.finishedAsyncInit.set()
 
         self.updateView()
 
@@ -205,7 +205,7 @@ class MRISliceView(QueuedRedrawMixin):
             self._queueRedraw(which='updateClim')
 
     def _updateClim(self):
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             # plotter not available yet
             return
 
@@ -273,7 +273,7 @@ class MRISliceView(QueuedRedrawMixin):
             self.sliceOrigin = (self.session.MRI.data.affine @ np.append(np.asarray(self.session.MRI.data.shape)/2, 1))[:-1]
             return  # prev line will have triggered its own update
 
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             # plotter not available yet
             return
 
@@ -452,7 +452,7 @@ class MRI3DView(MRISliceView):
                                                                          1))[:-1]
             return  # prev line will have triggered its own update
 
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             # plotter not ready
             return
 
@@ -517,7 +517,7 @@ class MRI3DView(MRISliceView):
             self._queueRedraw(which='updateClim')
 
     def _updateClim(self):
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             # plotter not available yet
             return
 

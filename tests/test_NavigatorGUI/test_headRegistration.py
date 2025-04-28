@@ -91,14 +91,10 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
 
     assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
 
-    if True:  # TODO: debug, set back to True
-        screenshotPath = os.path.join(sessionPath, 'HeadRegistration_Empty.png')
-        utils.captureScreenshot(navigatorGUI, screenshotPath)
-        pyperclip.copy(str(screenshotPath))
-
-        utils.compareImages(screenshotPath,
-                            os.path.join(screenshotsDataSourcePath, 'HeadRegistration_Empty.png'),
-                            doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_Empty',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     reg = navigatorGUI.session.subjectRegistration
     fids = reg.fiducials
@@ -152,13 +148,10 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_InitialFiducials.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_InitialFiducials.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_InitialFiducials',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
@@ -222,13 +215,10 @@ async def test_acquireHeadPoints(navigatorGUIWithoutSession: NavigatorGUI,
         # equivalent to clicking on sample head point button
         navigatorGUI.subjectRegistrationPanel._sampleHeadPtsBtn.click()
 
-    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_HeadPointAcquisition.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_HeadPointAcquisition.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_HeadPointAcquisition',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
@@ -296,13 +286,10 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_HeadPointRefinement.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_HeadPointRefinement.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_HeadPointRefinement',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
@@ -327,13 +314,10 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
     postMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
     assert array_equalish(np.asarray(preMoveHeadPoints), np.asarray(postMoveHeadPoints))
 
-    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_Unrefined.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_Unrefined.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_Unrefined',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # re-refining should produce approximately same refined transform
     navigatorGUI.subjectRegistrationPanel._refineWithHeadpointsBtn.click()
@@ -343,13 +327,10 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
     assert not array_equalish(navigatorGUI.session.subjectRegistration.trackerToMRITransf, trackerToMRITransf)
     assert array_equalish(navigatorGUI.session.subjectRegistration.trackerToMRITransf, refinedTrackerToMRITransf)
 
-    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_Rerefined.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_Rerefined.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_Rerefined',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # resamping fiducial(s) after head point refinement and then re-aligning should trigger transformation of head points
     pointerKey = navigatorGUI.session.tools.pointer.key
@@ -386,11 +367,8 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
-    screenshotPath = os.path.join(sessionPath, 'HeadRegistration_RefinedThenRegistered.png')
-    utils.captureScreenshot(navigatorGUI, screenshotPath)
-    pyperclip.copy(str(screenshotPath))
-
-    utils.compareImages(screenshotPath,
-                        os.path.join(screenshotsDataSourcePath, 'HeadRegistration_RefinedThenRegistered.png'),
-                        doAssertEqual=utils.doAssertScreenshotsEqual)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_RefinedThenRegistered',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 

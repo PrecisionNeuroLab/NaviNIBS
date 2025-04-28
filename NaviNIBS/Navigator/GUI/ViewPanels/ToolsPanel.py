@@ -29,6 +29,7 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
@@ -62,7 +63,7 @@ class ToolWidget:
     _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
 
     _asyncInitTask: asyncio.Task = attrs.field(init=False)
-    _finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
     _trackerSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
@@ -192,13 +193,13 @@ class ToolWidget:
                 plotter.enable_parallel_projection()
                 plotter.enable_depth_peeling(4)
 
-        self._finishedAsyncInit.set()
+        self.finishedAsyncInit.set()
 
         self.redraw()
 
     def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
 
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             return
 
         if whatToRedraw is None or 'tool' in whatToRedraw:
@@ -389,7 +390,7 @@ class ToolWidget:
             self.redraw(toRedraw)
 
     def close(self):
-        if not self._finishedAsyncInit.is_set():
+        if not self.finishedAsyncInit.is_set():
             self._asyncInitTask.cancel()
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
         self._toolSpacePlotter.close()
@@ -508,7 +509,7 @@ class PointerToolWidget(ToolWidget):
 @attrs.define
 class ToolsPanel(MainViewPanel):
     _key: str = 'Tools'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.hammer-screwdriver'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.hammer-screwdriver'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _tblWdgt: ToolsTableWidget = attrs.field(init=False)
     _toolWdgt: tp.Optional[ToolWidget] = attrs.field(init=False, default=None)

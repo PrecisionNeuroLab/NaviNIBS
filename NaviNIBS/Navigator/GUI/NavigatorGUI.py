@@ -44,7 +44,6 @@ _VP = tp.TypeVar('_VP', bound=MainViewPanel)
 @attrs.define
 class NavigatorGUI(RunnableAsApp):
     _appName: str = 'NaviNIBS Navigator GUI'
-    _theme: str = 'auto'  # auto, light, or dark
 
     _sesFilepath: tp.Optional[str] = None  # only used to load session on startup
     _inProgressBaseDir: tp.Optional[str] = None
@@ -56,6 +55,10 @@ class NavigatorGUI(RunnableAsApp):
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
 
     _logFileHandler: tp.Optional[logging.FileHandler] = attrs.field(init=False, default=None)
+    _theme: str = 'light'
+    """
+    Default theme. Can be overriden by field in Session.miscSettings
+    """
 
     _restoringLayoutLock: asyncio.Lock = attrs.field(init=False, factory=asyncio.Lock)
 
@@ -69,6 +72,8 @@ class NavigatorGUI(RunnableAsApp):
 
         super().__attrs_post_init__()
 
+        self._app.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseStyleSheetPropagationInWidgetStyles, True)
+
         if self._inProgressBaseDir is None:
             self._inProgressBaseDir = os.path.join(platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'InProgressSessions')
 
@@ -76,13 +81,7 @@ class NavigatorGUI(RunnableAsApp):
         self._rootDockArea.setContentsMargins(2, 2, 2, 2)
         self._win.setCentralWidget(self._rootDockArea)
 
-        # set pyvista theme according to current colors
-        if darkdetect.isDark() and False:
-            pv.set_plot_theme('dark')
-        else:
-            pv.set_plot_theme('default')
-        pv.global_theme.background = self._win.palette().color(QtGui.QPalette.Base).name()
-        pv.global_theme.font.color = self._win.palette().color(QtGui.QPalette.Text).name()
+        self._refreshGUIAppearance()
 
         panel = self._addViewPanel(ManageSessionPanel(key='Manage session',
                                                       session=self._session,
@@ -282,6 +281,8 @@ class NavigatorGUI(RunnableAsApp):
 
         self._onAddonsChanged(session.addons.keys(), triggeredBySessionLoad=True)
 
+        self._refreshGUIAppearance()
+
         asyncio.create_task(asyncTryAndLogExceptionOnError(self.restoreLayoutIfAvailable))
 
         self._updateEnabledPanels()
@@ -292,6 +293,50 @@ class NavigatorGUI(RunnableAsApp):
 
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
         self.session.tools.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
+
+        self.session.miscSettings.sigAttribsChanged.connect(self._onSessionMiscSettingsChanged)
+
+    def _refreshGUIAppearance(self):
+        if self._session is None:
+            return
+
+        logger.debug('Refreshing GUI appearance')
+
+        theme = self._session.miscSettings.theme.lower()
+        if theme == 'auto':
+            theme = 'dark' if darkdetect.isDark() else 'light'
+        self.theme = theme  # triggers RunnableAsApp theme setter
+        match theme:
+            case 'light':
+                pv.set_plot_theme('default')
+            case 'dark':
+                pv.set_plot_theme('dark')
+            case _:
+                raise ValueError(f'Unknown theme: {theme}')
+
+        pv.global_theme.background = self._win.palette().color(QtGui.QPalette.Base).name()
+        pv.global_theme.font.color = self._win.palette().color(QtGui.QPalette.Text).name()
+
+        mainFontSize = self._session.miscSettings.mainFontSize
+        if mainFontSize is None:
+            styleContent = ''
+        else:
+            styleContent = f'font-size: {mainFontSize}pt;'
+
+        self._app.setStyleSheet(styleContent)
+        for win in self._app.topLevelWidgets():
+            # TODO: check to make sure we're not clearing other custom styles
+            win.setStyleSheet(styleContent)
+
+        # also set font size outside of stylesheet so that it is applied to new windows
+        f = self._app.font()
+        if mainFontSize is not None:
+            f.setPointSizeF(mainFontSize)
+            self._app.setFont(f)
+
+    def _onSessionMiscSettingsChanged(self, whatChanged: list[str] | None = None):
+        if whatChanged is None or any(x in whatChanged for x in ('theme', 'mainFontSize')):
+            self._refreshGUIAppearance()
 
     def _onAddonsAboutToChange(self, itemKeys: list[str],
                                attribKeys: list[str] | None = None):

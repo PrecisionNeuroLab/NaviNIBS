@@ -20,7 +20,13 @@ class MainViewPanel:
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
 
     _label: tp.Optional[str] = None
-    _icon: tp.Optional[QtGui.QIcon] = attrs.field(default=None)  # to be set by subclass
+    _icon: tp.Optional[QtGui.QIcon] = attrs.field(default=None)
+    _iconFn: tp.Optional[tp.Callable[..., QtGui.QIcon]] = attrs.field(default=None, repr=False)
+    """
+    To be set by subclass. 
+    If iconFn is set, icon will be ignored and iconFn will be called to generate the icon.
+    This allows regenerating the icon automatically, e.g. after color palette changes.
+    """
 
     _wdgt: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
     _dockWdgt: Dock = attrs.field(init=False)
@@ -38,7 +44,7 @@ class MainViewPanel:
                               title=self.label,
                               affinities=['MainViewPanel'],
                               icon=self._icon,
-                              fontSize='14px')
+                              iconFn=self._iconFn)
         self._dockWdgt.addWidget(self._wdgt)
 
         self._dockWdgt.sigHidden.connect(self.sigPanelHidden.emit)

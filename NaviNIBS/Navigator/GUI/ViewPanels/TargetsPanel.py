@@ -25,6 +25,7 @@ from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.util import makeStrUnique
+from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
@@ -213,7 +214,7 @@ class VisualizedTarget:
 @attrs.define
 class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _key: str = 'Set targets'
-    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: qta.icon('mdi6.head-flash-outline'))
+    _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-flash-outline'))
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
@@ -229,6 +230,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget | EditTargetWidget] = attrs.field(init=False, factory=list)
 
     _redrawTargetKeys: set[str] = attrs.field(init=False, factory=set)
+
+    finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         MainViewPanelWithDockWidgets.__attrs_post_init__(self)
@@ -380,6 +383,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                 await view.plotter.isReadyEvent.wait()
 
         self._onTargetsChanged()
+
+        self.finishedAsyncInit.set()
 
     def _getCrosshairCoord(self) -> np.ndarray:
         """
@@ -584,7 +589,20 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self.session.targets.deleteItems(selectedTargetKeys)
 
     def _onDuplicateBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO
+        currentTargetKey = self._tableWdgt.currentCollectionItemKey
+        assert currentTargetKey is not None
+        if '_' in currentTargetKey:
+            delim = '_'
+        elif ' ' in currentTargetKey:
+            delim = ' '
+        else:
+            delim = '-'
+        newTargetKey = makeStrUnique(f'{currentTargetKey}{delim}copy{delim}1', existingStrs=self.session.targets.keys(), delimiter=delim)
+        logger.info(f'Duplicating target {currentTargetKey} to {newTargetKey}')
+        currentTarget = self.session.targets[currentTargetKey]
+        newTarget = currentTarget.asDict()
+        newTarget['key'] = newTargetKey
+        self.session.targets.addItem(Target.fromDict(newTarget))
 
     def _onGotoBtnClicked(self, checked: bool):
         targetKey = self._getCurrentTargetKey()
