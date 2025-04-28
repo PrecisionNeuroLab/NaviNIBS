@@ -255,7 +255,7 @@ async def test_calibrateCoil(navigatorGUIWithoutSession: NavigatorGUI,
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
-                                            screenshotName='CalibrateCoiCalibrateCoil_1l_2',
+                                            screenshotName='CalibrateCoil_1',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath,
                                             wdgt=coilWdgt._calibrationWindow.wdgt)
 
