@@ -264,7 +264,6 @@ class RemotePlotterProxyBase:
         else:
             resp = self._sendReqAndRecv(req)
             logger.debug(f'Waiting for response to {fnStr}')
-
             return self._handleResp(fnStr, resp)
 
     def _handleResp(self, label, resp):
@@ -480,6 +479,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         repPort = self._repSocket.bind_to_random_port('tcp://127.0.0.1')
 
         self._reqSocket = ctx.socket(zmq.REQ)
+        self._reqSocketReqPending: bool = False
         self._areqSocket = actx.socket(zmq.REQ)
         self._pushSocket = ctx.socket(zmq.PUSH)
         # connect these later
@@ -528,12 +528,49 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
             return resp
 
     def _sendReqAndRecv(self, msg):
+        """
+        Note: due to some weirdness with Qt window containering, the remote process can
+        deadlock if we don't keep processing Qt events in the main process during cursor
+        interaction with the remote plotter window. So make sure to keep processing events
+        even while waiting for an otherwise blocking result to come back.
+        """
+        if self._reqSocketReqPending:
+            if True:
+                logger.error(f'Previous request still pending, not sending this: {msg}')
+                return
+            else:
+                logger.warning('Waiting for a previous request to finish before sending this one')
+                # note: if previous request was outside of QEventLoop, we will be stuck here and never get its response
+                while self._reqSocketReqPending:
+                    logger.debug('Waiting...')
+                    QtWidgets.QApplication.instance().processEvents(QtCore.QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+                    time.sleep(0.001)
+
         try:
+            logger.debug(f'Sending msg {msg}')
             self._reqSocket.send_pyobj(msg)
         except TypeError as e:
             logger.error(f'Problem serializing message: {exceptionToStr(e)}')
             raise e
-        return self._waitForResp(self._reqSocket)
+
+        logger.debug('Waiting for response')
+        self._reqSocketReqPending = True
+        while True:
+            try:
+                resp = self._reqSocket.recv_pyobj(flags=zmq.NOBLOCK)
+            except zmq.error.Again:
+                # no message available
+                logger.debug('No message available, waiting...')
+                QtWidgets.QApplication.instance().processEvents(QtCore.QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+                time.sleep(0.001)
+            except Exception as e:
+                logger.error(f'Unhandled exception in _waitForResp: {exceptionToStr(e)}')
+                raise e
+            else:
+                break
+        self._reqSocketReqPending = False
+        logger.debug(f'Received reply {resp}')
+        return resp
 
     def _sendReqNonblocking(self, msg):
         self._pushSocket.send_pyobj(msg)
@@ -599,27 +636,6 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
                 resp = e
 
             await self._repSocket.send_pyobj(resp)
-
-    def _waitForResp(self, socket: zmq.Socket):
-        """
-        Note: due to some weirdness with Qt window containering, the remote process can
-        deadlock if we don't keep processing Qt events in the main process during cursor
-        interaction with the remote plotter window. So make sure to keep processing events
-        even while waiting for an otherwise blocking result to come back.
-        """
-        while True:
-            try:
-                resp = socket.recv_pyobj(flags=zmq.NOBLOCK)
-            except zmq.error.Again:
-                # no message available
-                QtWidgets.QApplication.instance().processEvents(QtCore.QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
-                time.sleep(0.001)
-            except Exception as e:
-                logger.error(f'Unhandled exception in _waitForResp: {exceptionToStr(e)}')
-                raise e
-            else:
-                break
-        return resp
 
     def render(self, *args, **kwargs):
         if len(args) == 0 and len(kwargs) == 0:

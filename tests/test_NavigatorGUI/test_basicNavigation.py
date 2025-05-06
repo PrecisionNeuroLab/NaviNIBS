@@ -37,7 +37,7 @@ async def test_openBasicNavigationSession(workingDir):
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason='For troubleshooting')
-async def test_openBasicNavigationSession(workingDir):
+async def test_openBasicNavigationManualSamplingSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'BasicNavigationManualSampling')
 
 
