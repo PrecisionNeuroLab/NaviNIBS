@@ -30,8 +30,8 @@ class Sample(GenericCollectionDictItem[str]):
     _targetKey: tp.Optional[str] = None
     """
     Key of target that was active at the time sample was collected. Note that if target info (e.g. coordinates) changed later,
-    the actual target coordinates at the time of this sample may be lost (in the active model). However, these should be able
-    to be recovered based on timestamps and previous target history.
+    this should automatically be updated to refer to a "historical" target with info matching that of the target at the time
+    the sample was created.
     """
     _coilKey: tp.Optional[str] = None
     """
