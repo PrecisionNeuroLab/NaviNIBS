@@ -590,7 +590,7 @@ class Tools(GenericCollection[str, Tool]):
         self._positionsServerInfo.sigInfoChanged.connect(self.sigPositionsServerInfoChanged.emit)
 
     def addItemFromDict(self, toolDict: dict[str, tp.Any]):
-        self.addItem(self._toolFromDict(toolDict, sessionPath=self._sessionPath))
+        self.addItem(self.toolFromDict(toolDict, sessionPath=self._sessionPath))
 
     @property
     def subjectTracker(self) -> tp.Optional[SubjectTracker]:
@@ -687,7 +687,7 @@ class Tools(GenericCollection[str, Tool]):
                 # this is not actually a tool dict, it is connection info for ToolPositionsServer
                 serverInfo = ToolPositionsServerInfo(**{key: val for key, val in toolDict.items() if key != 'key'})
             else:
-                tools[key] = cls._toolFromDict(toolDict, sessionPath=sessionPath)
+                tools[key] = cls.toolFromDict(toolDict, sessionPath=sessionPath)
 
         if serverInfo is None:
             serverInfo = ToolPositionsServerInfo()
@@ -701,11 +701,11 @@ class Tools(GenericCollection[str, Tool]):
 
     def _onToolUsedForChanged(self, key: str):
         toolDict = self[key].asDict()
-        tool = self._toolFromDict(toolDict, sessionPath=self._sessionPath)
+        tool = self.toolFromDict(toolDict, sessionPath=self._sessionPath)
         self.setItem(tool)
 
     @classmethod
-    def _toolFromDict(cls, toolDict: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None) -> Tool:
+    def toolFromDict(cls, toolDict: tp.Dict[str, tp.Any], sessionPath: tp.Optional[str] = None) -> Tool:
         usedFor = toolDict['usedFor']
 
         match usedFor:

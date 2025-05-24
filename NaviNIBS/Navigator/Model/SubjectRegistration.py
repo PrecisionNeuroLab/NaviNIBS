@@ -312,6 +312,9 @@ class HeadPoints:
     def __getitem__(self, index):
         return self._headPoints[index]
 
+    def asNDArray(self):
+        return self._headPoints
+
     def asList(self):
         return [headPt.tolist() for headPt in self._headPoints]
 
