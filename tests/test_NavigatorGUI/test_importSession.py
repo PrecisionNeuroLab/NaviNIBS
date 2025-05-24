@@ -104,6 +104,60 @@ async def test_importSessionInStandalone(workingDir: str):
     # TODO: test that addons copied correctly
 
 
+# TODO: also add a test of importing everything (not just 'Sume subject, different session' preset)
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_basicNavigation.py::test_basicNavigation')
+async def test_importSessionInNavigatorGUI(
+        navigatorGUIWithoutSession: NavigatorGUI,
+        workingDir: str):
+    sessionPath = utils.getSessionPath(workingDir, 'ImportToInNavigatorGUI', deleteIfExists=True)
+    otherSessionPath = utils.copySessionFolder(workingDir, 'BasicNavigation', 'ImportFromInNavigatorGUI')
+
+    otherSession = Session.loadFromFolder(folderpath=otherSessionPath)
+
+    otherSession.subjectID = 'OtherSubject'
+    otherSession.sessionID = 'OtherSession'
+    otherSession.digitizedLocations.addItem(DigitizedLocation(
+        key='TestLoc',
+        plannedCoord=np.asarray([0, 1, 2]),
+        sampledCoord=np.asarray([3, 4, 5]),
+        type='EEG'
+    ))
+    otherSession.saveToUnpackedDir()
+
+    navigatorGUIWithoutSession.manageSessionPanel._createNewSession(
+        sesFilepath=sessionPath,
+    )
+    navigatorGUI: NavigatorGUI = navigatorGUIWithoutSession
+
+    await asyncio.sleep(5.)
+
+    navigatorGUI.manageSessionPanel.importSession(otherSessionPath)
+
+    importWindow = navigatorGUI.manageSessionPanel._importSessionWindow
+
+    importFinishedEvt = asyncio.Event()
+    importWindow.sigFinished.connect(lambda *args: importFinishedEvt.set())
+
+    importWindow._presetsComboBox.setCurrentText('Same subject, different session')
+
+    await asyncio.sleep(1.)
+
+    importWindow._finalizeButtonBox.button(QtWidgets.QDialogButtonBox.Ok).click()
+
+    await importFinishedEvt.wait()
+
+    await asyncio.sleep(1.)
+
+    # TODO: screenshot
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    assert utils.assertSavedSessionIsValid(sessionPath)
+
+    await utils.waitForever()
 
 
 @attrs.define

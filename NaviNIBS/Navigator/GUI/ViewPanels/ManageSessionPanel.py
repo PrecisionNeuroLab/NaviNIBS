@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from NaviNIBS import __version__
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.Navigator.GUI.EditWindows.ImportSessionWindow import ImportSessionWindow
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
@@ -44,7 +45,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _rootDockArea: DockArea | None = attrs.field(init=False, default=None) # used for tabSaveBtn
     _newSessionBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _tabSaveBtn: QtWidgets.QPushButton | None = attrs.field(init=False, default=None)
-    _augmentBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _importBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _saveBtnShowsDirty: bool | None = attrs.field(init=False, default=None)
     _saveShortcut: QtWidgets.QShortcut = attrs.field(init=False)
@@ -61,6 +62,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
     _infoWdgts: tp.Dict[str, QtWidgets.QLineEdit] = attrs.field(init=False, factory=dict)
     _themeDropdown: QtWidgets.QComboBox = attrs.field(init=False)
     _fontSizeField: QtWidgets.QSpinBox = attrs.field(init=False)
+    _importSessionWindow: ImportSessionWindow | None = attrs.field(init=False, default=None)
 
     _autosaveTask: asyncio.Task = attrs.field(init=False)
 
@@ -95,10 +97,10 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         btn.clicked.connect(lambda checked: self.loadSession())
         container.layout().addWidget(btn)
 
-        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.folder-plus-outline'), text='Augment session')
-        btn.clicked.connect(lambda checked: self.augmentSession())
+        btn = QtWidgets.QPushButton(icon=getIcon('mdi6.folder-plus-outline'), text='Copy from session...')
+        btn.clicked.connect(lambda checked: self.importSession())
         container.layout().addWidget(btn)
-        self._augmentBtn = btn
+        self._importBtn = btn
 
         btn = QtWidgets.QPushButton(icon=getIcon('mdi6.file-restore'), text='Recover in-progress session')
         btn.clicked.connect(lambda checked: self._recoverSession())
@@ -289,12 +291,12 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         fontSize = self._fontSizeField.value()
         self.session.miscSettings.mainFontSize = fontSize
 
-    def _getNewInProgressSessionDir(self) -> str:
-        return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + datetime.today().strftime('%y%m%d%H%M%S'))
+    def _getNewInProgressSessionDir(self, suffix: str = '') -> str:
+        return os.path.join(self._inProgressBaseDir, 'NaviNIBSSession_' + suffix + datetime.today().strftime('%y%m%d%H%M%S'))
 
     def _updateEnabledWdgts(self):
         wdgts = [self._saveBtn, self._saveToFileBtn, self._saveToDirBtn,
-                 self._augmentBtn,
+                 self._importBtn,
                  self._closeBtn, self._addAddonBtn,
                  self._infoContainer,
                  self._appearanceContainer]
@@ -466,19 +468,20 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         self.session = session
         self.sigLoadedSession.emit(self.session)
 
-    def loadSession(self, sesFilepath: tp.Optional[str] = None):
-        self._tryVerifyThenCloseSession()
-
+    def _loadSession(self, sesFilepath: str, unpackedSessionSuffix: str = '') -> Session | None:
         if sesFilepath is None:
-            if False:
-                raise NotImplementedError()  # TODO: set to location of recent dir if available
-                dir = 'todo'
+            if self.session is not None:
+                dir = os.path.dirname(self.session.filepath)
             else:
-                dir = str(pathlib.Path.home())
+                if False:
+                    raise NotImplementedError()  # TODO: set to location of recent dir if available
+                    dir = 'todo'
+                else:
+                    dir = str(pathlib.Path.home())
             sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to load', dir, 'Session file (*.navinibs); Config file (*.json)')
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
-                return
+                return None
 
         sesFilepath = os.path.normpath(sesFilepath)
 
@@ -495,9 +498,19 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             else:
                 # treat as compressed file
                 assert os.path.isfile(sesFilepath)
-                session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir())
+                session = Session.loadFromFile(filepath=sesFilepath, unpackedSessionDir=self._getNewInProgressSessionDir(suffix=unpackedSessionSuffix))
         except Exception as e:
             raiseErrorDialog(f'Problem loading session from {sesFilepath}', exception=e)
+            return None
+
+        return session
+
+    def loadSession(self, sesFilepath: tp.Optional[str] = None):
+        self._tryVerifyThenCloseSession()
+
+        session = self._loadSession(sesFilepath=sesFilepath)
+
+        if session is None:
             return
 
         self.sigAboutToFinishLoadingSession.emit(session)
@@ -508,8 +521,23 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             logger.error('Problem handling loaded session:\n{}'.format(exceptionToStr(e)))
             raise e
 
-    def augmentSession(self, sesFilepath: tp.Optional[str] = None):
-        raise NotImplementedError  # TODO
+    def importSession(self, sesFilepath: tp.Optional[str] = None):
+        logger.info(f'Loading other session for import from {sesFilepath}')
+        otherSession = self._loadSession(sesFilepath=sesFilepath, unpackedSessionSuffix='TmpImport')
+        assert self._importSessionWindow is None
+        self._importSessionWindow = ImportSessionWindow(
+            parent=self._navigatorGUI._win,
+            session=self.session,
+            otherSession=otherSession
+        )
+        self._importSessionWindow.sigFinished.connect(self._onImportWindowFinished)
+        self._importSessionWindow.show()
+
+    def _onImportWindowFinished(self, didAccept: bool):
+        assert self._importSessionWindow is not None
+        self._importSessionWindow.sigFinished.disconnect(self._onImportWindowFinished)
+        self._importSessionWindow = None
+        logger.info('Import session window closed')
 
     def _recoverSession(self, sesDataDir: tp.Optional[str] = None):
         self._tryVerifyThenCloseSession()
