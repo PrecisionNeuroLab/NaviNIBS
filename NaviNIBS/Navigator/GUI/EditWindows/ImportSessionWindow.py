@@ -368,6 +368,12 @@ class ImportSessionWindow:
 
         treeLayout.addWidget(self._sessionTreeView)
 
+        # set a reasonable default for preset selection
+        if self._session.subjectID is not None and self._session.subjectID == self._otherSession.subjectID:
+            self._presetsComboBox.setCurrentText('Same subject, different session')
+        else:
+            self._presetsComboBox.setCurrentText('Different subject')
+
         # Add button box
         self._finalizeButtonBox = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
@@ -417,7 +423,7 @@ class ImportSessionWindow:
             check_by_label('Tools')
             check_by_label(('Digitized Locations', '<Planned>'))
             check_by_label('Trigger Sources')
-            check_by_label('Dock Widget Layouts')
+            # check_by_label('Dock Widget Layouts')  # TODO: uncomment
             # TODO: make active dock widget the session info tab (rather than for example jumping straight to navigate in a new subject)
             check_by_label('Addons')
             # TODO: add support for addons to declare specific fields as subject-specific or not
