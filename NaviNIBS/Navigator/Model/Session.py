@@ -24,9 +24,9 @@ from NaviNIBS.Navigator.Model.HeadModel import HeadModel
 from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
 from NaviNIBS.Navigator.Model.Targets import Targets, Target
 from NaviNIBS.Navigator.Model.Samples import Samples, Sample
-from NaviNIBS.Navigator.Model.SubjectRegistration import SubjectRegistration
+from NaviNIBS.Navigator.Model.SubjectRegistration import SubjectRegistration, Fiducial
 from NaviNIBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
-from NaviNIBS.Navigator.Model.Triggering import TriggerSources
+from NaviNIBS.Navigator.Model.Triggering import TriggerSources, TriggerSource
 from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocations, DigitizedLocation
 from NaviNIBS.Navigator.Model.DockWidgetLayouts import DockWidgetLayouts
 from NaviNIBS.Navigator.Model.Addons import Addons, Addon
@@ -54,8 +54,8 @@ class Session:
     _miscSettings: MiscSettings = attrs.field(factory=MiscSettings)
     _MRI: MRI = attrs.field(factory=MRI)
     _headModel: HeadModel = attrs.field(factory=HeadModel)
-    _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     _coordinateSystems: CoordinateSystems = attrs.field(factory=CoordinateSystems)
+    _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     _targets: Targets = attrs.field(factory=Targets)
     _tools: Tools = attrs.field(default=None)
     _samples: Samples = attrs.field(factory=Samples)
@@ -643,8 +643,6 @@ class Session:
 
         if 'addons' in config:
             kwargs['addons'] = Addons.fromList(config['addons'], unpackedSessionDir=unpackedSessionDir)
-
-        # TODO: loop through any addons to give them a chance to load from unpacked dir as needed
 
         # TODO: load other available fields
 

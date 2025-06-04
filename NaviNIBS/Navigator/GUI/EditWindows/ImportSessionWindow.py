@@ -1,0 +1,709 @@
+from __future__ import annotations
+
+import asyncio
+import os.path
+
+import attrs
+import logging
+from qtpy import QtWidgets, QtGui, QtCore
+import typing as tp
+
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.Model.Session import Session, Tool, Fiducial, Target, Sample, DigitizedLocation, TriggerSource, Addon
+from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Signaler import Signal
+
+logger = logging.getLogger(__name__)
+
+
+@attrs.define
+class SessionTreeItem:
+    _label: str
+    _obj: object = None
+    _parent: SessionTreeItem | None = None
+    _children: list[SessionTreeItem] = attrs.field(factory=list, init=False)
+    _checked: QtCore.Qt.CheckState | None = attrs.field(default=None, init=False)
+
+    sigCheckedChanged: Signal = attrs.field(init=False, factory=Signal)
+
+    def __attrs_post_init__(self):
+        if self._parent is not None:
+            self._parent.addChild(self)
+
+    def addChild(self, child: 'SessionTreeItem'):
+        if child in self._children:
+            return
+        assert child._parent is None or child._parent is self, "Child already has a parent"
+        child._parent = self
+        self._children.append(child)
+        child.sigCheckedChanged.connect(self._onChildCheckedChanged)
+
+    def child(self, row):
+        return self._children[row]
+
+    def childByLabel(self, label: str) -> SessionTreeItem | None:
+        for child in self._children:
+            if child.label == label:
+                return child
+        return None
+
+    def row(self):
+        if self._parent:
+            return self._parent._children.index(self)
+        return 0
+    
+    def _onChildCheckedChanged(self):
+        if all(child.checked == QtCore.Qt.Checked for child in self._children):
+            self.checked = QtCore.Qt.Checked
+        elif all(child.checked == QtCore.Qt.Unchecked for child in self._children):
+            self.checked = QtCore.Qt.Unchecked
+        else:
+            self.checked = QtCore.Qt.PartiallyChecked
+
+    @property
+    def label(self):
+        return self._label
+
+    @property
+    def obj(self):
+        return self._obj
+
+    @property
+    def children(self):
+        return self._children
+
+    @property
+    def childrenLabels(self) -> list[str]:
+        return [child.label for child in self._children]
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @property
+    def checked(self):
+        if self._checked is None:
+            if len(self._children) > 0:
+                # If there are children, check their state
+                if all(child.checked == QtCore.Qt.Checked for child in self._children):
+                    self.checked = QtCore.Qt.Checked
+                elif all(child.checked == QtCore.Qt.Unchecked for child in self._children):
+                    self.checked = QtCore.Qt.Unchecked
+                else:
+                    self.checked = QtCore.Qt.PartiallyChecked
+            else:
+                # If there are no children, default to unchecked
+                self.checked = QtCore.Qt.Unchecked
+        
+        return self._checked
+
+    @checked.setter
+    def checked(self, value: QtCore.Qt.CheckState):
+        if value == self._checked:
+            return
+        logger.debug(f'Setting checked state of {self._label} to {value}')
+        self._checked = value
+        if self._checked != QtCore.Qt.PartiallyChecked:
+            # Update the checked state of all children
+            for child in self._children:
+                with child.sigCheckedChanged.disconnected(self._onChildCheckedChanged):
+                    child.checked = value
+        self.sigCheckedChanged.emit()
+
+
+class SessionTreeModel(QtCore.QAbstractItemModel):
+    """Model for displaying session elements in a tree view."""
+
+    def __init__(self, session: Session, parent=None):
+        super().__init__(parent)
+
+        self.sigItemCheckedChanged = Signal((SessionTreeItem,))
+
+        self._session = session
+        self._rootItem = SessionTreeItem('Session', session)
+        self._selectionModel = None  # Will be set by the view
+
+        if self._session.subjectID is not None:
+            item = SessionTreeItem(label='Subject ID', obj=self._session.subjectID, parent=self._rootItem)
+
+        if self._session.sessionID is not None:
+            item = SessionTreeItem(label='Session ID', obj=self._session.sessionID, parent=self._rootItem)
+
+        if len(self._session.MRI.asDict(filepathRelTo=session.filepath)) > 0:
+            item = SessionTreeItem(label='MRI', obj=self._session.MRI, parent=self._rootItem)
+
+        if len(self._session.headModel.asDict(filepathRelTo=session.filepath)) > 0:
+            item = SessionTreeItem(label='Head Model', obj=self._session.headModel, parent=self._rootItem)
+
+        if len(self._session.coordinateSystems.asList()) > 0:  # use .asList to ignore autogenerated coordinate systems
+            item = SessionTreeItem(label='Coordinate Systems', obj=None, parent=self._rootItem)
+            for key, cs in self._session.coordinateSystems.items():
+                child = SessionTreeItem(label=key, obj=cs, parent=item)
+
+        if len(self._session.subjectRegistration.asDict()) > 0:
+            item = SessionTreeItem(label='Subject Registration', obj=None, parent=self._rootItem)
+            if len(self._session.subjectRegistration.fiducials) > 0:
+                # separate planned and sampled fiducials
+                subitem = SessionTreeItem(label='Planned fiducials', obj=None, parent=item)
+                for key, fid in self._session.subjectRegistration.fiducials.items():
+                    if fid.plannedCoord is not None:
+                        child = SessionTreeItem(label=key, obj=fid, parent=subitem)
+                subitem = SessionTreeItem(label='Sampled fiducials', obj=None, parent=item)
+                for key, fid in self._session.subjectRegistration.fiducials.items():
+                    if fid.sampledCoord is not None:
+                        child = SessionTreeItem(label=key, obj=fid, parent=subitem)
+
+            if len(self._session.subjectRegistration.sampledHeadPoints) > 0:
+                subitem = SessionTreeItem(label='Sampled head points', obj=None, parent=item)
+
+            if self._session.subjectRegistration.trackerToMRITransf is not None:
+                subitem = SessionTreeItem(label='Tracker to MRI transf', obj=None, parent=item)
+
+        if len(self._session.targets.asList()) > 0:
+            item = SessionTreeItem(label='Targets', obj=None, parent=self._rootItem)
+            for target in self._session.targets.values():
+                child = SessionTreeItem(label=target.key, obj=target, parent=item)
+
+        toolList = self._session.tools.asList()
+        if len(toolList) > 0:
+            item = SessionTreeItem(label='Tools', obj=None, parent=self._rootItem)
+            for toolDict in toolList:
+                child = SessionTreeItem(label=toolDict['key'], obj=toolDict, parent=item)
+
+        if len(self._session.samples) > 0:
+            item = SessionTreeItem(label='Samples', obj=None, parent=self._rootItem)
+            for key, sample in self._session.samples.items():
+                child = SessionTreeItem(label=key, obj=sample, parent=item)
+
+        if len(self._session.digitizedLocations) > 0:
+            item = SessionTreeItem(label='Digitized Locations', obj=None, parent=self._rootItem)
+            # separate planned and sampled information
+            key = '<Planned>'
+            subitem = SessionTreeItem(label=key, obj=None, parent=item)
+            for key, loc in self._session.digitizedLocations.items():
+                child = SessionTreeItem(label=key, obj=loc, parent=subitem)
+            if any(loc.sampledCoord is not None for loc in self._session.digitizedLocations.values()):
+                key = '<Sampled>'
+                subitem = SessionTreeItem(label=key, obj=None, parent=item)
+                for key, loc in self._session.digitizedLocations.items():
+                    if loc.sampledCoord is not None:
+                        child = SessionTreeItem(label=key, obj=loc, parent=subitem)
+
+        if len(self._session.triggerSources) > 0:
+            item = SessionTreeItem(label='Trigger Sources', obj=None, parent=self._rootItem)
+            for key, ts in self._session.triggerSources.items():
+                child = SessionTreeItem(label=key, obj=ts, parent=item)
+
+        if len(self._session.dockWidgetLayouts) > 0:
+            item = SessionTreeItem(label='Dock Widget Layouts', obj=None, parent=self._rootItem)
+
+        if len(self._session.addons) > 0:
+            item = SessionTreeItem(label='Addons', obj=None, parent=self._rootItem)
+            for key, addon in self._session.addons.items():
+                subitem = SessionTreeItem(label=key, obj=None, parent=item)
+                child = SessionTreeItem(label='Addon install path', obj=addon, parent=subitem)
+                if len(set(addon.asDict().keys()) - {'addonInstallPath', 'addonVersion'}) > 0:
+                    # TODO: add support for addons to declare more specific subitems
+                    child = SessionTreeItem(label='Addon settings', obj=None, parent=subitem)
+
+        def connectCheckedSignal(item: SessionTreeItem):
+            item.sigCheckedChanged.connect(lambda item=item: self._onItemCheckedChanged(item))
+            for child in item.children:
+                connectCheckedSignal(child)
+
+        connectCheckedSignal(self._rootItem)
+
+    def setSelectionModel(self, selectionModel):
+        self._selectionModel = selectionModel
+
+    def index(self, row, column, parent=QtCore.QModelIndex()):
+        if not self.hasIndex(row, column, parent):
+            return QtCore.QModelIndex()
+
+        if not parent.isValid():
+            # No parent, so we are at the top level
+            if row < 1:
+                return self.createIndex(row, column, self._rootItem)
+        else:
+            # Child items
+            parentItem: SessionTreeItem = parent.internalPointer()
+            if row < len(parentItem.children):
+                return self.createIndex(row, column, parentItem.children[row])
+
+        return QtCore.QModelIndex()
+
+    def parent(self, index):
+        if not index.isValid():
+            return QtCore.QModelIndex()
+
+        item = index.internalPointer()
+        if item.parent is None:
+            return QtCore.QModelIndex()
+        return self._indexForItem(item.parent)
+        
+    def _indexForItem(self, item: SessionTreeItem):
+        """Get the index for a given item"""
+        if item is self._rootItem:
+            return self.createIndex(0, 0, item)
+        assert item.parent is not None
+        row = item.parent.children.index(item)
+        return self.createIndex(row, 0, item)
+
+    def rowCount(self, parent=QtCore.QModelIndex()):
+        if not parent.isValid():
+            return 1
+        item = parent.internalPointer()
+        return len(item.children)
+
+    def columnCount(self, parent=QtCore.QModelIndex()):
+        return 1
+
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        item = index.internalPointer()
+        if role == QtCore.Qt.DisplayRole:
+            return item.label
+        elif role == QtCore.Qt.CheckStateRole:
+            return item.checked
+        return None
+
+    def flags(self, index):
+        if not index.isValid():
+            return QtCore.Qt.NoItemFlags
+        return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsUserCheckable
+
+    def setData(self, index, value, role=QtCore.Qt.EditRole):
+        if role == QtCore.Qt.CheckStateRole:
+            item = index.internalPointer()
+            value = QtCore.Qt.CheckState(value)  # convert from generic value to CheckState
+            # If selection model is set and item is selected, apply to all selected items
+            if self._selectionModel is not None and self._selectionModel.isSelected(index):
+                for selected_index in self._selectionModel.selectedIndexes():
+                    selected_item = selected_index.internalPointer()
+                    selected_item.checked = value
+                    self.dataChanged.emit(selected_index, selected_index, [QtCore.Qt.CheckStateRole])
+                return True
+            else:
+                item.checked = value
+                return True
+        return False
+
+    def _onItemCheckedChanged(self, item: SessionTreeItem):
+        """Handle the checked state change of an item"""
+        index = self._indexForItem(item)
+        assert index.isValid(), "Item index is not valid"
+        self.dataChanged.emit(
+            index, index, [QtCore.Qt.CheckStateRole])
+        self.sigItemCheckedChanged.emit(item)
+
+    def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+        # if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
+        #     return "Session Elements"
+        return None
+
+    @property
+    def rootItem(self):
+        return self._rootItem
+
+
+@attrs.define
+class ImportSessionWindow:
+    _parent: QtWidgets.QWidget
+    _session: Session = attrs.field(repr=False)
+    _otherSession: Session = attrs.field(repr=False)
+
+    _wdgt: QtWidgets.QDialog = attrs.field(init=False)
+    _presetsComboBox: QtWidgets.QComboBox = attrs.field(init=False)
+    _sessionTreeView: QtWidgets.QTreeView = attrs.field(init=False)
+    _sessionTreeModel: SessionTreeModel = attrs.field(init=False)
+    _finalizeButtonBox: QtWidgets.QDialogButtonBox = attrs.field(init=False)
+
+    _presetComboBoxNeedsRefresh: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+
+    sigFinished: Signal = attrs.field(init=False, factory=lambda: Signal((bool,)))
+
+    def __attrs_post_init__(self):
+        self._wdgt = QtWidgets.QDialog(self._parent)
+        self._wdgt.setModal(True)
+
+        self._wdgt.setWindowTitle('Import session')
+
+        self._wdgt.setWindowModality(QtGui.Qt.WindowModal)
+
+        self._wdgt.finished.connect(self._onDlgFinished)
+
+        topLayout = QtWidgets.QVBoxLayout()
+        self._wdgt.setLayout(topLayout)
+
+        formContainer = QtWidgets.QWidget()
+        topLayout.addWidget(formContainer)
+        formLayout = QtWidgets.QFormLayout()
+        formContainer.setLayout(formLayout)
+        self._presetsComboBox = QtWidgets.QComboBox(self._wdgt)
+        self._presetsComboBox.addItems(self._getPresetKeys())
+        self._presetsComboBox.currentIndexChanged.connect(self._onPresetGUIChanged)
+        formLayout.addRow('Preset', self._presetsComboBox)
+
+        # Add session tree view
+        treeContainer = QtWidgets.QWidget()
+        topLayout.addWidget(treeContainer)
+        treeLayout = QtWidgets.QVBoxLayout()
+        treeContainer.setLayout(treeLayout)
+
+        treeLabel = QtWidgets.QLabel("Select elements to import:")
+        treeLayout.addWidget(treeLabel)
+
+        self._sessionTreeView = QtWidgets.QTreeView(self._wdgt)
+        # Use ExtendedSelection mode to support shift-selection
+        self._sessionTreeView.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self._sessionTreeView.setHeaderHidden(True)
+        self._sessionTreeModel = SessionTreeModel(self._otherSession, self._wdgt)
+        self._sessionTreeModel.sigItemCheckedChanged.connect(self._onTreeModelItemCheckedChanged)
+        self._sessionTreeView.setModel(self._sessionTreeModel)
+        self._sessionTreeView.setMinimumHeight(300)
+        self._sessionTreeView.setMinimumWidth(300)
+        self._sessionTreeView.expandToDepth(0)
+        self._sessionTreeModel.setSelectionModel(self._sessionTreeView.selectionModel())
+
+        treeLayout.addWidget(self._sessionTreeView)
+
+        # set a reasonable default for preset selection
+        if self._session.subjectID is not None and self._session.subjectID == self._otherSession.subjectID:
+            self._presetsComboBox.setCurrentText('Same subject, different session')
+        else:
+            self._presetsComboBox.setCurrentText('Different subject')
+
+        # Add button box
+        self._finalizeButtonBox = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        self._finalizeButtonBox.accepted.connect(self._onAccept)
+        self._finalizeButtonBox.rejected.connect(self._wdgt.reject)
+        topLayout.addWidget(self._finalizeButtonBox)
+
+        # TODO: autoselect default preset based on whether session subject IDs match
+
+        self._wdgt.show()
+
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_refreshComboBox))
+
+    def _getPresetKeys(self) -> list[str]:
+        return ['Custom', 'Different subject', 'Same subject, different session']
+
+    def _onTreeModelItemCheckedChanged(self, item: SessionTreeItem):
+        self._presetComboBoxNeedsRefresh.set()
+
+    async def _loop_refreshComboBox(self):
+        while True:
+            await self._presetComboBoxNeedsRefresh.wait()
+            if self._presetComboBoxNeedsRefresh.is_set():
+                self._presetComboBoxNeedsRefresh.clear()
+                self._presetsComboBox.setCurrentText('Custom')
+
+    def _onPresetGUIChanged(self, index: int):
+        preset = self._getPresetKeys()[index]
+
+        if preset == 'Custom':
+            # don't change any selections
+            return
+
+        # Deselect and uncheck all items
+        self._sessionTreeView.clearSelection()
+        self._uncheckAllItems()
+
+        # Helper to check by label
+        def check_by_label(label):
+            idx = self._findCategoryIndexByLabel(label)
+            if idx is not None:
+                self._checkCategoryByIndex(idx)
+
+        # Select and check items based on preset
+        if preset == 'Different subject':
+            # Only select items that don't depend on subject
+            check_by_label('Tools')
+            check_by_label(('Digitized Locations', '<Planned>'))
+            check_by_label('Trigger Sources')
+            # check_by_label('Dock Widget Layouts')  # TODO: uncomment
+            # TODO: make active dock widget the session info tab (rather than for example jumping straight to navigate in a new subject)
+            check_by_label('Addons')
+            # TODO: add support for addons to declare specific fields as subject-specific or not
+        elif preset == 'Same subject, different session':
+            # Select subject-specific items
+            check_by_label('Subject ID')
+            check_by_label('MRI')
+            check_by_label('Head Model')
+            check_by_label('Coordinate Systems')
+            check_by_label(('Subject Registration', 'Planned fiducials'))
+            check_by_label('Targets')
+            check_by_label('Tools')
+            check_by_label(('Digitized Locations', '<Planned>'))
+            check_by_label('Trigger Sources')
+            # check_by_label('Dock Widget Layouts')  # TODO: uncomment
+            # TODO: make active dock widget the session info tab (rather than for example jumping straight to navigate in a new subject)
+            check_by_label('Addons')
+            # TODO: add support for addons to declare specific fields as session-specific or not
+
+        self._presetComboBoxNeedsRefresh.clear()  # don't change to custom in response to recent changes
+
+    def _findCategoryIndexByLabel(self, label: str | tuple[str,...], parent: QtCore.QModelIndex = None) -> int | None:
+        """Return the index of the top-level category with the given label, or None if not found."""
+        if isinstance(label, str):
+            return self._findCategoryIndexByLabel(label=(label,), parent=parent)
+
+        if parent is None:
+            parent = self._sessionTreeModel.index(0, 0)
+
+        for i in range(self._sessionTreeModel.rowCount(parent=parent)):
+            model_index = self._sessionTreeModel.index(i, 0, parent)
+            item = model_index.internalPointer()
+            if item and getattr(item, 'label', None) == label[0]:
+                if len(label) > 1:
+                    # If there are more labels to check, recurse into the children
+                    return self._findCategoryIndexByLabel(label[1:], model_index)
+                # If this is the last label, return the index
+                return model_index
+        logger.warning(f"Category with label '{label}' not found in the session tree.")
+        return None
+
+    def _uncheckAllItems(self):
+        """Uncheck all items in the tree"""
+        for i in range(self._sessionTreeModel.rowCount()):
+            model_index = self._sessionTreeModel.index(i, 0)
+            self._sessionTreeModel.setData(model_index, QtCore.Qt.Unchecked, QtCore.Qt.CheckStateRole)
+
+    def _checkCategoryByIndex(self, index: QtCore.QModelIndex):
+        """Check a top-level category by index"""
+        if False:
+            # also select
+            self._sessionTreeView.selectionModel().select(
+                index, QtCore.QItemSelectionModel.Select)
+        self._sessionTreeModel.setData(index, QtCore.Qt.Checked, QtCore.Qt.CheckStateRole)
+
+    def _selectCategoryByIndex(self, index: QtCore.QModelIndex):
+        """Select a top-level category by index"""
+        self._sessionTreeView.selectionModel().select(
+            index, QtCore.QItemSelectionModel.Select)
+
+    def _onDlgFinished(self, result: int):
+        self.sigFinished.emit(result == QtWidgets.QDialog.Accepted)
+
+    def _onAccept(self):
+        """Handle import when OK is clicked"""
+
+        # TODO: block at least some session update signals until after all changes are complete
+        # (e.g. to not have a view start using new MRI data before a new head model is also updated)
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Subject ID')
+        if item is not None and item.checked == QtCore.Qt.CheckState.Checked:
+            self.session.subjectID = self.otherSession.subjectID
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Session ID')
+        if item is not None and item.checked == QtCore.Qt.CheckState.Checked:
+            self.session.sessionID = self.otherSession.sessionID
+
+        item = self._sessionTreeModel.rootItem.childByLabel('MRI')
+        if item is not None and item.checked == QtCore.Qt.CheckState.Checked:
+            kwargs = self.otherSession.MRI.asDict(filepathRelTo=self.otherSession.filepath)
+            if 'filepath' in kwargs:
+                # TODO: if other session referenced a file inside its own folder, copy to primary session folder here
+                # or if relative path is different between sessions (e.g. due to them being in different parent directories)
+                # offer to copy the file here
+                kwargs['filepath'] = os.path.join(self.otherSession.filepath, kwargs['filepath'])
+
+            for key, val in kwargs.items():
+                setattr(self.session.MRI, key, val)
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Head Model')
+        if item is not None and item.checked == QtCore.Qt.CheckState.Checked:
+            kwargs = self.otherSession.headModel.asDict(filepathRelTo=self.otherSession.filepath)
+            if 'filepath' in kwargs:
+                # TODO: if other session referenced a file inside its own folder, copy to primary session folder here
+                # or if relative path is different between sessions (e.g. due to them being in different parent directories)
+                # offer to copy the file here
+                # note: if copying files here, need to copy entire SimNIBS folder, not just the referenced .msh file
+                kwargs['filepath'] = os.path.join(self.otherSession.filepath, kwargs['filepath'])
+            for key, val in kwargs.items():
+                setattr(self.session.headModel, key, val)
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Coordinate Systems')
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked != QtCore.Qt.CheckState.Checked:
+                    continue
+                coordSys = self.otherSession.coordinateSystems[subitem.label]
+                # TODO: maybe convert from/to dict as intermediate rather than directly copying ref to same instance of coordSys between sessions
+                self.session.coordinateSystems[coordSys.key] = coordSys
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Subject Registration')
+        if item is not None:
+            copyPlannedFiducials: list[str] = []
+            subitem = item.childByLabel('Planned fiducials')
+            if subitem is not None:
+                for subsubitem in subitem.children:
+                    if subsubitem.checked != QtCore.Qt.CheckState.Checked:
+                        continue
+                    copyPlannedFiducials.append(subsubitem.label)
+
+            copySampledFiducials: list[str] = []
+            subitem = item.childByLabel('Sampled fiducials')
+            if subitem is not None:
+                for subsubitem in subitem.children:
+                    if subsubitem.checked != QtCore.Qt.CheckState.Checked:
+                        continue
+                    copySampledFiducials.append(subsubitem.label)
+
+            for fid in self.otherSession.subjectRegistration.fiducials.values():
+                fidDict = fid.asDict()
+                doCopy = False
+                if fid.key not in copyPlannedFiducials:
+                    fidDict.pop('plannedCoord', None)
+                else:
+                    doCopy = True
+
+                if fid.key not in copySampledFiducials:
+                    fidDict.pop('sampledCoord', None)
+                    fidDict.pop('sampledCoords', None)
+                else:
+                    doCopy = True
+
+                if doCopy:
+                    if fid.key in self.session.subjectRegistration.fiducials:
+                        for key, val in fidDict.items():
+                            setattr(self.session.subjectRegistration.fiducials[fid.key], key, val)
+                    else:
+                        self.session.subjectRegistration.fiducials[fid.key] = Fiducial.fromDict(fidDict)
+
+            subitem = item.childByLabel('Sampled head points')
+            if subitem is not None and subitem.checked == QtCore.Qt.CheckState.Checked:
+                self.session.subjectRegistration.sampledHeadPoints.replace(self.otherSession.subjectRegistration.sampledHeadPoints.asNDArray())
+                self.session.subjectRegistration.sampledHeadPoints.alignmentWeights = self.otherSession.subjectRegistration.sampledHeadPoints.alignmentWeights
+
+            subitem = item.childByLabel('Tracker to MRI transf')
+            if subitem is not None and subitem.checked == QtCore.Qt.CheckState.Checked:
+                self.session.subjectRegistration.trackerToMRITransf = self.otherSession.subjectRegistration.trackerToMRITransf
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Targets')
+        targetsTreeItem = item
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked != QtCore.Qt.CheckState.Checked:
+                    continue
+                target = self.otherSession.targets[subitem.label]
+                self.session.targets[target.key] = Target.fromDict(target.asDict(), session=self.session)
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Tools')
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked != QtCore.Qt.CheckState.Checked:
+                    continue
+                if subitem.label == 'ToolPositionsServer':
+                    # handle special ToolPositionsServer info that may be listed next to actual tools
+                    kwargs = self.otherSession.tools.positionsServerInfo.asDict()
+                    for key, val in kwargs.items():
+                        setattr(self.session.tools.positionsServerInfo, key, val)
+                else:
+                    tool = self.otherSession.tools[subitem.label]
+                    self.session.tools[tool.key] = self.session.tools.toolFromDict(tool.asDict())
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Samples')
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked != QtCore.Qt.CheckState.Checked:
+                    continue
+                sample = self.otherSession.samples[subitem.label]
+                if sample.targetKey is not None:
+                    # make sure corresponding target was also imported/copied
+                    if targetsTreeItem is None or \
+                            (targetItem := targetsTreeItem.childByLabel(sample.targetKey)) is not None or \
+                            targetItem.checked != QtCore.Qt.CheckState.Checked:
+                        logger.error(f'Target {sample.targeKey} not selected for import, but referenced by sample {sample.key}')
+                        raise KeyError('When importing samples, corresponding target(s) must also be imported')
+                self.session.samples[sample.key] = Sample.fromDict(sample.asDict())
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Digitized Locations')
+        if item is not None:
+            copyPlannedLocations: list[str] = []
+            subitem = item.childByLabel('<Planned>')
+            if subitem is not None:
+                for subsubitem in subitem.children:
+                    if subsubitem.checked != QtCore.Qt.CheckState.Checked:
+                        continue
+                    copyPlannedLocations.append(subsubitem.label)
+
+            copySampledLocations: list[str] = []
+            subitem = item.childByLabel('<Sampled>')
+            if subitem is not None:
+                for subsubitem in subitem.children:
+                    if subsubitem.checked != QtCore.Qt.CheckState.Checked:
+                        continue
+                    copySampledLocations.append(subsubitem.label)
+
+            for loc in self.otherSession.digitizedLocations.values():
+                locDict = loc.asDict()
+                doCopy = False
+                if loc.key not in copyPlannedLocations:
+                    locDict.pop('plannedCoord', None)
+                else:
+                    doCopy = True
+
+                if loc.key not in copySampledLocations:
+                    locDict.pop('sampledCoord', None)
+                else:
+                    doCopy = True
+
+                if doCopy:
+                    if loc.key in self.session.digitizedLocations:
+                        for key, val in locDict.items():
+                            setattr(self.session.digitizedLocations[loc.key], key, val)
+                    else:
+                        self.session.digitizedLocations[loc.key] = DigitizedLocation.fromDict(locDict)
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Trigger Sources')
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked != QtCore.Qt.CheckState.Checked:
+                    continue
+                trigSource = self.otherSession.triggerSources[subitem.label]
+                self.session.triggerSources[trigSource.key] = TriggerSource.fromDict(trigSource.asDict())
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Dock Widget Layouts')
+        if item is not None and item.checked == QtCore.Qt.CheckState.Checked:
+            raise NotImplementedError  # TODO: add support for restoring layout(s)
+
+        item = self._sessionTreeModel.rootItem.childByLabel('Addons')
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked == QtCore.Qt.CheckState.Unchecked:
+                    continue
+                addon = self.otherSession.addons[subitem.label]
+
+                if addon.key in self.session.addons:
+                    # make sure install path is the same for both addons
+                    existingAddon = self.session.addons[addon.key]
+                    if not os.path.abspath(addon.addonInstallPath) == os.path.abspath(existingAddon.addonInstallPath):
+                        raise RuntimeError('Replacing existing addon with another version of same addon not supported. Make edits manually in JSON file(s) and restart NaviNIBS instead.')
+
+                    raise NotImplementedError  # TODO: copy over sessionAttrs
+
+                else:
+                    addonDict = addon.asDict()
+                    self.session.addons[addon.key] = Addon.fromDict(addonDict)
+
+        self._wdgt.accept()
+
+    def show(self):
+        self._wdgt.show()
+
+    @property
+    def wdgt(self):
+        return self._wdgt
+
+    @property
+    def session(self):
+        return self._session
+
+    @property
+    def otherSession(self):
+        return self._otherSession
+
+

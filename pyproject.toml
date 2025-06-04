@@ -5,7 +5,7 @@ classifiers = [
 
 [tool.poetry]
 name = "NaviNIBS"
-version = "0.2.2"
+version = "0.2.3"
 description = "Software for neuronavigated non-invasive brain stimulation"
 repository = "https://github.com/PrecisionNeuroLab/NaviNIBS"
 documentation = "https://precisionneurolab.github.io/navinibs-docs"
@@ -43,6 +43,9 @@ xmltodict = "^0.13.0"
 platformdirs = "^4.2.2"
 concurrent-log-handler = "^0.9.25"
 
+[tool.poetry.group.test]
+optional = true
+
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.0"
 pytest-asyncio = "^0.21.1"
@@ -54,6 +57,9 @@ pyperclip = "^1.8.2"
 aioconsole = "^0.6.1"
 pywinauto = "^0.6.8"  # TODO: maybe delete if unused
 pillow = "^10.2.0"  # for screenshots
+
+[tool.poetry.group.dev]
+optional = true
 
 [tool.poetry.group.dev.dependencies]
 setuptools = "^68.0.0"
