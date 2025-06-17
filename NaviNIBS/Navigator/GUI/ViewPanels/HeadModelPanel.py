@@ -35,6 +35,11 @@ class HeadModelPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
+    _surfAliases: tp.Dict[str, str] = attrs.field(init=False, factory=lambda: {
+        'skinSurf': 'Skin',
+        'csfSurf': 'CSF', 
+        'gmSurf': 'Gray matter'
+    })  # show nice aliases for the surfaces
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
@@ -123,18 +128,27 @@ class HeadModelPanel(MainViewPanel):
     def _onHeadModelUpdated(self, whatChanged: str):
         prevSelected = self._activeSurfWidget.selectedItems()
         if len(prevSelected) > 0:
-            prevSelectedKey = prevSelected[0].text()
+            prevSelectedKey = prevSelected[0].data(QtCore.Qt.ItemDataRole.UserRole)  # Get the actual key from user data
         else:
             prevSelectedKey = None
         self._activeSurfWidget.clear()
         if self.session is not None and self.session.headModel.isSet:
             for key in self.session.headModel.surfKeys:
-                self._activeSurfWidget.addItem(key)
+                item = QtWidgets.QListWidgetItem()
+                # Display the nice alias, but store the actual key in user data
+                item.setText(self._surfAliases.get(key, key))
+                item.setData(QtCore.Qt.ItemDataRole.UserRole, key)
+                self._activeSurfWidget.addItem(item)
             if prevSelectedKey is not None:
                 selectKey = prevSelectedKey
             else:
                 selectKey = 'gmSurf'
-            self._activeSurfWidget.setCurrentItem(self._activeSurfWidget.findItems(selectKey, QtCore.Qt.MatchExactly)[0])
+            # Find item by the stored key in user data
+            for i in range(self._activeSurfWidget.count()):
+                item = self._activeSurfWidget.item(i)
+                if item.data(QtCore.Qt.ItemDataRole.UserRole) == selectKey:
+                    self._activeSurfWidget.setCurrentItem(item)
+                    break
 
         self._activeSurfWidget.setMaximumHeight(ceil(self._activeSurfWidget.sizeHintForRow(0) * (self._activeSurfWidget.count() + 0.2)))
 
@@ -145,7 +159,7 @@ class HeadModelPanel(MainViewPanel):
         selected = self._activeSurfWidget.selectedItems()
         if len(selected) == 0:
             return
-        selectedKey = selected[0].text()
+        selectedKey = selected[0].data(QtCore.Qt.ItemDataRole.UserRole)  # Get the actual key from user data
         for key, view in self._views.items():
             view.activeSurf = selectedKey
 
