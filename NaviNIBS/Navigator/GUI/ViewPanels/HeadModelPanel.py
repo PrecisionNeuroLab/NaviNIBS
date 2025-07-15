@@ -22,6 +22,7 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.SpatialTransformWidget import SpatialTransformDisplayWidget
 from NaviNIBS.Navigator.Model.Session import Session
 
 
