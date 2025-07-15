@@ -78,3 +78,57 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
                                             screenshotName='SetHeadModel',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_MRI.py::test_setMRIInfo')
+async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: NavigatorGUI,
+                          workingDir: str,
+                          headModelDataSourcePath: str,
+                          screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetMRI', 'SetHeadModelWithSeparateMeshes')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on head model tab
+    navigatorGUI._activateView(navigatorGUI.headModelPanel.key)
+
+    # give time for initialization
+    await navigatorGUI.headModelPanel.finishedAsyncInit.wait()
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.headModelPanel.key
+
+    headModelSourceDir, headModelMeshName = os.path.split(headModelDataSourcePath)
+    headModelDirName = os.path.split(headModelSourceDir)[1]
+    headModelTestDir = os.path.join(sessionPath, '..', headModelDirName)
+    if len(glob.glob(os.path.join(headModelTestDir, '*.msh'))) < 1:
+        shutil.copytree(headModelSourceDir, headModelTestDir, dirs_exist_ok=True)
+
+    subStr = os.path.splitext(headModelMeshName)[0]  # e.g. 'sub-1234'
+
+    skinMeshPath = os.path.join(headModelTestDir, 'm2m_' + subStr, 'skin.stl')
+    navigatorGUI.headModelPanel._skinFilepathWdgt.filepath = skinMeshPath
+    navigatorGUI.headModelPanel._gmFilepathWdgt.filepath = os.path.join(headModelTestDir, 'm2m_' + subStr, 'gm.stl')
+
+    #await utils.waitForever()
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+
+    assert os.path.normpath(ses.headModel.skinSurfPath) == os.path.normpath(skinMeshPath)
+
+    for view in navigatorGUI.headModelPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+    await asyncio.sleep(1.)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetHeadModelWithSeparateMeshes',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+

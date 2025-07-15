@@ -223,8 +223,10 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
             return False, 'No session set'
         if not self.session.MRI.isSet:
             return False, 'No MRI set'
-        if not self.session.headModel.isSet:
-            return False, 'No head model set'
+        if not self.session.headModel.skinSurfIsSet:
+            return False, 'No skin surface set'
+        if not self.session.headModel.gmSurfIsSet:
+            return False, 'No gray matter surface set'
         if self.session.tools.subjectTracker is None:
             return False, 'No active subject tracker configured'
         if not self.session.subjectRegistration.isRegistered:

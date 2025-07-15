@@ -33,6 +33,8 @@ class HeadModelPanel(MainViewPanel):
     _key: str = 'Set head model'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-cog-outline'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
+    _skinFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
+    _gmFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _surfAliases: tp.Dict[str, str] = attrs.field(init=False, factory=lambda: {
@@ -60,20 +62,38 @@ class HeadModelPanel(MainViewPanel):
 
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
-        wdgt = QFileSelectWidget(browseMode='getOpenFilename',
-                                 extFilters='Gmsh (*.msh)')
-        wdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
-        self._wdgt.layout().addWidget(wdgt)
-        self._filepathWdgt = wdgt
-
         containerWdgt = QtWidgets.QWidget()
         containerWdgt.setLayout(QtWidgets.QFormLayout())
+        self._wdgt.layout().addWidget(containerWdgt)
+
+        wdgt = QFileSelectWidget(browseMode='getOpenFilename',
+                                 extFilters='Gmsh (*.msh)',
+                                 browseCaption='Select SimNIBS-generated .msh file',)
+        wdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
+        containerWdgt.layout().addRow('SimNIBS .msh file', wdgt)
+        self._filepathWdgt = wdgt
+
+        wdgt = QFileSelectWidget(browseMode='getOpenFilename',
+                                    extFilters='Mesh (*.stl *.ply)',
+                                    browseCaption='Select skin surface mesh file',
+                                 )
+        wdgt.sigFilepathChanged.connect(lambda newFilepath: setattr(self.session.headModel, 'skinSurfFilepath', newFilepath))
+        containerWdgt.layout().addRow('Skin surface file', wdgt)
+        self._skinFilepathWdgt = wdgt
+
+        wdgt = QFileSelectWidget(browseMode='getOpenFilename',
+                                    extFilters='Mesh (*.stl *.ply)',
+                                    browseCaption='Select gray matter surface mesh file',
+                                 )
+        wdgt.sigFilepathChanged.connect(lambda newFilepath: setattr(self.session.headModel, 'gmSurfFilepath', newFilepath))
+        containerWdgt.layout().addRow('Gray matter surface file', wdgt)
+        self._gmFilepathWdgt = wdgt
+
         self._activeSurfWidget = QtWidgets.QListWidget()
         self._activeSurfWidget.itemSelectionChanged.connect(lambda *args, **kwargs: self._onSurfSelectionChanged())
         #self._activeSurfWidget.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
-        containerWdgt.layout().addRow('Surfaces', self._activeSurfWidget)
+        containerWdgt.layout().addRow('Loaded surfaces', self._activeSurfWidget)
         containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
-        self._wdgt.layout().addWidget(containerWdgt)
 
         containerWdgt = QtWidgets.QWidget()
         containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
@@ -108,10 +128,10 @@ class HeadModelPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self._updateFilepath()
+        self._updateFilepaths()
         self._updateRelativeToPath()
         self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
-        self.session.headModel.sigFilepathChanged.connect(self._updateFilepath)
+        self.session.headModel.sigFilepathChanged.connect(self._updateFilepaths)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
         for key, view in self._views.items():
@@ -163,16 +183,25 @@ class HeadModelPanel(MainViewPanel):
         for key, view in self._views.items():
             view.activeSurf = selectedKey
 
-    def _updateFilepath(self):
+    def _updateFilepaths(self):
         self._filepathWdgt.filepath = self.session.headModel.filepath
+        self._skinFilepathWdgt.filepath = self.session.headModel.skinSurfFilepath
+        self._gmFilepathWdgt.filepath = self.session.headModel.gmSurfFilepath
+        if self.session.headModel.filepath is not None:
+            self._skinFilepathWdgt.placeholderText = 'From SimNIBS .msh file'
+            self._gmFilepathWdgt.placeholderText = 'From SimNIBS .msh file'
+        else:
+            self._skinFilepathWdgt.placeholderText = None
+            self._gmFilepathWdgt.placeholderText = None
 
     def _onSessionInfoChanged(self, whatChanged: tp.Optional[list[str]] = None):
         if whatChanged is None or 'filepath' in whatChanged:
             self._updateRelativeToPath()
 
     def _updateRelativeToPath(self):
-        self._filepathWdgt.showRelativeTo = os.path.dirname(self.session.filepath)
-        self._filepathWdgt.showRelativePrefix = '<session>'
+        for wdgt in (self._filepathWdgt, self._skinFilepathWdgt, self._gmFilepathWdgt):
+            wdgt.showRelativeTo = os.path.dirname(self.session.filepath)
+            wdgt.showRelativePrefix = '<session>'
 
     def _onBrowsedNewFilepath(self, newFilepath: str):
         self.session.headModel.filepath = newFilepath

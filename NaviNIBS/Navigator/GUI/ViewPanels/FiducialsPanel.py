@@ -49,8 +49,8 @@ class FiducialsPanel(MainViewPanel):
             return False, 'No session set'
         if not self.session.MRI.isSet:
             return False, 'No MRI set'
-        if not self.session.headModel.isSet:
-            return False, 'No head model set'
+        if not self.session.headModel.skinSurfIsSet:
+            return False, 'No skin surface set'
         return True, None
 
     def _finishInitialization(self):
