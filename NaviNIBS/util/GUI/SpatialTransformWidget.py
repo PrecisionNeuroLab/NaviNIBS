@@ -31,7 +31,7 @@ class SpatialTransformDisplayWidget(QtWidgets.QWidget):
     _gridContainer: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
     _editDlg: QtWidgets.QDialog | None = attrs.field(init=False, default=None)
 
-    sigTransformChanged: Signal = attrs.field(factory=Signal, init=False)
+    sigTransformChanged: Signal[()] = attrs.field(factory=Signal, init=False)
 
     def __init__(self, *args, parent: QtWidgets.QWidget | None = None, **kwargs):
         super().__init__(parent=parent)
