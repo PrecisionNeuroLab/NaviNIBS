@@ -169,13 +169,13 @@ class SurfSliceView(MRISliceView):
             actors = []
             for iSurf, surfKey in enumerate(surfKeys):
                 if getattr(self.session.headModel, self._activeSurf) is not None:
-                    actor = self._surfPlotter.add_mesh(mesh=getattr(self.session.headModel, surfKey),
-                                                                 color=surfColors[iSurf % len(surfColors)],
-                                                                 opacity=surfOpacities[iSurf % len(surfOpacities)],
-                                                                 name=self.label + '_' + surfKey + '_surf',
-                                                                 render=False,
-                                                                 reset_camera=False
-                                                                 )
+                    actor = self._surfPlotter.addMesh(mesh=getattr(self.session.headModel, surfKey),
+                                                      defaultMeshColor=surfColors[iSurf % len(surfColors)],
+                                                      opacity=surfOpacities[iSurf % len(surfOpacities)],
+                                                      name=self.label + '_' + surfKey + '_surf',
+                                                      render=False,
+                                                      reset_camera=False)
+
                     actors.append(actor)
                     self._surfPlotInitialized = True
 
@@ -267,13 +267,13 @@ class Surf3DView(SurfSliceView):
                     if not self._surfPlotInitialized:
                         logger.debug('Initializing 3D plot')
 
-                    actor = self._surfPlotter.add_mesh(mesh=getattr(self.session.headModel, surfKey),
-                                                   color=surfColors[iSurf % len(surfColors)],
-                                                   opacity=surfOpacities[iSurf % len(surfOpacities)],
-                                                   name=self.label + '_' + surfKey + '_surf',
-                                                   render=False,
-                                                   reset_camera=False
-                                                   )
+                    actor = self._surfPlotter.addMesh(
+                        mesh=getattr(self.session.headModel, surfKey),
+                        defaultMeshColor=surfColors[iSurf % len(surfColors)],
+                        opacity=surfOpacities[iSurf % len(surfOpacities)],
+                        name=self.label + '_' + surfKey + '_surf',
+                        render=False,
+                        reset_camera=False)
                     actors.append(actor)
 
                     self._surfPlotInitialized = True
