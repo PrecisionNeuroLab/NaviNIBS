@@ -33,11 +33,13 @@ logger = logging.getLogger(__name__)
 @attrs.define
 class FiducialsPanel(MainViewPanel):
     _key: str = 'Plan fiducials'
+
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-snowflake-outline'))
     _tblWdgt: PlanningFiducialsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _surfKey: str = 'skinSurf'
     _fiducialActors: tp.Dict[str, tp.Any] = attrs.field(init=False, factory=dict)
+    _autosetBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
@@ -72,6 +74,7 @@ class FiducialsPanel(MainViewPanel):
         btn = QtWidgets.QPushButton('Autoset fiducials from head model')
         btn.clicked.connect(self._onAutosetBtnClicked)
         btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
+        self._autosetBtn = btn
 
         btn = QtWidgets.QPushButton('Delete fiducial')
         btn.clicked.connect(self._onDeleteBtnClicked)
@@ -144,6 +147,10 @@ class FiducialsPanel(MainViewPanel):
 
         for key, view in self._views.items():
             view.session = self.session
+
+        self._autosetBtn.setEnabled(self.session.headModel.filepath is not None)
+        self.session.headModel.sigFilepathChanged.connect(
+            lambda *args: self._autosetBtn.setEnabled(self.session.headModel.filepath is not None))
 
         self._onPlannedFiducialsChanged()
 
