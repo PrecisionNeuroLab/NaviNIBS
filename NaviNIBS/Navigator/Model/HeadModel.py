@@ -17,8 +17,7 @@ from typing import ClassVar
 
 from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
-from NaviNIBS.util.numpy import array_equalish
-
+from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +41,11 @@ class HeadModel:
     """
     Path to gray matter surface mesh file, if not provided will be loaded from simnibs results folder.
     """
+    _meshToMRITransform: np.ndarray | None = None
+    """"
+    Optional 4x4 transform matrix to convert mesh coordinates to MRI coordinates. Applied to all
+    meshes when loading. Should not be needed in typical use cases.
+    """
 
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _csfSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -59,6 +63,7 @@ class HeadModel:
     emits key `which` indicating what changed, e.g. which='gmSurf'; 
     if None all should be assumed to have changed
     """
+    sigTransformChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
         self.sigFilepathChanged.connect(self._onFilepathChanged)
@@ -94,6 +99,22 @@ class HeadModel:
         # otherwise, use default path in m2m folder
         return os.path.join(self._m2mDir, 'gm.stl')
 
+    @property
+    def meshToMRITransform(self) -> np.ndarray | None:
+        return self._meshToMRITransform
+
+    @meshToMRITransform.setter
+    def meshToMRITransform(self, newTransform: np.ndarray | None):
+        if array_equalish(newTransform, self._meshToMRITransform):
+            return
+        if newTransform is not None:
+            assert isinstance(newTransform, np.ndarray), 'meshToMRITransform must be a numpy array'
+            assert newTransform.shape == (4, 4), 'meshToMRITransform must be a 4x4 matrix'
+        logger.info('Setting meshToMRITransform to {}'.format(newTransform))
+        self._meshToMRITransform = newTransform
+        self.sigTransformChanged.emit()
+        self.clearCache('all')  # will signal change for all cached meshes
+
     def loadCache(self, which: str):
         if not self.isSet:
             logger.warning('Load data requested, but no filepath(s) set. Returning.')
@@ -116,6 +137,10 @@ class HeadModel:
             logger.info('Loading {} mesh from {}'.format(which, meshPath))
             mesh = pv.read(meshPath)
 
+            if self._meshToMRITransform is not None:
+                logger.debug('Applying meshToMRITransform to mesh')
+                mesh.transform(self._meshToMRITransform, inplace=True)
+
             setattr(self, '_' + which, mesh)
 
         elif which in ('skinSimpleSurf', 'gmSimpleSurf'):
@@ -134,6 +159,8 @@ class HeadModel:
             mesh = mesh.decimate(0.8)
             logger.debug('Done simplifying mesh')
 
+            # don't apply meshToMRITransform here since it was already applied to the unsimplified mesh
+
             setattr(self, '_' + which, mesh)
 
         elif which == 'eegPositions':
@@ -142,6 +169,9 @@ class HeadModel:
             logger.info('Loading EEG positions from {}'.format(csvPath))
             self._eegPositions = pd.read_csv(csvPath, names=columnLabels, index_col='label')
             assert self._eegPositions.shape[1] == len(columnLabels) - 1
+
+            if self._meshToMRITransform is not None:
+                raise NotImplementedError  # TODO: add support for transforming EEG positions with meshToMRITransform
 
         else:
             raise NotImplementedError()
@@ -286,7 +316,7 @@ class HeadModel:
         return self._eegPositions
 
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
-        d = attrsAsDict(self)
+        d = attrsWithNumpyAsDict(self, npFields=('meshToMRITransform',))
         # convert to relative paths
         for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath'):
             if key in d:
@@ -297,6 +327,7 @@ class HeadModel:
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any], filepathRelTo: str) -> HeadModel:
         # TODO: validate against schema
+
         for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath'):
             if key in d and d[key] is not None:
                 # convert to absolute paths
@@ -306,7 +337,7 @@ class HeadModel:
                 else:
                     assert os.path.exists(d[key]), f'File not found at {d[key]}'
 
-        return cls(**d)
+        return attrsWithNumpyFromDict(cls, d, npFields=('meshToMRITransform',))
 
     @classmethod
     def validateFilepath(cls, filepath: tp.Optional[str], strict: bool = False) -> None:

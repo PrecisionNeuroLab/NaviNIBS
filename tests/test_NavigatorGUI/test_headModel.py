@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import glob
+import numpy as np
 import os
 import pyperclip
 import pytest
@@ -131,4 +132,13 @@ async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: Naviga
                                             sessionPath=sessionPath,
                                             screenshotName='SetHeadModelWithSeparateMeshes',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # test rotating meshes
+    navigatorGUI.headModelPanel._meshToMRITransformWdgt.transform = np.asarray([[1, 0, 0, 10], [0, 0, -1, 20], [0, 1, 0, 30], [0, 0, 0,1]])
+    await asyncio.sleep(1.)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetHeadModelWithSeparateMeshesTransformed',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
 

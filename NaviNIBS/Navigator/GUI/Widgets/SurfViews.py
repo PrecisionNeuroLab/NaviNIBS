@@ -98,6 +98,16 @@ class SurfSliceView(MRISliceView):
     def plotter(self) -> DefaultPrimaryLayeredPlotter:
         return self._primaryPlotter
 
+    @MRISliceView.session.setter
+    def session(self, newSession: Session | None):
+        if self._session is not None:
+            self._session.headModel.sigDataChanged.disconnect(self._onHeadModelDataChanged)
+
+        MRISliceView.session.fset(self, newSession)
+
+        if self._session is not None:
+            self._session.headModel.sigDataChanged.connect(self._onHeadModelDataChanged)
+
     @property
     def activeSurf(self):
         return self._activeSurf
@@ -115,14 +125,16 @@ class SurfSliceView(MRISliceView):
         super()._clearPlot()
 
     def _clearSurfPlotActors(self):
+        if not self._surfPlotInitialized:
+            return
         with self._surfPlotter.allowNonblockingCalls():
             for actor in self._surfPlotActors:
                 self._surfPlotter.remove_actor(actor)
         self._surfPlotActors.clear()
         self._surfPlotInitialized = False
 
-    def _onHeadModelDataChanged(self, whatChanged: str):
-        if whatChanged == self._activeSurf:
+    def _onHeadModelDataChanged(self, whatChanged: str | None):
+        if whatChanged is None or whatChanged in (self._activeSurf, 'all'):
             self._clearSurfPlotActors()
             self.updateView()
         else:

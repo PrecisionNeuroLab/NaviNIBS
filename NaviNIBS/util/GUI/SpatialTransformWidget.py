@@ -99,6 +99,7 @@ class SpatialTransformDisplayWidget(QtWidgets.QWidget):
         if array_equalish(value, self._transform):
             return
 
+        logger.info(f'Setting {self._transformLabel or "transform"} to {value}')
         self._transform = value
         self._refreshDisplay()
         self.sigTransformChanged.emit()
@@ -119,7 +120,6 @@ class SpatialTransformDisplayWidget(QtWidgets.QWidget):
 
             # show same precision for all values
             # but round if all can be shown with less precision
-            values = self._transform.copy()
             for prec in range(self._maxDisplayPrecision):
                 values = self._transform.round(prec)
                 if np.all(np.isclose(self._transform, values)):
