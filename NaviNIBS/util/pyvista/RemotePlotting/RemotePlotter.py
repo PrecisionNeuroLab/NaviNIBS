@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
 import logging
 import typing as tp
 from typing import ClassVar
@@ -24,6 +25,7 @@ from NaviNIBS.util.pyvista.RemotePlotting import ActorRef
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+# logger.setLevel(logging.DEBUG)
 
 
 @attrs.define
@@ -63,6 +65,7 @@ class RemotePlotManagerBase:
         self._plotter = self._Plotter(*self._plotterArgs,
                                        #parent=self._parentLayout.parentWidget(),
                                        **self._plotterKwargs)
+
         logger.debug('Adding plotter to parent layout')
         self._parentLayout.addWidget(self._plotter)
 
@@ -321,7 +324,7 @@ class RemotePlotManager(RemotePlotManagerBase):
             resp = await self._reqSock.recv_pyobj()
             assert resp == 'ack'
 
-        if True:
+        if False:
             self.initPlotter()
 
         poller = azmq.Poller()
@@ -330,8 +333,9 @@ class RemotePlotManager(RemotePlotManagerBase):
         while True:
             logger.debug('Awaiting msg')
             socks = dict(await poller.poll())
-            with self.plotter.renderingPaused():
-                while len(socks) > 0:
+            plotterWasInitialized = self.plotter is not None
+            with self.plotter.renderingPaused() if plotterWasInitialized else nullcontext():
+                while len(socks) > 0 and (plotterWasInitialized or self.plotter is None):
                     if self._pullSock in socks:
                         # note: this ordering has the effect of emptying pull queue before checking rep
                         # queue, which is what we want to deplete all pending non-blocking requests before
@@ -413,6 +417,7 @@ class RemotePlotterApp(RunnableAsApp):
 
     def _initPlotManager(self):
         assert self._plotManager is None
+        logger.debug('Initializing RemotePlotManager')
         self._plotManager = RemotePlotManager(reqPort=self._reqPort,
                                               repPort=self._repPort,
                                               parentLayout=self._rootWdgt.layout(),
