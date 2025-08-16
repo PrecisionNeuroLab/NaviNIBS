@@ -60,12 +60,14 @@ class QScrollContainer:
                 QtCore.Qt.ScrollBarAsNeeded if self._allowVerticalScrolling
                 else QtCore.Qt.ScrollBarAlwaysOff)
 
-        setStyleSheetForInstanceOnly(self._scrollArea, 'background: transparent;')
+        #setStyleSheetForInstanceOnly(self._scrollArea, 'background: transparent;')
+        self._scrollArea.viewport().setAutoFillBackground(False)  # from https://stackoverflow.com/a/79537760
 
         self._scrollArea.setWidgetResizable(True)
 
         self._scrollArea.setWidget(self._innerContainer)  # must happen after innerContainer's layout is set
-        setStyleSheetForInstanceOnly(self._innerContainer, 'background-color: transparent;')
+        #setStyleSheetForInstanceOnly(self._innerContainer, 'background-color: transparent;')
+        self._scrollArea.widget().setAutoFillBackground(False)
 
     @property
     def scrollArea(self):
