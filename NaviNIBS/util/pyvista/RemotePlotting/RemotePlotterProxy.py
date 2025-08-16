@@ -503,9 +503,9 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
         if True:
             # set log filepath of remote proc based on filepath of root logger file handler
-            handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.FileHandler)]
+            handlers = [h for h in logging.getLogger().handlers if isinstance(h, logging.handlers.QueueHandler)]
             if len(handlers) > 0:
-                logFilepath = handlers[-1].baseFilename
+                logFilepath = handlers[-1].listener.handlers[0].baseFilename
                 procKwargs = procKwargs.copy()
                 procKwargs['logFilepath'] = logFilepath
 
