@@ -56,6 +56,10 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
         from NaviNIBS.Navigator.TargetingCoordinator import TargetingCoordinator
         TargetingCoordinator._resetSingleton()
 
+    if True:
+        # disable dark mode for consistent test screenshots
+        os.environ['QT_QPA_PLATFORM'] = 'windows:darkmode=0'
+
     navGUI = NavigatorGUI.createAndRunAsTask()
     if True:
         await raiseMainNavigatorGUI()
@@ -64,6 +68,11 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
 
 async def openSessionForInteraction(workingDir, sessionKey: str):
     sessionPath = getSessionPath(workingDir, sessionKey)
+
+    if True:
+        # disable dark mode for consistent test screenshots
+        os.environ['QT_QPA_PLATFORM'] = 'windows:darkmode=0'
+
     NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath)
     while True:
         await asyncio.sleep(1.)
