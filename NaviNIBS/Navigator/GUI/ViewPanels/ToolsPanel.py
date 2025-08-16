@@ -243,7 +243,13 @@ class ToolWidget:
                 bold=False,
             )
 
-            if self._tool.toolSurf is not None:
+            try:
+                toolSurf = self._tool.toolSurf
+            except FileNotFoundError as e:
+                logger.error(f'Tool mesh file not found: {self._tool.toolStlFilepath}')
+                toolSurf = None
+
+            if toolSurf is not None:
                 meshColor = self._tool.toolColor
                 meshColor_tool = meshColor
                 actor = self._toolSpacePlotter.addMesh(
@@ -282,39 +288,45 @@ class ToolWidget:
             if actorKey in self._trackerSpaceActors:
                 self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
 
-            if self._tool.trackerStlToTrackerTransf is not None and self._tool.trackerSurf is not None:
+            if self._tool.trackerStlToTrackerTransf is not None:
+                try:
+                    trackerSurf = self._tool.trackerSurf
+                except FileNotFoundError as e:
+                    logger.error(f'Tracker mesh file not found: {self._tool.trackerStlFilepath}')
+                    trackerSurf = None
 
-                defaultGridKwargs = dict(
-                    bold=False,
-                )
+                if trackerSurf is not None:
+                    defaultGridKwargs = dict(
+                        bold=False,
+                    )
 
-                meshColor = self._tool.trackerColor
-                actor = self._trackerSpacePlotter.addMesh(
-                    mesh=self._tool.trackerSurf,
-                    color=meshColor,
-                    defaultMeshColor='#444444',
-                    opacity=0.8,
-                    name=actorKey
-                )
-                self._trackerSpaceActors[actorKey] = actor
-                setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
-                self._trackerSpacePlotter.showGrid(
-                    color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
-                    **defaultGridKwargs)
-
-                if self._tool.toolToTrackerTransf is not None:
-                    actor = self._toolSpacePlotter.addMesh(
+                    meshColor = self._tool.trackerColor
+                    actor = self._trackerSpacePlotter.addMesh(
                         mesh=self._tool.trackerSurf,
                         color=meshColor,
                         defaultMeshColor='#444444',
                         opacity=0.8,
                         name=actorKey
                     )
-                    self._toolSpaceActors[actorKey] = actor
-                    setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
-                    self._toolSpacePlotter.showGrid(
-                        color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                    self._trackerSpaceActors[actorKey] = actor
+                    setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
+                    self._trackerSpacePlotter.showGrid(
+                        color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
                         **defaultGridKwargs)
+
+                    if self._tool.toolToTrackerTransf is not None:
+                        actor = self._toolSpacePlotter.addMesh(
+                            mesh=self._tool.trackerSurf,
+                            color=meshColor,
+                            defaultMeshColor='#444444',
+                            opacity=0.8,
+                            name=actorKey
+                        )
+                        self._toolSpaceActors[actorKey] = actor
+                        setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
+                        self._toolSpacePlotter.showGrid(
+                            color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                            **defaultGridKwargs)
 
             self._trackerSpacePlotter.reset_camera()
 
