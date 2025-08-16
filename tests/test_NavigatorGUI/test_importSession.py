@@ -144,8 +144,6 @@ async def test_importSessionInNavigatorGUI(
     # adjust window size so that full list is visible for screenshots
     importWindow._wdgt.setFixedSize(300, 500)
 
-    await utils.waitForever()
-
     importWindow._presetsComboBox.setCurrentText('Different subject')
 
     await asyncio.sleep(1.)

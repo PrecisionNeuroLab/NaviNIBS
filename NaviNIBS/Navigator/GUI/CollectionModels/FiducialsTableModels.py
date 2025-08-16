@@ -117,7 +117,6 @@ class PlanningFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]
     _hasPlaceholderNewRow: bool = True
     _placeholderNewRowDefaults: dict[str, tp.Any] = attrs.field(factory=lambda: dict(key='<NewFiducial>'))
 
-
     def __attrs_post_init__(self):
         self._collection = self._session.subjectRegistration.fiducials
 

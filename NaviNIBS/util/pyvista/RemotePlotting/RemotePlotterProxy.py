@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import contextmanager
 import logging
+import logging.handlers
 import multiprocessing as mp
 import time
 import typing as tp
@@ -22,6 +23,8 @@ from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotter import RemotePlotterApp
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+# logger.setLevel(logging.DEBUG)
+
 
 
 @attrs.define
@@ -473,16 +476,21 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding,
                            QtWidgets.QSizePolicy.Policy.Expanding)
 
+        logger.debug(f'Initializing rep socket')
         ctx = zmq.Context()
         actx = azmq.Context()
         self._repSocket = actx.socket(zmq.REP)
         repPort = self._repSocket.bind_to_random_port('tcp://127.0.0.1')
+        logger.debug(f'Rep socket bound to port {repPort}')
 
+        logger.debug(f'Initializing req and push sockets')
         self._reqSocket = ctx.socket(zmq.REQ)
         self._reqSocketReqPending: bool = False
         self._areqSocket = actx.socket(zmq.REQ)
         self._pushSocket = ctx.socket(zmq.PUSH)
         # connect these later
+        logger.debug(f'Req and push sockets initialized, not connected yet')
+
         self._areqLock = asyncio.Lock()
 
         procKwargs = dict(reqPort=repPort, plotterKwargs=kwargs)
@@ -497,6 +505,8 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
 
     def _startRemoteProc(self, procKwargs, **kwargs):
         assert self.remoteProc is None
+
+        logger.debug('Preparing to start remote plotter process')
 
         if self._RemotePlotterApp is None:
             self._RemotePlotterApp = RemotePlotterApp
@@ -560,7 +570,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
                 resp = self._reqSocket.recv_pyobj(flags=zmq.NOBLOCK)
             except zmq.error.Again:
                 # no message available
-                logger.debug('No message available, waiting...')
+                # logger.debug('No message available, waiting...')
                 QtWidgets.QApplication.instance().processEvents(QtCore.QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
                 time.sleep(0.001)
             except Exception as e:
@@ -649,11 +659,13 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         await self._sendReqAndRecv_async(('quit',))
         self._socketLoopTask.cancel()
         self.remoteProc.terminate()
+        logger.debug('Closed')
 
     def close(self):
         logger.info('Closing')
         asyncio.create_task(asyncTryAndLogExceptionOnError(self.close_async))
         super().close()
+        logger.debug('Closed')
 
 
 @attrs.define

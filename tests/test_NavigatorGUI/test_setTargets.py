@@ -173,11 +173,15 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
         gridWdgt._gridWidthWdgts[i].setValue(20)
     gridWdgt._gridNeedsUpdate.set()
 
-    await asyncio.sleep(.1)
+    await asyncio.sleep(.5)
+
+    assert not gridWdgt._gridNeedsUpdate.is_set()
+
     for view in navigatorGUI.setTargetsPanel._views.values():
         await view.redrawQueueIsEmpty.wait()
 
     # equivalent to clicking on corresponding entry in table
+    logger.info(f'Targets: {navigatorGUI.session.targets.keys()}')
     navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 'M1 grid point 13'
 
     navigatorGUI.setTargetsPanel._views['3D'].plotter.camera.zoom(3)  # closer view on head for screenshot
