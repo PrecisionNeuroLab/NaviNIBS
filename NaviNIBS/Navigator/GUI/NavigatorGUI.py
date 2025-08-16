@@ -4,7 +4,6 @@ import asyncio
 
 import attrs
 import contextlib
-import darkdetect
 import logging
 import os
 import pathlib
@@ -55,7 +54,7 @@ class NavigatorGUI(RunnableAsApp):
     _mainViewPanels: tp.Dict[str, MainViewPanel] = attrs.field(init=False, factory=dict)
 
     _logFileHandler: tp.Optional[logging.FileHandler] = attrs.field(init=False, default=None)
-    _theme: str = 'light'
+    _theme: str = 'auto'
     """
     Default theme. Can be overriden by field in Session.miscSettings
     """
@@ -71,6 +70,8 @@ class NavigatorGUI(RunnableAsApp):
         self._appIconPath = iconPath
 
         super().__attrs_post_init__()
+
+        self._app.setStyle('Fusion')
 
         self._app.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseStyleSheetPropagationInWidgetStyles, True)
 
@@ -304,7 +305,7 @@ class NavigatorGUI(RunnableAsApp):
 
         theme = self._session.miscSettings.theme.lower()
         if theme == 'auto':
-            theme = 'dark' if darkdetect.isDark() else 'light'
+            theme = 'dark' if self._shouldAutoBeDark() else 'light'
         self.theme = theme  # triggers RunnableAsApp theme setter
         match theme:
             case 'light':
@@ -318,15 +319,16 @@ class NavigatorGUI(RunnableAsApp):
         pv.global_theme.font.color = self._win.palette().color(QtGui.QPalette.Text).name()
 
         mainFontSize = self._session.miscSettings.mainFontSize
-        if mainFontSize is None:
-            styleContent = ''
-        else:
-            styleContent = f'font-size: {mainFontSize}pt;'
+        if False:
+            if mainFontSize is None:
+                styleContent = ''
+            else:
+                styleContent = f'font-size: {mainFontSize}pt;'
 
-        self._app.setStyleSheet(styleContent)
-        for win in self._app.topLevelWidgets():
-            # TODO: check to make sure we're not clearing other custom styles
-            win.setStyleSheet(styleContent)
+            self._app.setStyleSheet(styleContent)
+            for win in self._app.topLevelWidgets():
+                # TODO: check to make sure we're not clearing other custom styles
+                win.setStyleSheet(styleContent)
 
         # also set font size outside of stylesheet so that it is applied to new windows
         f = self._app.font()
