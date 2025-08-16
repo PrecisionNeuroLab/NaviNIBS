@@ -238,7 +238,7 @@ class RemotePlotterProxyBase:
             callbackKey = self._callbackRegistry.register(callbackFn)
             kwargs['callback'] = callbackKey
 
-        if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData):
+        if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData) and hasattr(kwargs['mesh'], '_obbTree'):
             # clear un-pickleable obbTree field
             # note: this may cause unexpected issues...
             kwargs['mesh'] = kwargs['mesh'].copy()
