@@ -108,10 +108,12 @@ class PlotterImprovementsMixin:
         """
         Handle manual update of volume scalars that were hard-converted to previous scale within add_volume
         """
-        scalars = self.mapper.GetInput()
-        scalars[volumeKey] = volume[volumeKey].copy().astype(np.float64)
-        scalars[volumeKey].clip(clim[0], clim[1], out=scalars[volumeKey])
-        scalars[volumeKey] = (scalars[volumeKey] - clim[0]) / (clim[1] - clim[0]) * 255
+        # compare version to decide if necessary
+        if pv.version_info[0] == 0 and pv.version_info[1] < 46:  # TODO: verify this is appropriate version threshold, may be earlier
+            scalars = self.mapper.GetInput()
+            scalars[volumeKey] = volume[volumeKey].copy().astype(np.float64)
+            scalars[volumeKey].clip(clim[0], clim[1], out=scalars[volumeKey])
+            scalars[volumeKey] = (scalars[volumeKey] - clim[0]) / (clim[1] - clim[0]) * 255
         self.update_scalar_bar_range(clim)
 
     def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
