@@ -2,6 +2,7 @@ import asyncio
 import logging
 import numpy as np
 import os
+import platformdirs
 import pyperclip
 import pytest
 import pytest_asyncio
@@ -36,7 +37,10 @@ def workingDir(request):
     path = request.config.cache.get('workingDir', None)
     if True:
         if path is None:
-            path = tempfile.mkdtemp(prefix='NaviNIBS_Tests_')
+            if False:
+                path = tempfile.mkdtemp(prefix='NaviNIBS_Tests_')
+            else:
+                path = os.path.join(platformdirs.user_cache_dir(appname='NaviNIBS', appauthor=False), 'tests')
             request.config.cache.set('workingDir', path)
         # note this directory will not be auto-deleted
         if not os.path.exists(path):
