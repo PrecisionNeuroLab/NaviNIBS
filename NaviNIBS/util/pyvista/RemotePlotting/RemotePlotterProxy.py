@@ -628,12 +628,17 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
                 self.remoteProc.terminate()
                 return
 
+        self._embedWdgt.setVisible(False)
+
+        tempWdgt.setVisible(False)
         layout.removeWidget(tempWdgt)
         tempWdgt.deleteLater()
         layout.addWidget(self._embedWdgt)
 
         resp = await self._sendReqAndRecv_async(('showWindow',))
         assert resp == 'ack'
+
+        self._embedWdgt.setVisible(True)
 
         self._isReady.set()
 

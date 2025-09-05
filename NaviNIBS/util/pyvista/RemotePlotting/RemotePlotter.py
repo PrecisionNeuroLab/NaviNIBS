@@ -400,6 +400,9 @@ class RemotePlotterApp(RunnableAsApp):
 
         logger.debug(f'Initializing {self.__class__.__name__}')
         super().__attrs_post_init__()
+
+        self._win.hide()
+
         wdgt = QtWidgets.QWidget()
         self._rootWdgt = wdgt
         wdgt.setLayout(QtWidgets.QVBoxLayout())
