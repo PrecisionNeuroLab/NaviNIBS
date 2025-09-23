@@ -2,67 +2,70 @@
 classifiers = [
     "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)"
 ]
-
-[tool.poetry]
 name = "NaviNIBS"
-version = "0.2.3"
+version = "0.2.4a6"
 description = "Software for neuronavigated non-invasive brain stimulation"
-repository = "https://github.com/PrecisionNeuroLab/NaviNIBS"
-documentation = "https://precisionneurolab.github.io/navinibs-docs"
 readme = "README.md"
-authors = ["Christopher C. Cline <chriscline@users.noreply.github.com>"]
+authors = [
+    {name= "Christopher C. Cline", email="chriscline@users.noreply.github.com"},
+]
 license = "LGPL-3.0-only"
 
+[project.urls]
+repository = "https://github.com/PrecisionNeuroLab/NaviNIBS"
+documentation = "https://precisionneurolab.github.io/navinibs-docs"
+
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
-pyzmq = "^25.1.0"
-attrs = "^23.1.0"
-numpy = "^1.25.1"
-PySide6 = "^6.5.1.1"
+python = ">=3.12,<3.14"
+pyzmq = "^27.0.1"
+attrs = "^25.1.0"
+numpy = "^2.3.2"
+PySide6 = "^6.9.1"
 pyqtgraph = "==0.13.3"
-pyvista = "^0.40.1"
-vtk = "==9.3.1"
-QtPy = "^2.3.1"
-matplotlib = "^3.7.2"
-QtAwesome = "^1.1.1"
-nibabel = "^5.1.0"
-pytransform3d = "^3.2.0"
-pandas = "^2.0.3"
-pyvistaqt = "^0.11.0"
+pyvista = "^0.46.1"
+vtk = "^9.5.0"
+QtPy = "^2.4.3"
+matplotlib = "^3.10.5"
+QtAwesome = "^1.4.0"
+nibabel = "^5.3.2"
+pytransform3d = "^3.14.2"
+pandas = "^2.3.1"
+pyvistaqt = "^0.11.3"
 pyigtl = "^0.3.1"
 jsbeautifier = "^1.14.6"
-pylsl = "^1.16.0"
-scikit-spatial = "^6.4.1"
+pylsl = "^1.16.2"
+scikit-spatial = "^9.0.1"
 simpleicp = "^2.0.14"
 #simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
-nitransforms = "^23.0.1"
+nitransforms = "^25.0.0"
 keyboard = "^0.13.5"
 darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
-xmltodict = "^0.13.0"
+xmltodict = "^0.14.2"
 platformdirs = "^4.2.2"
-concurrent-log-handler = "^0.9.25"
+concurrent-log-handler = "^0.9.28"
 
 [tool.poetry.group.test]
 optional = true
 
 [tool.poetry.group.test.dependencies]
-pytest = "^7.4.0"
-pytest-asyncio = "^0.21.1"
+pytest = "^8.4.1"
+pytest-asyncio = "^1.1.0"
 pytest-pycharm = "^0.7.0"
 pytest-qt = "^4.4.0"
 pytest-order = "^1.2.0"
 pytest-lazy-fixtures = "^1.0.5"
 pyperclip = "^1.8.2"
-aioconsole = "^0.6.1"
+aioconsole = "^0.8.1"
 pywinauto = "^0.6.8"  # TODO: maybe delete if unused
-pillow = "^10.2.0"  # for screenshots
+pillow = "^11.3.0"  # for screenshots
 
 [tool.poetry.group.dev]
 optional = true
 
 [tool.poetry.group.dev.dependencies]
-setuptools = "^68.0.0"
+setuptools = "^80.9.0"
+ipykernel = "^6.29.5"
 
 [tool.poetry.scripts]
 navinibs = "NaviNIBS.Navigator.GUI.NavigatorGUI:main"

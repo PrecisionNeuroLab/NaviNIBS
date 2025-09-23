@@ -123,6 +123,10 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             return
         # logger.debug(f'Setting current item to {key}')
         index = self._model.getIndexFromCollectionItemKey(key)
+        if index is None:
+            logger.warning(f'Cannot set current item to {key}, it is not in the model')
+            raise KeyError(f'Key {key} not found in model')
+
         self._tableView.setCurrentIndex(self._model.index(index, 0))
 
     @property

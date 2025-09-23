@@ -110,7 +110,8 @@ async def test_importSessionInStandalone(workingDir: str):
 @pytest.mark.order(after='test_basicNavigation.py::test_basicNavigation')
 async def test_importSessionInNavigatorGUI(
         navigatorGUIWithoutSession: NavigatorGUI,
-        workingDir: str):
+        workingDir: str,
+        screenshotsDataSourcePath: str):
     sessionPath = utils.getSessionPath(workingDir, 'ImportToInNavigatorGUI', deleteIfExists=True)
     otherSessionPath = utils.copySessionFolder(workingDir, 'BasicNavigation', 'ImportFromInNavigatorGUI')
 
@@ -140,9 +141,40 @@ async def test_importSessionInNavigatorGUI(
     importFinishedEvt = asyncio.Event()
     importWindow.sigFinished.connect(lambda *args: importFinishedEvt.set())
 
+    # adjust window size so that full list is visible for screenshots
+    importWindow._wdgt.setFixedSize(300, 500)
+
+    importWindow._presetsComboBox.setCurrentText('Different subject')
+
+    await asyncio.sleep(1.)
+
+    # expand 'Digitized Locations' section
+    index = importWindow._findCategoryIndexByLabel('Digitized Locations')
+    importWindow._sessionTreeView.expand(index)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='ImportFromOtherSession_1',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath,
+                                            wdgt=importWindow._wdgt)
+
     importWindow._presetsComboBox.setCurrentText('Same subject, different session')
 
     await asyncio.sleep(1.)
+
+    # expand 'Subject Registration' section
+    index = importWindow._findCategoryIndexByLabel('Subject Registration')
+    importWindow._sessionTreeView.expand(index)
+
+    # expand 'Digitized Locations' section
+    index = importWindow._findCategoryIndexByLabel('Digitized Locations')
+    importWindow._sessionTreeView.expand(index)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='ImportFromOtherSession_2',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath,
+                                            wdgt=importWindow._wdgt)
 
     importWindow._finalizeButtonBox.button(QtWidgets.QDialogButtonBox.Ok).click()
 
@@ -150,14 +182,17 @@ async def test_importSessionInNavigatorGUI(
 
     await asyncio.sleep(1.)
 
-    # TODO: screenshot
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='ImportFromOtherSession_3',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
 
     assert utils.assertSavedSessionIsValid(sessionPath)
 
-    await utils.waitForever()
+    # await utils.waitForever()
 
 
 @attrs.define

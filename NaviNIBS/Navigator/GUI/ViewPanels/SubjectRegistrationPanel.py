@@ -329,8 +329,8 @@ class SubjectRegistrationPanel(MainViewPanel):
             return False, 'No session set'
         if not self.session.MRI.isSet:
             return False, 'No MRI set'
-        if not self.session.headModel.isSet:
-            return False, 'No head model set'
+        if not self.session.headModel.skinSurfIsSet:
+            return False, 'No skin surface set'
         if self.session.tools.subjectTracker is None:
             return False, 'No active subject tracker configured'
         if self.session.tools.pointer is None:
@@ -895,6 +895,9 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._redraw(which='initHeadPts')  # TODO: redraw just previously and currently selected points instead of all
 
     def _onAlignToHeadPtsBtnClicked(self):
+
+        logger.info('Aligning to head points')
+
         sampledHeadPts_trackerSpace = np.asarray(self.session.subjectRegistration.sampledHeadPoints)
         sampledHeadPts_MRISpace = applyTransform(self.session.subjectRegistration.trackerToMRITransf, sampledHeadPts_trackerSpace)
 

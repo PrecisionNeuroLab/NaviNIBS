@@ -106,7 +106,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                     timeout=0.,
                     max_samples=10
                 )
-            except lsl.LostError as e:
+            except lsl.util.LostError as e:
                 logger.info(f'Previously connected stream inlet {self._streamSelector.selectedStreamKey} is no longer available')
                 self._streamSelector.markStreamAsLost(streamKey=self._streamSelector.selectedStreamKey)
                 self._disconnectInlet()
@@ -143,6 +143,8 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
                     metadata['epochID'] = int(evtDat)
                     # TODO: assert that epochID is actually unique (to catch issues where the selected stream
                     # is actually sending non-unique events rather than unique epochIDs)
+                else:
+                    metadata['triggerData'] = evtDat
 
                 triggerEvt = TriggerEvent(
                     type=action,

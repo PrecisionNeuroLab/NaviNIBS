@@ -1,6 +1,8 @@
 import attr
 import asyncio
+import darkdetect
 import logging
+import os
 from PySide6 import QtWidgets, QtGui, QtCore
 import pyqtgraph as pg
 import typing as tp
@@ -63,6 +65,18 @@ class RunnableAsApp:
             self._win.setWindowTitle(self._appName)
             self._win.sigAboutToClose.connect(self._onAppAboutToQuit)
 
+    @staticmethod
+    def _shouldAutoBeDark() -> bool:
+        if os.environ.get('QT_QPA_PLATFORM', None) == 'windows:darkmode=0':
+            # dark mode was disabled by environment variable
+            return False
+
+        if darkdetect.isDark():
+            # dark mode is enabled by system setting
+            return True
+
+        return False
+
     @property
     def theme(self):
         return self._theme
@@ -73,19 +87,25 @@ class RunnableAsApp:
             return
         self._theme = theme
         if theme.lower() == 'auto':
-            import darkdetect
-            if darkdetect.isDark():
+            if self._prevSetTheme is None:
+                # don't change theme, assuming it's already auto-set
+                return
+
+            if self._shouldAutoBeDark():
                 theme = 'dark'
             else:
                 theme = 'light'
+        if self._prevSetTheme is None:
+            # assume first theme followed system setting
+            self._prevSetTheme = 'dark' if self._shouldAutoBeDark() else 'light'
+
+        if self._prevSetTheme == theme.lower():
+            # no change needed, avoid calling qta.light/dark since it also changes app style
+            return
         import qtawesome as qta
         match theme.lower():
             case 'light':
-                if self._prevSetTheme is None or self._prevSetTheme == 'light':
-                    # no change needed, avoid calling qta.light since it also changes app style
-                    pass
-                else:
-                    qta.light(self._app)
+                 qta.light(self._app)
             case 'dark':
                 qta.dark(self._app)
             case _:
@@ -102,7 +122,7 @@ class RunnableAsApp:
         return self._appIsClosing
 
     async def _runLoop(self):
-        logger.debug('Running %s' % (self.__class__.__name__,))
+        logger.info(f'Running {self.__class__.__name__}')
         if self._appLogEveryNLoops is None:
             counter = 1
         else:
@@ -124,6 +144,7 @@ class RunnableAsApp:
             # so check (infrequently) whether window has been closed and quit manually
             if self._appLogEveryNLoops is not None:
                 counter = (counter + 1) % self._appLogEveryNLoops
+        logger.info(f'Closing {self.__class__.__name__}')
 
     @classmethod
     def createAndRunAsTask(cls, *args, **kwargs):

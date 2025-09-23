@@ -445,7 +445,7 @@ class ImportSessionWindow:
 
         self._presetComboBoxNeedsRefresh.clear()  # don't change to custom in response to recent changes
 
-    def _findCategoryIndexByLabel(self, label: str | tuple[str,...], parent: QtCore.QModelIndex = None) -> int | None:
+    def _findCategoryIndexByLabel(self, label: str | tuple[str,...], parent: QtCore.QModelIndex = None) -> QtCore.QModelIndex | None:
         """Return the index of the top-level category with the given label, or None if not found."""
         if isinstance(label, str):
             return self._findCategoryIndexByLabel(label=(label,), parent=parent)

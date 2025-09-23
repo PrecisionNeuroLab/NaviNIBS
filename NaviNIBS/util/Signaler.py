@@ -18,7 +18,8 @@ class Signal(tp.Generic[*ET]):
     If documenting type with typing like Signal[T1, T2, T3], then don't specify a value for this attribute.
     """
 
-    _connections: dict[int, set[Connection]] = attr.ib(init=False, factory=dict, repr=False)
+    # _connections: dict[int, set[Connection]] = attr.ib(init=False, factory=dict, repr=False)
+    _connections: dict[int, set[tp.Callable[[*ET], None]]] = attr.ib(init=False, factory=dict, repr=False)
     """
     Connections grouped by priority
     """

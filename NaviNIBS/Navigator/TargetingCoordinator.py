@@ -53,6 +53,7 @@ class TargetingCoordinator:
     __cachedActiveCoil: CoilTool | None = attrs.field(init=False, default=None)
 
     _currentCoilToMRITransform: tp.Optional[Transform] = attrs.field(init=False, default=None)  # relative to head tracker
+    _currentMRIToWorldTransform: tp.Optional[Transform] = attrs.field(init=False, default=None)  # relative to world
     _currentPoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
     _currentSamplePoseMetrics: PoseMetricCalculator = attrs.field(init=False, repr=False)
 
@@ -195,6 +196,7 @@ class TargetingCoordinator:
 
     def _onLatestPositionsChanged(self):
         self._currentCoilToMRITransform = None  # clear any previously cached value
+        self._currentMRIToWorldTransform = None  # clear any previously cached value
         self.sigCurrentCoilPositionChanged.emit()
         self.sigCurrentSubjectPositionChanged.emit()
         self._needToCheckIfOnTarget.set()
@@ -414,6 +416,28 @@ class TargetingCoordinator:
             self._currentCoilToMRITransform = coilToMRITransform
 
         return self._currentCoilToMRITransform
+
+    @property
+    def currentMRIToWorldTransform(self) -> tp.Optional[Transform]:
+        if self._currentMRIToWorldTransform is None:
+            subjectTrackerToMRITransf = self._session.subjectRegistration.trackerToMRITransf
+            if subjectTrackerToMRITransf is None:
+                # cannot compute valid position
+                return None
+
+            tool = self.session.tools.subjectTracker
+            if tool is None:
+                # no subject tracker, cannot compute MRI to world transform
+                return None
+
+            subTrackerToCameraTransf = self._positionsClient.getLatestTransf(tool.trackerKey, None)
+            if subTrackerToCameraTransf is None:
+                # cannot compute valid position
+                return None
+
+            self._currentMRIToWorldTransform = concatenateTransforms([invertTransform(subjectTrackerToMRITransf), subTrackerToCameraTransf])
+
+        return self._currentMRIToWorldTransform
 
     @property
     def doMonitorOnTarget(self):

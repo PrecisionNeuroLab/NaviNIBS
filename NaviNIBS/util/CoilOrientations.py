@@ -69,6 +69,8 @@ class PoseMetricCalculator:
             MetricSpecification(getter=self.getHorizAngleError, units='°', label='Horiz angle error'),
             MetricSpecification(getter=self.getAngleFromMidline, units='°', label='Angle from midline'),
             MetricSpecification(getter=self.getAngleFromNormal, units='°', label='Angle from normal'),
+            MetricSpecification(getter=self.getSampleCoilToCortexDist, units=' mm', label='Coil to cortex dist'),
+            MetricSpecification(getter=self.getSampleCoilToScalpDist, units=' mm', label='Coil to scap dist'),
             MetricSpecification(getter=self.getCoilPosX, units=' mm', label='Coil X position', doShowByDefault=False),
             MetricSpecification(getter=self.getCoilPosY, units=' mm', label='Coil Y position', doShowByDefault=False),
             MetricSpecification(getter=self.getCoilPosZ, units=' mm', label='Coil Z position', doShowByDefault=False),

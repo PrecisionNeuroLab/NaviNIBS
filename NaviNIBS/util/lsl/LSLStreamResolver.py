@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 
 @attrs.define()
 class LSLStreamResolver:
-    _resolveStreamsTimeout: float = 0.01  # in s, if this is too short, some streams may be missed
+    _resolveStreamsTimeout: float = 0.05  # in s, if this is too short, some streams may be missed
 
     sigStreamDetected: Signal = attrs.field(init=False, factory=lambda: Signal((str, lsl.StreamInfo)))
     sigStreamLost: Signal = attrs.field(init=False, factory=lambda: Signal((str, lsl.StreamInfo)))

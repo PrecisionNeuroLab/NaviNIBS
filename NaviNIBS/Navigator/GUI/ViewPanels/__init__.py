@@ -104,10 +104,12 @@ class MainViewPanel:
         self._isShown = True
         if not self._hasInitialized and self.canBeEnabled()[0]:
             self.finishInitialization()
+        QtCore.QTimer.singleShot(0, lambda: self._wdgt.setVisible(True))
 
     def _onPanelHidden(self):
         logger.info(f'Panel {self.key} hidden')
         self._isShown = False
+        self._wdgt.setVisible(False)
 
     def canBeEnabled(self) -> tuple[bool, str | None]:
         """

@@ -11,6 +11,7 @@ from typing import ClassVar
 
 from . import PlotViewLayer
 from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+from NaviNIBS.util.Transforms import concatenateTransforms
 
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,8 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
         self._coordinator.sigCurrentTargetChanged.connect(lambda: self._queueRedraw(which='initCrosshair'))
         self._coordinator.sigCurrentCoilPositionChanged.connect(lambda: self._queueRedraw(which=['updatePositions', 'crosshairVisibility']))
+        if self._plotInSpace in ('World',) and self._targetOrCoil == 'target':
+            self._coordinator.sigCurrentSubjectPositionChanged.connect(lambda: self._queueRedraw(which=['updatePositions', 'crosshairVisibility']))
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
@@ -112,17 +115,31 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
             actor = self._actors[actorKey]
 
-            if self._plotInSpace != 'MRI':
-                raise NotImplementedError()  # TODO: add necessary transforms for plotting in other spaces below
-
             with self._plotter.allowNonblockingCalls():
                 if self._targetOrCoil == 'target':
                     currentTargetToMRITransform = self._coordinator.currentTarget.coilToMRITransf
-                    setActorUserTransform(actor, currentTargetToMRITransform)
+                    match self._plotInSpace:
+                        case 'MRI':
+                            setActorUserTransform(actor, currentTargetToMRITransform)
+                        case 'World':
+                            currentMRIToWorldTransform = self._coordinator.currentMRIToWorldTransform
+                            currentTargetToWorldTransform = concatenateTransforms([currentTargetToMRITransform, currentMRIToWorldTransform])
+                            setActorUserTransform(actor, currentTargetToWorldTransform)
+                        case _:
+                            raise NotImplementedError
 
                 elif self._targetOrCoil == 'coil':
-                    currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
-                    setActorUserTransform(actor, currentCoilToMRITransform)
+                    match self._plotInSpace:
+                        case 'MRI':
+                            currentCoilToMRITransform = self._coordinator.currentCoilToMRITransform
+                            setActorUserTransform(actor, currentCoilToMRITransform)
+                        case 'World':
+                            coilToTrackerTransf = self._coordinator.activeCoilTool.toolToTrackerTransf
+                            coilTrackerToCameraTransf = self._coordinator.positionsClient.getLatestTransf(self._coordinator.activeCoilKey, None)
+                            currentCoilToWorldTransform = concatenateTransforms([coilToTrackerTransf, coilTrackerToCameraTransf])
+                            setActorUserTransform(actor, currentCoilToWorldTransform)
+                        case _:
+                            raise NotImplementedError
 
                 else:
                     raise NotImplementedError()
@@ -137,8 +154,15 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         hasTarget = self._coordinator.currentTarget
         hasCoil = self._coordinator.currentCoilToMRITransform is not None
 
-        if self._plotInSpace != 'MRI':
+        if self._plotInSpace not in ('MRI', 'World'):
             raise NotImplementedError()  # TODO: check that we have necessary info to convert to other coordinate spaces
+
+        if self._plotInSpace == 'World':
+            if self._targetOrCoil == 'target':
+                # need to know where subject is in world space to plot target
+                hasSubject = self._coordinator.currentMRIToWorldTransform is not None
+                if not hasSubject:
+                    canShow = False
 
         if self._targetOrCoil == 'target':
             if not hasTarget:

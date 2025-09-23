@@ -16,12 +16,11 @@ import tempfile
 import typing as tp
 from typing import ClassVar
 
-from NaviNIBS.util.Signaler import Signal
-from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
-from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort
-
 from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.util.attrs import attrsAsDict
+from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
+from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)

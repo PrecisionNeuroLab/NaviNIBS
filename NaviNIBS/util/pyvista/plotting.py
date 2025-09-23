@@ -17,21 +17,26 @@ from NaviNIBS.util.pyvista.ticks import getNiceTicksForRange
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
+# logger.setLevel(logging.DEBUG)
+# pvqt.plotting.LOG.setLevel(logging.DEBUG)  # TODO: debug, delete
+# pv.plotting.render_window_interactor.log.setLevel(logging.DEBUG)  # TODO: debug, delete
 
 class _DelayedPlotter:
     _needsRender: asyncio.Event
     _renderTask: asyncio.Task
     _renderingNotPaused: asyncio.Event
     _pauseStackCount_: int
+    _doNotDelayStackCount_: int
     minRenderPeriod: float
 
     def __init__(self, minRenderPeriod: float = 0.05):
+        logger.debug(f'Initializing {self.__class__.__name__}')
         self._needsRender = asyncio.Event()
         self._renderingNotPaused = asyncio.Event()
         self._renderingNotPaused.set()
 
         self._pauseStackCount_ = 0
+        self._doNotDelayStackCount_ = 0
 
         self.minRenderPeriod = minRenderPeriod
 
@@ -66,6 +71,12 @@ class _DelayedPlotter:
         yield
         self.maybeResumeRendering()
 
+    @contextmanager
+    def doNotDelayRendering(self):
+        self._doNotDelayStackCount_ += 1
+        yield
+        self._doNotDelayStackCount_ -= 1
+
     def _renderNow(self):
         self._needsRender.clear()
         logger.debug('Rendering')
@@ -80,7 +91,7 @@ class _DelayedPlotter:
             self._renderNow()
 
     def render(self, doRenderImmediately: bool = False):
-        if doRenderImmediately:
+        if doRenderImmediately or self._doNotDelayStackCount_ > 0:
             logger.debug('Rendering immediately')
             self._renderNow()
             logger.debug('Done rendering immediately')
@@ -97,10 +108,12 @@ class PlotterImprovementsMixin:
         """
         Handle manual update of volume scalars that were hard-converted to previous scale within add_volume
         """
-        scalars = self.mapper.GetInput()
-        scalars[volumeKey] = volume[volumeKey].copy().astype(np.float64)
-        scalars[volumeKey].clip(clim[0], clim[1], out=scalars[volumeKey])
-        scalars[volumeKey] = (scalars[volumeKey] - clim[0]) / (clim[1] - clim[0]) * 255
+        # compare version to decide if necessary
+        if pv.version_info[0] == 0 and pv.version_info[1] < 46:  # TODO: verify this is appropriate version threshold, may be earlier
+            scalars = self.mapper.GetInput()
+            scalars[volumeKey] = volume[volumeKey].copy().astype(np.float64)
+            scalars[volumeKey].clip(clim[0], clim[1], out=scalars[volumeKey])
+            scalars[volumeKey] = (scalars[volumeKey] - clim[0]) / (clim[1] - clim[0]) * 255
         self.update_scalar_bar_range(clim)
 
     def reset_scalar_bar_ranges(self, scalarBarTitles: tp.Optional[list[str]] = None):
@@ -351,12 +364,14 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
                 except KeyError:
                     pass
 
+        logger.debug('Setting up QtInteractor')
         pvqt.plotting.QtInteractor.__init__(self, *args,
                                                  auto_update=auto_update,
                                                  **kwargs)
 
         #self.enable_anti_aliasing(aa_type='msaa')  # for nice visuals
 
+        logger.debug(f'Setting background color to {self.palette().color(QtGui.QPalette.Base).name()}')
         self.set_background(self.palette().color(QtGui.QPalette.Base).name())
 
         if False:  # TODO: debug, disable
@@ -365,6 +380,7 @@ class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImpr
             self.addAction(action)
             action.triggered.connect(self._onExportToObj)
 
+        logger.debug('Applying plotter improvements')
         PlotterImprovementsMixin.__init__(self)
 
     @contextmanager

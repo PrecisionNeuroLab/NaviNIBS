@@ -21,6 +21,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
     _showRelativePrefix: tp.Optional[str] = None  # if showing relative to path, can show this prefix in displayed QLineEdit to make origin of rel path clear, e.g. '[NaviNIBS]'
     _extFilters: tp.Optional[str] = None
     _browseCaption: tp.Optional[str] = None
+    _placeholderText: tp.Optional[str] = None  # text to show in QLineEdit when no filepath is set
 
     _textWidget: QtWidgets.QLineEdit = attrs.field(init=False)
     _browseBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -38,6 +39,8 @@ class QFileSelectWidget(QtWidgets.QWidget):
 
         self._textWidget = QtWidgets.QLineEdit()
         self._textWidget.setReadOnly(True)
+        if self._placeholderText is not None:
+            self._textWidget.setPlaceholderText(self._placeholderText)
         layout.addWidget(self._textWidget)
 
         self._browseBtn = QtWidgets.QPushButton('Browse')
@@ -140,6 +143,17 @@ class QFileSelectWidget(QtWidgets.QWidget):
             return
         self._showRelativePrefix = newPrefix
         self._updateFilepathDisplay()
+
+    @property
+    def placeholderText(self):
+        return self._placeholderText
+
+    @placeholderText.setter
+    def placeholderText(self, newPlaceholderText: tp.Optional[str]):
+        if self._placeholderText == newPlaceholderText:
+            return
+        self._placeholderText = newPlaceholderText
+        self._textWidget.setPlaceholderText(newPlaceholderText)
 
     def _updateFilepathDisplay(self):
         if self._filepath is None:

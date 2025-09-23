@@ -104,6 +104,7 @@ class Session:
         self.MRI.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('MRI'))
         self.MRI.sigManualClimChanged.connect(lambda *args: self.flagKeyAsDirty('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
+        self.headModel.sigTransformChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
         self.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))

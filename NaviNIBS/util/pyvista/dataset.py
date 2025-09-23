@@ -1,6 +1,7 @@
 import collections.abc
 import typing as tp
 import numpy as np
+import pyvista
 import pyvista as pv
 from pyvista import _vtk
 if pv.__version__ <= '0.39.1':
@@ -32,16 +33,36 @@ def find_closest_point(dataset: pv.DataSet, point: tp.Iterable, n: int = 1) -> i
         locator = _vtk.vtkPointLocator()
         locator.SetDataSet(dataset)
         locator.BuildLocator()
-        dataset._point_locator = locator
+        if False:
+            dataset._point_locator = locator
+        else:
+            pv.set_new_attribute(dataset, '_point_locator', locator)
 
-        # must also monkey-patch getstate to not break pickling
-        dataset.__getstate__orig = dataset.__getstate__
-        def __getstate__(self):
-            state = self.__getstate__orig()
-            for key in ('_point_locator', '__getstate__orig', '__getstate__'):
-                del state[key]
-            return state
-        dataset.__getstate__ = __getstate__.__get__(dataset, pv.DataSet)
+        # TODO: implement more efficient search algorithms from https://github.com/pyvista/pyvista-support/issues/107
+
+        if pyvista.PICKLE_FORMAT in ['xml', 'legacy']:
+            # must also monkey-patch getstate to not break pickling
+            if False:
+                dataset.__getstate__orig = dataset.__getstate__
+            else:
+                pv.set_new_attribute(dataset, '__getstate__orig', dataset.__getstate__)
+            def __getstate__(self):
+                state = self.__getstate__orig()
+                for key in ('_point_locator', '__getstate__orig', '__getstate__'):
+                    del state[key]
+                return state
+            dataset.__getstate__ = __getstate__.__get__(dataset, pv.DataSet)
+        else:
+            # new pickle format buries these attributes deeper in state
+            if True:
+                # TODO: debug, delete
+                pv.set_new_attribute(dataset, '__getstate__orig', dataset.__getstate__)
+                def __getstate__(self):
+                    state = self.__getstate__orig()
+                    for key in ('_point_locator', '__getstate__orig', '__getstate__'):
+                        del state[1][0]['_PYVISTA_STATE_DICT'][key]
+                    return state
+                dataset.__getstate__ = __getstate__.__get__(dataset, pv.DataSet)
 
 
     if n > 1:

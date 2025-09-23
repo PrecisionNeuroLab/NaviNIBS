@@ -22,6 +22,7 @@ from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
+from NaviNIBS.util.GUI.SpatialTransformWidget import SpatialTransformDisplayWidget
 from NaviNIBS.Navigator.Model.Session import Session
 
 
@@ -33,8 +34,16 @@ class HeadModelPanel(MainViewPanel):
     _key: str = 'Set head model'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-cog-outline'))
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
+    _skinFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
+    _gmFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
+    _meshToMRITransformWdgt: SpatialTransformDisplayWidget = attrs.field(init=False, default=None)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
+    _surfAliases: tp.Dict[str, str] = attrs.field(init=False, factory=lambda: {
+        'skinSurf': 'Skin',
+        'csfSurf': 'CSF', 
+        'gmSurf': 'Gray matter'
+    })  # show nice aliases for the surfaces
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
@@ -55,26 +64,66 @@ class HeadModelPanel(MainViewPanel):
 
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
+        columnsWdgt = QtWidgets.QWidget()
+        columnsWdgt.setLayout(QtWidgets.QHBoxLayout())
+        columnsWdgt.layout().setContentsMargins(0, 0, 0, 0)
+        self._wdgt.layout().addWidget(columnsWdgt)
+
+        formWdgt = QtWidgets.QWidget()
+        formWdgt.setLayout(QtWidgets.QFormLayout())
+        columnsWdgt.layout().addWidget(formWdgt)
+
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
-                                 extFilters='Gmsh (*.msh)')
-        wdgt.sigFilepathChanged.connect(self._onBrowsedNewFilepath)
-        self._wdgt.layout().addWidget(wdgt)
+                                 extFilters='Gmsh (*.msh)',
+                                 browseCaption='Select SimNIBS-generated .msh file',)
+        wdgt.sigFilepathChanged.connect(lambda *args: self._onBrowsedNewFilepath('filepath', *args))
+        formWdgt.layout().addRow('SimNIBS .msh file', wdgt)
         self._filepathWdgt = wdgt
 
-        containerWdgt = QtWidgets.QWidget()
-        containerWdgt.setLayout(QtWidgets.QFormLayout())
+        wdgt = QFileSelectWidget(browseMode='getOpenFilename',
+                                    extFilters='Mesh (*.stl *.ply)',
+                                    browseCaption='Select skin surface mesh file',
+                                 )
+        wdgt.sigFilepathChanged.connect(lambda *args: self._onBrowsedNewFilepath('skinFilepath', *args))
+        formWdgt.layout().addRow('Skin surface file', wdgt)
+        self._skinFilepathWdgt = wdgt
+
+        wdgt = QFileSelectWidget(browseMode='getOpenFilename',
+                                    extFilters='Mesh (*.stl *.ply)',
+                                    browseCaption='Select gray matter surface mesh file',
+                                 )
+        wdgt.sigFilepathChanged.connect(lambda *args: self._onBrowsedNewFilepath('gmFilepath', *args))
+        formWdgt.layout().addRow('Gray matter surface file', wdgt)
+        self._gmFilepathWdgt = wdgt
+
         self._activeSurfWidget = QtWidgets.QListWidget()
         self._activeSurfWidget.itemSelectionChanged.connect(lambda *args, **kwargs: self._onSurfSelectionChanged())
         #self._activeSurfWidget.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
-        containerWdgt.layout().addRow('Surfaces', self._activeSurfWidget)
-        containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
-        self._wdgt.layout().addWidget(containerWdgt)
+        formWdgt.layout().addRow('Loaded surfaces', self._activeSurfWidget)
+        formWdgt.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.Maximum)
 
-        containerWdgt = QtWidgets.QWidget()
-        containerWdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
+        columnWdgt = QtWidgets.QWidget()
+        columnWdgt.setLayout(QtWidgets.QVBoxLayout())
+        columnWdgt.layout().setContentsMargins(0, 0, 0, 0)
+        columnsWdgt.layout().addWidget(columnWdgt)
+
+        groupBox = QtWidgets.QGroupBox('Mesh to MRI transform')
+        groupBox.setLayout(QtWidgets.QVBoxLayout())
+        groupBox.layout().setContentsMargins(2, 2, 2, 2)
+        columnWdgt.layout().addWidget(groupBox)
+        columnWdgt.layout().addStretch(-1)
+
+        self._meshToMRITransformWdgt = SpatialTransformDisplayWidget(transformLabel='Mesh to MRI transform', doShowEditButton=True)
+        self._meshToMRITransformWdgt.sigTransformChanged.connect(self._onTransformChanged)
+        groupBox.layout().addWidget(self._meshToMRITransformWdgt)
+
+        columnsWdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Maximum)
+
+        plotsWdgt = QtWidgets.QWidget()
+        plotsWdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Expanding)
         containerLayout = QtWidgets.QGridLayout()
-        containerWdgt.setLayout(containerLayout)
-        self._wdgt.layout().addWidget(containerWdgt)
+        plotsWdgt.setLayout(containerLayout)
+        self._wdgt.layout().addWidget(plotsWdgt)
         for iRow, iCol, key in ((0, 1, 'x'), (0, 0, 'y'), (1, 0, 'z'), (1, 1, '3D')):
             if key in ('x', 'y', 'z'):
                 self._views[key] = SurfSliceView(normal=key)
@@ -103,11 +152,13 @@ class HeadModelPanel(MainViewPanel):
             self._onPanelInitializedAndSessionSet()
 
     def _onPanelInitializedAndSessionSet(self):
-        self._updateFilepath()
+        self._updateFilepaths()
         self._updateRelativeToPath()
         self.session.sigInfoChanged.connect(self._onSessionInfoChanged)
-        self.session.headModel.sigFilepathChanged.connect(self._updateFilepath)
+        self.session.headModel.sigFilepathChanged.connect(self._updateFilepaths)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
+
+        self._meshToMRITransformWdgt.transform = self.session.headModel.meshToMRITransform
 
         for key, view in self._views.items():
             view.session = self.session
@@ -120,21 +171,32 @@ class HeadModelPanel(MainViewPanel):
 
         self.finishedAsyncInit.set()
 
-    def _onHeadModelUpdated(self, whatChanged: str):
+    def _onHeadModelUpdated(self, whatChanged: str | None):
         prevSelected = self._activeSurfWidget.selectedItems()
         if len(prevSelected) > 0:
-            prevSelectedKey = prevSelected[0].text()
+            prevSelectedKey = prevSelected[0].data(QtCore.Qt.ItemDataRole.UserRole)  # Get the actual key from user data
         else:
             prevSelectedKey = None
         self._activeSurfWidget.clear()
         if self.session is not None and self.session.headModel.isSet:
             for key in self.session.headModel.surfKeys:
-                self._activeSurfWidget.addItem(key)
+                item = QtWidgets.QListWidgetItem()
+                # Display the nice alias, but store the actual key in user data
+                item.setText(self._surfAliases.get(key, key))
+                item.setData(QtCore.Qt.ItemDataRole.UserRole, key)
+                self._activeSurfWidget.addItem(item)
             if prevSelectedKey is not None:
                 selectKey = prevSelectedKey
             else:
                 selectKey = 'gmSurf'
-            self._activeSurfWidget.setCurrentItem(self._activeSurfWidget.findItems(selectKey, QtCore.Qt.MatchExactly)[0])
+            # Find item by the stored key in user data
+            for i in range(self._activeSurfWidget.count()):
+                item = self._activeSurfWidget.item(i)
+                if item.data(QtCore.Qt.ItemDataRole.UserRole) == selectKey:
+                    self._activeSurfWidget.setCurrentItem(item)
+                    break
+
+            self._meshToMRITransformWdgt.transform = self.session.headModel.meshToMRITransform
 
         self._activeSurfWidget.setMaximumHeight(ceil(self._activeSurfWidget.sizeHintForRow(0) * (self._activeSurfWidget.count() + 0.2)))
 
@@ -145,20 +207,47 @@ class HeadModelPanel(MainViewPanel):
         selected = self._activeSurfWidget.selectedItems()
         if len(selected) == 0:
             return
-        selectedKey = selected[0].text()
+        selectedKey = selected[0].data(QtCore.Qt.ItemDataRole.UserRole)  # Get the actual key from user data
         for key, view in self._views.items():
             view.activeSurf = selectedKey
 
-    def _updateFilepath(self):
+    def _updateFilepaths(self):
         self._filepathWdgt.filepath = self.session.headModel.filepath
+        self._skinFilepathWdgt.filepath = self.session.headModel.skinSurfFilepath
+        self._gmFilepathWdgt.filepath = self.session.headModel.gmSurfFilepath
+        if self.session.headModel.filepath is not None:
+            self._skinFilepathWdgt.placeholderText = 'From SimNIBS .msh file'
+            self._gmFilepathWdgt.placeholderText = 'From SimNIBS .msh file'
+        else:
+            self._skinFilepathWdgt.placeholderText = None
+            self._gmFilepathWdgt.placeholderText = None
 
     def _onSessionInfoChanged(self, whatChanged: tp.Optional[list[str]] = None):
         if whatChanged is None or 'filepath' in whatChanged:
             self._updateRelativeToPath()
 
     def _updateRelativeToPath(self):
-        self._filepathWdgt.showRelativeTo = os.path.dirname(self.session.filepath)
-        self._filepathWdgt.showRelativePrefix = '<session>'
+        for wdgt in (self._filepathWdgt, self._skinFilepathWdgt, self._gmFilepathWdgt):
+            wdgt.showRelativeTo = os.path.dirname(self.session.filepath)
+            wdgt.showRelativePrefix = '<session>'
 
-    def _onBrowsedNewFilepath(self, newFilepath: str):
-        self.session.headModel.filepath = newFilepath
+    def _onBrowsedNewFilepath(self, which: str, newFilepath: str):
+        match which:
+            case 'filepath':
+                self.session.headModel.filepath = newFilepath
+            case 'skinFilepath':
+                self.session.headModel.skinSurfFilepath = newFilepath
+            case 'gmFilepath':
+                self.session.headModel.gmSurfFilepath = newFilepath
+            case _:
+                logger.error(f'Unknown file selection: {which}')
+                return
+
+    def _onTransformChanged(self):
+        logger.info('meshToMRITransform changed')
+        if self.session is None:
+            logger.error('Session must be set before changing transform')
+        else:
+            self.session.headModel.meshToMRITransform = self._meshToMRITransformWdgt.transform
+
+

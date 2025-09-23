@@ -295,9 +295,15 @@ class MRISliceView(QueuedRedrawMixin):
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
+            if isinstance(self._normal, str):
+                normalDir = np.zeros((3,))
+                normalDir['xyz'.index(self._normal)] = 1
+            else:
+                normalDir = self._normal
+
             slice = self.session.MRI.dataAsUniformGrid.slice(
-                normal=applyDirectionTransform(self.session.MRI.scannerToDataTransf, self._normal),
-                origin=applyTransform(self.session.MRI.scannerToDataTransf, self._sliceOrigin))
+                normal=applyDirectionTransform(self.session.MRI.scannerToDataTransf, normalDir, doCheck=False),
+                origin=applyTransform(self.session.MRI.scannerToDataTransf, self._sliceOrigin, doCheck=False))
             # this slicing is very slow for some reason
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_mesh(slice,
@@ -338,6 +344,9 @@ class MRISliceView(QueuedRedrawMixin):
                                          reset_camera=False)
                 with self._plotter.allowNonblockingCalls():
                     setActorUserTransform(self._volActor, self.session.MRI.dataToScannerTransf)
+
+        else:
+            raise NotImplementedError(f'Unknown slicePlotMethod: {self._slicePlotMethod}')
 
         logger.debug('Setting crosshairs for {} plot'.format(self.label))
         lineLength = 300  # TODO: scale by image size
