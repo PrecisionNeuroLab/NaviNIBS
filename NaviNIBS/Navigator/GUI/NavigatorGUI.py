@@ -64,10 +64,7 @@ class NavigatorGUI(RunnableAsApp):
     def __attrs_post_init__(self):
         logger.info('Initializing {}'.format(self.__class__.__name__))
 
-        thisDir = pathlib.Path(__file__).parent
-        iconPath = os.path.join(thisDir, 'resources', 'NaviNIBSIcon.ico')
-        assert os.path.exists(iconPath)
-        self._appIconPath = iconPath
+        self._appIconPath = self.getIconPath()
 
         super().__attrs_post_init__()
 
@@ -472,13 +469,29 @@ class NavigatorGUI(RunnableAsApp):
 
         logger.info('Switched to view "{}"'.format(viewKey))
 
+    @staticmethod
+    def getIconPath() -> str:
+        thisDir = pathlib.Path(__file__).parent
+        iconPath = os.path.join(thisDir, 'resources', 'NaviNIBSIcon.ico')
+        assert os.path.exists(iconPath)
+        return iconPath
+
 
 def main():
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--sesFilepath', type=str, default=None)
+    parser.add_argument('--createShortcut', action='store_true', help='Create a desktop shortcut to NaviNIBS Navigator GUI and exit')
     args = parser.parse_args()
+
+    if args.createShortcut:
+        import pyshortcuts
+        pyshortcuts.make_shortcut(__file__, 'NaviNIBS',
+                                  icon=NavigatorGUI.getIconPath(),
+                                  terminal=False)
+
+        return
 
     if args.sesFilepath is None:
         if False:  # TODO: debug, delete or set to False

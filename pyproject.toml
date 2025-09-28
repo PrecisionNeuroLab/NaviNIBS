@@ -44,6 +44,8 @@ rmsd = "^1.5.1"
 xmltodict = "^0.14.2"
 platformdirs = "^4.2.2"
 concurrent-log-handler = "^0.9.28"
+#pyshortcuts = "^1.9.5"
+pyshortcuts = {git = "https://github.com/chriscline/pyshortcuts.git"}  # with spaces fix
 
 [tool.poetry.group.test]
 optional = true
@@ -67,7 +69,7 @@ optional = true
 setuptools = "^80.9.0"
 ipykernel = "^6.29.5"
 
-[tool.poetry.scripts]
+[project.scripts]
 navinibs = "NaviNIBS.Navigator.GUI.NavigatorGUI:main"
 
 [build-system]
