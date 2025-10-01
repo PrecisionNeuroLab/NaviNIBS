@@ -51,6 +51,7 @@ class HeadModel:
     _csfSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _skinConvexSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
 
@@ -162,6 +163,32 @@ class HeadModel:
             # don't apply meshToMRITransform here since it was already applied to the unsimplified mesh
 
             setattr(self, '_' + which, mesh)
+
+        elif which in ('skinConvexSurf',):
+            if which == 'skinConvexSurf':
+                mesh = self.skinSurf
+            else:
+                raise NotImplementedError
+
+            if mesh is None:
+                logger.warning(f"No mesh set for {which.replace('Convex', '')}. Returning.")
+                return
+
+            logger.info(f'Computing convex hull for {which}')
+            if True:
+                # adapted from https://gist.github.com/flutefreak7/bd621a9a836c8224e92305980ed829b9
+                from scipy.spatial import ConvexHull
+                hull = ConvexHull(mesh.points)
+                faces = np.column_stack((3 * np.ones((len(hull.simplices), 1), dtype=int), hull.simplices)).flatten()
+                convexMesh = pv.PolyData(mesh.points, faces)
+            else:
+                # TODO: try doing convex hull natively through pyvista/vtk and benchmark comparison against scipy
+                raise NotImplementedError
+            # TODO: implement alternate scipy version and benchmark to see which is faster
+            logger.debug('Done computing convex hull')
+
+            # don't apply meshToMRITransform here since it was already applied to the unsimplified mesh
+            setattr(self, '_' + which, convexMesh)
 
         elif which == 'eegPositions':
             csvPath = os.path.join(self._m2mDir, 'eeg_positions', 'EEG10-10_UI_Jurak_2007.csv')
@@ -308,6 +335,12 @@ class HeadModel:
         if self.skinSurfIsSet and self._skinSimpleSurf is None:
             self.loadCache(which='skinSimpleSurf')
         return self._skinSimpleSurf
+
+    @property
+    def skinConvexSurf(self):
+        if self.skinSurfIsSet and self._skinConvexSurf is None:
+            self.loadCache(which='skinConvexSurf')
+        return self._skinConvexSurf
 
     @property
     def eegPositions(self):

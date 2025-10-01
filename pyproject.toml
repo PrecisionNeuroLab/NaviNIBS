@@ -44,8 +44,9 @@ rmsd = "^1.5.1"
 xmltodict = "^0.14.2"
 platformdirs = "^4.2.2"
 concurrent-log-handler = "^0.9.28"
-#pyshortcuts = "^1.9.5"
-pyshortcuts = {git = "https://github.com/chriscline/pyshortcuts.git"}  # with spaces fix
+pyshortcuts = "^1.9.5"
+#pyshortcuts = {git = "https://github.com/chriscline/pyshortcuts.git"}  # with spaces fix
+scipy = "^1.16.2"
 
 [tool.poetry.group.test]
 optional = true

@@ -312,7 +312,7 @@ class Target(GenericCollectionDictItem[str]):
         """
         closestPt_skin = getClosestPointToPointOnMesh(
             session=self._session,
-            whichMesh='skinSurf',
+            whichMesh='skinConvexSurf',
             point_MRISpace=self.targetCoord)
         if closestPt_skin is None:
             raise ValueError('Missing information, cannot autoset entry coord')

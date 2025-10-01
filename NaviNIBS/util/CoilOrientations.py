@@ -70,24 +70,20 @@ class PoseMetricCalculator:
             MetricSpecification(getter=self.getAngleFromMidline, units='°', label='Angle from midline'),
             MetricSpecification(getter=self.getAngleFromNormal, units='°', label='Angle from normal'),
             MetricSpecification(getter=self.getSampleCoilToCortexDist, units=' mm', label='Coil to cortex dist'),
-            MetricSpecification(getter=self.getSampleCoilToScalpDist, units=' mm', label='Coil to scap dist'),
+            MetricSpecification(getter=self.getSampleCoilToScalpDist, units=' mm', label='Coil to scalp dist'),
             MetricSpecification(getter=self.getCoilPosX, units=' mm', label='Coil X position', doShowByDefault=False),
             MetricSpecification(getter=self.getCoilPosY, units=' mm', label='Coil Y position', doShowByDefault=False),
             MetricSpecification(getter=self.getCoilPosZ, units=' mm', label='Coil Z position', doShowByDefault=False),
         ])
 
-    def _cacheWrap(self, fn: tp.Callable[..., T]) -> T:
-        """
-        Note: this assumes no other args or kwargs are needed for fn, since their values are not
-        included in the cache key
-        """
+    def _cacheWrap(self, fn: tp.Callable[..., T], **kwargs) -> T:
         # noinspection PyUnresolvedReferences
-        key = fn.cacheKey
+        key = fn.cacheKey + f'{kwargs}'
 
         if key in self._cachedValues:
             return self._cachedValues[key]
         else:
-            val = fn(doUseCache=False)
+            val = fn(doUseCache=False, **kwargs)
             self._cachedValues[key] = val
             return val
 
@@ -521,11 +517,11 @@ class PoseMetricCalculator:
             return np.nan
 
         if False:
-            pt_gm = self.getClosestPointToCoilOnGM()
-            closestPt_skin = self.getClosestPointToCoilOnSkin()
+            pt_gm = self.getClosestPointToCoilOnSurf(surfKey='gmSurf')
+            closestPt_skin = self.getClosestPointToCoilOnSurf(surfKey='skinConvexSurf')
         else:
             pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]), doCheck=False)
-            closestPt_skin = self.getClosestPointToSampleCortexDepthOnSkin()
+            closestPt_skin = self.getClosestPointToSampleCortexDepthOnSurf(surfKey='skinConvexSurf')
 
         if closestPt_skin is None or pt_gm is None:
             return np.nan
@@ -575,35 +571,24 @@ class PoseMetricCalculator:
 
     getCoilPosZ.cacheKey = 'coilPosZ'
 
-    def getClosestPointToCoilOnSkin(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
+    def getClosestPointToCoilOnSurf(self, surfKey: str, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
         if doUseCache:
-            return self._cacheWrap(fn=self.getClosestPointToCoilOnSkin)
+            return self._cacheWrap(fn=self.getClosestPointToCoilOnSurf, surfKey=surfKey)
 
         if self._sample is None or self._sample.coilToMRITransf is None:
             return None
 
-        return getClosestPointToPointOnMesh(session=self._session,
-                                            whichMesh='skinSurf',
-                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,)), doCheck=False))
+        return getClosestPointToPointOnMesh(
+            session=self._session,
+            whichMesh=surfKey,
+            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,)), doCheck=False)
+        )
 
-    getClosestPointToCoilOnSkin.cacheKey = 'closestPointToCoilOnSkin'
+    getClosestPointToCoilOnSurf.cacheKey = 'closestPointToCoilOnSurf'
 
-    def getClosestPointToCoilOnGM(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
+    def getClosestPointToSampleCortexDepthOnSurf(self, surfKey: str, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
         if doUseCache:
-            return self._cacheWrap(fn=self.getClosestPointToCoilOnGM)
-
-        if self._sample is None or self._sample.coilToMRITransf is None:
-            return None
-
-        return getClosestPointToPointOnMesh(session=self._session,
-                                            whichMesh='gmSurf',
-                                            point_MRISpace=applyTransform(self._sample.coilToMRITransf, np.zeros((3,)), doCheck=False))
-
-    getClosestPointToCoilOnGM.cacheKey = 'closestPointToCoilOnGM'
-
-    def getClosestPointToSampleCortexDepthOnSkin(self, doUseCache: bool = True) -> tp.Optional[np.ndarray]:
-        if doUseCache:
-            return self._cacheWrap(fn=self.getClosestPointToSampleCortexDepthOnSkin)
+            return self._cacheWrap(fn=self.getClosestPointToSampleCortexDepthOnSurf, surfKey=surfKey)
 
         if self._sample is None or self._sample.coilToMRITransf is None:
             return None
@@ -615,10 +600,10 @@ class PoseMetricCalculator:
         point_MRISpace = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]), doCheck=False)
 
         return getClosestPointToPointOnMesh(session=self._session,
-                                            whichMesh='skinSurf',
+                                            whichMesh=surfKey,
                                             point_MRISpace=point_MRISpace)
 
-    getClosestPointToSampleCortexDepthOnSkin.cacheKey = 'closestPointToSampleCortexDepthOnSkin'
+    getClosestPointToSampleCortexDepthOnSurf.cacheKey = 'getClosestPointToSampleCortexDepthOnSurf'
 
     def _getNormalCoilAngleError(self, iDim: int) -> float:
 
@@ -630,7 +615,7 @@ class PoseMetricCalculator:
             return np.nan
 
         pt_gm = applyTransform(self._sample.coilToMRITransf, np.asarray([0, 0, -coilToCortexDist]), doCheck=False)
-        closestPt_skin = self.getClosestPointToSampleCortexDepthOnSkin()
+        closestPt_skin = self.getClosestPointToSampleCortexDepthOnSurf(surfKey='skinSurf')
 
         if closestPt_skin is None:
             return np.nan
