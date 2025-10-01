@@ -39,7 +39,7 @@ from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
 from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
-from NaviNIBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.util.pyvista.dataset import find_closest_point, find_closest_cell
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -173,8 +173,13 @@ class _PointerDistanceReadouts:
         pointerCoord_MRISpace = applyTransform(subjectTrackerToMRITransf, pointerCoord_relToSubTracker, doCheck=False)
 
         # find distance to skin
-        closestPtIndex = find_closest_point(self.session.headModel.skinSurf, pointerCoord_MRISpace)
-        closestPt = self.session.headModel.skinSurf.points[closestPtIndex, :]
+        if False:
+            # find closest point, constrained to vertices in surf
+            closestPtIndex = find_closest_point(self.session.headModel.skinSurf, pointerCoord_MRISpace)
+            closestPt = self.session.headModel.skinSurf.points[closestPtIndex, :]
+        else:
+            # find closest point, anywhere in surf
+            _, closestPt = find_closest_cell(self.session.headModel.skinSurf, point=pointerCoord_MRISpace, return_closest_point=True)
         dist = np.linalg.norm(closestPt - pointerCoord_MRISpace)
         self._distToSkinReadout.value = dist
 

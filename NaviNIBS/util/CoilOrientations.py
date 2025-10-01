@@ -12,7 +12,7 @@ from NaviNIBS.Navigator.Model import Session
 from NaviNIBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, getClosestPointToPointOnMesh
 from NaviNIBS.Navigator.Model.Samples import Sample
 from NaviNIBS.Navigator.Model.Targets import Target
-from NaviNIBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.util.pyvista.dataset import find_closest_point, find_closest_cell
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform
 
@@ -270,8 +270,13 @@ class PoseMetricCalculator:
         # (e.g. a small sphere sliding down along the depth axis until reaching cortex)
         # Currently, this may find a closest point at a very oblique angle from coil center if coil is tilted
 
-        closestPtIndex = find_closest_point(surf, coilOrigin_MRI)
-        closestPt = surf.points[closestPtIndex, :]
+        if False:
+            # find closest point, constrained to vertices in surf
+            closestPtIndex = find_closest_point(surf, coilOrigin_MRI)
+            closestPt = surf.points[closestPtIndex, :]
+        else:
+            # find closest point, anywhere on surface
+            _, closestPt = find_closest_cell(surf, point=coilOrigin_MRI, return_closest_point=True)
 
         if False:
             # unsigned distance

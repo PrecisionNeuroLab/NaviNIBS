@@ -5,7 +5,7 @@ import typing as tp
 from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, logger
 from NaviNIBS.Navigator.Model.SubjectRegistration import HeadPoint, HeadPoints
 from NaviNIBS.util.Transforms import applyTransform
-from NaviNIBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.util.pyvista.dataset import find_closest_point, find_closest_cell
 
 
 @attrs.define(slots=False)
@@ -44,8 +44,13 @@ class HeadPointsTableModel(CollectionTableModel[int, HeadPoints, HeadPoint]):
         if self._session.subjectRegistration.trackerToMRITransf is None:
             return ''
         pt_MRISpace = applyTransform(self._session.subjectRegistration.trackerToMRITransf, pt, doCheck=False)
-        closestPtIndex = find_closest_point(self._session.headModel.skinSurf, pt_MRISpace)
-        closestPt = self._session.headModel.skinSurf.points[closestPtIndex, :]
+        if False:
+            # find closest point, constrained to vertices in surf
+            closestPtIndex = find_closest_point(self._session.headModel.skinSurf, pt_MRISpace)
+            closestPt = self._session.headModel.skinSurf.points[closestPtIndex, :]
+        else:
+            # find closest point, anywhere on surface
+            _, closestPt = find_closest_cell(self._session.headModel.skinSurf, point=pt_MRISpace, return_closest_point=True)
         dist = np.linalg.norm(closestPt - pt_MRISpace)
         # TODO: improvie dist estimation by allowing for nearest point to be between mesh vertices
         return '%.2f' % dist

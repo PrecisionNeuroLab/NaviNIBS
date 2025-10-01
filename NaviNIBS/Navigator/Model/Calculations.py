@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
-from NaviNIBS.util.pyvista.dataset import find_closest_point
+from NaviNIBS.util.pyvista.dataset import find_closest_point, find_closest_cell
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,13 @@ def getClosestPointToPointOnMesh(session: Session, whichMesh: str, point_MRISpac
 
     assert isinstance(surf, pv.PolyData)
 
-    # find closest point to coil on surf
-    closestPtIndex = find_closest_point(surf, point_MRISpace)
-    closestPt = surf.points[closestPtIndex, :]
+    if False:
+        # find closest point on surf, restricting to existing vertices
+        closestPtIndex = find_closest_point(surf, point_MRISpace)
+        closestPt = surf.points[closestPtIndex, :]
+    else:
+        # find closest point on surf, not restricting to existing vertices
+        closestCellIndex, closestPt = find_closest_cell(surf, point=point_MRISpace, return_closest_point=True)
 
     return closestPt
 
