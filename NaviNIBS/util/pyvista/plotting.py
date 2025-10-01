@@ -337,6 +337,15 @@ class PlotterImprovementsMixin:
                               n_zlabels=n_zlabels,
                               **kwargs)
 
+    def set_actors_visibility(self, actors: tp.Iterable[str | Actor] | str | Actor, visible: bool):
+        if isinstance(actors, (str, Actor)):
+            actors = [actors]
+        for actor in actors:
+            for renderer in self.renderers:
+                if isinstance(actor, str):
+                    actor = renderer.actors[actor]
+                actor.SetVisibility(visible)
+
 
 class BackgroundPlotter(_DelayedPlotter, pvqt.plotting.QtInteractor, PlotterImprovementsMixin):
     """

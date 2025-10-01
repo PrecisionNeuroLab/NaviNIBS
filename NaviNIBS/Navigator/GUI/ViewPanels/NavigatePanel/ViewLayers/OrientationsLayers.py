@@ -14,7 +14,6 @@ from NaviNIBS.Navigator.Model.Samples import Sample, Samples
 from NaviNIBS.Navigator.Model.Targets import Target, Targets
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ class VisualizedOrientation:
     _style: str
     _actorKeyPrefix: str
 
-    _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
+    _actorKeys: set[str] = attrs.field(init=False, factory=set, repr=False)
 
     def __attrs_post_init__(self):
         match self._style:
@@ -51,63 +50,65 @@ class VisualizedOrientation:
                 depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
                 handleLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, -handleLength, 0]]))
 
-                actorKey = self._actorKeyPrefix + 'depthLine'
+                with self._plotter.allowNonblockingCalls():
+                    actorKey = self._actorKeyPrefix + 'depthLine'
 
-                if isinstance(self._colorDepthIndicator, tuple):
-                    depthLine[self._colorDepthIndicator[1]] = np.full((depthLine.n_points,), self._colorDepthIndicator[0])
-                    scalars = self._colorDepthIndicator[1]
-                    scalar_bar_args = {'title': self._colorDepthIndicator[1]}
-                    color='k'
-                else:
-                    scalars = None
-                    scalar_bar_args = None
-                    color=self._colorDepthIndicator
+                    if isinstance(self._colorDepthIndicator, tuple):
+                        depthLine[self._colorDepthIndicator[1]] = np.full((depthLine.n_points,),
+                                                                          self._colorDepthIndicator[0])
+                        scalars = self._colorDepthIndicator[1]
+                        scalar_bar_args = {'title': self._colorDepthIndicator[1]}
+                        color = 'k'
+                    else:
+                        scalars = None
+                        scalar_bar_args = None
+                        color = self._colorDepthIndicator
 
-                self._actors[actorKey] = self._plotter.addLineSegments(
-                                                         depthLine,
-                                                         name=actorKey,
-                                                         color=color,
-                                                         scalars=scalars,
-                                                         scalar_bar_args=scalar_bar_args,
-                                                         width=self._lineWidth,
-                                                         opacity=self._opacity,
-                                                         userTransform=self._orientation.coilToMRITransf,
-                )
+                    self._actorKeys.add(actorKey)
+                    self._plotter.addLineSegments(
+                        depthLine,
+                        name=actorKey,
+                        color=color,
+                        scalars=scalars,
+                        scalar_bar_args=scalar_bar_args,
+                        width=self._lineWidth,
+                        opacity=self._opacity,
+                        userTransform=self._orientation.coilToMRITransf,
+                    )
 
+                    actorKey = self._actorKeyPrefix + 'handleLine'
 
-                actorKey = self._actorKeyPrefix + 'handleLine'
+                    if isinstance(self._colorHandleIndicator, tuple):
+                        handleLine[self._colorHandleIndicator[1]] = np.full((handleLine.n_points,), self._colorHandleIndicator[0])
+                        scalars = self._colorHandleIndicator[1]
+                        scalar_bar_args = {'title': self._colorHandleIndicator[1]}
+                        color='k'
+                    else:
+                        scalars = None
+                        scalar_bar_args = None
+                        color=self._colorHandleIndicator
 
-                if isinstance(self._colorHandleIndicator, tuple):
-                    handleLine[self._colorHandleIndicator[1]] = np.full((handleLine.n_points,), self._colorHandleIndicator[0])
-                    scalars = self._colorHandleIndicator[1]
-                    scalar_bar_args = {'title': self._colorHandleIndicator[1]}
-                    color='k'
-                else:
-                    scalars = None
-                    scalar_bar_args = None
-                    color=self._colorHandleIndicator
-
-                self._actors[actorKey] = self._plotter.addLineSegments(
-                                                         handleLine,
-                                                         name=actorKey,
-                                                         color=color,
-                                                         scalars=scalars,
-                                                         scalar_bar_args=scalar_bar_args,
-                                                         width=self._lineWidth,
-                                                         opacity=self._opacity,
-                                                         userTransform=self._orientation.coilToMRITransf,
-                )
+                    self._plotter.addLineSegments(
+                        handleLine,
+                        name=actorKey,
+                        color=color,
+                        scalars=scalars,
+                        scalar_bar_args=scalar_bar_args,
+                        width=self._lineWidth,
+                        opacity=self._opacity,
+                        userTransform=self._orientation.coilToMRITransf,
+                    )
 
             case _:
                 raise NotImplementedError(f'Unexpected style: {self._style}')
 
         with self._plotter.allowNonblockingCalls():
-            for actor in self._actors.values():
-                setActorUserTransform(actor, self._orientation.coilToMRITransf)
+            for actorKey in self._actorKeys:
+                self._plotter.setActorUserTransform(actorKey, self._orientation.coilToMRITransf)
 
     @property
-    def actors(self):
-        return self._actors
+    def actorKeys(self):
+        return self._actorKeys
 
 
 @attrs.define
@@ -161,8 +162,8 @@ class OrientationsLayer(PlotViewLayer):
             if self._orientationIsVisible(key):
                 logger.debug(f'Instantiating visualized orientation for {key}')
                 self._visualizedOrientations[key] = self._createVisualizedOrientationForSample(key)
-                for actorKey, actor in self._visualizedOrientations[key].actors.items():
-                    self._actors[actorKey] = actor
+                for actorKey in self._visualizedOrientations[key].actorKeys:
+                    self._actors[actorKey] = actorKey
             else:
                 logger.debug(f'Skipping drawing of {key} since it should not be visible')
 
@@ -194,7 +195,7 @@ class OrientationsLayer(PlotViewLayer):
             for key in changedOrientationKeys:
                 if key in self._visualizedOrientations:
                     with self._plotter.allowNonblockingCalls():
-                        for actorKey in self._visualizedOrientations.pop(key).actors:
+                        for actorKey in self._visualizedOrientations.pop(key).actorKeys:
                             self._plotter.remove_actor(self._actors.pop(actorKey))
 
                 self._pendingOrientationKeys.add(key)

@@ -268,10 +268,13 @@ class RemotePlotManagerBase:
 
 
 class RemotePlotterMixin:
-    def setActorUserTransform(self, actor: Actor, transform: np.ndarray):
+    def setActorUserTransform(self, actor: Actor | str, transform: np.ndarray):
         # convert from numpy array to vtkTransform
         t = pv._vtk.vtkTransform()
         t.SetMatrix(pv.vtkmatrix_from_array(transform))
+
+        if isinstance(actor, str):
+            actor = self.actors[actor]
 
         actor.SetUserTransform(t)
 

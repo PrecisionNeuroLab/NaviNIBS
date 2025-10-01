@@ -5,7 +5,7 @@ import typing as tp
 Actor = pv._vtk.vtkActor
 
 
-def setActorUserTransform(actor: Actor, transf: np.ndarray):
+def setActorUserTransform(actor: Actor | str, transf: np.ndarray):
     t = pv._vtk.vtkTransform()
     t.SetMatrix(pv.vtkmatrix_from_array(transf))
     actor.SetUserTransform(t)

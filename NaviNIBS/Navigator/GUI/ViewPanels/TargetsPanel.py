@@ -47,7 +47,7 @@ class VisualizedTarget:
     _plotter: DefaultBackgroundPlotter = attrs.field(repr=False)
     _style: str
     _color: str = '#2222FF'
-    _actors: tp.Dict[str, Actor] = attrs.field(init=False, factory=dict, repr=False)
+    _actorKeys: set[str] = attrs.field(init=False, factory=set, repr=False)
     _visible: bool = True  # track this separately from self._target.isVisible to allow temporarily overriding
 
     def __attrs_post_init__(self):
@@ -62,12 +62,8 @@ class VisualizedTarget:
         if self._visible == isVisible:
             return
 
-        if isVisible:
-            for actor in self._actors.values():
-                actor.VisibilityOn()
-        else:
-            for actor in self._actors.values():
-                actor.VisibilityOff()
+        with self._plotter.allowNonblockingCalls():
+            self._plotter.set_actors_visibility(self._actorKeys, isVisible)
 
         self._visible = isVisible
 
@@ -96,43 +92,55 @@ class VisualizedTarget:
         thickWidth = 6
         if self._style == 'line':
             pts_line = np.vstack((self._target.entryCoord, self._target.targetCoord))
-            self._actors['line'] = self._plotter.add_lines(pts_line,
-                                                           color=self._color,
-                                                           width=thickWidth,
-                                                           label=self._target.key,
-                                                           name=self._target.key + 'line',
-                                                           )
+            actorKey = self._target.key + 'line'
+            self._actorKeys.add(actorKey)
+            with self._plotter.allowNonblockingCalls():
+                self._plotter.add_lines(pts_line,
+                                        color=self._color,
+                                        width=thickWidth,
+                                        label=self._target.key,
+                                        name=actorKey,
+                                        )
 
         elif self._style == 'lines':
-            pts_line1 = np.vstack((self._target.entryCoord, self._target.targetCoord))
-            self._actors['line1'] = self._plotter.add_lines(pts_line1,
-                                                           color=self._color,
-                                                           width=thickWidth,
-                                                           label=self._target.key,
-                                                           name=self._target.key + 'line1',
-                                                           )
+            with self._plotter.allowNonblockingCalls():
+                pts_line1 = np.vstack((self._target.entryCoord, self._target.targetCoord))
+                actorKey = self._target.key + 'line1'
+                self._actorKeys.add(actorKey)
+                self._plotter.add_lines(pts_line1,
+                                        color=self._color,
+                                        width=thickWidth,
+                                        label=self._target.key,
+                                        name=actorKey,
+                                        )
 
-            pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -10, 0], [0, 0, 0]]))
-            self._actors['line2'] = self._plotter.add_lines(pts_line2,
-                                                            color=self._color,
-                                                            width=thinWidth,
-                                                            label=self._target.key,
-                                                            name=self._target.key + 'line2',
-                                                            )
-            pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
-            self._actors['line3'] = self._plotter.add_lines(pts_line3,
-                                                            color=self._color,
-                                                            width=thinWidth,
-                                                            label=self._target.key,
-                                                            name=self._target.key + 'line3',
-                                                            )
+                pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -10, 0], [0, 0, 0]]))
+                actorKey = self._target.key + 'line2'
+                self._actorKeys.add(actorKey)
+                self._plotter.add_lines(pts_line2,
+                                        color=self._color,
+                                        width=thinWidth,
+                                        label=self._target.key,
+                                        name=actorKey,
+                                        )
+                pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -50], [0, 0, 10]]))
+                actorKey = self._target.key + 'line3'
+                self._actorKeys.add(actorKey)
+                self._plotter.add_lines(pts_line3,
+                                        color=self._color,
+                                        width=thinWidth,
+                                        label=self._target.key,
+                                        name=actorKey,
+                                        )
 
-            self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
-                                                              color=self._color,
-                                                              point_size=10.,
-                                                              render_points_as_spheres=True,
-                                                              label=self._target.key,
-                                                              name=self._target.key + 'target')
+                actorKey = self._target.key + 'target'
+                self._actorKeys.add(actorKey)
+                self._plotter.add_points(self._target.targetCoord,
+                                         color=self._color,
+                                         point_size=10.,
+                                         render_points_as_spheres=True,
+                                         label=self._target.key,
+                                         name=actorKey)
 
         elif self._style == 'coilLines':
             coilDiameter = 10
@@ -141,73 +149,78 @@ class VisualizedTarget:
             theta = np.linspace(0, 2*np.pi, 361)
             circlePts = np.column_stack((coilDiameter/2 * np.cos(theta), coilDiameter/2 * np.sin(theta), np.zeros(theta.shape)))
 
-            for wing, dir in (('wing1', 1.), ('wing2', -1.)):
+            with self._plotter.allowNonblockingCalls():
+                for wing, dir in (('wing1', 1.), ('wing2', -1.)):
+                    if self._target.coilToMRITransf is not None:
+                        pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
+                        actorKey = self._target.key + wing
+                        self._actorKeys.add(actorKey)
+                        self._plotter.add_lines(pts_wing,
+                                                connected=True,
+                                                color=self._color,
+                                                width=thinWidth,
+                                                label=self._target.key,
+                                                name=actorKey,
+                                                )
+
                 if self._target.coilToMRITransf is not None:
-                    pts_wing = applyTransform(self._target.coilToMRITransf, circlePts + dir*np.asarray([coilDiameter/2, 0, 0]))
-                    self._actors[wing] = self._plotter.add_lines(pts_wing,
-                                                                 connected=True,
-                                                                 color=self._color,
-                                                                 width=thinWidth,
-                                                                 label=self._target.key,
-                                                                 name=self._target.key + wing,
-                                                                 )
+                    pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
+                    actorKey = self._target.key + 'line2'
+                    self._actorKeys.add(actorKey)
+                    self._plotter.add_lines(pts_line2,
+                                            color=self._color,
+                                            width=thinWidth,
+                                            label=self._target.key,
+                                            name=actorKey,
+                                            )
+                    if self._target.targetCoord is not None and self._target.entryCoord is not None:
+                        depth = np.linalg.norm(self._target.targetCoord - self._target.entryCoord) + self._target.depthOffset
+                    else:
+                        depth = 50
+                    pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -depth], [0, 0, 10]]))
+                    actorKey = self._target.key + 'line3'
+                    self._actorKeys.add(actorKey)
+                    self._plotter.add_lines(pts_line3,
+                                            color=self._color,
+                                            width=thinWidth,
+                                            label=self._target.key,
+                                            name=actorKey,
+                                            )
+                elif self._target.targetCoord is not None and self._target.entryCoord is not None:
+                    pts_line2 = np.vstack([self._target.targetCoord, self._target.entryCoord])
+                    actorKey = self._target.key + 'line2'
+                    self._actorKeys.add(actorKey)
+                    self._plotter.add_lines(pts_line2,
+                                            color=self._color,
+                                            width=thinWidth,
+                                            label=self._target.key,
+                                            name=actorKey,
+                                            )
 
-            if self._target.coilToMRITransf is not None:
-                pts_line2 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
-                self._actors['line2'] = self._plotter.add_lines(pts_line2,
-                                                                color=self._color,
-                                                                width=thinWidth,
-                                                                label=self._target.key,
-                                                                name=self._target.key + 'line2',
-                                                                )
-                if self._target.targetCoord is not None and self._target.entryCoord is not None:
-                    depth = np.linalg.norm(self._target.targetCoord - self._target.entryCoord) + self._target.depthOffset
-                else:
-                    depth = 50
-                pts_line3 = applyTransform(self._target.coilToMRITransf, np.asarray([[0, 0, -depth], [0, 0, 10]]))
-                self._actors['line3'] = self._plotter.add_lines(pts_line3,
-                                                                color=self._color,
-                                                                width=thinWidth,
-                                                                label=self._target.key,
-                                                                name=self._target.key + 'line3',
-                                                                )
-            elif self._target.targetCoord is not None and self._target.entryCoord is not None:
-                pts_line2 = np.vstack([self._target.targetCoord, self._target.entryCoord])
-                self._actors['line2'] = self._plotter.add_lines(pts_line2,
-                                                                color=self._color,
-                                                                width=thinWidth,
-                                                                label=self._target.key,
-                                                                name=self._target.key + 'line2',
-                                                                )
-
-            self._actors['target'] = self._plotter.add_points(self._target.targetCoord,
-                                                              color=self._color,
-                                                              point_size=10.,
-                                                              render_points_as_spheres=True,
-                                                              label=self._target.key,
-                                                              name=self._target.key + 'target',
-                                                              reset_camera=False,
-                                                              render=False)
-
+                actorKey = self._target.key + 'target'
+                self._actorKeys.add(actorKey)
+                self._plotter.add_points(self._target.targetCoord,
+                                         color=self._color,
+                                         point_size=10.,
+                                         render_points_as_spheres=True,
+                                         label=self._target.key,
+                                         name=actorKey,
+                                         reset_camera=False,
+                                         render=False)
         else:
             raise NotImplementedError()
 
         with self._plotter.allowNonblockingCalls():
             if not self.visible:
-                for actor in self._actors.values():
-                    actor.VisibilityOff()
+                self._plotter.set_actors_visibility(self._actorKeys, False)
 
             self._plotter.render()
 
-    @property
-    def actors(self):
-        return self._actors
-
     def clearActors(self):
         with self._plotter.allowNonblockingCalls():
-            for actor in self._actors.values():
-                self._plotter.remove_actor(actor)
-            self._actors.clear()
+            for actorKey in self._actorKeys:
+                self._plotter.remove_actor(actorKey)
+            self._actorKeys.clear()
             self._plotter.render()
 
 
@@ -333,6 +346,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._editGridWdgt = EditGridWidget(session=self.session,
                                             wdgt=QtWidgets.QWidget(),
                                             )
+        self._editGridWdgt.sigGridUpdated.connect(self._tableWdgt.resizeColumnsToContents)
         dock, _ = self._createDockWidget(
             title='Edit grid',
             widget=self._editGridWdgt.wdgt,
@@ -612,14 +626,3 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             self._gotoTarget(self._getCurrentTargetKey())
         else:
             logger.warning('No target selected')
-
-
-
-
-
-
-
-
-
-
-

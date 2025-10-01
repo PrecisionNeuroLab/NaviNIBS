@@ -91,7 +91,7 @@ class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
     _plotter: DefaultBackgroundPlotter  # note that this one plotter may be shared between multiple ViewLayers
     _plotInSpace: str = 'MRI'
 
-    _actors: dict[str, Actor | None] = attrs.field(init=False, factory=dict)
+    _actors: dict[str, Actor | str | None] = attrs.field(init=False, factory=dict)
     _legendEntries: list[LegendEntry] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):

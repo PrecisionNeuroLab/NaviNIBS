@@ -409,8 +409,22 @@ class RemotePlotterProxyBase:
     def add_axes_at_origin(self, *args, **kwargs):
         return self._remotePlotterCall('add_axes_at_origin', *args, **kwargs)
 
-    def setActorUserTransform(self, actor: RemoteActorProxy, transform: np.ndarray):
-        return self._remotePlotterCall('setActorUserTransform', ActorRef(actorID=actor.actorID), transform)
+    def setActorUserTransform(self, actor: RemoteActorProxy | str, transform: np.ndarray):
+        return self._remotePlotterCall('setActorUserTransform', actor if isinstance(actor, str) else ActorRef(actorID=actor.actorID), transform)
+
+    def set_actors_visibility(self, actors: tp.Iterable[str | RemoteActorProxy] | str | RemoteActorProxy, visible: bool):
+        if isinstance(actors, (str, RemoteActorProxy)):
+            actors = [actors]
+
+        actorRefs = []
+        for actor in actors:
+            if isinstance(actor, RemoteActorProxy):
+                actorRefs.append(ActorRef(actorID=actor.actorID))
+            else:
+                assert isinstance(actor, str)
+                actorRefs.append(actor)
+
+        return self._remotePlotterCall('set_actors_visibility', actorRefs, visible)
 
     def reset_camera(self):
         return self._remotePlotterCall('reset_camera')
