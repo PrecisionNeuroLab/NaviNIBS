@@ -187,6 +187,7 @@ class ToolWidget:
 
         plotContainer = QtWidgets.QWidget()
         plotContainer.setLayout(QtWidgets.QHBoxLayout())
+        plotContainer.layout().setContentsMargins(0, 0, 0, 0)
         self._wdgt.layout().addWidget(plotContainer)
 
         self._toolSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)

@@ -76,7 +76,7 @@ async def test_importSessionInStandalone(workingDir: str):
 
     assert session.MRI.filepath == otherSession.MRI.filepath
 
-    assert session.headModel.filepath == otherSession.headModel.filepath
+    assert os.path.normpath(session.headModel.filepath) == os.path.normpath(otherSession.headModel.filepath)
 
     fiducials = session.subjectRegistration.fiducials
     otherFiducials = otherSession.subjectRegistration.fiducials

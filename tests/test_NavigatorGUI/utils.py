@@ -83,6 +83,7 @@ async def openSessionForInteraction(workingDir, sessionKey: str):
 
 
 async def raiseMainNavigatorGUI():
+    logger.debug('Starting background process to raise NaviNIBS main window')
     import multiprocessing as mp
     proc = mp.Process(target=_raiseMainNavigatorGUIWindow)
     proc.start()

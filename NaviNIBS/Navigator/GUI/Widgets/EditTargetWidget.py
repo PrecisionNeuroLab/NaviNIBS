@@ -269,18 +269,21 @@ class EntryAnglesWidgets:
         self._pivotWdgt.addItems(['Coil', 'Entry', 'Target'])
         self._pivotWdgt.setCurrentIndex(2)
         self._pivotWdgt.currentIndexChanged.connect(self._onEntryAnglePivotChanged)
+        preventAnnoyingScrollBehaviour(self._pivotWdgt)
         self._layout.addRow('Entry angle pivot', self._pivotWdgt)
 
         self._angleRefWdgt = QtWidgets.QComboBox()
         self._angleRefWdgt.addItems(['Closest scalp to target'])
         self._angleRefWdgt.setCurrentIndex(0)
         self._angleRefWdgt.currentIndexChanged.connect(self._onEntryAngleRefChanged)
+        preventAnnoyingScrollBehaviour(self._angleRefWdgt)
         self._layout.addRow('Entry angle relative to', self._angleRefWdgt)
 
         self._angleXWdgt = AngleDial(
             doInvert=False,
             offsetAngle=180,
             centerAngle=0,
+            pageStep=1,
         )
         self._angleXWdgt.sigValueChanged.connect(self._onEntryAngleXChangedFromGUI)
         self._layout.addRow('Entry angle X', self._angleXWdgt.wdgt)
@@ -288,7 +291,8 @@ class EntryAnglesWidgets:
         self._angleYWdgt = AngleDial(
             doInvert=False,
             offsetAngle=180,
-            centerAngle=0
+            centerAngle=0,
+            pageStep=1
         )
         self._angleYWdgt.sigValueChanged.connect(self._onEntryAngleYChangedFromGUI)
         self._layout.addRow('Entry angle Y', self._angleYWdgt.wdgt)
@@ -515,6 +519,7 @@ class EditTargetWidget:
         self._targetsModel = FullTargetsTableModel(session=self._session)
         self._targetComboBox.setModel(self._targetsModel)
         self._targetComboBox.currentIndexChanged.connect(self._onTargetComboBoxCurrentIndexChanged)
+        preventAnnoyingScrollBehaviour(self._targetComboBox)
         self._targetsModel.sigSelectionChanged.connect(self._onModelSelectionChanged)
         layout.addRow('Editing target:', self._targetComboBox)
 
