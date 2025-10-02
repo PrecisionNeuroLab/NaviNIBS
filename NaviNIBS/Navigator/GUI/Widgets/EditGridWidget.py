@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 class EditGridWidget:
     _session: Session = attrs.field(repr=False)
 
+    sigGridUpdated: Signal = attrs.field(factory=Signal, init=False)
+
     _wdgt: QtWidgets.QWidget = attrs.field(factory=lambda: QtWidgets.QGroupBox('Edit grid'))
     _scroll: QScrollContainer = attrs.field(init=False)
 
@@ -219,6 +221,7 @@ class EditGridWidget:
             await asyncio.sleep(0.1)  # rate-limit
             self._gridNeedsUpdate.clear()
             self._regenerateGrid()
+            self.sigGridUpdated.emit()
 
     def _onTargetsCollectionAboutToChange(self, *args, **kwargs):
         if len(self._preChangeTargetComboBoxIndex) == 0:
