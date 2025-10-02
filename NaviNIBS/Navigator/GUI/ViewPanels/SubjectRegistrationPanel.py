@@ -429,7 +429,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         btn = QtWidgets.QPushButton('Sample head point')
         btn.clicked.connect(self._onSampleHeadPtsBtnClicked)
-        btn = self._sampleHeadPtsBtn = btn
+        self._sampleHeadPtsBtn = btn
         btnContainer.layout().addWidget(btn, 0, 0)
 
         btn = QtWidgets.QPushButton('Delete selected point')
@@ -538,7 +538,7 @@ class SubjectRegistrationPanel(MainViewPanel):
         self.session.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(self._onHeadpointsChanged)
         self.session.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(self._onHeadPointAttribsChanged)
         self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self._redraw(which=[
-            'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'initPointer', 'pointerPosition']))
+            'initSampledFids', 'initHeadPts', 'initSubjectTracker', 'initPointer', 'pointerPosition', 'sampleBtns']))
         self._updateHeadPointsWeightsField()
 
         self._trackingStatusWdgt.session = self.session
@@ -995,12 +995,14 @@ class SubjectRegistrationPanel(MainViewPanel):
                 if self._fidTblWdgt.currentCollectionItemKey is not None:
                     allowSampling = not any(self._positionsClient.getLatestTransf(key, None) is None for key in (pointer.trackerKey, subjectTracker.trackerKey))
 
+            allowHeadpointSampling = allowSampling and self.session.subjectRegistration.trackerToMRITransf is not None
+
             if self._sampleFiducialBtn.isEnabled() != allowSampling:
                 self._sampleFiducialBtn.setEnabled(allowSampling)
             if self._sampleFiducialMultipleBtn.isEnabled() != allowSampling:
                 self._sampleFiducialMultipleBtn.setEnabled(allowSampling)
-            if self._sampleHeadPtsBtn.isEnabled() != allowSampling:
-                self._sampleHeadPtsBtn.setEnabled(allowSampling)
+            if self._sampleHeadPtsBtn.isEnabled() != allowHeadpointSampling:
+                self._sampleHeadPtsBtn.setEnabled(allowHeadpointSampling)
             if self._newFidFromPointerBtn.isEnabled() != allowSampling:
                 self._newFidFromPointerBtn.setEnabled(allowSampling)
 
