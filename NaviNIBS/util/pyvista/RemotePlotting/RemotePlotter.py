@@ -21,7 +21,7 @@ from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from NaviNIBS.util.logging import createLogFileHandler
 from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
-from NaviNIBS.util.pyvista.RemotePlotting import ActorRef
+from NaviNIBS.util.pyvista.RemotePlotting import ActorRef, PolyDataRef, PolyDataManager
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -51,6 +51,7 @@ class RemotePlotManagerBase:
     _plotterKwargs: dict = attrs.field(factory=dict)
 
     _actorManager: ActorManager = attrs.field(init=False, factory=ActorManager)
+    _polyDataManager: PolyDataManager = attrs.field(init=False, factory=PolyDataManager)
     _Plotter: ClassVar
     _plotter: RemotePlotter | None = attrs.field(default=None)
 
@@ -169,6 +170,22 @@ class RemotePlotManagerBase:
             case 'cameraCall':
                 return self._callCameraMethod(msg[1:])
 
+            case 'registerPolyData':
+                assert len(msg) == 4
+                id = msg[1]
+                assert id is None or isinstance(id, str)
+                assert len(msg[2]) == 1
+                assert len(msg[3]) == 0
+                data = msg[2][0]
+                assert isinstance(data, pv.PolyData)
+                logger.info(f'Registering polyData with ID {id}')
+                return self._polyDataManager.addPolyData(data, id=id)
+
+            case 'callPolyDataMethod':
+                ref = msg[1]
+                assert isinstance(ref, PolyDataRef)
+                return self._callPolyDataMethod(msg[1], msg[2:])
+
             case 'queryProperty':
                 assert isinstance(msg[1], str)
                 self._queryProperty(msg[1])
@@ -227,15 +244,27 @@ class RemotePlotManagerBase:
 
         return self._callMethod(fn, args, kwargs)
 
+    def _callPolyDataMethod(self, polyDataRef: PolyDataRef, msg):
+        polyData = self._polyDataManager.getPolyData(polyDataRef)
+        fn = getattr(polyData, msg[0])
+        args = list(msg[1])
+        kwargs = msg[2]
+
+        return self._callMethod(fn, args, kwargs)
+
     def _callMethod(self, fn, args, kwargs):
         logger.debug(f'calling method {fn} {args} {kwargs}')
-        # convert any obvious ActorRefs to Actors
+        # convert any obvious ActorRefs to Actors, PolyDataRefs to PolyData
         for iArg in range(len(args)):
             if isinstance(args[iArg], ActorRef):
                 args[iArg] = self._actorManager.getActor(args[iArg])
+            elif isinstance(args[iArg], PolyDataRef):
+                args[iArg] = self._polyDataManager.getPolyData(args[iArg])
         for key in kwargs:
             if isinstance(kwargs[key], ActorRef):
                 kwargs[key] = self._actorManager.getActor(kwargs[key])
+            elif isinstance(kwargs[key], PolyDataRef):
+                kwargs[key] = self._polyDataManager.getPolyData(kwargs[key])
 
         # convert any callback keys in kwargs to callbacks
         if 'callback' in kwargs:

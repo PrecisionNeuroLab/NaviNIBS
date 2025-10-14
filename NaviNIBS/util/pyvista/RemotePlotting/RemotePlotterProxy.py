@@ -10,6 +10,7 @@ import typing as tp
 
 import attrs
 import numpy as np
+import numpy.typing as npt
 import pyvista as pv
 import vtkmodules.vtkCommonTransforms
 import zmq
@@ -18,7 +19,7 @@ from zmq import asyncio as azmq
 
 from NaviNIBS.util import exceptionToStr, makeStrUnique
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.pyvista.RemotePlotting import ActorRef
+from NaviNIBS.util.pyvista.RemotePlotting import ActorRef, PolyDataRef, PolyDataManager
 from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotter import RemotePlotterApp
 
 logger = logging.getLogger(__name__)
@@ -140,10 +141,51 @@ class RemoteCameraProxy:
         self._plotter._remoteCameraCall('zoom', value)
 
 
+@attrs.define
+class RemotePolyDataProxy:
+    _ref: PolyDataRef
+    _data: pv.PolyData
+    _plotter: RemotePlotterProxyBase
+
+    @property
+    def ref(self):
+        return self._ref
+
+    @property
+    def plotter(self):
+        return self._plotter
+
+    @property
+    def data(self):
+        return self._data
+
+    def __getattr__(self, item):
+        return getattr(self._data, item)
+
+
+    def __setattr__(self, key, value):
+        if key in ('_ref', '_data', '_plotter'):
+            return super().__setattr__(key, value)
+        else:
+            logger.warning('Setting attribute on RemotePolyDataProxy data, not proxy itself')
+            return setattr(self._data, key, value)
+
+    def __getitem__(self, name: str):
+        return self._data.__getitem__(name)
+
+    def __setitem__(self, name: str,
+                    scalars: npt.NDArray[float] | tp.Sequence[float] | float):
+
+        with self._plotter.allowNonblockingCalls():
+            self._plotter._remotePolyDataCall(self, '__setitem__', name, scalars)
+        return self._data.__setitem__(name, scalars)
+
+
 class RemotePlotterProxyBase:
     _camera: RemoteCameraProxy | None = None
     _mapper: RemoteMapper | None = None
 
+    _polyDataManager: PolyDataManager
     _doQueueCallsAndReturnImmediately: bool = False
     _queuedCalls: list[tuple[str, str, tuple, dict | None, tuple]]
 
@@ -172,6 +214,8 @@ class RemotePlotterProxyBase:
         self._isReady = asyncio.Event()
 
         self._queuedCalls = []
+
+        self._polyDataManager = PolyDataManager()
 
     @property
     def picked_point(self):
@@ -233,6 +277,8 @@ class RemotePlotterProxyBase:
             if isinstance(args[iArg], RemoteActorProxy):
                 # convert from RemoteActor to ActorRef
                 args[iArg] = ActorRef(actorID=args[iArg].actorID)
+            elif isinstance(args[iArg], RemotePolyDataProxy):
+                args[iArg] = PolyDataRef(id=args[iArg].ref.id)
 
         if 'callback' in kwargs:
             # convert from callback function to key matching new entry
@@ -240,6 +286,12 @@ class RemotePlotterProxyBase:
             callbackFn = kwargs['callback']
             callbackKey = self._callbackRegistry.register(callbackFn)
             kwargs['callback'] = callbackKey
+
+        for key in kwargs:
+            if isinstance(kwargs[key], RemoteActorProxy):
+                kwargs[key] = ActorRef(actorID=kwargs[key].actorID)
+            elif isinstance(kwargs[key], RemotePolyDataProxy):
+                kwargs[key] = PolyDataRef(id=kwargs[key].ref.id)
 
         if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData) and hasattr(kwargs['mesh'], '_obbTree'):
             # clear un-pickleable obbTree field
@@ -334,8 +386,19 @@ class RemotePlotterProxyBase:
     def _remoteCameraSet(self, key: str, value):
         return self._remoteCall('cameraSet', key, (value,))
 
-    def _remoteCameraCall(self, fnStr, *args, **kwargs):
+    def _remoteCameraCall(self, fnStr: str, *args, **kwargs):
         return self._remoteCall('cameraCall', fnStr, args, kwargs)
+
+    def registerPolyData(self, polyData: pv.PolyData, id: str | None = None) -> RemotePolyDataProxy:
+        logger.info(f'Registering polyData with ID {id}')
+        with self.disallowNonblockingCalls():
+            ref = self._remoteCall('registerPolyData', id, (polyData,))
+        polyDataRef = self._polyDataManager.addPolyData(polyData, id=ref.id)
+        return RemotePolyDataProxy(ref=polyDataRef, data=polyData, plotter=self)
+
+    def _remotePolyDataCall(self, polyData: RemotePolyDataProxy, fnStr: str, *args, **kwargs):
+        assert polyData.ref in self._polyDataManager, 'PolyData must be registered with plotter before use'
+        return self._remoteCall('callPolyDataMethod', fnStr, args, kwargs, cmdArgs=(polyData.ref,))
 
     def _remoteQueryProperty(self, key: str) -> None:
         return self._remoteCall('queryProperty', key)

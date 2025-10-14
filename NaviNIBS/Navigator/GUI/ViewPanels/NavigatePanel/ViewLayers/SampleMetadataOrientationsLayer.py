@@ -14,6 +14,9 @@ from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLaye
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
+if DefaultBackgroundPlotter is RemotePlotterProxy or tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePolyDataProxy, RemotePlotterProxyBase
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +97,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     _kernelSharpness: float = 0.5  # TODO: experiment to set more reasonable default
     _kernelRadius: float = 5.0
 
-    _mesh: pv.PolyData | None = attrs.field(init=False, default=None)
+    _mesh: pv.PolyData | RemotePolyDataProxy | None = attrs.field(init=False, default=None)
     _scalarsKey: str = 'SampleMetadataInterpolated'
     """
     Where to save interpolated values within internal mesh object
@@ -129,7 +132,12 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             if not self._needsReinterpolation.is_set():
                 continue
             logger.debug('Reinterpolation loop')
-            self._redraw(which='interpolateValues')
+            try:
+                self._redraw(which='interpolateValues')
+            except Exception as e:
+                logger.error(f'Exception while reinterpolating values: {e}', exc_info=True)
+                await asyncio.sleep(10.)
+                self._needsReinterpolation.set()
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         logger.debug(f'redraw {which}')
@@ -163,14 +171,20 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                 vertical=True,
             )
 
-            self._mesh.clear_data()  # TODO: determine if this is necessary
-
             self._interpolateValuesOntoMesh()
 
             if self._scalarsOpacityKey is not None:
                 opacity = self._scalarsOpacityKey
             else:
                 opacity = self._opacity
+
+            if isinstance(self._plotter, RemotePlotterProxyBase):
+                # wrap mesh as a RemotePolyDataProxy so that future updates
+                # to mesh scalars are reflected in remote plotter
+                self._mesh = self._plotter.registerPolyData(
+                    polyData=self._mesh,
+                    id=self._key + '_mesh',  # specify ID so that previous mesh gets overwritten on re-adding
+                )
 
             self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
                                                             color=self._color,
@@ -202,16 +216,11 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
         elif which == 'interpolateValues':
 
-            if self._scalarsOpacityKey is None and False:
-
+            if self._scalarsOpacityKey is None:
                 self._interpolateValuesOntoMesh()
-
                 # just call update rather than completely re-adding the mesh to plotter
                 with self._plotter.allowNonblockingCalls():
-                    # self._plotter.update_scalars(self._scalarsKey,
-                    #                              mesh=self._mesh,
-                    #                              render=True)
-                    #self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
+                    self._plotter.reset_scalar_bar_ranges(scalarBarTitles=[self._colorbarLabel])
                     self._plotter.update()
 
             else:
@@ -221,10 +230,6 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                 actorKey = self._getActorKey('surf')
 
                 assert actorKey in self._actors
-
-                with self._plotter.allowNonblockingCalls():
-                    self._plotter.remove_actor(self._actors[actorKey])
-                    self._actors.pop(actorKey)
 
                 if self._colorbarLabel is None:
                     colorbarLabel = self._metadataKey
@@ -245,9 +250,14 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                 else:
                     opacity = self._opacity
 
+                with self._plotter.allowNonblockingCalls():
+                    self._plotter.remove_actor(self._actors[actorKey])
+                    self._actors.pop(actorKey)
+
                 self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
                                                                color=self._color,
                                                                nan_color=self._color,
+                                                               nan_opacity=self._meshOpacityOutsideInterpolatedRegion,
                                                                scalars=self._scalarsKey,
                                                                scalar_bar_args=scalar_bar_args,
                                                                annotations=self._scalarAnnotations,
