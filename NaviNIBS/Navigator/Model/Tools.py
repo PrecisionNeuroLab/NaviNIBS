@@ -95,8 +95,8 @@ class Tool(GenericCollectionDictItem[str]):
     _toolOpacity: float | None = None
     _trackerOpacity: float | None = None
 
-    _installPath: tp.Optional[str] = None  # used for relative paths
-    _sessionPath: tp.Optional[str] = None  # used for relative paths
+    _installPath: tp.Optional[str] = attrs.field(default=None, repr=False)  # used for relative paths
+    _sessionPath: tp.Optional[str] = attrs.field(default=None, repr=False)  # used for relative paths
 
     _trackerSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _toolSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
