@@ -94,3 +94,54 @@ class TextEditWithDrafting(QtWidgets.QWidget):
 
         self._submitButton.setVisible(isModified)
         self._revertButton.setVisible(isModified)
+
+
+
+class AutosizingPlainTextEdit(QtWidgets.QPlainTextEdit):
+    """A QPlainTextEdit that automatically resizes its height to fit its content.
+
+    Note: This widget only adjusts its height, not its width.
+    """
+    def __init__(self, parent=None, minHeight: int | None = None, maxHeight: int| None = None):
+        super().__init__(parent)
+        self.textChanged.connect(self._updateHeight)
+        self._minHeight = minHeight
+        self._maxHeight = maxHeight
+        self._updateHeight()
+
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+
+    def _updateHeight(self):
+        """Update the height of the widget based on its content."""
+        docHeight = self.document().size().height()
+        docHeight = int(docHeight * self.fontMetrics().height())  # convert from rows to pixels
+        margins = self.contentsMargins()
+        newHeight = docHeight + margins.top() + margins.bottom()
+        if self._maxHeight is not None:
+            newHeight = min(newHeight, self._maxHeight)
+        if self._minHeight is not None:
+            minHeight = self._minHeight
+        else:
+            minHeight = self.fontMetrics().height() + margins.top() + margins.bottom()
+        newHeight = max(newHeight, minHeight)
+        #self.setMaximumHeight(newHeight)
+
+    def sizeHint(self) -> QtCore.QSize:
+        size = super().sizeHint()
+        docHeight = self.document().size().height()
+        docHeight = int(docHeight * self.fontMetrics().height())  # convert from rows to pixels
+        margins = self.contentsMargins()
+        newHeight = docHeight + margins.top() + margins.bottom()
+        if self._maxHeight is not None:
+            newHeight = min(newHeight, self._maxHeight)
+        if self._minHeight is not None:
+            minHeight = self._minHeight
+        else:
+            if True:
+                minHeight = self.fontMetrics().height()
+            else:
+                minHeight = self.fontMetrics().height() + margins.top() + margins.bottom()
+        newHeight = max(newHeight, minHeight)
+        size.setHeight(newHeight)
+        return size
+
