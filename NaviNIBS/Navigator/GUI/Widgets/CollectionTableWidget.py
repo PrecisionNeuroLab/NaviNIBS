@@ -11,10 +11,12 @@ from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, 
 from NaviNIBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
+from NaviNIBS.Navigator.GUI.CollectionModels.ROIsTableModel import ROIsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.SamplesTableModel import SamplesTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.ToolsTableModel import ToolsTableModel
 from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.Navigator.Model.ROIs import ROI, ROIs
 from NaviNIBS.Navigator.Model.Samples import Sample, Samples
 from NaviNIBS.Navigator.Model.Targets import Target, Targets
 from NaviNIBS.Navigator.Model.Tools import Tool, Tools
@@ -92,6 +94,10 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         assert self._model is None
         self._session = newSes
         self._onSessionSet()
+
+    @property
+    def model(self):
+        return self._model
 
     def _onSessionSet(self):
         self._model = self._Model(session=self._session)
@@ -255,6 +261,14 @@ class FullTargetsTableWidget(CollectionTableWidget[str, Target, Targets, FullTar
 @attrs.define
 class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTableModel]):
     _Model: tp.Callable[[Session], TargetsTableModel] = TargetsTableModel
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+
+@attrs.define
+class ROIsTableWidget(CollectionTableWidget[str, ROI, ROIs, ROIsTableModel]):
+    _Model: tp.Callable[[Session], ROIsTableModel] = ROIsTableModel
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()

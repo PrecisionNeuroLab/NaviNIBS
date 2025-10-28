@@ -12,6 +12,7 @@ import typing as tp
 
 from .NavigationView import NavigationView, TargetingCrosshairsView, SinglePlotterNavigationView
 from NaviNIBS.Navigator.TargetingCoordinator import TargetingCoordinator
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import ROIsTableWidget
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import SamplesTableWidget
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetsTableWidget
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget

@@ -22,6 +22,7 @@ from NaviNIBS.Navigator.Model.MiscSettings import MiscSettings
 from NaviNIBS.Navigator.Model.MRI import MRI
 from NaviNIBS.Navigator.Model.HeadModel import HeadModel
 from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
+from NaviNIBS.Navigator.Model.ROIs import ROIs, ROI
 from NaviNIBS.Navigator.Model.Targets import Targets, Target
 from NaviNIBS.Navigator.Model.Samples import Samples, Sample
 from NaviNIBS.Navigator.Model.SubjectRegistration import SubjectRegistration, Fiducial
@@ -55,6 +56,7 @@ class Session:
     _MRI: MRI = attrs.field(factory=MRI)
     _headModel: HeadModel = attrs.field(factory=HeadModel)
     _coordinateSystems: CoordinateSystems = attrs.field(factory=CoordinateSystems)
+    _ROIs: ROIs = attrs.field(factory=ROIs)
     _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     _targets: Targets = attrs.field(factory=Targets)
     _tools: Tools = attrs.field(default=None)
@@ -105,6 +107,7 @@ class Session:
         self.MRI.sigManualClimChanged.connect(lambda *args: self.flagKeyAsDirty('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
         self.headModel.sigTransformChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
+        self.ROIs.sigItemsChanged.connect(lambda roiKeys, attribKeys: self.flagKeyAsDirty('ROIs'))
         self.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
@@ -126,6 +129,7 @@ class Session:
 
         self.coordinateSystems.session = self
         self.targets.session = self
+        self.ROIs.session = self
 
         # TODO
 
@@ -175,6 +179,11 @@ class Session:
     @property
     def coordinateSystems(self):
         return self._coordinateSystems
+
+    @property
+    def ROIs(self):
+        return self._ROIs
+
 
     @property
     def digitizedLocations(self):
@@ -341,6 +350,8 @@ class Session:
         saveConfigPartToFileIfNeeded('headModel', lambda: self.headModel.asDict(filepathRelTo=otherPathsRelTo))
 
         saveConfigPartToFileIfNeeded('coordinateSystems', lambda: self.coordinateSystems.asList())
+
+        saveConfigPartToFileIfNeeded('ROIs', lambda: self.ROIs.asList())
 
         saveConfigPartToFileIfNeeded('digitizedLocations', lambda: self.digitizedLocations.asList())
 
@@ -608,6 +619,11 @@ class Session:
             configFilename_coordinateSystems = config['coordinateSystems']
             with open(os.path.join(unpackedSessionDir, configFilename_coordinateSystems), 'r') as f:
                 kwargs['coordinateSystems'] = CoordinateSystems.fromList(json.load(f))
+
+        if 'ROIs' in config:
+            configFilename_ROIs = config['ROIs']
+            with open(os.path.join(unpackedSessionDir, configFilename_ROIs), 'r') as f:
+                kwargs['ROIs'] = ROIs.fromList(json.load(f))
 
         if 'digitizedLocations' in config:
             configFilename_digitizedLocations = config['digitizedLocations']

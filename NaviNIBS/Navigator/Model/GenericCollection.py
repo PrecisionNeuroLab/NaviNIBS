@@ -261,5 +261,221 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
         raise NotImplementedError('Should be implemented by subclass')
 
 
-
 C = tp.TypeVar('C', bound=GenericCollection)  # collection type
+
+
+@attrs.define(slots=False, eq=False)
+class GenericListItem(ABC):
+    """
+    List item that does not track its index. When signalling changes, the item should emit itself
+    as the first argument so collections can determine the current index (via list.index(item)).
+    """
+    sigItemAboutToChange: Signal[tp.Self, list[str] | None] = attrs.field(init=False, repr=False, eq=False, factory=Signal)
+    """
+    Emits (item, optional list of attribute keys about to change). If second arg is None, assume all attributes.
+    """
+
+    sigItemChanged: Signal[tp.Self, list[str] | None] = attrs.field(init=False, repr=False, eq=False, factory=Signal)
+    """
+    Emits (item, optional list of changed attribute keys). If second arg is None, assume all attributes.
+    """
+
+    def __attrs_post_init__(self):
+        pass
+
+    def asDict(self) -> dict[str, tp.Any]:
+        return attrsAsDict(self)
+
+    @classmethod
+    def fromDict(cls, d: dict[str, tp.Any]):
+        return cls(**d)
+
+
+LI = tp.TypeVar('LI', bound=GenericListItem)  # list item type
+
+
+@attrs.define(slots=False)
+class GenericList(ABC, tp.Generic[LI]):
+    """
+    Ordered list-based collection with signaling. Items are addressed by integer indices.
+    Items themselves do not track index; they should emit signals in the form (item, attribKeys).
+    """
+    _items: list[LI] = attrs.field(factory=list)
+
+    sigItemsAboutToChange: Signal[set[LI], list[str] | None] = attrs.field(init=False, eq=False, factory=Signal, repr=False)
+    sigItemsChanged: Signal[set[LI], list[str] | None] = attrs.field(init=False, eq=False, factory=Signal, repr=False)
+    """
+    These signals include set of collection items about to change / changed, and optionally a list of
+    keys of attributes about to change / changed;  if second arg is None, all attributes should be assumed to
+    be changing / changed.
+    
+    Not emitted when only index changes.
+    """
+
+    sigItemIndicesAboutToChange: Signal[set[LI]] = attrs.field(init=False, eq=False, factory=lambda: Signal((set[int],)), repr=False)
+    sigItemIndicesChanged: Signal[set[LI]] = attrs.field(init=False, eq=False, factory=lambda: Signal((set[int],)), repr=False)
+    """
+    Emitted when items change (e.g. via insertion/deletion/reordering).
+    """
+
+    def __attrs_post_init__(self):
+        for item in self._items:
+            item.sigItemAboutToChange.connect(self._onItemAboutToChange)
+            item.sigItemChanged.connect(self._onItemChanged)
+
+    def append(self, item: LI):
+        assert item not in self._items, 'Item already present in list'
+        newIndex = len(self._items)
+        self.sigItemIndicesAboutToChange.emit({item})
+        self.sigItemsAboutToChange.emit({item}, None)
+        self._items.append(item)
+        item.sigItemAboutToChange.connect(self._onItemAboutToChange)
+        item.sigItemChanged.connect(self._onItemChanged)
+        self.sigItemsChanged.emit({item}, None)
+        self.sigItemIndicesChanged.emit({item})
+
+    def insert(self, index: int, item: LI):
+        assert item not in self._items, 'Item already present in list'
+        assert 0 <= index <= len(self._items)
+        laterIndices = [idx for idx in range(len(self._items)) if idx >= index]
+        itemsChangingIndex = {self._items[idx] for idx in laterIndices} | {item}
+        self.sigItemIndicesAboutToChange.emit(itemsChangingIndex)
+        self.sigItemsAboutToChange.emit({item}, None)
+        self._items.insert(index, item)
+        item.sigItemAboutToChange.connect(self._onItemAboutToChange)
+        item.sigItemChanged.connect(self._onItemChanged)
+        self.sigItemsChanged.emit({item}, None)
+        self.sigItemIndicesChanged.emit(itemsChangingIndex)
+
+    def deleteItem(self, index: int):
+        self.deleteItems([index])
+
+    def deleteItems(self, indices: list[int]):
+        # ensure valid and unique, remove highest indices first to preserve remaining indices
+        assert all(0 <= idx < len(self._items) for idx in indices)
+        indices = sorted(set(indices), reverse=True)
+        laterIndices = [idx for idx in range(len(self._items)) if idx not in indices and idx > indices[-1]]
+        logger.info(f'Deleting indices {indices}')
+        itemsDeleting = {self._items[idx] for idx in indices}
+        itemsChangingIndex = {self._items[idx] for idx in indices + laterIndices}
+        self.sigItemIndicesAboutToChange.emit(itemsChangingIndex)
+        self.sigItemsAboutToChange.emit(itemsDeleting, None)
+        for idx in indices:
+            item = self._items[idx]
+            item.sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+            item.sigItemChanged.disconnect(self._onItemChanged)
+            del self._items[idx]
+        # update nothing on items themselves (they don't track index)
+        self.sigItemsChanged.emit(itemsDeleting, None)
+        self.sigItemIndicesChanged.emit(itemsChangingIndex)
+
+    def setItem(self, item: LI, index: tp.Optional[int] = None):
+        """
+        If index is None, append item (same as addItem). If index is provided, replace or insert at that position.
+        """
+        if index is None or index == len(self._items):
+            self.append(item)
+            return
+        assert 0 <= index < len(self._items)
+        oldItem = self._items[index]
+        try:
+            prevIndex = self._items.index(item)
+        except ValueError:
+            prevIndex = None
+        else:
+            if prevIndex != index:
+                raise ValueError('Item already present in list at different index')
+            else:
+                logger.debug('Setting item at same index where it already exists; no action taken')
+                return
+        itemsChanging = {item, oldItem}
+        self.sigItemIndicesAboutToChange.emit(itemsChanging)
+        self.sigItemsAboutToChange.emit(itemsChanging, None)
+        old = self._items[index]
+        old.sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+        old.sigItemChanged.disconnect(self._onItemChanged)
+        self._items[index] = item
+        item.sigItemAboutToChange.connect(self._onItemAboutToChange)
+        item.sigItemChanged.connect(self._onItemChanged)
+        self.sigItemsChanged.emit(itemsChanging, None)
+        self.sigItemIndicesChanged.emit(itemsChanging)
+
+    def setItems(self, items: list[LI]):
+        itemsChanging = set(self._items) | set(items)
+        self.sigItemIndicesAboutToChange.emit(itemsChanging)
+        self.sigItemsAboutToChange.emit(itemsChanging, None)
+        for itm in self._items:
+            itm.sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+            itm.sigItemChanged.disconnect(self._onItemChanged)
+        self._items = items
+        for itm in self._items:
+            itm.sigItemAboutToChange.connect(self._onItemAboutToChange)
+            itm.sigItemChanged.connect(self._onItemChanged)
+        self.sigItemsChanged.emit(itemsChanging, None)
+        self.sigItemIndicesChanged.emit(itemsChanging)
+
+    def setAttribForItems(self, indices: Sequence[int], attribsAndValues: dict[str, Sequence[tp.Any]]) -> None:
+        for attrib, values in attribsAndValues.items():
+            assert len(values) == len(indices)
+
+        changingIndices = list()
+        changingAttribsAndValues = dict()
+        for iIdx, idx in enumerate(indices):
+            for attrib, values in attribsAndValues.items():
+                if not array_equalish(getattr(self._items[idx], attrib), values[iIdx]):
+                    changingIndices.append(idx)
+                    if attrib not in changingAttribsAndValues:
+                        changingAttribsAndValues[attrib] = list()
+                    changingAttribsAndValues[attrib].append(values[iIdx])
+                    break
+
+        if len(changingIndices) == 0:
+            return
+
+        itemsChanging = {self._items[idx] for idx in changingIndices}
+
+        self.sigItemsAboutToChange.emit(itemsChanging, list(changingAttribsAndValues.keys()))
+        with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
+            for iIdx, idx in enumerate(changingIndices):
+                for attrib, values in changingAttribsAndValues.items():
+                    setattr(self._items[idx], attrib, values[iIdx])
+        self.sigItemsChanged.emit(itemsChanging, list(changingAttribsAndValues.keys()))
+
+    def _onItemAboutToChange(self, item: LI, attribKeys: tp.Optional[list[str]] = None):
+        # resolve current index of the item and emit collection-level signal
+        try:
+            idx = self._items.index(item)
+        except ValueError:
+            # item no longer present
+            return
+        self.sigItemsAboutToChange.emit({item}, attribKeys)
+
+    def _onItemChanged(self, item: LI, attribKeys: tp.Optional[list[str]] = None):
+        try:
+            idx = self._items.index(item)
+        except ValueError:
+            return
+        self.sigItemsChanged.emit({item}, attribKeys)
+
+    def __getitem__(self, index: int) -> LI:
+        return self._items[index]
+
+    def __setitem__(self, index: int, item: LI):
+        # place item at given index
+        self.setItem(item=item, index=index)
+
+    def __iter__(self) -> tp.Iterator[LI]:
+        return self._items.__iter__()
+
+    def __len__(self):
+        return len(self._items)
+
+    def index(self, item: LI) -> int:
+        return self._items.index(item)
+
+    def asList(self) -> list[dict[str, tp.Any]]:
+        return [item.asDict() for item in self._items]
+
+    @classmethod
+    def fromList(cls: tp.Type[GenericList[LI]], itemList: list[dict[str, tp.Any]]) -> GenericList[LI]:
+        raise NotImplementedError('Should be implemented by subclass')

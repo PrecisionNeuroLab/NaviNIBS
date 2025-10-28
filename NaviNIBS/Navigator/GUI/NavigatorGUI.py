@@ -25,6 +25,7 @@ from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainV
 from NaviNIBS.Navigator.GUI.ViewPanels.ManageSessionPanel import ManageSessionPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.MRIPanel import MRIPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.HeadModelPanel import HeadModelPanel
+from NaviNIBS.Navigator.GUI.ViewPanels.ROIsPanel import ROIsPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.FiducialsPanel import FiducialsPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.TargetsPanel import TargetsPanel
 from NaviNIBS.Navigator.GUI.ViewPanels.ToolsPanel import ToolsPanel
@@ -93,6 +94,8 @@ class NavigatorGUI(RunnableAsApp):
         self._addViewPanel(MRIPanel(session=self._session))
 
         self._addViewPanel(HeadModelPanel(session=self._session))
+
+        self._addViewPanel(ROIsPanel(session=self._session))
 
         self._addViewPanel(FiducialsPanel(session=self._session))
 
@@ -409,6 +412,10 @@ class NavigatorGUI(RunnableAsApp):
     @property
     def headModelPanel(self) -> HeadModelPanel:
         return self._mainViewPanels['Set head model']
+
+    @property
+    def roisPanel(self) -> ROIsPanel:
+        return self._mainViewPanels['Set ROIs']
 
     @property
     def planFiducialsPanel(self) -> FiducialsPanel:
