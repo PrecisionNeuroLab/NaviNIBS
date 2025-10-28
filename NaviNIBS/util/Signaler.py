@@ -39,9 +39,18 @@ class Signal(tp.Generic[*ET]):
 
         self._connections[priority].add(fn)
 
-    def disconnect(self, fn: Connection):
-        for connectionSet in self._connections.values():
-            connectionSet.remove(fn)
+    def disconnect(self, fn: Connection) -> int:
+        removedAtPriority = None
+        for priority, connectionSet in self._connections.items():
+            try:
+                connectionSet.remove(fn)
+            except KeyError:
+                pass
+            else:
+                removedAtPriority = priority
+                break
+        if removedAtPriority is None:
+            raise ValueError(f'Function {fn} not connected to signal')
 
     @property
     def isBlocked(self):
@@ -85,8 +94,8 @@ class Signal(tp.Generic[*ET]):
     @contextlib.contextmanager
     def disconnected(self, fn: Connection):
         assert any(fn in connectionSet for connectionSet in self._connections.values())
-        self.disconnect(fn)
+        priority = self.disconnect(fn)
         try:
             yield None
         finally:
-            self.connect(fn)
+            self.connect(fn, priority=priority)
