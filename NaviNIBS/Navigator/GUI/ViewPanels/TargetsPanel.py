@@ -556,6 +556,9 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                                 visualizedTarget = self._targetActors.pop(viewKey + key)
                                 visualizedTarget.clearActors()
                         else:
+                            if viewKey + key in self._targetActors:
+                                visualizedTarget = self._targetActors.pop(viewKey + key)
+                                visualizedTarget.clearActors()
                             if target.isVisible:
                                 self._createVisualForTarget(viewKey=viewKey, target=target)
 
