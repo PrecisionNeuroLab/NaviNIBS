@@ -59,8 +59,8 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
 
         self._editableColumns.extend(['key', 'alignmentWeight'])
 
-        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=-2)
+        self._collection.sigItemsChanged.connect(self._onCollectionChanged, priority=2)
 
         super().__attrs_post_init__()
 
@@ -139,8 +139,8 @@ class PlanningFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiducial]
         # TODO: make XYZ coord field editable too
         # (just need to implement support for editable derived fields in CollectionTableModel)
 
-        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=-2)
+        self._collection.sigItemsChanged.connect(self._onCollectionChanged, priority=2)
 
         self._addNewRowFromEditedPlaceholder = self.__addNewRowFromEditedPlaceholder
 

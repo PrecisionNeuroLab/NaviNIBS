@@ -50,8 +50,8 @@ class DigitizedLocationsTableModel(CollectionTableModel[str, DigitizedLocations,
 
         self._editableColumns.extend(['key', 'type'])
 
-        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=-2)
+        self._collection.sigItemsChanged.connect(self._onCollectionChanged, priority=2)
 
         self._addNewRowFromEditedPlaceholder = self.__addNewRowFromEditedPlaceholder
 

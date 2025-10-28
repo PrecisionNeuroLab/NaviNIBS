@@ -38,8 +38,8 @@ class ToolsTableModel(CollectionTableModel[int, Tools, Tool]):
 
         self._editableColumns = self._boolColumns.copy()
 
-        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange)
-        self._collection.sigItemsChanged.connect(self._onCollectionChanged)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=-2)
+        self._collection.sigItemsChanged.connect(self._onCollectionChanged, priority=2)
 
         super().__attrs_post_init__()
 

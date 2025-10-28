@@ -46,7 +46,7 @@ class ROIsTableModel(CollectionTableModel[str, ROIs, ROI]):
             key=lambda _, oldKey, newKey: len(newKey) > 0 and (oldKey == newKey or newKey not in self._session.ROIs),  # don't allow setting one ROI to key of another
         )
 
-        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=2)
+        self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=-2)
         self._collection.sigItemsChanged.connect(self._onCollectionChanged, priority=2)
 
         super().__attrs_post_init__()
