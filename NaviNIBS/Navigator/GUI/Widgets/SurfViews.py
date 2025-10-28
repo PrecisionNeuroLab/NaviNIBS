@@ -212,6 +212,24 @@ class Surf3DView(SurfSliceView):
 
         super().__attrs_post_init__()
 
+    @property
+    def pickableSurfs(self):
+        return self._pickableSurfs if self._pickableSurfs is not None else [self._activeSurf]
+
+    @pickableSurfs.setter
+    def pickableSurfs(self, newPickableSurfs: list[str] | None):
+        if self._pickableSurfs == newPickableSurfs:
+            return
+        self._pickableSurfs = newPickableSurfs
+
+        if self._surfPlotInitialized:
+            pickableActors = []
+            for surfKey in self.pickableSurfs:
+                actorName = self.label + '_' + surfKey + '_surf'
+                if actorName in self._surfPlotActors:
+                    pickableActors.append(self._surfPlotActors[actorName])
+            self.plotter.pickable_actors = pickableActors
+
     def _updateView(self):
 
         if not self.finishedAsyncInit.is_set():
@@ -239,11 +257,12 @@ class Surf3DView(SurfSliceView):
 
         if not self._surfPlotInitialized and self.session is not None:
 
-            if not self._plotterPickerInitialized:
+            if not self._plotterPickerInitialized \
+                    and self._doEnablePicking and len(self.pickableSurfs) > 0:
                 self.plotter.enable_parallel_projection()
                 self.plotter.enable_point_picking(show_message=False,
                                                   show_point=False,
-                                                  pickable_window=True,
+                                                  pickable_window=False,
                                                   callback=lambda newPt: self._onSlicePointChanged())
                 if isinstance(self.plotter, RemotePlotterProxy):
                     pass  # TODO: enable right button press response for remote plotter
@@ -266,6 +285,7 @@ class Surf3DView(SurfSliceView):
             else:
                 surfOpacities = self._surfOpacity
 
+            pickableActors = []
             actors = dict()
             for iSurf, surfKey in enumerate(surfKeys):
                 if getattr(self.session.headModel, surfKey) is not None:
@@ -285,8 +305,11 @@ class Surf3DView(SurfSliceView):
                     self._surfPlotInitialized = True
 
                     self.plotter.reset_camera()
+                    if surfKey in self.pickableSurfs:
+                        pickableActors.append(actor)
 
             self._surfPlotActors |= actors
+            self._plotter.pickable_actors = pickableActors
 
         if self._doShowCrosshairs:
             logger.debug('Setting crosshairs for {} plot'.format(self.label))
