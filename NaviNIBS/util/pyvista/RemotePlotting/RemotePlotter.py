@@ -114,6 +114,13 @@ class RemotePlotManagerBase:
                 assert len(msg) == 4 and len(msg[2]) == 0 and len(msg[3]) == 0
                 return getattr(self._plotter, msg[1])
 
+            case 'plotterSet':
+                assert isinstance(msg[1], str)  # attribute name
+                assert len(msg) == 4
+                assert len(msg[2]) == 1  # args
+                assert len(msg[3]) == 0  # kwargs
+                return self._callMethod(setattr, [self._plotter, msg[1], msg[2][0]], {})
+
             case 'callPlotterMethod':
                 return self._callPlotMethod(msg[1:])
 
@@ -204,7 +211,7 @@ class RemotePlotManagerBase:
         """
         assert self._plotter is not None
         fn = getattr
-        args = (self._plotter, key)
+        args = [self._plotter, key]
         self._callMethod(fn, args, {})
         return
 
@@ -255,16 +262,19 @@ class RemotePlotManagerBase:
     def _callMethod(self, fn, args, kwargs):
         logger.debug(f'calling method {fn} {args} {kwargs}')
         # convert any obvious ActorRefs to Actors, PolyDataRefs to PolyData
+        def convertArgIfNeeded(arg):
+            if isinstance(arg, ActorRef):
+                return self._actorManager.getActor(arg)
+            elif isinstance(arg, PolyDataRef):
+                return self._polyDataManager.getPolyData(arg)
+            elif isinstance(arg, list):
+                return [convertArgIfNeeded(subarg) for subarg in arg]
+            else:
+                return arg
         for iArg in range(len(args)):
-            if isinstance(args[iArg], ActorRef):
-                args[iArg] = self._actorManager.getActor(args[iArg])
-            elif isinstance(args[iArg], PolyDataRef):
-                args[iArg] = self._polyDataManager.getPolyData(args[iArg])
+            args[iArg] = convertArgIfNeeded(args[iArg])
         for key in kwargs:
-            if isinstance(kwargs[key], ActorRef):
-                kwargs[key] = self._actorManager.getActor(kwargs[key])
-            elif isinstance(kwargs[key], PolyDataRef):
-                kwargs[key] = self._polyDataManager.getPolyData(kwargs[key])
+            kwargs[key] = convertArgIfNeeded(kwargs[key])
 
         # convert any callback keys in kwargs to callbacks
         if 'callback' in kwargs:

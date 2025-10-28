@@ -222,6 +222,14 @@ class RemotePlotterProxyBase:
         return self._remotePlotterGet('picked_point')
 
     @property
+    def pickable_actors(self):
+        return self._remotePlotterGet('pickable_actors')
+
+    @pickable_actors.setter
+    def pickable_actors(self, actors: tp.Iterable[str | RemoteActorProxy] | None):
+        self._remotePlotterSet('pickable_actors', actors)
+
+    @property
     def camera(self):
         if self._camera is None:
             self._remoteQueryProperty('camera')
@@ -273,12 +281,18 @@ class RemotePlotterProxyBase:
 
         args = list(args)
 
+        def convertArgIfNeeded(arg):
+            if isinstance(arg, RemoteActorProxy):
+                return ActorRef(actorID=arg.actorID)
+            elif isinstance(arg, RemotePolyDataProxy):
+                return PolyDataRef(id=arg.ref.id)
+            elif isinstance(arg, list):
+                return [convertArgIfNeeded(subarg) for subarg in arg]
+            else:
+                return arg
+
         for iArg in range(len(args)):
-            if isinstance(args[iArg], RemoteActorProxy):
-                # convert from RemoteActor to ActorRef
-                args[iArg] = ActorRef(actorID=args[iArg].actorID)
-            elif isinstance(args[iArg], RemotePolyDataProxy):
-                args[iArg] = PolyDataRef(id=args[iArg].ref.id)
+            args[iArg] = convertArgIfNeeded(args[iArg])
 
         if 'callback' in kwargs:
             # convert from callback function to key matching new entry
@@ -288,10 +302,7 @@ class RemotePlotterProxyBase:
             kwargs['callback'] = callbackKey
 
         for key in kwargs:
-            if isinstance(kwargs[key], RemoteActorProxy):
-                kwargs[key] = ActorRef(actorID=kwargs[key].actorID)
-            elif isinstance(kwargs[key], RemotePolyDataProxy):
-                kwargs[key] = PolyDataRef(id=kwargs[key].ref.id)
+            kwargs[key] = convertArgIfNeeded(kwargs[key])
 
         if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData) and hasattr(kwargs['mesh'], '_obbTree'):
             # clear un-pickleable obbTree field
@@ -353,6 +364,9 @@ class RemotePlotterProxyBase:
 
     def _remotePlotterGet(self, key: str):
         return self._remoteCall('plotterGet', key)
+
+    def _remotePlotterSet(self, key: str, value):
+        return self._remoteCall('plotterSet', key, (value,))
 
     def _remoteActorCall(self, actor: RemoteActorProxy, fnStr, *args, **kwargs):
         actorRef = ActorRef(actorID=actor.actorID)
@@ -453,6 +467,9 @@ class RemotePlotterProxyBase:
 
     def enable_point_picking(self, *args, **kwargs):
         self._remotePlotterCall('enable_point_picking', *args, **kwargs)
+
+    def disable_picking(self, *args, **kwargs):
+        self._remotePlotterCall('disable_picking', *args, **kwargs)
 
     def enable_image_style(self, *args, **kwargs):
         self._remotePlotterCall('enable_image_style', *args, **kwargs)
