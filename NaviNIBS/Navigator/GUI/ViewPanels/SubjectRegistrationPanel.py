@@ -680,7 +680,7 @@ class SubjectRegistrationPanel(MainViewPanel):
                                   existingStrs=self.session.subjectRegistration.fiducials.keys(),
                                   delimiter='')
 
-        logger.info(f'Creating new fiducial {newFidKey} from current pointer position')
+        logger.info(f'Creating new fiducial {newFidKey} from current pointer position: {sampledCoord}; {plannedCoord}')
 
         self.session.subjectRegistration.fiducials.addItem(
             Fiducial(

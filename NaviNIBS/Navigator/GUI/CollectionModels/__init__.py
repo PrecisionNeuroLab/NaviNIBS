@@ -32,7 +32,7 @@ class CollectionTableModelBase(tp.Generic[K, C, CI]):
 class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractTableModel):
     _columns: list[str] = attrs.field(factory=list)
     _attrColumns: list[str] = attrs.field(factory=list)
-    _derivedColumns: dict[str, tp.Callable[[K], tp.Any]] = attrs.field(factory=dict)
+    _derivedColumns: dict[str, tp.Callable[[K], str | tuple[QtGui.QIcon | None, str]]] = attrs.field(factory=dict)
     """
     Mapping from column key to function which generates derived value for given key/index
     """

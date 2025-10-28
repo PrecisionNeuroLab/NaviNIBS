@@ -198,7 +198,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                             diffuse=0.5,
                                                             ambient=0.5,
                                                             #smooth_shading=True,  # disabled since this breaks scalar value updates later
-                                                            split_sharp_edges=True,
+                                                            #split_sharp_edges=True,
                                                             name=actorKey)
 
             #self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
@@ -266,7 +266,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                                diffuse=0.5,
                                                                ambient=0.5,
                                                                # smooth_shading=True,  # disabled since this breaks scalar value updates later
-                                                               split_sharp_edges=True,
+                                                               # split_sharp_edges=True,
                                                                name=actorKey)
 
                 with self._plotter.allowNonblockingCalls():
