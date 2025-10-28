@@ -49,7 +49,7 @@ class SurfSliceView(MRISliceView):
     _surfColor: tp.Union[str, tp.List[str]] = '#d9a5b2'
     _surfOpacity: tp.Union[float, tp.List[float]] = 0.5
     _surfPlotInitialized: bool = attrs.field(init=False, default=False)
-    _surfPlotActors: list[Actor] = attrs.field(init=False, factory=list)
+    _surfPlotActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
 
@@ -120,6 +120,10 @@ class SurfSliceView(MRISliceView):
         self._activeSurf = newKey
         self._onHeadModelDataChanged(whatChanged=self._activeSurf)
 
+    @property
+    def surfColor(self):
+        return self._surfColor
+
     def _clearPlot(self):
         self._clearSurfPlotActors()
         super()._clearPlot()
@@ -128,7 +132,7 @@ class SurfSliceView(MRISliceView):
         if not self._surfPlotInitialized:
             return
         with self._surfPlotter.allowNonblockingCalls():
-            for actor in self._surfPlotActors:
+            for actor in self._surfPlotActors.values():
                 self._surfPlotter.remove_actor(actor)
         self._surfPlotActors.clear()
         self._surfPlotInitialized = False
@@ -166,20 +170,21 @@ class SurfSliceView(MRISliceView):
 
         if not self._surfPlotInitialized \
                 and self.session is not None:
-            actors = []
+            actors = dict()
             for iSurf, surfKey in enumerate(surfKeys):
-                if getattr(self.session.headModel, self._activeSurf) is not None:
+                if getattr(self.session.headModel, surfKey) is not None:
+                    actorName = self.label + '_' + surfKey + '_surf'
                     actor = self._surfPlotter.addMesh(mesh=getattr(self.session.headModel, surfKey),
                                                       defaultMeshColor=surfColors[iSurf % len(surfColors)],
                                                       opacity=surfOpacities[iSurf % len(surfOpacities)],
-                                                      name=self.label + '_' + surfKey + '_surf',
+                                                      name=actorName,
                                                       render=False,
                                                       reset_camera=False)
 
-                    actors.append(actor)
+                    actors[actorName] = actor
                     self._surfPlotInitialized = True
 
-            self._surfPlotActors.extend(actors)
+            self._surfPlotActors |= actors
 
         if self._slicePlotMethod == 'cameraClippedVolume':
             with self._primaryPlotter.allowNonblockingCalls():
@@ -261,28 +266,29 @@ class Surf3DView(SurfSliceView):
             else:
                 surfOpacities = self._surfOpacity
 
-            actors = []
+            actors = dict()
             for iSurf, surfKey in enumerate(surfKeys):
                 if getattr(self.session.headModel, surfKey) is not None:
                     if not self._surfPlotInitialized:
                         logger.debug('Initializing 3D plot')
 
+                    actorName = self.label + '_' + surfKey + '_surf'
                     actor = self._surfPlotter.addMesh(
                         mesh=getattr(self.session.headModel, surfKey),
                         defaultMeshColor=surfColors[iSurf % len(surfColors)],
                         opacity=surfOpacities[iSurf % len(surfOpacities)],
-                        name=self.label + '_' + surfKey + '_surf',
+                        name=actorName,
                         render=False,
                         reset_camera=False)
-                    actors.append(actor)
+                    actors[actorName] = actor
 
                     self._surfPlotInitialized = True
 
                     self.plotter.reset_camera()
 
-            self._surfPlotActors.extend(actors)
+            self._surfPlotActors |= actors
 
-        if True:
+        if self._doShowCrosshairs:
             logger.debug('Setting crosshairs for {} plot'.format(self.label))
             lineLength = 300  # TODO: scale by image size
             crosshairAxes = 'xyz'
@@ -320,13 +326,7 @@ class Surf3DView(SurfSliceView):
 
         if True:
             # ray trace to find point closest to camera
-            if self._pickableSurfs is None:
-                if isinstance(self._activeSurf, str):
-                    surfKeys = [self._activeSurf]
-                else:
-                    surfKeys = self._activeSurf
-            else:
-                surfKeys = self._pickableSurfs
+            surfKeys = self.pickableSurfs
 
             newPos = None
 

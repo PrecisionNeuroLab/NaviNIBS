@@ -29,6 +29,8 @@ class MRISliceView(QueuedRedrawMixin):
 
     _slicePlotMethod: str = 'cameraClippedVolume'
     _doShowScalarBar: bool = False
+    _doShowCrosshairs: bool = True
+    _doEnablePicking: bool = True
 
     _plotter: DefaultBackgroundPlotter = attrs.field(init=False, default=None)
     _plotterInitialized: bool = attrs.field(init=False, default=False)
@@ -36,7 +38,10 @@ class MRISliceView(QueuedRedrawMixin):
     _lineActors: tp.Dict[str, pv.Line] = attrs.field(init=False, factory=dict)
     _volActor: Actor | None = attrs.field(init=False, factory=dict)
 
-    _backgroundColor: str = '#000000'
+    _backgroundColor: str | None = '#000000'
+    """
+    If None, will be autoset
+    """
     _opacity: float = 0.5
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
@@ -64,7 +69,8 @@ class MRISliceView(QueuedRedrawMixin):
             await self._plotter.isReadyEvent.wait()
 
         with self._plotter.allowNonblockingCalls():
-            self._plotter.set_background(self._backgroundColor)
+            if self._backgroundColor is not None:
+                self._plotter.set_background(self._backgroundColor)
             _ = self.plotter.camera  # get camera to get past BasePlotter's reset_camera call
 
         self.finishedAsyncInit.set()
@@ -281,17 +287,18 @@ class MRISliceView(QueuedRedrawMixin):
             logger.debug('Initializing plot for {} slice'.format(self.label))
             with self.plotter.allowNonblockingCalls():
                 self.plotter.enable_parallel_projection()
-                self.plotter.enable_point_picking(left_clicking=True,
-                                                   show_message=False,
-                                                   show_point=False,
-                                                   pickable_window=True,
-                                                   callback=lambda newPt: self._onSlicePointChanged())
+                if self._doEnablePicking:
+                    self.plotter.enable_point_picking(left_clicking=True,
+                                                       show_message=False,
+                                                       show_point=False,
+                                                       pickable_window=True,
+                                                       callback=lambda newPt: self._onSlicePointChanged())
+                    self._plotterPickerInitialized = True
                 self.plotter.enable_image_style()
                 for event in ('MouseWheelForwardEvent', 'MouseWheelBackwardEvent'):
                     self.plotter.addIrenStyleClassObserver(
                         event=event,
                         callback=lambda obj, event: self._onMouseEvent(obj,event))
-            self._plotterPickerInitialized = True
 
         if self._slicePlotMethod == 'slicedSurface':
             # single-slice plot
@@ -348,14 +355,6 @@ class MRISliceView(QueuedRedrawMixin):
         else:
             raise NotImplementedError(f'Unknown slicePlotMethod: {self._slicePlotMethod}')
 
-        logger.debug('Setting crosshairs for {} plot'.format(self.label))
-        lineLength = 300  # TODO: scale by image size
-        if isinstance(self._normal, str):
-            crosshairAxes = 'xyz'.replace(self._normal, '')
-        else:
-            crosshairAxes = 'xy'  # will be transformed below
-        centerGapLength = 10  # TODO: scale by image size
-
         offsetDir = np.zeros((3,))
         if isinstance(self._normal, str):
             offsetDir['xyz'.index(self._normal)] = 1
@@ -364,39 +363,48 @@ class MRISliceView(QueuedRedrawMixin):
         else:
             offsetDir = self._normal @ np.asarray([0, 0, 1])  # TODO: double check
 
-        for axis in crosshairAxes:
-            mask = np.zeros((1, 3))
-            mask[0, 'xyz'.index(axis)] = 1
-            for iDir, dir in enumerate((-1, 0, 1)):
-                if dir == 0:
-                    pts = np.asarray([centerGapLength / 2, -centerGapLength / 2])[:, np.newaxis] * mask
-                    width = 1
-                else:
-                    pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask
-                    width = 2
+        if self._doShowCrosshairs:
+            logger.debug('Setting crosshairs for {} plot'.format(self.label))
+            lineLength = 300  # TODO: scale by image size
+            if isinstance(self._normal, str):
+                crosshairAxes = 'xyz'.replace(self._normal, '')
+            else:
+                crosshairAxes = 'xy'  # will be transformed below
+            centerGapLength = 10  # TODO: scale by image size
 
-                if isinstance(self._normal, str):
-                    pts += self._sliceOrigin
-                else:
-                    viewToWorldTransf = composeTransform(self._normal, self._sliceOrigin)
-                    pts = applyTransform(viewToWorldTransf, pts)
+            for axis in crosshairAxes:
+                mask = np.zeros((1, 3))
+                mask[0, 'xyz'.index(axis)] = 1
+                for iDir, dir in enumerate((-1, 0, 1)):
+                    if dir == 0:
+                        pts = np.asarray([centerGapLength / 2, -centerGapLength / 2])[:, np.newaxis] * mask
+                        width = 1
+                    else:
+                        pts = dir * np.asarray([centerGapLength / 2, lineLength])[:, np.newaxis] * mask
+                        width = 2
 
-                if True:
-                    # add z offset to make sure crosshairs appear above other actors
-                    pts -= offsetDir * (self._cameraOffsetDist * 0.02)
+                    if isinstance(self._normal, str):
+                        pts += self._sliceOrigin
+                    else:
+                        viewToWorldTransf = composeTransform(self._normal, self._sliceOrigin)
+                        pts = applyTransform(viewToWorldTransf, pts)
 
-                lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
-                if not self._plotterInitialized:
-                    line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
-                    with self._plotter.allowNonblockingCalls():
-                        line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
-                    self._lineActors[lineKey] = line
-                else:
-                    with self._plotter.allowNonblockingCalls():
-                        logger.debug('Moving previous crosshairs')
-                        line = self._lineActors[lineKey]
-                        pts_pv = pv.lines_from_points(pts)
-                        line.GetMapper().SetInputData(pts_pv)
+                    if True:
+                        # add z offset to make sure crosshairs appear above other actors
+                        pts -= offsetDir * (self._cameraOffsetDist * 0.02)
+
+                    lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
+                    if not self._plotterInitialized:
+                        line = self._plotter.add_lines(pts, color='#11DD11', width=width, name=lineKey)
+                        with self._plotter.allowNonblockingCalls():
+                            line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
+                        self._lineActors[lineKey] = line
+                    else:
+                        with self._plotter.allowNonblockingCalls():
+                            logger.debug('Moving previous crosshairs')
+                            line = self._lineActors[lineKey]
+                            pts_pv = pv.lines_from_points(pts)
+                            line.GetMapper().SetInputData(pts_pv)
 
 
         if True:
@@ -494,27 +502,28 @@ class MRI3DView(MRISliceView):
                 self.plotter.reset_camera()
                 # self.plotter.camera.zoom('tight')
 
-        logger.debug('Setting crosshairs for {} plot'.format(self.label))
-        lineLength = 300  # TODO: scale by image size
-        crosshairAxes = 'xyz'
-        centerGapLength = 0
-        for axis in crosshairAxes:
-            mask = np.zeros((1, 3))
-            mask[0, 'xyz'.index(axis)] = 1
-            for iDir, dir in enumerate((-1, 1)):
-                pts = dir*np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
-                lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
-                if not self._plotterInitialized:
-                    line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
-                    with self._plotter.allowNonblockingCalls():
-                        line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
-                    self._lineActors[lineKey] = line
-                else:
-                    with self._plotter.allowNonblockingCalls():
-                        logger.debug('Moving previous crosshairs')
-                        line = self._lineActors[lineKey]
-                        pts_pv = pv.lines_from_points(pts)
-                        line.GetMapper().SetInputData(pts_pv)
+        if self._doShowCrosshairs:
+            logger.debug('Setting crosshairs for {} plot'.format(self.label))
+            lineLength = 300  # TODO: scale by image size
+            crosshairAxes = 'xyz'
+            centerGapLength = 0
+            for axis in crosshairAxes:
+                mask = np.zeros((1, 3))
+                mask[0, 'xyz'.index(axis)] = 1
+                for iDir, dir in enumerate((-1, 1)):
+                    pts = dir*np.asarray([centerGapLength/2, lineLength])[:, np.newaxis] * mask + self._sliceOrigin
+                    lineKey = 'Crosshair_{}_{}_{}'.format(self.label, axis, iDir)
+                    if not self._plotterInitialized:
+                        line = self._plotter.add_lines(pts, color='#11DD11', width=2, name=lineKey)
+                        with self._plotter.allowNonblockingCalls():
+                            line.SetUseBounds(False)  # don't include for determining camera zoom, etc.
+                        self._lineActors[lineKey] = line
+                    else:
+                        with self._plotter.allowNonblockingCalls():
+                            logger.debug('Moving previous crosshairs')
+                            line = self._lineActors[lineKey]
+                            pts_pv = pv.lines_from_points(pts)
+                            line.GetMapper().SetInputData(pts_pv)
 
         self._plotterInitialized = True
 
