@@ -51,6 +51,7 @@ class Signal(tp.Generic[*ET]):
                 break
         if removedAtPriority is None:
             raise ValueError(f'Function {fn} not connected to signal')
+        return removedAtPriority
 
     @property
     def isBlocked(self):
