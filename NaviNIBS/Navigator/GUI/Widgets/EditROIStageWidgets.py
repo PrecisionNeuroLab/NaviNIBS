@@ -47,6 +47,8 @@ class ROIStageWidget(QtWidgets.QGroupBox):
 
     _typeField: QtWidgets.QComboBox = attrs.field(init=False)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
+    _insertStageBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _deleteStageBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     def __init__(self, *args, parent: QtWidgets.QWidget | None = None, **kwargs):
         super().__init__(parent=parent)
@@ -72,6 +74,7 @@ class ROIStageWidget(QtWidgets.QGroupBox):
         btn.clicked.connect(self._onInsertAboveClicked)
         btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         btnLayout.addWidget(btn, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self._insertStageBtn = btn
 
         btn = QtWidgets.QPushButton(getIcon('mdi6.delete'), '')
         btn.setToolTip('Delete stage')
@@ -79,6 +82,7 @@ class ROIStageWidget(QtWidgets.QGroupBox):
         btn.clicked.connect(self._onDeleteClicked)
         btn.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
         btnLayout.addWidget(btn, alignment=QtCore.Qt.AlignmentFlag.AlignRight)
+        self._deleteStageBtn = btn
 
         formLayout = QtWidgets.QFormLayout()
         self._formLayout = formLayout

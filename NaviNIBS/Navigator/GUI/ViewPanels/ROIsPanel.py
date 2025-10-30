@@ -76,6 +76,12 @@ class VisualizedROI:
         elif isinstance(self._roi, ROIs.PipelineROI):
             if 'output' in changedAttrs or 'stages' in changedAttrs:
                 newOutput = self._roi.getOutput()
+
+                if newOutput is None:
+                    # pipeline ROI has no output, clear existing visualization
+                    self.clear()
+                    return
+
                 if not isinstance(newOutput, ROIs.SurfaceMeshROI):
                     raise NotImplementedError(f'Visualization for ROI type {type(newOutput)} not implemented')
                 if newOutput.meshKey != self._meshKey:
@@ -215,6 +221,9 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.map'))
     _tableWdgt: ROIsTableWidget = attrs.field(init=False)
     _surfView: Surf3DView = attrs.field(init=False)
+    _addBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _deleteBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _duplicateBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _editROIWdgt: EditROIWidget = attrs.field(init=False)
     _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
     _enabledOnlyWhenROISelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
@@ -288,16 +297,19 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         btn = QtWidgets.QPushButton('Add ROI')
         btn.clicked.connect(self._onAddBtnClicked)
         btnContainer.layout().addWidget(btn, 1, 0)
+        self._addBtn = btn
 
         btn = QtWidgets.QPushButton('Delete ROI')
         btn.clicked.connect(self._onDeleteBtnClicked)
         btnContainer.layout().addWidget(btn, 1, 1)
         self._enabledOnlyWhenROISelected.append(btn)
+        self._deleteBtn = btn
 
         btn = QtWidgets.QPushButton('Duplicate ROI')
         btn.clicked.connect(self._onDuplicateBtnClicked)
         btnContainer.layout().addWidget(btn, 2, 0)
         self._enabledOnlyWhenROISelected.append(btn)
+        self._duplicateBtn = btn
 
         self._tableWdgt = ROIsTableWidget()
         self._tableWdgt.sigCurrentItemChanged.connect(self._onCurrentROIChanged)

@@ -63,6 +63,7 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
     _innerLayout: QtWidgets.QVBoxLayout = attrs.field(init=False)
 
     _stageWidgets: list[StageWidgets.ROIStageWidget] = attrs.field(factory=list, init=False)
+    _addStageBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -82,6 +83,7 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
         btn = QtWidgets.QPushButton(getIcon('mdi6.plus'), 'Add Stage')
         innerLayout.addWidget(btn)
         btn.clicked.connect(self._onAddStageClicked)
+        self._addStageBtn = btn
 
         self._roi.stages.sigItemsChanged.connect(self._onStagesChanged)
 
