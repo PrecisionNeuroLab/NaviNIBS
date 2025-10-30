@@ -71,9 +71,11 @@ class ROIsTableModel(CollectionTableModel[str, ROIs, ROI]):
 
     def _onCollectionAboutToChange(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]] = None):
         if attrKeys is not None:
-            if 'output' in attrKeys:
-                # not reflected in table model, and nested change signals cause issues if not excluded here
-                attrKeys.remove('output')
+            attrKeys = attrKeys.copy()
+            for var in ('output', 'stages'):
+                if var  in attrKeys:
+                    # not reflected in table model, and nested change signals cause issues if not excluded here
+                    attrKeys.remove(var)
 
             if len(attrKeys) == 0:
                 return
@@ -82,9 +84,11 @@ class ROIsTableModel(CollectionTableModel[str, ROIs, ROI]):
 
     def _onCollectionChanged(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]] = None):
         if attrKeys is not None:
-            if 'output' in attrKeys:
-                # not reflected in table model, and nested change signals cause issues if not excluded here
-                attrKeys.remove('output')
+            attrKeys = attrKeys.copy()
+            for var in ('output', 'stages'):
+                if var  in attrKeys:
+                    # not reflected in table model, and nested change signals cause issues if not excluded here
+                    attrKeys.remove(var)
 
             if len(attrKeys) == 0:
                 return

@@ -214,12 +214,18 @@ class AddFromSeedPointStageWidget(ROIStageWidget):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
+        coordContainer = QtWidgets.QWidget()
+        coordLayout = QtWidgets.QHBoxLayout()
+        coordLayout.setContentsMargins(0, 0, 0, 0)
+        coordContainer.setLayout(coordLayout)
+
         self._seedCoordField = QtWidgets.QLabel()
-        self._formLayout.addRow('Seed point:', self._seedCoordField)
+        coordLayout.addWidget(self._seedCoordField)
+        self._formLayout.addRow('Seed point:', coordContainer)
 
         self._selectSeedBtn = QtWidgets.QPushButton('Select...')
         self._selectSeedBtn.clicked.connect(self._onSelectSeedBtnClicked)
-        self._formLayout.addRow('', self._selectSeedBtn)
+        coordLayout.addWidget(self._selectSeedBtn)
 
         btnContainer = QtWidgets.QWidget()
         btnLayout = QtWidgets.QHBoxLayout()

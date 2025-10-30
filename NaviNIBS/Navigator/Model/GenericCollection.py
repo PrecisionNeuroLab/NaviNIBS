@@ -460,9 +460,15 @@ class GenericList(ABC, tp.Generic[LI]):
     def __getitem__(self, index: int) -> LI:
         return self._items[index]
 
-    def __setitem__(self, index: int, item: LI):
-        # place item at given index
-        self.setItem(item=item, index=index)
+    def __setitem__(self, index: int | slice, item: LI | list[LI]):
+        if isinstance(index, slice):
+            assert isinstance(item, list)
+            items = self._items.copy()
+            items[index] = item
+            self.setItems(items)
+        else:
+            # place item at given index
+            self.setItem(item=item, index=index)
 
     def __iter__(self) -> tp.Iterator[LI]:
         return self._items.__iter__()

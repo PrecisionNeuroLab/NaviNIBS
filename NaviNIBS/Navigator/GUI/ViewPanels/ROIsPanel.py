@@ -110,7 +110,7 @@ class VisualizedROI:
             logger.warning(f'ROI {roi.key} has no meshKey set, cannot visualize')
             return
 
-        if len(roi.meshVertexIndices) == 0:
+        if roi.meshVertexIndices is None or len(roi.meshVertexIndices) == 0:
             # nothing to visualize
             return
 
@@ -189,9 +189,9 @@ class VisualizedROI:
         # TODO: possibly cache this array so that it doesn't need to reallocated with each update
         newRGBA = np.full((self._mesh.n_points, 4), 0, dtype=np.uint8)
 
-        newRGBA[:, 0:3] = rgbaColor[0:3]
-
-        newRGBA[roi.meshVertexIndices, 3] = round(255 * self._opacity)  # set alpha for ROI vertices
+        if roi.meshVertexIndices is not None:
+            newRGBA[:, 0:3] = rgbaColor[0:3]
+            newRGBA[roi.meshVertexIndices, 3] = round(255 * self._opacity)  # set alpha for ROI vertices
 
         # do full assignment rather than subset above to trigger remote observer properly
         self._mesh[self.scalarsKey] = newRGBA
@@ -322,7 +322,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             title='Edit ROI',
             widget=self._editROIWdgt.wdgt,
         )
-        dock.setStretch(2, 10)
+        dock.setStretch(5, 10)
         self._wdgt.addDock(dock, position='right')
         dock_editROI = dock
 
@@ -334,6 +334,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
         # TODO: add GUI control of which mesh surfaces are visible
 
+        container.layout().setContentsMargins(0, 0, 0, 0)
         container.layout().addWidget(self._surfView.wdgt)
 
         if self.session is not None:

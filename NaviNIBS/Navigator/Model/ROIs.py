@@ -52,7 +52,7 @@ class ROIStage(GenericListItem, ABC):
     def _process(self, roiKey: str, inputROI: ROI | None) -> ROI:
         raise NotImplementedError('_process must be implemented in subclasses')
 
-    def process(self, roiKey: str, inputROI: ROI | None) -> ROI:
+    def process(self, roiKey: str, inputROI: ROI | None) -> ROI | None:
         logger.debug(f'Starting ROIStage processing: {self}')
         ROI = self._process(roiKey=roiKey, inputROI=inputROI)
         logger.debug(f'Finished ROIStage processing: {self}')
@@ -68,8 +68,7 @@ class ROIStage(GenericListItem, ABC):
 class PassthroughStage(ROIStage):
     type: ClassVar[str] = 'Passthrough'
 
-    def _process(self, roiKey: str, inputROI: ROI | None) -> ROI:
-        assert inputROI is not None
+    def _process(self, roiKey: str, inputROI: ROI | None) -> ROI | None:
         return inputROI
 
 
@@ -132,6 +131,8 @@ class AddFromSeedPoint(ROIStage):
     @seedPoint.setter
     def seedPoint(self, newSeedPoint: tuple[float, float, float] | None):
         if newSeedPoint is not None:
+            if isinstance(newSeedPoint, np.ndarray):
+                newSeedPoint = newSeedPoint.tolist()
             if not isinstance(newSeedPoint, tuple):
                 newSeedPoint = tuple(newSeedPoint)
 
@@ -172,8 +173,10 @@ class AddFromSeedPoint(ROIStage):
             return inputROI
         assert isinstance(inputROI, SurfaceMeshROI)
         assert inputROI.meshKey is not None
+        if self._session is None:
+            logger.warning('No session available, returning input ROI unchanged')
+            return inputROI
         mesh = getattr(self._session.headModel, inputROI.meshKey)
-
 
         outputROI = inputROI.copy()
         outputROI.session = self._session
@@ -405,6 +408,11 @@ class SurfaceMeshROI(ROI):
         d['type'] = self.type
         return d
 
+class _EmptyCache:
+    pass
+
+_emptyCache = _EmptyCache()
+
 
 @attrs.define(kw_only=True)
 class PipelineROI(ROI):
@@ -452,7 +460,10 @@ class PipelineROI(ROI):
         def fromList(cls, itemList: list[dict[str, tp.Any]], session: Session | None = None) -> PipelineROI.PipelineStages:
             items = []
             for itemDict in itemList:
-                stageType = itemDict.pop('type')
+                try:
+                    stageType = itemDict.pop('type')
+                except KeyError:
+                    raise ValueError('ROIStage dict missing "type" field')
                 if stageType not in cls().stageLibrary:
                     raise ValueError(f'Unknown ROIStage type: {stageType}')
                 StageCls = cls().stageLibrary[stageType]
@@ -460,11 +471,11 @@ class PipelineROI(ROI):
                 itemDict['session'] = session
                 items.append(StageCls.fromDict(itemDict))
 
-            return cls(items=items)
+            return cls(items=items, session=session)
 
     type: ClassVar[str] = 'PipelineROI'
 
-    _cachedOutput: ROI | None = attrs.field(init=False, default=None, repr=False)
+    _cachedOutput: ROI | _EmptyCache = attrs.field(init=False, default=_emptyCache)
 
     _stages: PipelineStages = attrs.field(factory=PipelineStages)
 
@@ -521,13 +532,14 @@ class PipelineROI(ROI):
                 if upThroughStage is not None and iStage == upThroughStage:
                     return ROI
 
-        assert ROI is not None
-
-        # apply some fields from parent to child if not set
-        vars = ['color', 'autoColor']
-        for var in vars:
-            if getattr(ROI, var) is None:
-                setattr(ROI, var, getattr(self, var))
+        if ROI is not None:
+            # apply some fields from parent to child if not set
+            vars = ['color', 'autoColor']
+            for var in vars:
+                if getattr(ROI, var) is None:
+                    setattr(ROI, var, getattr(self, var))
+        else:
+            pass
 
         self._cachedOutput = ROI
 
@@ -540,14 +552,15 @@ class PipelineROI(ROI):
             # since colors are copied to output during processing, need to refresh if they change
             self.clearCache()
 
-    def getOutput(self) -> ROI:
-        if self._cachedOutput is None:
+    def getOutput(self) -> ROI | None:
+        if self._cachedOutput is _emptyCache:
             self.process()
+        assert not self._cachedOutput is _emptyCache
         return self._cachedOutput
 
     def clearCache(self):
         logger.debug(f'Clearing cached output for PipelineROI {self.key}')
-        self._cachedOutput = None
+        self._cachedOutput = _emptyCache
 
     def asDict(self) -> dict[str, tp.Any]:
         d = attrsAsDict(self, exclude=('stages', 'session'))
@@ -603,7 +616,6 @@ class ROIs(GenericCollection[str, ROI]):
 
     @classmethod
     def roiFromDict(cls, roiDict: dict[str, tp.Any]) -> ROI:
-        roiDict = roiDict.copy()
         roiType = roiDict.pop('type')
         match roiType:
             case 'SurfaceMeshROI':
