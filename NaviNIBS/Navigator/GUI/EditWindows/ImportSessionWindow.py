@@ -140,6 +140,11 @@ class SessionTreeModel(QtCore.QAbstractItemModel):
             for key, cs in self._session.coordinateSystems.items():
                 child = SessionTreeItem(label=key, obj=cs, parent=item)
 
+        if len (self._session.ROIs) > 0:
+            item = SessionTreeItem(label='ROIs', obj=None, parent=self._rootItem)
+            for key, roi in self._session.ROIs.items():
+                child = SessionTreeItem(label=key, obj=roi, parent=item)
+
         if len(self._session.subjectRegistration.asDict()) > 0:
             item = SessionTreeItem(label='Subject Registration', obj=None, parent=self._rootItem)
             if len(self._session.subjectRegistration.fiducials) > 0:
@@ -433,6 +438,7 @@ class ImportSessionWindow:
             check_by_label('MRI')
             check_by_label('Head Model')
             check_by_label('Coordinate Systems')
+            check_by_label('ROIs')
             check_by_label(('Subject Registration', 'Planned fiducials'))
             check_by_label('Targets')
             check_by_label('Tools')
@@ -533,6 +539,14 @@ class ImportSessionWindow:
                 coordSys = self.otherSession.coordinateSystems[subitem.label]
                 # TODO: maybe convert from/to dict as intermediate rather than directly copying ref to same instance of coordSys between sessions
                 self.session.coordinateSystems[coordSys.key] = coordSys
+
+        item = self._sessionTreeModel.rootItem.childByLabel('ROIs')
+        if item is not None:
+            for subitem in item.children:
+                if subitem.checked != QtCore.Qt.CheckState.Checked:
+                    continue
+                roi = self.otherSession.ROIs[subitem.label]
+                self.session.ROIs[roi.key] = roi
 
         item = self._sessionTreeModel.rootItem.childByLabel('Subject Registration')
         if item is not None:
