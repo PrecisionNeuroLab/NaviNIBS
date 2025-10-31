@@ -95,9 +95,9 @@ class NavigatorGUI(RunnableAsApp):
 
         self._addViewPanel(HeadModelPanel(session=self._session))
 
-        self._addViewPanel(ROIsPanel(session=self._session))
-
         self._addViewPanel(FiducialsPanel(session=self._session))
+
+        self._addViewPanel(ROIsPanel(session=self._session))
 
         #self._addViewPanel(CoordinateSystemsPanel(session=self._session))
         # TODO: set up transforms widget

@@ -38,14 +38,14 @@ async def test_openSetTargetGridSession(workingDir):
 
 
 @pytest.mark.asyncio
-@pytest.mark.order(after='test_planFiducials.py::test_planFiducials')
+@pytest.mark.order(after='test_ROIs.py::test_setROIs')
 async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
                           targetsDataSourcePath: str,
                           screenshotsDataSourcePath: str):
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'PlanFiducials', 'SetTargets')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetROIs', 'SetTargets')
 
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)

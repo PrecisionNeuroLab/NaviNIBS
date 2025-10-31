@@ -24,6 +24,7 @@ from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTabl
 from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
+from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, refreshROIAutoColors
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
@@ -229,8 +230,10 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-flash-outline'))
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
-    _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
-    _targetActors: tp.Dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
+    _views: dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
+    _3DView: Surf3DView = attrs.field(init=False)
+    _targetActors: dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
+    _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
 
     _editTargetWdgt: EditTargetWidget = attrs.field(init=False)
     _editGridWdgt: EditGridWidget = attrs.field(init=False)
@@ -243,6 +246,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget | EditTargetWidget] = attrs.field(init=False, factory=list)
 
     _redrawTargetKeys: set[str] = attrs.field(init=False, factory=set)
+    _redrawROIKeys: set[str] = attrs.field(init=False, factory=set)
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
@@ -375,6 +379,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                                               pickableSurfs=[self._surfKeys[0]],  # assuming surfKeys are [gm, skin], make only gm pickable
                                               cameraOffsetDist=50,
                                               surfOpacity=[0.8, 0.5])
+                self._3DView = self._views[key]
             else:
                 raise NotImplementedError()
 
@@ -399,6 +404,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                 await view.plotter.isReadyEvent.wait()
 
         self._onTargetsChanged()
+
+        self._onROIsChanged()
 
         self.finishedAsyncInit.set()
 
@@ -429,6 +436,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
     def _onPanelInitializedAndSessionSet(self):
         self.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
+        self.session.ROIs.sigItemsChanged.connect(self._onROIsChanged)
         self._tableWdgt.session = self.session
 
         for key, view in self._views.items():
@@ -525,6 +533,56 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             self._redrawTargetKeys.update(changedTargetKeys)
             self._queueRedraw(which='targets')
 
+    def _onROIsChanged(self, changedKeys: list[str] | None = None, changedAttrs: list[str] | None = None):
+        if not self._hasInitialized and not self._isInitializing:
+            return
+
+        for view in (self._3DView,):
+            if isinstance(view.plotter, RemotePlotterProxy) and not view.plotter.isReadyEvent.is_set():
+                # plotter not ready yet
+                return
+
+        logger.debug(f'onROIsChanged: {changedKeys}, {changedAttrs}')
+
+        if changedAttrs is not None:
+            # remove attrs that can be handled by existing visualizations or can be ignored
+            changedAttrs = changedAttrs.copy()
+            for changedAttr in ['output', 'autoColor', 'stages']:
+                try:
+                    changedAttrs.remove(changedAttr)
+                except ValueError:
+                    pass
+            if len(changedAttrs) == 0:
+                return
+
+        if changedKeys is None:
+            changedKeys = self.session.ROIs.keys()
+
+        if changedAttrs is None or 'color' in changedAttrs:
+            self._queueRedraw(which='ROIAutoColors')
+
+        if changedAttrs == ['isVisible']:
+            # only visibility changed
+            self._queueRedraw(which='ROIAutoColors')
+            for roiKey in changedKeys:
+                roi = self.session.ROIs[roiKey]
+                if roiKey in self._visualizedROIs:
+                    pass  # let existing visualized ROI update itself
+                elif roi.isVisible:
+                    self._redrawROIKeys.add(roiKey)
+                    self._queueRedraw(which='ROIs')
+
+        elif changedAttrs == ['isSelected']:
+            pass
+
+        else:
+            # assume anything/everything changed, clear ROI and start over
+            if changedAttrs is not None:
+                logger.debug(f'Other ROI attrs changed, completely redrawing ({changedAttrs})')
+            self._redrawROIKeys.update(changedKeys)
+            self._queueRedraw(which='ROIs')
+
+
     def _redraw(self, which: tp.Union[str | None, list[str]] = None, **kwargs):
         super()._redraw(which=which)
 
@@ -566,6 +624,37 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
                 currentTarget = self._getCurrentTargetKey()
                 self._onCurrentTargetChanged(currentTarget)
+
+        if which == 'ROIAutoColors':
+            refreshROIAutoColors(self._session)
+
+        if which == 'ROIs':
+            changedROIKeys = self._redrawROIKeys.copy()
+            self._redrawROIKeys.clear()
+            if self._hasInitialized or self._isInitializing:
+                # update view
+                for key in changedROIKeys:
+                    try:
+                        roi = self.session.ROIs[key]
+                    except KeyError:
+                        # previous key no longer in ROIs
+                        if key in self._visualizedROIs:
+                            visualizedROI = self._visualizedROIs.pop(key)
+                            visualizedROI.clear()
+                    else:
+                        if key in self._visualizedROIs:
+                            visualizedROI = self._visualizedROIs.pop(key)
+                            visualizedROI.clear()
+
+                        if roi.isVisible:
+                            # create new visualization
+                            if True:  # TODO: debug, set to true / remove conditional
+                                visualizedROI = VisualizedROI(roi=roi,
+                                                              session=self.session,
+                                                              linked3DView=self._3DView)
+                                self._visualizedROIs[key] = visualizedROI
+
+                self._3DView.updateView()
 
     def _onImportTargetsBtnClicked(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,

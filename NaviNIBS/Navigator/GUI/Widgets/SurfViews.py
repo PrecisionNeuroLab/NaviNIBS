@@ -32,6 +32,9 @@ from NaviNIBS.Navigator.Model.Session import Session
 logger = logging.getLogger(__name__)
 
 
+defaultSurfColor = '#d9a5b2'
+
+
 @attrs.define()
 class SurfSliceView(MRISliceView):
 
@@ -46,7 +49,7 @@ class SurfSliceView(MRISliceView):
 
     _opacity: float = 0.5
 
-    _surfColor: tp.Union[str, tp.List[str]] = '#d9a5b2'
+    _surfColor: tp.Union[str, tp.List[str]] = defaultSurfColor
     _surfOpacity: tp.Union[float, tp.List[float]] = 0.5
     _surfPlotInitialized: bool = attrs.field(init=False, default=False)
     _surfPlotActors: dict[str, Actor] = attrs.field(init=False, factory=dict)

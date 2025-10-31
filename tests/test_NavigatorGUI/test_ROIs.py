@@ -39,7 +39,7 @@ async def test_openSetROIsSession(workingDir):
 
 
 @pytest.mark.asyncio
-@pytest.mark.order(after='test_headModel.py::test_setHeadModel')
+@pytest.mark.order(after='test_planFiducials.py::test_planFiducials')
 async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
                        workingDir: str,
                        screenshotsDataSourcePath: str,
@@ -49,7 +49,7 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
                        ):
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetHeadModel', 'SetROIs')
+    sessionPath = utils.copySessionFolder(workingDir, 'PlanFiducials', 'SetROIs')
 
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
