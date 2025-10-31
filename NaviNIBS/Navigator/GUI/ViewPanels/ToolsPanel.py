@@ -196,6 +196,7 @@ class ToolWidget:
 
         plotterContainer = QtWidgets.QGroupBox('Tool space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
+        plotterContainer.layout().setContentsMargins(0, 0, 0, 0)
         plotterContainer.layout().addWidget(self._toolSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
@@ -203,6 +204,7 @@ class ToolWidget:
 
         plotterContainer = QtWidgets.QGroupBox('Tracker space')
         plotterContainer.setLayout(QtWidgets.QVBoxLayout())
+        plotterContainer.layout().setContentsMargins(0, 0, 0, 0)
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
