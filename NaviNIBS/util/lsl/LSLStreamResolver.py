@@ -92,10 +92,9 @@ class LSLStreamResolver:
 
     def _onStreamLost(self, streamKey: str):
         logger.info('Stream lost: %s' % streamKey)
-        try:
-            assert streamKey in self._availableStreams
-        except AssertionError as e:
-            raise e
+        if streamKey not in self._availableStreams:
+            logger.warning('Stream %s already marked as lost, ignoring.' % streamKey)
+            return
         streamInfo = self._availableStreams.pop(streamKey)
         self.sigStreamLost.emit(streamKey, streamInfo)
 
