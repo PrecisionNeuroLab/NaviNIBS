@@ -152,7 +152,7 @@ async def pickActor(plotter: pv.Plotter,
     picker = _vtk.vtkPropPicker()
     endPickObserver = picker.AddObserver(_vtk.vtkCommand.EndPickEvent, end_pick_call_back)
     plotter.enable_trackball_style()
-    plotter.iren.set_picker(picker)
+    plotter.iren.picker = picker
 
     logging.debug('Waiting for pick to finish')
     await event_pickFinished.wait()
