@@ -5,6 +5,7 @@ import numpy as np
 import os
 import pyperclip
 import pytest
+from pytest_lazy_fixtures import lf
 import shutil
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -19,26 +20,39 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def headModelDataSourcePath(existingResourcesDataPath):
+def headrecoHeadModelDataSourcePath(existingResourcesDataPath):
     return os.path.join(existingResourcesDataPath, 'testSourceData',
                         'sub-test_T1Seq-SagFSPGRBRAVO_SimNIBS', 'sub-test.msh')
 
+@pytest.fixture
+def charmHeadModelDataSourcePath(existingResourcesDataPath):
+    return os.path.join(existingResourcesDataPath, 'testSourceData',
+                        'sub-test_T1Seq-SagFSPGRBRAVO_SimNIBSCharm', 'm2m_sub-test', 'sub-test.msh')
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason='For troubleshooting')
 async def test_openHeadModelSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'SetHeadModel')
 
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openCharmHeadModelSession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'SetCharmHeadModel')
+
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_MRI.py::test_setMRIInfo')
+@pytest.mark.parametrize('modelLabel,headModelDataSourcePath', (
+        ('Charm', lf('charmHeadModelDataSourcePath')),
+        ('', lf('headrecoHeadModelDataSourcePath'))))
 async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
-                          headModelDataSourcePath: str,
+                            modelLabel: str,
+                          headModelDataSourcePath: tuple[str, str],
                           screenshotsDataSourcePath: str):
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetMRI', 'SetHeadModel')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetMRI', f'Set{modelLabel}HeadModel')
 
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
@@ -76,19 +90,22 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
-                                            screenshotName='SetHeadModel',
+                                            screenshotName=f'Set{modelLabel}HeadModel',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_MRI.py::test_setMRIInfo')
+@pytest.mark.parametrize('modelLabel,headModelDataSourcePath', (
+        ('', lf('headrecoHeadModelDataSourcePath')),))
 async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
+                          modelLabel: str,
                           headModelDataSourcePath: str,
                           screenshotsDataSourcePath: str):
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetMRI', 'SetHeadModelWithSeparateMeshes')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetMRI', f'Set{modelLabel}HeadModelWithSeparateMeshes')
 
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
@@ -130,7 +147,7 @@ async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: Naviga
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
-                                            screenshotName='SetHeadModelWithSeparateMeshes',
+                                            screenshotName=f'Set{modelLabel}HeadModelWithSeparateMeshes',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # test rotating meshes
@@ -138,7 +155,7 @@ async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: Naviga
     await asyncio.sleep(1.)
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
-                                            screenshotName='SetHeadModelWithSeparateMeshesTransformed',
+                                            screenshotName=f'Set{modelLabel}HeadModelWithSeparateMeshesTransformed',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
 

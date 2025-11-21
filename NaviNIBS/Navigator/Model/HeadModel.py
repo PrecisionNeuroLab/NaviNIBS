@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import shutil
+from enum import StrEnum
 
 import attrs
 from datetime import datetime
+import enum
 import nibabel as nib
 import json
 import logging
@@ -24,6 +26,26 @@ logger = logging.getLogger(__name__)
 
 SurfMesh = pv.PolyData
 VolMesh = pv.PolyData
+
+
+class MshVersion(StrEnum):
+    HEADRECO = enum.auto()
+    CHARM = enum.auto()
+
+
+# TODO: get these dynamically from SimNIBS-generated .msh.opt files instead of hardcoding here
+defaultCharmMshSurfIndexMapping = dict(
+    WM=1001,
+    GM=1002,
+    CSF=1003,
+    Scalp=1005,
+    Eye_balls=1006,
+    Compact_bone=1007,
+    Spongy_bone=1008,
+    Blood=1009,
+    Muscle=1010,
+)
+
 
 
 @attrs.define()
@@ -47,6 +69,7 @@ class HeadModel:
     meshes when loading. Should not be needed in typical use cases.
     """
 
+    _msh: tp.Optional[pv.PolyData] = attrs.field(init=False, default=None)
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _csfSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -54,6 +77,7 @@ class HeadModel:
     _skinConvexSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
+    _mshVersion: tp.Optional[MshVersion] = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     """
@@ -75,10 +99,18 @@ class HeadModel:
         if self.filepath is None:
             return None
         parentDir = os.path.dirname(self.filepath)  # simnibs results dir
-        subStr = os.path.splitext(os.path.basename(self.filepath))[0]  # e.g. 'sub-1234'
-        m2mDir = os.path.join(parentDir, 'm2m_' + subStr)
-        assert os.path.exists(m2mDir), 'm2m folder not found. Are full SimNIBS results available next to specified .msh file?'
-        return m2mDir
+        match self.mshVersion:
+            case MshVersion.CHARM:
+                # charm .msh should already be embedded in m2m directory
+                return parentDir
+            case MshVersion.HEADRECO:
+                # headreco .msh should be next to m2m directory
+                subStr = os.path.splitext(os.path.basename(self.filepath))[0]  # e.g. 'sub-1234'
+                m2mDir = os.path.join(parentDir, 'm2m_' + subStr)
+                assert os.path.exists(m2mDir), 'm2m folder not found. Are full SimNIBS results available next to specified .msh file?'
+                return m2mDir
+            case _:
+                raise NotImplementedError('Unknown msh version. Cannot determine m2m directory.')
 
     @property
     def skinSurfPath(self):
@@ -116,29 +148,64 @@ class HeadModel:
         self.sigTransformChanged.emit()
         self.clearCache('all')  # will signal change for all cached meshes
 
+    @property
+    def mshVersion(self):
+        if self._mshVersion is None:
+            self.loadCache(which='mshVersion')
+        return self._mshVersion
+
     def loadCache(self, which: str):
         if not self.isSet:
             logger.warning('Load data requested, but no filepath(s) set. Returning.')
             return
 
-        if which in ('skinSurf', 'csfSurf', 'gmSurf'):
-            if which == 'gmSurf':
-                meshPath = self.gmSurfPath
-            elif which == 'csfSurf':
-                meshPath = self.csfSurfPath
-            elif which == 'skinSurf':
-                meshPath = self.skinSurfPath
+        if which in ('msh', 'skinSurf', 'csfSurf', 'gmSurf'):
+            if self.filepath is None \
+                    or which == 'msh' \
+                    or self.mshVersion == MshVersion.HEADRECO:
+                match which:
+                    case 'msh':
+                        meshPath = self.filepath
+                    case 'gmSurf':
+                        meshPath = self.gmSurfPath
+                    case 'csfSurf':
+                        meshPath = self.csfSurfPath
+                    case 'skinSurf':
+                        meshPath = self.skinSurfPath
+                    case _:
+                        raise NotImplementedError
+
+                if meshPath is None:
+                    logger.warning(f'No mesh path set for {which}')
+                    mesh = None
+                else:
+                    logger.info('Loading {} mesh from {}'.format(which, meshPath))
+                    mesh = pv.read(meshPath)
+
+            elif self.mshVersion == MshVersion.CHARM:
+                # separate surface from larger .msh file
+                fullMesh = self.msh
+
+                match which:
+                    case 'gmSurf':
+                        surfIndex = defaultCharmMshSurfIndexMapping['GM']
+                        if self._gmSurfFilepath is not None:
+                            raise NotImplementedError('Separate gmSurfFilepath not supported when using CHARM msh version.')
+                    case 'csfSurf':
+                        surfIndex = defaultCharmMshSurfIndexMapping['CSF']
+                    case 'skinSurf':
+                        surfIndex = defaultCharmMshSurfIndexMapping['Scalp']
+                        if self._skinSurfFilepath is not None:
+                            raise NotImplementedError('Separate skinSurfFilepath not supported when using CHARM msh version.')
+                    case _:
+                        raise NotImplementedError
+
+                mesh = fullMesh.extract_values(values=surfIndex, scalars='gmsh:physical', adjacent_cells=False).extract_surface()
+
             else:
-                raise NotImplementedError()
+                raise NotImplementedError
 
-            if meshPath is None:
-                logger.warning(f'No mesh path set for {which}. Returning.')
-                return
-
-            logger.info('Loading {} mesh from {}'.format(which, meshPath))
-            mesh = pv.read(meshPath)
-
-            if self._meshToMRITransform is not None:
+            if self._meshToMRITransform is not None and mesh is not None:
                 logger.debug('Applying meshToMRITransform to mesh')
                 mesh.transform(self._meshToMRITransform, inplace=True)
 
@@ -200,6 +267,25 @@ class HeadModel:
             if self._meshToMRITransform is not None:
                 raise NotImplementedError  # TODO: add support for transforming EEG positions with meshToMRITransform
 
+        elif which == 'mshVersion':
+            # determine msh version by checking for version-specific log in m2m folder
+            if self._filepath is None:
+                self._mshVersion = None
+
+            else:
+                mshDir = os.path.dirname(self._filepath)
+                if os.path.exists(os.path.join(mshDir, 'charm_log.html')):
+                    # charm .msh should already be embedded in m2m directory
+                    self._mshVersion = MshVersion.CHARM
+                else:
+                    # headreco .msh should be next to m2m directory
+                    subStr = os.path.splitext(os.path.basename(self._filepath))[0]  # e.g. 'sub-1234'
+                    m2mDir = os.path.join(mshDir, 'm2m_' + subStr)
+                    if os.path.exists(os.path.join(m2mDir, 'headreco_log.html')):
+                        self._mshVersion = MshVersion.HEADRECO
+                    else:
+                        raise RuntimeError('Could not determine msh version from SimNIBS results folder structure.')
+
         else:
             raise NotImplementedError()
 
@@ -208,17 +294,19 @@ class HeadModel:
     def clearCache(self, which: str):
 
         if which == 'all':
-            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf', 'eegPositions')  # TODO: add more keys here once implemented
+            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf', 'eegPositions',
+                       'mshVersion')  # TODO: add more keys here once implemented
             for w in allKeys:
                 self.clearCache(which=w)
             return
 
-        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf', 'eegPositions'):
+        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf', 'eegPositions',
+                     'mshVersion'):
             if getattr(self, '_' + which) is None:
                 return
             setattr(self, '_' + which, None)
         else:
-            raise NotImplementedError()
+            raise NotImplementedError
 
         self.sigDataChanged.emit(which)
 
@@ -326,6 +414,12 @@ class HeadModel:
         if self.skinSurfIsSet and self._skinSurf is None:
             self.loadCache(which='skinSurf')
         return self._skinSurf
+
+    @property
+    def msh(self):
+        if self._filepath is not None and self._msh is None:
+            self.loadCache(which='msh')
+        return self._msh
 
     @property
     def skinSimpleSurf(self):

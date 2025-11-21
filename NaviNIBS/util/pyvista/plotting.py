@@ -263,7 +263,7 @@ class PlotterImprovementsMixin:
         rgb = kwargs.pop('rgb', None)
         if color is None and scalars is None:
             for arrayName in mesh.array_names:
-                if mesh[arrayName].shape[1] in (3, 4):
+                if len(mesh[arrayName].shape) > 1 and mesh[arrayName].shape[1] in (3, 4):
                     scalars = arrayName
                     break
 
