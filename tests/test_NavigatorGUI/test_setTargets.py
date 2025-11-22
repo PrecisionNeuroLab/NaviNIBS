@@ -32,7 +32,7 @@ async def test_openSetTargetsSession(workingDir):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason='For troubleshooting')
+# @pytest.mark.skip(reason='For troubleshooting')
 async def test_openSetTargetGridSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'SetTargetGrid')
 
@@ -200,5 +200,95 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
 
     ses = utils.assertSavedSessionIsValid(sessionPath)
 
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_setTargets')
+async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
+                          workingDir: str,
+                          targetsDataSourcePath: str,
+                          screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetTargets', 'SetTargetGridWholeHead')
+
+    if True:
+        # use vertex-ish target
+        configPath = os.path.join(sessionPath, 'SessionConfig_Targets.json')
+        with open(configPath, 'r+') as f:
+            config = json.load(f)
+            index = len(config)
+            config.append(dict(
+                key='Vertex',
+                targetCoord=[4.79, 3.87, 65.78],
+                depthOffset = 3,
+                angle=0
+            ))
+
+            opts = jsbeautifier.default_options()
+            opts.indent_size = 2
+            beautifier = jsbeautifier.Beautifier(opts)
+            f.seek(0)
+            f.write(beautifier.beautify(json.dumps(config)))
+            f.truncate()
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on tab
+    navigatorGUI._activateView(navigatorGUI.setTargetsPanel.key)
+
+    # give time for initialization
+    await navigatorGUI.setTargetsPanel.finishedAsyncInit.wait()
+    await asyncio.sleep(1.)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.setTargetsPanel.key
+
+    # equivalent to clicking on "Edit grid" tab
+    navigatorGUI.setTargetsPanel._editGridDock.raiseDock()
+
+    gridWdgt: EditGridWidget = navigatorGUI.setTargetsPanel._editGridWdgt
+
+    # equivalent to changing display style in GUI
+    navigatorGUI.setTargetsPanel._targetDispStyle_comboBox.setCurrentIndex(1)
+
+    # equivalent to hiding all targets (prior to grid creation) in GUI
+    navigatorGUI.session.targets.setWhichTargetsVisible([])
+
+    # equivalent to selecting as seed target
+    gridWdgt.seedTarget = navigatorGUI.session.targets['Vertex']
+
+    # equivalent to setting grid parameters in GUI
+    gridWdgt._gridPrimaryAngleWdgt.value = 0.
+    gridWdgt._gridPivotDepth.setValue(80.)
+    for i in range(0, 2):
+        gridWdgt._gridNWdgts[i].setValue(9)
+        gridWdgt._gridWidthWdgts[i].setValue(160)
+    gridWdgt._gridNeedsUpdate.set()
+
+    await asyncio.sleep(.5)
+
+    assert not gridWdgt._gridNeedsUpdate.is_set()
+
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+
+    await asyncio.sleep(.1)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='SetTargetGrid_SpatialGridWholeHead',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
 
 
