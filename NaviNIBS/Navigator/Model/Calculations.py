@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
-from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, concatenateTransforms, applyDirectionTransform
+from NaviNIBS.util.Transforms import applyTransform, composeTransform, invertTransform, estimateAligningTransform, \
+    concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromTwoVectors
 from NaviNIBS.util.pyvista.dataset import find_closest_point, find_closest_cell
 
 logger = logging.getLogger(__name__)
@@ -50,8 +51,19 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
     if coilToMRITransf is None:
         return None, None
 
-    # TODO: dynamically switch between MNI space and fiducial space depending on whether MNI transf is available
-    if True:
+    if 'MNI_SimNIBS12DoF' in session.coordinateSystems:
+        # if an MNI transform is available, use that to define aligned coordinate space
+        coordSys = session.coordinateSystems['MNI_SimNIBS12DoF']
+        from NaviNIBS.Navigator.Model.CoordinateSystems import AffineTransformedCoordinateSystem
+        if isinstance(coordSys, AffineTransformedCoordinateSystem):
+            MRIToStdTransf = coordSys.transfWorldToThis
+            extraTransf = composeTransform(np.eye(3), np.asarray([0, 0, 20]))  # shift up to reduce odd behavior at negative z
+            MRIToStdTransf = concatenateTransforms([MRIToStdTransf, extraTransf])
+        else:
+            # TODO: support nonlinear transforms using similar sample point method as done with fiducials below
+            raise NotImplementedError
+
+    else:
         # use fiducial locations to define aligned coordinate space
         nas = session.subjectRegistration.fiducials.get('NAS', None)
         lpa = session.subjectRegistration.fiducials.get('LPA', None)
@@ -69,28 +81,66 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
         dirDU = np.cross(dirLR, dirPA)
         MRIToStdTransf = estimateAligningTransform(np.asarray([centerPt, centerPt + dirDU, centerPt + dirLR]),
                                                    np.asarray([[0, 0, 0], [0, 0, 1], [1, 0, 0]]))
-    else:
-        # TODO: use MNI transform to get midline points instead of assuming MRI is already aligned
-        raise NotImplementedError
 
     coilLoc_stdSpace = applyTransform([coilToMRITransf, MRIToStdTransf], np.asarray([0, 0, 0]), doCheck=False)
 
-    iDir = np.argmax(np.abs(coilLoc_stdSpace))
-    match iDir:
-        case 0:
-            # far left or right
-            refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
-            refDir2 = np.asarray([0, 0, -1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
-        case 1:
-            # far anterior or posterior
-            refDir1 = np.asarray([0, 0, 1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to 0 degrees from midline
-            refDir2 = np.asarray([1, 0, 0])  # this handle angle corresponds to +90 degrees from midline
-        case 2:
-            # far up (or down)
-            refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
-            refDir2 = np.asarray([1, 0, 0]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
-        case _:
-            raise NotImplementedError
+    if False:
+        # piecewise constant definition based on which axis is most extreme
+        iDir = np.argmax(np.abs(coilLoc_stdSpace))
+        match iDir:
+            case 0:
+                # far left or right
+                refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
+                refDir2 = np.asarray([0, 0, -1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
+            case 1:
+                # far anterior or posterior
+                refDir1 = np.asarray([0, 0, 1]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to 0 degrees from midline
+                refDir2 = np.asarray([1, 0, 0])  # this handle angle corresponds to +90 degrees from midline
+            case 2:
+                # far up (or down)
+                refDir1 = np.asarray([0, -1, 0])  # this handle angle corresponds to 0 degrees from midline
+                refDir2 = np.asarray([1, 0, 0]) * np.sign(coilLoc_stdSpace[iDir])  # this handle angle corresponds to +90 degrees from midline
+            case _:
+                raise NotImplementedError
+    else:
+        # weighted average definition based on relative distances to midline axes
+        weights = np.abs(coilLoc_stdSpace)
+        weights /= np.linalg.norm(weights)
+
+        oneIfZero = lambda x: 1 if x == 0 else x
+
+        # 0 degrees from midline
+        refDir1 = np.asarray([
+            [0, -1, 0],  # left/right
+            [0, 0, oneIfZero(np.sign(coilLoc_stdSpace[1]))],   # anterior/posterior
+            [0, -oneIfZero(np.sign(coilLoc_stdSpace[2])), 0],  # superior/inferior
+        ])
+        # 90 degrees from midline
+        refDir2 = np.asarray([
+            [0, 0, -oneIfZero(np.sign(coilLoc_stdSpace[0]))],  # left/right
+            [1, 0, 0],   # anterior/posterior
+            [1, 0, 0],   # superior/inferior
+        ])
+
+        refQuats = []
+        for i in range(3):
+            rot = calculateRotationMatrixFromTwoVectors(refDir1[i, :], refDir2[i, :])
+            quat = ptr.quaternion_from_matrix(rot)
+            refQuats.append(quat)
+
+        refQuats = np.asarray(refQuats)
+
+        if np.dot(refQuats[0, :], refQuats[1, :]) < 0:
+            refQuats[1, :] *= -1
+        combinedQuat = weights[:2] @ refQuats[:2, :]
+        if np.dot(combinedQuat, refQuats[2, :]) < 0:
+            refQuats[2, :] *= -1
+        combinedQuat += weights[2] * refQuats[2, :]
+
+        rot = ptr.matrix_from_quaternion(combinedQuat)
+
+        refDir1 = rot @ np.asarray([1, 0, 0])
+        refDir2 = rot @ np.asarray([0, 1, 0])
 
     # convert refDirs to MRI space
     refDir1_MRI = applyDirectionTransform(invertTransform(MRIToStdTransf), refDir1, doCheck=False)
