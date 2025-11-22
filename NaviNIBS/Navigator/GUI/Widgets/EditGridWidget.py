@@ -39,9 +39,9 @@ class EditGridWidget:
     _gridPrimaryAngleWdgt: AngleDial = attrs.field(init=False)
 
     _gridSpacingAtDepthWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
+    _gridEntryAngleMethodWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
     _gridPivotDepth: QtWidgets.QDoubleSpinBox = attrs.field(init=False, factory=QtWidgets.QDoubleSpinBox)
     _gridDepthMethodWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
-    _gridEntryAngleMethodWdgt: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
 
     _seedTarget: Target | None = attrs.field(init=False, default=None)
 
@@ -98,6 +98,13 @@ class EditGridWidget:
         layout.addRow('Grid at depth of:', self._gridSpacingAtDepthWdgt)
         self._disableWidgetsWhenNoTarget.append(self._gridSpacingAtDepthWdgt)
 
+        self._gridEntryAngleMethodWdgt = QtWidgets.QComboBox()
+        self._gridEntryAngleMethodWdgt.addItems(['Autoset entry', 'Pivot from seed'])
+        self._gridEntryAngleMethodWdgt.setCurrentIndex(0)
+        self._gridEntryAngleMethodWdgt.currentIndexChanged.connect(self._onGridEntryAngleMethodChanged)
+        layout.addRow('Grid entry angle method:', self._gridEntryAngleMethodWdgt)
+        self._disableWidgetsWhenNoTarget.append(self._gridEntryAngleMethodWdgt)
+
         self._gridPivotDepth.setRange(1, 1000)
         self._gridPivotDepth.setSingleStep(1)
         self._gridPivotDepth.setDecimals(1)
@@ -108,11 +115,14 @@ class EditGridWidget:
         layout.addRow('Grid pivot depth:', self._gridPivotDepth)
         self._disableWidgetsWhenNoTarget.append(self._gridPivotDepth)
 
-        self._gridDepthMethodWdgt.addItems(['from pivot', 'from skin'])
+        self._gridDepthMethodWdgt.addItems(['From pivot', 'From skin'])
         self._gridDepthMethodWdgt.setCurrentIndex(1)
         self._gridDepthMethodWdgt.currentIndexChanged.connect(self._onGridDepthMethodChanged)
         layout.addRow('Grid depth adjustment:', self._gridDepthMethodWdgt)
         self._disableWidgetsWhenNoTarget.append(self._gridDepthMethodWdgt)
+
+        self._onGridEntryAngleMethodChanged()  # to update grid depth method availability
+        self._onGridSpacingAtDepthChanged()  # to update entry angle method availability
 
         self._gridWidthWdgts = (
             QtWidgets.QDoubleSpinBox(),
@@ -257,8 +267,6 @@ class EditGridWidget:
         # TODO: instead of deleting everything and recreating, edit / repurpose existing targets
         self._deleteAnyPendingGridTargets()
 
-        #return  # TODO: debug, delete
-
         if self._seedTarget is None:
             return
 
@@ -300,6 +308,12 @@ class EditGridWidget:
 
         entryDir = Vector(self._seedTarget.entryCoord - self._seedTarget.targetCoord).unit()
 
+        entryMode = self._gridEntryAngleMethodWdgt.currentText()
+        if entryMode == 'Autoset entry' and gridNX == 1 and gridNY == 1:
+            # angle variation only, ignore specified entry mode and just match seed instead
+            logger.info(f'Single-point grid with autoset entry: matching seed target entry angle')
+            entryMode = 'Pivot from seed'
+
         pivotDepth = self._gridPivotDepth.value()  # in mm, dist from seed at grid depth to "common" origin
 
         # extraTransf = np.eye(4)
@@ -309,6 +323,9 @@ class EditGridWidget:
         #     np.asarray([0, 0, -pivotDepth]))
 
         # TODO: update grid spacing below to be defined based on arc lengths around pivot origin, instead of in a 2D plane
+
+        # note: even in 'Autoset entry' mode, we use pivot to define target locations
+        # (so that large offsets don't cause as large of depth changes)
 
         totalThetaX = gridWidthX / pivotDepth
         assert totalThetaX < 2*np.pi, 'Grid width too large for given pivot depth'
@@ -338,7 +355,7 @@ class EditGridWidget:
                 transf_gridSpaceToPivot = np.eye(4)
                 transf_gridSpaceToPivot[2, 3] = pivotDepth
 
-                rot = ptr.active_matrix_from_extrinsic_euler_yxy((-thetaX, -thetaY, 0))  # TODO: check sign
+                rot = ptr.matrix_from_euler((-thetaX, -thetaY, 0), 1, 0, 1, extrinsic=True)
                 transf_pivotToPivoted = composeTransform(rot)
 
                 transf_pivotedToNewUnrot = np.eye(4)
@@ -387,6 +404,21 @@ class EditGridWidget:
                 angle=self._seedTarget.angle + gridHandleAngles[i],  # TODO: check sign of offset, and note that this is approximate due to pivot angles
                 color=self._seedTarget.color,
             )
+
+            match entryMode:
+                case 'Pivot from seed':
+                    pass  # no additional adjustment needed, since grid points were defined based on pivot
+
+                case 'Autoset entry':
+                    # set entry based on closest point on skin along entry direction
+                    closestPt_skin_seed = getClosestPointToPointOnMesh(
+                        session=self._session,
+                        whichMesh='skinConvexSurf',
+                        point_MRISpace=self._seedTarget.entryCoord)
+                    # signed offset from closest skin point along entry direction
+                    seedEntryToSkinOffset = Vector(self._seedTarget.entryCoord - closestPt_skin_seed).dot(entryDir)  # TODO: check sign
+                    newTarget.autosetEntryCoord(offsetFromSkin=seedEntryToSkinOffset)
+
             logger.debug(f'New target: {newTarget}')
             self._pendingGridTargetKeys.append(newTarget.key)
             self._session.targets.addItem(newTarget)
@@ -416,7 +448,15 @@ class EditGridWidget:
     def _onGridPrimaryAngleChanged(self, angle: float):
         self._gridNeedsUpdate.set()
 
-    def _onGridSpacingAtDepthChanged(self, index: int):
+    def _onGridSpacingAtDepthChanged(self, index: int | None = None):
+        match self._gridSpacingAtDepthWdgt.currentText():
+            case 'Target':
+                self._gridEntryAngleMethodWdgt.model().item(0).setEnabled(True)
+            case _:
+                # other spacing modes don't know target in advance, so can't autoset entry angle from target
+                self._gridEntryAngleMethodWdgt.model().item(0).setEnabled(False)
+                if self._gridEntryAngleMethodWdgt.currentText() == 'Autoset entry':
+                    self._gridEntryAngleMethodWdgt.setCurrentIndex(1)
         self._gridNeedsUpdate.set()
 
     def _onGridPivotDepthChanged(self, value: float):
@@ -425,7 +465,16 @@ class EditGridWidget:
     def _onGridDepthMethodChanged(self, index: int):
         self._gridNeedsUpdate.set()
 
-    def _onGridEntryAngleMethodChanged(self, index: int):
+    def _onGridEntryAngleMethodChanged(self, index: int | None = None):
+        match self._gridEntryAngleMethodWdgt.currentText():
+            case 'Autoset entry':
+                self._gridDepthMethodWdgt.model().item(0).setEnabled(False)
+                if self._gridDepthMethodWdgt.currentText() == 'From pivot':
+                    self._gridDepthMethodWdgt.setCurrentIndex(1)
+            case 'Pivot from seed':
+                self._gridDepthMethodWdgt.model().item(0).setEnabled(True)
+            case _:
+                raise NotImplementedError
         self._gridNeedsUpdate.set()
 
     def _onGridWidthChanged(self, value: float):

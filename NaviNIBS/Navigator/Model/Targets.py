@@ -304,9 +304,13 @@ class Target(GenericCollectionDictItem[str]):
     @session.setter
     def session(self, session: Session):
         if self._session is not session:
+            prevSessionWasNone = self._session is None
             self._session = session
+            if prevSessionWasNone and self.targetCoord is not None \
+                    and self.entryCoord is None and self._coilToMRITransf is None:
+                self.autosetEntryCoord()
 
-    def autosetEntryCoord(self):
+    def autosetEntryCoord(self, offsetFromSkin: float | None = None):
         """
         Note: this assumes the target coordinate is far inside the scalp (e.g. on cortical surface, not on the scalp itself)
         """
@@ -316,6 +320,12 @@ class Target(GenericCollectionDictItem[str]):
             point_MRISpace=self.targetCoord)
         if closestPt_skin is None:
             raise ValueError('Missing information, cannot autoset entry coord')
+
+        if offsetFromSkin is not None:
+            directionVec = closestPt_skin - self.targetCoord
+            directionVec /= np.linalg.norm(directionVec)
+            closestPt_skin = closestPt_skin + directionVec * offsetFromSkin
+            logger.debug(f'Adjusted entry coord by offset {offsetFromSkin}')
 
         logger.info(f'Autosetting entry info to {closestPt_skin}')
 
