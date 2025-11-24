@@ -38,7 +38,7 @@ scikit-spatial = "^9.0.1"
 simpleicp = "^2.0.14"
 #simpleicp = {git = "https://github.com/chriscline/simpleicp.git", subdirectory = "python"}
 #nitransforms = "^25.0.0"
-nitransforms = {git = "https://github.com/chriscline/nitransforms.git"}
+nitransforms = {git = "https://github.com/chriscline/nitransforms.git"}  # temporary until repeated dense field map optimization is merged
 keyboard = "^0.13.5"
 darkdetect = "^0.8.0"
 rmsd = "^1.5.1"
