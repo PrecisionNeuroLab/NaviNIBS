@@ -52,16 +52,37 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
         return None, None
 
     if 'MNI_SimNIBS12DoF' in session.coordinateSystems:
-        # if an MNI transform is available, use that to define aligned coordinate space
+        # if an affine MNI transform is available, use that to define aligned coordinate space
         coordSys = session.coordinateSystems['MNI_SimNIBS12DoF']
         from NaviNIBS.Navigator.Model.CoordinateSystems import AffineTransformedCoordinateSystem
-        if isinstance(coordSys, AffineTransformedCoordinateSystem):
-            MRIToStdTransf = coordSys.transfWorldToThis
+        assert isinstance(coordSys, AffineTransformedCoordinateSystem)
+        MRIToStdTransf = coordSys.transfWorldToThis
+        if True:
             extraTransf = composeTransform(np.eye(3), np.asarray([0, 0, 20]))  # shift up to reduce odd behavior at negative z
             MRIToStdTransf = concatenateTransforms([MRIToStdTransf, extraTransf])
-        else:
-            # TODO: support nonlinear transforms using similar sample point method as done with fiducials below
-            raise NotImplementedError
+
+
+    elif 'MNI_SimNIBSNonlinear' in session.coordinateSystems:
+        # if a nonlinear MNI transform is available, approximate an affine transform to define aligned coordinate space
+        coordSys = session.coordinateSystems['MNI_SimNIBSNonlinear']
+        from NaviNIBS.Navigator.Model.CoordinateSystems import NonlinearTransformedCoordinateSystem
+        assert isinstance(coordSys, NonlinearTransformedCoordinateSystem)
+
+        centerPt = coordSys.transformFromThisToWorld(np.asarray([0, 0, 0]))
+        antPt = coordSys.transformFromThisToWorld(np.asarray([0, 60, 0]))
+        supPt = coordSys.transformFromThisToWorld(np.asarray([0, 0, 60]))
+
+        dirPA = antPt - centerPt
+        dirPA /= np.linalg.norm(dirPA)
+        dirDU = supPt - centerPt
+        dirDU /= np.linalg.norm(dirDU)
+        dirLR = -np.cross(dirDU, dirPA)
+
+        MRIToStdTransf = estimateAligningTransform(np.asarray([centerPt, centerPt + dirDU, centerPt + dirLR]),
+                                                   np.asarray([[0, 0, 0], [0, 0, 1], [1, 0, 0]]))
+        if True:
+            extraTransf = composeTransform(np.eye(3), np.asarray([0, 0, 20]))  # shift up to reduce odd behavior at negative z
+            MRIToStdTransf = concatenateTransforms([MRIToStdTransf, extraTransf])
 
     else:
         # use fiducial locations to define aligned coordinate space
