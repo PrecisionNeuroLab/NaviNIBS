@@ -7,11 +7,15 @@ import pyperclip
 import pytest
 from pytest_lazy_fixtures import lf
 import shutil
+from time import time
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+from NaviNIBS.Navigator.Model.Session import Session
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
     existingResourcesDataPath,
+    getSessionPath,
+    tracer,
     navigatorGUIWithoutSession,
     workingDir,
     screenshotsDataSourcePath)
@@ -157,5 +161,68 @@ async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: Naviga
                                             sessionPath=sessionPath,
                                             screenshotName=f'Set{modelLabel}HeadModelWithSeparateMeshesTransformed',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_setHeadModel')
+@pytest.mark.parametrize('modelLabel,headModelDataSourcePath', (
+        ('', lf('headrecoHeadModelDataSourcePath')),
+        ('Charm', lf('charmHeadModelDataSourcePath')),
+))
+async def test_mniTransforms(workingDir: str,
+                             modelLabel: str,
+                             headModelDataSourcePath: tuple[str, str]):
+
+    sessionKey = f'Set{modelLabel}HeadModel'
+
+    sessionPath = getSessionPath(workingDir=workingDir, key=sessionKey)
+
+    with tracer(workingDir, sessionKey, doOpen=False):
+
+        session = Session.loadFromFolder(folderpath=sessionPath)
+
+        inputCoords = np.array([[0, 0, 0],
+                                [100, 0, 0],
+                                [0, 100, 0],
+                                [0, 0, 100],
+                                [-37.3, -18.6, 65.7],  # M1
+                               ], dtype=np.float64)
+
+        # coordSys = session.coordinateSystems['MNI_SimNIBS12DoF']
+        coordSys = session.coordinateSystems['MNI_SimNIBSNonlinear']
+
+        coord = inputCoords[0:1, :]
+        tStart = time()
+        outputCoord = coordSys.transformFromThisToWorld(coord)
+        tEnd = time()
+        elapsedTime = tEnd - tStart
+        logger.info(f'Transform from MNI to world took {elapsedTime*1e3:.3f} ms')
+
+        # when using identical coordinates, this second transform should be *much* faster due to caching
+        coord = inputCoords[0:1, :]
+        tStart = time()
+        outputCoord = coordSys.transformFromThisToWorld(coord)
+        tEnd = time()
+        elapsedTime = tEnd - tStart
+        assert elapsedTime < 1e-3
+        logger.info(f'Repeated transform from MNI to world took {elapsedTime * 1e3:.3f} ms')
+
+        # when using optimized nitransforms with prefiltering, transform new points after first should also be *much* faster
+        coord = inputCoords[1:2, :]
+        tStart = time()
+        outputCoord = coordSys.transformFromThisToWorld(coord)
+        tEnd = time()
+        elapsedTime = tEnd - tStart
+        assert elapsedTime < 1e-3
+        logger.info(f'New transform from MNI to world took {elapsedTime * 1e3:.3f} ms')
+
+        tStart = time()
+        outputCoords = coordSys.transformFromThisToWorld(inputCoords)
+        tEnd = time()
+        logger.info(f'Transforming {inputCoords.shape[0]} points from MNI to world took {(tEnd - tStart) * 1e3:.3f} ms')
+
+
+
 
 

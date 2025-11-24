@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import numpy as np
 import os
@@ -251,3 +252,16 @@ async def setSimulatedToolPose(navigatorGUI: NavigatorGUI, key: str, transf: np.
     await simulatedToolsPanel.positionsClient.recordNewPosition_async(key=key, position=position)
 
 
+@contextlib.contextmanager
+def tracer(workingDir, sessionKey: str, doOpen: bool = True):
+    from viztracer import VizTracer
+    from datetime import datetime
+    tracePath = os.path.join(workingDir, f'Test_{sessionKey}_time-%s_VizTraceResults.json' % datetime.today().strftime('%y%m%d%H%M%S'))
+    with VizTracer(
+            tracer_entries=5000000,
+            output_file=tracePath) as tracer:
+        yield tracer
+    logger.info(f'VizTrace results saved to {tracePath}')
+    if doOpen:
+        import subprocess
+        subprocess.run(f'vizviewer {tracePath}')

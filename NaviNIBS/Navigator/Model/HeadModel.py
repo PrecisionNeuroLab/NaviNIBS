@@ -95,7 +95,7 @@ class HeadModel:
         self.validateFilepath(self._filepath)
 
     @property
-    def _m2mDir(self) -> str | None:
+    def m2mDir(self) -> str | None:
         if self.filepath is None:
             return None
         parentDir = os.path.dirname(self.filepath)  # simnibs results dir
@@ -118,11 +118,11 @@ class HeadModel:
             # if skinSurfFilepath is set, use it
             return self._skinSurfFilepath
         # otherwise, use default path in m2m folder
-        return os.path.join(self._m2mDir, 'skin.stl')
+        return os.path.join(self.m2mDir, 'skin.stl')
 
     @property
     def csfSurfPath(self):
-        return os.path.join(self._m2mDir, 'csf.stl')
+        return os.path.join(self.m2mDir, 'csf.stl')
 
     @property
     def gmSurfPath(self):
@@ -130,7 +130,7 @@ class HeadModel:
             # if gmSurfFilepath is set, use it
             return self._gmSurfFilepath
         # otherwise, use default path in m2m folder
-        return os.path.join(self._m2mDir, 'gm.stl')
+        return os.path.join(self.m2mDir, 'gm.stl')
 
     @property
     def meshToMRITransform(self) -> np.ndarray | None:
@@ -258,7 +258,7 @@ class HeadModel:
             setattr(self, '_' + which, convexMesh)
 
         elif which == 'eegPositions':
-            csvPath = os.path.join(self._m2mDir, 'eeg_positions', 'EEG10-10_UI_Jurak_2007.csv')
+            csvPath = os.path.join(self.m2mDir, 'eeg_positions', 'EEG10-10_UI_Jurak_2007.csv')
             columnLabels = ('type', 'x', 'y', 'z', 'label')
             logger.info('Loading EEG positions from {}'.format(csvPath))
             self._eegPositions = pd.read_csv(csvPath, names=columnLabels, index_col='label')
