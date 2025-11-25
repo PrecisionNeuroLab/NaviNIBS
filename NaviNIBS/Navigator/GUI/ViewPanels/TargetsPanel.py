@@ -489,7 +489,10 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                 plotter.render()
 
     def _createVisualForTarget(self, viewKey: str, target: Target):
-        logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
+        if False:
+            logger.debug(f'Creating VisualizedTarget for target {target.asDict()} {target.coilToMRITransf}')
+        else:
+            logger.debug(f'Creating VisualizedTarget for target {target.key}')
         view = self._views[viewKey]
         style = self._targetDispStyle_comboBox.currentText()
         self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
@@ -601,6 +604,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
         if which == 'targets':
             changedTargetKeys = self._redrawTargetKeys.copy()
+            logger.debug(f'Redrawing targets: {changedTargetKeys}')
             self._redrawTargetKeys.clear()
             if self._hasInitialized or self._isInitializing:
                 # update views

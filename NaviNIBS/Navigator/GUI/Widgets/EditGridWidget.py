@@ -386,6 +386,7 @@ class EditGridWidget:
         newTargetToNewTransf[2, 3] = -refDepthFromSeedTarget
 
         for i in range(numPoints):
+            # TODO: make the baseStr formatter configurable in GUI and grid templates
             uniqueTargetKey = makeStrUnique(baseStr=f'{self._seedTarget.key} grid point {i+1}', # TODO: include X and Y indices separately in grid key
                                             existingStrs=self._session.targets.keys(),
                                             delimiter='#')

@@ -2,9 +2,6 @@ import typing as tp
 import attr
 import contextlib
 
-#  Note: once variadic generics are supported (see https://www.python.org/dev/peps/pep-0646/)
-#   we'll be able to type hint this more usefully
-
 ET = tp.TypeVarTuple('ET')
 # Connection = tp.Callable[..., None]
 Connection = tp.Callable[[*ET], None]
