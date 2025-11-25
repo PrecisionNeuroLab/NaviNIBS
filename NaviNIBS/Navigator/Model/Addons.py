@@ -242,7 +242,7 @@ class Addon(GenericCollectionDictItem[str]):
             dc = json.load(f)
 
         if not os.path.split(addonInstallPath)[0] in sys.path:
-            sys.path.append(os.path.split(addonInstallPath)[0])
+            sys.path.insert(0, os.path.split(addonInstallPath)[0])
 
         elementAttrs = ('MainViewPanels', 'Extras', 'NavigationViews', 'NavigationViewLayers', 'SessionAttrs')
 
