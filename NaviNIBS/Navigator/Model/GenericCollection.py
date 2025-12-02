@@ -5,6 +5,7 @@ import collections
 import attrs
 from abc import ABC
 from collections.abc import Sequence, Mapping, Iterable
+import functools
 import logging
 import typing as tp
 
@@ -265,14 +266,22 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
     def values(self):
         return self._items.values()
 
-    def merge(self: C, otherItems: C):
-        self.sigItemsAboutToChange.emit(list(otherItems.keys()), None)
+    def merge(self: C, otherItems: C | Iterable[CI]) -> None:
+        """
+        Merge items from another collection or iterable into this one.
 
+        Note: non-item attributes of the collection itself are not merged/changed.
+        """
+        if isinstance(otherItems, GenericCollection):
+            otherItemKeys = list(otherItems.keys())
+            otherItems = otherItems.values()
+        else:
+            otherItemKeys = [item.key for item in otherItems]
+        self.sigItemsAboutToChange.emit(otherItemKeys, None)
         with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
-            for item in otherItems.values():
+            for item in otherItems:
                 self.setItem(item)
-
-        self.sigItemsChanged.emit(list(otherItems.keys()), None)
+        self.sigItemsChanged.emit(otherItemKeys, None)
 
     def asList(self) -> list[dict[str, tp.Any]]:
         return [item.asDict() for item in self._items.values()]
