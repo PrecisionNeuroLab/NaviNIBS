@@ -130,6 +130,9 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
             f.write(beautifier.beautify(json.dumps(config)))
             f.truncate()
 
+    # TODO: create a template target grid in SessionConfig with an unspecified target as a test of
+    #  common use case
+
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
 
@@ -147,7 +150,7 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     assert navigatorGUI.activeViewKey == navigatorGUI.setTargetsPanel.key
 
     # equivalent to clicking on "Edit grid" tab
-    navigatorGUI.setTargetsPanel._editGridDock.raiseDock()
+    navigatorGUI.setTargetsPanel._gridDock.raiseDock()
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
@@ -156,14 +159,24 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
 
     gridWdgt: EditGridWidget = navigatorGUI.setTargetsPanel._editGridWdgt
 
+    navigatorGUI.setTargetsPanel._addGridBtn.click()
+
+    grid = gridWdgt.grid
+    assert grid is not None
+
     # equivalent to changing display style in GUI
     navigatorGUI.setTargetsPanel._targetDispStyle_comboBox.setCurrentIndex(1)
 
     # equivalent to hiding all targets (prior to grid creation) in GUI
     navigatorGUI.session.targets.setWhichTargetsVisible([])
 
+    # disable grid autoupdates during edits
+    gridWdgt._autoapplyCheckBox.setChecked(False)
+
     # equivalent to selecting M1 as seed target
-    gridWdgt.seedTarget = navigatorGUI.session.targets['M1']
+    gridWdgt._seedTargetComboBox.setCurrentText('M1')
+
+    navigatorGUI.setTargetsPanel._gridTableWdgt.resizeColumnsToContents()  # for screenshot
 
     # equivalent to setting grid parameters in GUI
     gridWdgt._gridPrimaryAngleWdgt.value = 50.
@@ -171,11 +184,15 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     for i in range(0, 2):
         gridWdgt._gridNWdgts[i].setValue(5)
         gridWdgt._gridWidthWdgts[i].setValue(20)
-    gridWdgt._gridNeedsUpdate.set()
+
+    # re-enable grid autoupdates (which will also trigger an update now)
+    gridWdgt._autoapplyCheckBox.setChecked(True)
+
+    assert grid._gridNeedsUpdate.is_set()
 
     await asyncio.sleep(.5)
 
-    assert not gridWdgt._gridNeedsUpdate.is_set()
+    assert not grid._gridNeedsUpdate.is_set()
 
     for view in navigatorGUI.setTargetsPanel._views.values():
         await view.redrawQueueIsEmpty.wait()
@@ -201,6 +218,7 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     ses = utils.assertSavedSessionIsValid(sessionPath)
 
 
+from utils import tracer
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_setTargets')
@@ -208,9 +226,11 @@ async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
                           targetsDataSourcePath: str,
                           screenshotsDataSourcePath: str):
+    sessionKey = 'SetTargetGridWholeHead'
+
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetTargets', 'SetTargetGridWholeHead')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetTargets', sessionKey)
 
     if True:
         # use vertex-ish target
@@ -231,6 +251,7 @@ async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
             f.seek(0)
             f.write(beautifier.beautify(json.dumps(config)))
             f.truncate()
+
 
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
@@ -259,27 +280,29 @@ async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
     # equivalent to hiding all targets (prior to grid creation) in GUI
     navigatorGUI.session.targets.setWhichTargetsVisible([])
 
-    # equivalent to selecting as seed target
-    gridWdgt.seedTarget = navigatorGUI.session.targets['Vertex']
+    with tracer(workingDir, sessionKey, doOpen=False):
 
-    # equivalent to setting grid parameters in GUI
-    gridWdgt._gridPrimaryAngleWdgt.value = 0.
-    gridWdgt._gridPivotDepth.setValue(80.)
-    for i in range(0, 2):
-        gridWdgt._gridNWdgts[i].setValue(9)
-        gridWdgt._gridWidthWdgts[i].setValue(160)
-    gridWdgt._gridNeedsUpdate.set()
+        # equivalent to selecting as seed target
+        gridWdgt.seedTarget = navigatorGUI.session.targets['Vertex']
 
-    await asyncio.sleep(.5)
+        # equivalent to setting grid parameters in GUI
+        gridWdgt._gridPrimaryAngleWdgt.value = 0.
+        gridWdgt._gridPivotDepth.setValue(80.)
+        for i in range(0, 2):
+            gridWdgt._gridNWdgts[i].setValue(9)
+            gridWdgt._gridWidthWdgts[i].setValue(160)
+        gridWdgt._gridNeedsUpdate.set()
 
-    assert not gridWdgt._gridNeedsUpdate.is_set()
+        await asyncio.sleep(.5)
 
-    for view in navigatorGUI.setTargetsPanel._views.values():
-        await view.redrawQueueIsEmpty.wait()
+        assert not gridWdgt._gridNeedsUpdate.is_set()
 
-    await asyncio.sleep(.1)
-    for view in navigatorGUI.setTargetsPanel._views.values():
-        await view.redrawQueueIsEmpty.wait()
+        for view in navigatorGUI.setTargetsPanel._views.values():
+            await view.redrawQueueIsEmpty.wait()
+
+        await asyncio.sleep(.1)
+        for view in navigatorGUI.setTargetsPanel._views.values():
+            await view.redrawQueueIsEmpty.wait()
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,

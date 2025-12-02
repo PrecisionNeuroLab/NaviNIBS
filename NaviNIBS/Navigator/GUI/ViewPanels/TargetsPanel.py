@@ -16,11 +16,13 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
+from NaviNIBS.Navigator.Model.TargetGrids import CartesianTargetGrid, DepthMethod, EntryAngleMethod, SpacingMethod
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.Dock import Dock, DockArea
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import FullTargetsTableWidget
+from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetGridsTableWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
@@ -230,20 +232,26 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _key: str = 'Set targets'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-flash-outline'))
     _tableWdgt: FullTargetsTableWidget = attrs.field(init=False)
+    _gridTableWdgt: TargetGridsTableWidget = attrs.field(init=False)
     _views: dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _3DView: Surf3DView = attrs.field(init=False)
     _targetActors: dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
     _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
 
+    _targetDock: Dock = attrs.field(init=False)
+    _gridDock: Dock = attrs.field(init=False)
     _editTargetWdgt: EditTargetWidget = attrs.field(init=False)
     _editGridWdgt: EditGridWidget = attrs.field(init=False)
-    _editGridDock: Dock = attrs.field(init=False)
+    _addGridBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
-    _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget | EditTargetWidget] = attrs.field(init=False, factory=list)
+    _defaultGridKeyPrefix: str = attrs.field(default='<Target> grid')
+
+    _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
+    _enabledOnlyWhenTargetGridSelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
 
     _redrawTargetKeys: set[str] = attrs.field(init=False, factory=set)
     _redrawROIKeys: set[str] = attrs.field(init=False, factory=set)
@@ -288,12 +296,23 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             layout=QtWidgets.QVBoxLayout()
         )
         dock.setStretch(1, 10)
-        container.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Expanding)
+        container.layout().setContentsMargins(0, 0, 0, 0)
         self._wdgt.addDock(dock, position='left')
+        self._targetDock = dock
+
+        splitContainer = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        container.layout().addWidget(splitContainer)
+        splitContainer.setChildrenCollapsible(False)
+        # TODO: override parent restoreLayoutIfAvailable to add restoration of splitter state
+
+        upperContainer = QtWidgets.QWidget()
+        upperContainer.setLayout(QtWidgets.QVBoxLayout())
+        upperContainer.layout().setContentsMargins(0, 0, 0, 0)
+        splitContainer.addWidget(upperContainer)
 
         btnContainer = QtWidgets.QWidget()
         btnContainer.setLayout(QtWidgets.QGridLayout())
-        container.layout().addWidget(btnContainer)
+        upperContainer.layout().addWidget(btnContainer)
 
         btn = QtWidgets.QPushButton('Import targets from file...')
         btn.clicked.connect(self._onImportTargetsBtnClicked)
@@ -321,12 +340,14 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._tableWdgt = FullTargetsTableWidget()
         self._tableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
         self._tableWdgt.sigSelectionChanged.connect(self._onSelectionChanged)
-        container.layout().addWidget(self._tableWdgt.wdgt)
+        self._tableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Expanding)
+        self._tableWdgt.wdgt.setMinimumHeight(100)
+        upperContainer.layout().addWidget(self._tableWdgt.wdgt)
 
         fieldContainer = QtWidgets.QWidget()
         fieldLayout = QtWidgets.QFormLayout()
         fieldContainer.setLayout(fieldLayout)
-        container.layout().addWidget(fieldContainer)
+        upperContainer.layout().addWidget(fieldContainer)
         self._targetDispStyle_comboBox.addItems(['line', 'lines', 'coilLines'])
         self._targetDispStyle_comboBox.setCurrentIndex(2)
         self._targetDispStyle_comboBox.currentIndexChanged.connect(self._onTargetDispStyleChanged)
@@ -339,33 +360,69 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                                                 getNewEntryCoord=self._getCrosshairCoord,
                                                 setEntryCoordButtonLabel='Set from crosshair position',
                                                 )
-        dock, _ = self._createDockWidget(
-            title='Edit target',
-            widget=self._editTargetWdgt.wdgt,
-        )
-        dock.setStretch(1, 10)
-        self._wdgt.addDock(dock, position='bottom')
-        dock_editTarget = dock
 
-        self._editGridWdgt = EditGridWidget(session=self.session,
-                                            wdgt=QtWidgets.QWidget(),
-                                            )
-        self._editGridWdgt.sigGridUpdated.connect(self._tableWdgt.resizeColumnsToContents)
-        dock, _ = self._createDockWidget(
-            title='Edit grid',
-            widget=self._editGridWdgt.wdgt,
+        self._editTargetWdgt.wdgt.layout().setContentsMargins(0, 0, 0, 0)
+        splitContainer.addWidget(self._editTargetWdgt.wdgt)
+
+        dock, container = self._createDockWidget(
+            title='Target grids',
+            layout=QtWidgets.QVBoxLayout()
         )
         dock.setStretch(1, 10)
-        self._editGridDock = dock
-        if False:
-            self._wdgt.addDock(dock, position='bottom')
-        else:
-            self._wdgt.addDock(dock, position='below', relativeTo=dock_editTarget)
+        container.layout().setContentsMargins(0, 0, 0, 0)
+        self._wdgt.addDock(dock, position='below', relativeTo=self._targetDock)
+        self._gridDock = dock
+
+        splitContainer = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
+        container.layout().addWidget(splitContainer)
+        splitContainer.setChildrenCollapsible(False)
+        # TODO: override parent restoreLayoutIfAvailable to add restoration of splitter state
+
+        upperContainer = QtWidgets.QWidget()
+        upperContainer.setLayout(QtWidgets.QVBoxLayout())
+        upperContainer.layout().setContentsMargins(0, 0, 0, 0)
+        splitContainer.addWidget(upperContainer)
+
+        btnContainer = QtWidgets.QWidget()
+        btnContainer.setLayout(QtWidgets.QGridLayout())
+        upperContainer.layout().addWidget(btnContainer)
+
+        btn = QtWidgets.QPushButton('Import target grids from file...')
+        btn.clicked.connect(self._onImportTargetGridsBtnClicked)
+        btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
+
+        btn = QtWidgets.QPushButton('Add grid')
+        btn.clicked.connect(self._onAddTargetGridBtnClicked)
+        btnContainer.layout().addWidget(btn, 1, 0)
+        self._addGridBtn = btn
+
+        btn = QtWidgets.QPushButton('Delete grid')
+        btn.clicked.connect(self._onDeleteTargetGridBtnClicked)
+        btnContainer.layout().addWidget(btn, 1, 1)
+        self._enabledOnlyWhenTargetGridSelected.append(btn)
+
+        btn = QtWidgets.QPushButton('Duplicate grid')
+        btn.clicked.connect(self._onDuplicateTargetGridBtnClicked)
+        btnContainer.layout().addWidget(btn, 2, 0)
+        self._enabledOnlyWhenTargetGridSelected.append(btn)
+
+        self._gridTableWdgt = TargetGridsTableWidget()
+        self._gridTableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetGridChanged)
+        self._gridTableWdgt.sigSelectionChanged.connect(self._onTargetGridSelectionChanged)
+        self._tableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred,
+                                           QtWidgets.QSizePolicy.Policy.Expanding)
+        self._tableWdgt.wdgt.setMinimumHeight(100)
+        upperContainer.layout().addWidget(self._gridTableWdgt.wdgt)
+
+        self._editGridWdgt = EditGridWidget(session=self.session, wdgt=QtWidgets.QWidget())
+        self._editGridWdgt.wdgt.layout().setContentsMargins(0, 0, 0, 0)
+        splitContainer.addWidget(self._editGridWdgt.wdgt)
 
         dock, container = self._createDockWidget(
             title='Target views',
             layout=QtWidgets.QGridLayout()
         )
+        container.layout().setContentsMargins(0, 0, 0, 0)
         self._wdgt.addDock(dock, position='right')
 
         # TODO: put each view in its own dockwidget instead of a grid layout so they can be moved around
@@ -438,6 +495,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
         self.session.ROIs.sigItemsChanged.connect(self._onROIsChanged)
         self._tableWdgt.session = self.session
+        self._gridTableWdgt.session = self.session
 
         for key, view in self._views.items():
             view.session = self.session
@@ -722,3 +780,67 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             self._gotoTarget(self._getCurrentTargetKey())
         else:
             logger.warning('No target selected')
+
+    def _onImportTargetGridsBtnClicked(self, checked: bool):
+        raise NotImplementedError()  # TODO: implement import of target grids from file
+
+    def _onAddTargetGridBtnClicked(self, checked: bool):
+        DefaultGridCls = CartesianTargetGrid
+
+        gridKey = self._defaultGridKeyPrefix
+
+        # if a target is currently selected, use it as the seed for the new grid
+        currentTargetKey = self._getCurrentTargetKey()
+        if currentTargetKey is not None:
+            gridKey = gridKey.replace('<Target>', currentTargetKey)
+
+        gridKey = makeStrUnique(gridKey, existingStrs=self.session.targetGrids.keys(), delimiter=None)
+
+        grid = DefaultGridCls(
+            key=gridKey,
+            seedTargetKey=currentTargetKey,
+            session=self.session,
+            pivotDepth=120,
+        )
+        logger.info(f'Adding target grid {grid}')
+        self.session.targetGrids.addItem(grid)
+        self._editGridWdgt.grid = grid
+
+    def _onDeleteTargetGridBtnClicked(self, checked: bool):
+        gridKeys = self._gridTableWdgt.selectedCollectionItemKeys
+        for gridKey in gridKeys:
+            grid = self.session.targetGrids[gridKey]
+            grid.deleteAnyGeneratedTargets()  # clean up any generated targets associated with the grid
+        self.session.targetGrids.removeItems(gridKeys)
+
+    def _onDuplicateTargetGridBtnClicked(self, checked: bool):
+        currentGridKey = self._gridTableWdgt.currentCollectionItemKey
+        assert currentGridKey is not None
+        if '_' in currentGridKey:
+            delim = '_'
+        elif ' ' in currentGridKey:
+            delim = ' '
+        else:
+            delim = '-'
+        newGridKey = makeStrUnique(f'{currentGridKey}{delim}copy{delim}1',
+                                     existingStrs=self.session.targetGrids.keys(),
+                                     delimiter=delim)
+        logger.info(f'Duplicating target grid {currentGridKey} to {newGridKey}')
+        currentGrid = self.session.targetGrids[currentGridKey]
+        newGrid = currentGrid.asDict()
+        newGrid['key'] = newGridKey
+        try:
+            del newGrid['generatedTargetKeys']  # don't copy over generated targets
+        except KeyError:
+            pass
+
+        self.session.targetGrids.addItem(self.session.targetGrids.gridFromDict(newGrid, session=self.session))
+
+    def _onCurrentTargetGridChanged(self, gridKey: str | None):
+        self._editGridWdgt.grid = self.session.targetGrids[gridKey] if gridKey is not None else None
+
+    def _onTargetGridSelectionChanged(self, keys: list[str]):
+        for widget in self._enabledOnlyWhenTargetGridSelected:
+            logger.debug(f"{'Disabling' if len(keys) == 0 else 'Enabling'} {widget}")
+            widget.setEnabled(len(keys) > 0)
+

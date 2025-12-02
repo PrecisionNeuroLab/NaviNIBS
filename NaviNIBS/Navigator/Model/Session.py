@@ -20,6 +20,7 @@ from NaviNIBS.Navigator.Model.HeadModel import HeadModel
 from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
 from NaviNIBS.Navigator.Model.ROIs import ROIs, ROI
 from NaviNIBS.Navigator.Model.Targets import Targets, Target
+from NaviNIBS.Navigator.Model.TargetGrids import TargetGrids, TargetGrid
 from NaviNIBS.Navigator.Model.Samples import Samples, Sample
 from NaviNIBS.Navigator.Model.SubjectRegistration import SubjectRegistration, Fiducial
 from NaviNIBS.Navigator.Model.Tools import Tools, Tool, CoilTool, Pointer, SubjectTracker, CalibrationPlate
@@ -55,6 +56,7 @@ class Session:
     _ROIs: ROIs = attrs.field(factory=ROIs)
     _subjectRegistration: SubjectRegistration = attrs.field(factory=SubjectRegistration)
     _targets: Targets = attrs.field(factory=Targets)
+    _targetGrids: TargetGrids = attrs.field(factory=TargetGrids)
     _tools: Tools = attrs.field(default=None)
     _samples: Samples = attrs.field(factory=Samples)
     _digitizedLocations: DigitizedLocations = attrs.field(factory=DigitizedLocations)
@@ -109,6 +111,7 @@ class Session:
         self.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda: self.flagKeyAsDirty('subjectRegistration'))
         self.targets.sigItemsChanged.connect(lambda targetKeys, attribKeys: self.flagKeyAsDirty('targets'))
+        self.targetGrids.sigItemsChanged.connect(lambda targetGridKeys, attribKeys: self.flagKeyAsDirty('targetGrids'))
         self.samples.sigItemsChanged.connect(lambda sampleTimestamps, attribKeys: self.flagKeyAsDirty('samples'))
         self.tools.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
         self.tools.sigPositionsServerInfoChanged.connect(lambda *args: self.flagKeyAsDirty('tools'))
@@ -125,6 +128,7 @@ class Session:
 
         self.coordinateSystems.session = self
         self.targets.session = self
+        self.targetGrids.session = self
         self.ROIs.session = self
 
         # TODO
@@ -192,6 +196,10 @@ class Session:
     @property
     def targets(self):
         return self._targets
+
+    @property
+    def targetGrids(self):
+        return self._targetGrids
 
     @property
     def samples(self):
@@ -355,6 +363,8 @@ class Session:
         # TODO: maybe save contents of potentially larger *History fields to separate file(s)
 
         saveConfigPartToFileIfNeeded('targets', lambda: self.targets.asList())
+
+        saveConfigPartToFileIfNeeded('targetGrids', lambda: self.targetGrids.asList())
 
         saveConfigPartToFileIfNeeded('samples', lambda: self.samples.asList())
 
@@ -635,6 +645,11 @@ class Session:
             configFilename_targets = config['targets']
             with open(os.path.join(unpackedSessionDir, configFilename_targets), 'r') as f:
                 kwargs['targets'] = Targets.fromList(json.load(f))
+
+        if 'targetGrids' in config:
+            configFilename_targetGrids = config['targetGrids']
+            with open(os.path.join(unpackedSessionDir, configFilename_targetGrids), 'r') as f:
+                kwargs['targetGrids'] = TargetGrids.fromList(json.load(f))
 
         if 'samples' in config:
             configFilename_samples = config['samples']
