@@ -33,7 +33,7 @@ def exampleCSFROISeedPointAndRadius():
     return np.asarray([-33.5, 57.4, 63]), 20
 
 @pytest.mark.asyncio
-# @pytest.mark.skip(reason='For troubleshooting')
+@pytest.mark.skip(reason='For troubleshooting')
 async def test_openSetROIsSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'SetROIs')
 

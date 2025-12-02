@@ -170,4 +170,4 @@ async def test_LSLTriggeredSampling(navigatorGUIWithoutSession: NavigatorGUI,
     numSamplesAfter = 'todo'
     # assert numSamplesAfter - numSamplesBefore = numToFire
 
-    await utils.waitForever()
+    # await utils.waitForever()

@@ -71,6 +71,7 @@ class MainViewPanelWithDockWidgets(MainViewPanel):
             self._wdgt.restoreState(layout.state)
         except Exception as e:
             logger.warning(f'Unable to restore layout: {exceptionToStr(e)}')
+            self.sigRestoredLayout.emit()
             return False
 
         logger.debug(f'Restored layout for {self._key}')

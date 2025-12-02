@@ -259,7 +259,9 @@ def tracer(workingDir, sessionKey: str, doOpen: bool = True):
     tracePath = os.path.join(workingDir, f'Test_{sessionKey}_time-%s_VizTraceResults.json' % datetime.today().strftime('%y%m%d%H%M%S'))
     with VizTracer(
             tracer_entries=5000000,
-            output_file=tracePath) as tracer:
+            output_file=tracePath,
+            log_async=True
+    ) as tracer:
         yield tracer
     logger.info(f'VizTrace results saved to {tracePath}')
     if doOpen:

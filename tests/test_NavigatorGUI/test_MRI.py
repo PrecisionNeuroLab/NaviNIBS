@@ -77,3 +77,4 @@ async def test_setMRIInfo(navigatorGUIWithoutSession: NavigatorGUI,
                                                 screenshotName='SetMRI',
                                                 screenshotsDataSourcePath=screenshotsDataSourcePath)
 
+

@@ -75,7 +75,7 @@ class MRIPanel(MainViewPanel):
             containerWdgt.layout().addWidget(dimOuterContainer, iDim, 2)
             dimContainer = QtWidgets.QGroupBox(f'{dim} colorbar limits')
             dimContainer.setLayout(QtWidgets.QGridLayout())
-            dimContainer.setContentsMargins(0, 0, 0, 0)
+            dimContainer.layout().setContentsMargins(0, 0, 0, 0)
             dimOuterContainer.layout().addWidget(dimContainer)
             dimOuterContainer.layout().addStretch()
 

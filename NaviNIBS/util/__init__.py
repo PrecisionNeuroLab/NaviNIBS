@@ -28,9 +28,18 @@ def exceptionToStr(e: Exception) -> str:
     return eStr
 
 
-def makeStrUnique(baseStr: str, existingStrs: tp.Iterable[str], delimiter: str = '_') -> str:
+def makeStrUnique(baseStr: str, existingStrs: tp.Iterable[str], delimiter: str | None = '_') -> str:
     count = 1
     uniqueStr = baseStr
+
+    if delimiter is None:
+        # guess delimiter from baseStr
+        if '_' in baseStr:
+            delimiter = '_'
+        elif ' ' in baseStr:
+            delimiter = ' '
+        else:
+            delimiter = '-'
 
     if delimiter in baseStr:
         try:

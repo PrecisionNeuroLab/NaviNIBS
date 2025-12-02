@@ -379,3 +379,4 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         newROI['session'] = self._session
         self.session.ROIs.addItem(self.session.ROIs.roiFromDict(newROI))
 
+
