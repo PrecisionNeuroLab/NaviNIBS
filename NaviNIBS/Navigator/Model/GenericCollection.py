@@ -69,6 +69,27 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
         return cls(**d)
 
 
+# new decorator to wrap setters: preserves the setter signature (via functools.wraps)
+
+def collectionDictItemAttrSetter(func):
+    @functools.wraps(func)
+    def wrapper(self: GenericCollectionDictItem, value):
+        # assume method name is the public attribute name
+        publicName = func.__name__
+        privateName = f'_{publicName}'
+        if getattr(self, privateName) == value:
+            return
+        # notify listeners and mark grid dirty
+        self.sigItemAboutToChange.emit(self.key, [publicName])
+        # allow any custom per-setter logic to run
+        result = func(self, value)
+        # actually set the backing attribute and trigger update
+        setattr(self, privateName, value)
+        self.sigItemChanged.emit(self.key, [publicName])
+        return result
+    return wrapper
+
+
 CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
 
 
