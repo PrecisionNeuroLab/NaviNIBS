@@ -293,6 +293,7 @@ class NavigatorGUI(RunnableAsApp):
         session.addons.sigItemsChanged.connect(lambda *args: self._onAddonsChanged(*args, triggeredBySessionLoad=False))
 
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
+        self.session.subjectRegistration.sigTrackerToMRITransfChanged.connect(lambda *args: self._updateEnabledPanels())
         self.session.tools.sigItemsChanged.connect(lambda *args: self._updateEnabledPanels())
 
         self.session.miscSettings.sigAttribsChanged.connect(self._onSessionMiscSettingsChanged)
