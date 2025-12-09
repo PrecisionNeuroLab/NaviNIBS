@@ -225,7 +225,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._seedTargetKey
 
     @seedTargetKey.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def seedTargetKey(self, key: str | None) -> None:
         # optional per-setter logic can go here; mark grid dirty after setter logic
         if self.seedTarget is not None:
@@ -246,7 +246,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._primaryAngle
 
     @primaryAngle.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def primaryAngle(self, angle: float | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -255,7 +255,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._spacingAtDepth
 
     @spacingAtDepth.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def spacingAtDepth(self, spacing: SpacingMethod | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -264,7 +264,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._entryAngleMethod
 
     @entryAngleMethod.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def entryAngleMethod(self, method: EntryAngleMethod | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -273,7 +273,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._pivotDepth
 
     @pivotDepth.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def pivotDepth(self, depth: float | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -282,7 +282,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._depthMethod
 
     @depthMethod.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def depthMethod(self, method: DepthMethod | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -291,7 +291,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._autoGenerateOnChange
 
     @autoGenerateOnChange.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def autoGenerateOnChange(self, doAuto: bool) -> None:
         if doAuto:
             if self._gridNeedsUpdate.is_set():
@@ -302,7 +302,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         return self._targetFormatStr
 
     @targetFormatStr.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def targetFormatStr(self, fmt: str | None) -> None:
         logger.debug(f'Setting target format string to: {fmt}')
         self._setGridNeedsUpdate()
@@ -565,7 +565,7 @@ class CartesianTargetGrid(TargetGrid):
         return self._xWidth
 
     @xWidth.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def xWidth(self, width: float | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -574,7 +574,7 @@ class CartesianTargetGrid(TargetGrid):
         return self._yWidth
 
     @yWidth.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def yWidth(self, width: float | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -583,7 +583,7 @@ class CartesianTargetGrid(TargetGrid):
         return self._xN
 
     @xN.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def xN(self, n: int | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -592,7 +592,7 @@ class CartesianTargetGrid(TargetGrid):
         return self._yN
 
     @yN.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def yN(self, n: int | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -601,7 +601,7 @@ class CartesianTargetGrid(TargetGrid):
         return self._angleSpan
 
     @angleSpan.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def angleSpan(self, span: tuple[float, float] | None) -> None:
         self._setGridNeedsUpdate()
 
@@ -610,7 +610,7 @@ class CartesianTargetGrid(TargetGrid):
         return self._angleN
 
     @angleN.setter
-    @collectionDictItemAttrSetter
+    @collectionDictItemAttrSetter()
     def angleN(self, n: int | None) -> None:
         self._setGridNeedsUpdate()
 

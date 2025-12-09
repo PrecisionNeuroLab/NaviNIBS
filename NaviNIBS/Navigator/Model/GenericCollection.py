@@ -72,23 +72,30 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
 
 # new decorator to wrap setters: preserves the setter signature (via functools.wraps)
 
-def collectionDictItemAttrSetter(func):
-    @functools.wraps(func)
-    def wrapper(self: GenericCollectionDictItem, value):
-        # assume method name is the public attribute name
-        publicName = func.__name__
-        privateName = f'_{publicName}'
-        if getattr(self, privateName) == value:
-            return
-        # notify listeners and mark grid dirty
-        self.sigItemAboutToChange.emit(self.key, [publicName])
-        # allow any custom per-setter logic to run
-        result = func(self, value)
-        # actually set the backing attribute and trigger update
-        setattr(self, privateName, value)
-        self.sigItemChanged.emit(self.key, [publicName])
-        return result
-    return wrapper
+def collectionDictItemAttrSetter(
+        equalityFn: tp.Callable[[tp.Any, tp.Any], bool] = lambda a, b: a == b,
+        extraAttrsToSignalOnChange: tp.Optional[tp.List[str]] = None):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self: GenericCollectionDictItem, value):
+            # assume method name is the public attribute name
+            publicName = func.__name__
+            privateName = f'_{publicName}'
+            if equalityFn(getattr(self, privateName), value):
+                return None
+            # notify listeners and mark grid dirty
+            attrsToSignal = [publicName]
+            if extraAttrsToSignalOnChange is not None:
+                attrsToSignal.extend(extraAttrsToSignalOnChange)
+            self.sigItemAboutToChange.emit(self.key, attrsToSignal)
+            # allow any custom per-setter logic to run
+            result = func(self, value)
+            # actually set the backing attribute and trigger update
+            setattr(self, privateName, value)
+            self.sigItemChanged.emit(self.key, attrsToSignal)
+            return result
+        return wrapper
+    return decorator
 
 
 CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
