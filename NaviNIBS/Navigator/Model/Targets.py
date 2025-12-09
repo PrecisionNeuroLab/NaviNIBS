@@ -21,7 +21,7 @@ from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithN
 if TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 
-from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem, collectionDictItemAttrSetter
 from NaviNIBS.Navigator.Model.Calculations import calculateAngleFromMidlineFromCoilToMRITransf, calculateCoilToMRITransfFromTargetEntryAngle, getClosestPointToPointOnMesh
 
 
@@ -72,7 +72,6 @@ class Target(GenericCollectionDictItem[str]):
     """
     If angle isn't manually set, it might be auto-calculated from other target parameters.
     """
-
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
     """
     Used to access head model for determining angle from coilToMRITransf and vice versa
@@ -83,34 +82,28 @@ class Target(GenericCollectionDictItem[str]):
         return self._targetCoord
 
     @targetCoord.setter
+    @collectionDictItemAttrSetter(equalityFn=array_equalish, extraAttrsToSignalOnChange=['coilToMRITransf'])
     def targetCoord(self, newTargetCoord: tp.Optional[np.ndarray]):
-        if array_equalish(self._targetCoord, newTargetCoord):
-            return
-
-        attribsChanging = ['targetCoord', 'coilToMRITransf']
-        newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
-            session=self.session,
-            targetCoord=newTargetCoord,
-            entryCoord=self._entryCoord,
-            angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
-            depthOffset=self._depthOffset
-        )
-        self.sigItemAboutToChange.emit(self.key, attribsChanging)
-        self._targetCoord = newTargetCoord
+        if self._entryCoord is not None:
+            newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
+                session=self.session,
+                targetCoord=newTargetCoord,
+                entryCoord=self._entryCoord,
+                angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
+                depthOffset=self._depthOffset
+            )
+        else:
+            newCoilToMRITransf = None
         self._coilToMRITransf = None  # previous transform is invalid with new target
         self._cachedCoilToMRITransf = newCoilToMRITransf
-        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def entryCoord(self):
         return self._entryCoord
 
     @entryCoord.setter
+    @collectionDictItemAttrSetter(equalityFn=array_equalish, extraAttrsToSignalOnChange=['coilToMRITransf'])
     def entryCoord(self, newEntryCoord: tp.Optional[np.ndarray]):
-        if array_equalish(self._entryCoord, newEntryCoord):
-            return
-
-        attribsChanging = ['entryCoord', 'coilToMRITransf']
         newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
             session=self.session,
             targetCoord=self._targetCoord,
@@ -118,11 +111,8 @@ class Target(GenericCollectionDictItem[str]):
             angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
             depthOffset=self._depthOffset
         )
-        self.sigItemAboutToChange.emit(self.key, attribsChanging)
-        self._entryCoord = newEntryCoord
         self._coilToMRITransf = None  # previous transform is invalid with new entry
         self._cachedCoilToMRITransf = newCoilToMRITransf
-        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def angle(self):
@@ -138,13 +128,10 @@ class Target(GenericCollectionDictItem[str]):
             return self.calculatedAngle
 
     @angle.setter
+    @collectionDictItemAttrSetter(extraAttrsToSignalOnChange=['coilToMRITransf'])
     def angle(self, newAngle: tp.Optional[float]):
-        if self._angle == newAngle:
-            return
-
         logger.debug(f'Changing angle from {self._angle} to {newAngle}')
 
-        attribsChanging = ['angle', 'coilToMRITransf']
         newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
             session=self.session,
             targetCoord=self._targetCoord,
@@ -154,11 +141,8 @@ class Target(GenericCollectionDictItem[str]):
         )
         logger.debug(f'newCoilToMRITransf: {newCoilToMRITransf}')
 
-        self.sigItemAboutToChange.emit(self.key, attribsChanging)
-        self._angle = newAngle
         self._coilToMRITransf = None  # previous transform is invalid with new angle
         self._cachedCoilToMRITransf = newCoilToMRITransf
-        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def calculatedAngle(self) -> float:
@@ -183,11 +167,8 @@ class Target(GenericCollectionDictItem[str]):
         return self._depthOffset if self._depthOffset is not None else 0.
 
     @depthOffset.setter
+    @collectionDictItemAttrSetter(extraAttrsToSignalOnChange=['coilToMRITransf'])
     def depthOffset(self, newDepthOffset: tp.Optional[float]):
-        if self._depthOffset == newDepthOffset:
-            return
-
-        attribsChanging = ['depthOffset', 'coilToMRITransf']
         newCoilToMRITransf = calculateCoilToMRITransfFromTargetEntryAngle(
             session=self.session,
             targetCoord=self._targetCoord,
@@ -195,12 +176,8 @@ class Target(GenericCollectionDictItem[str]):
             angle=self.angle,  # note this may be autocalculated based on previous coilToMRITransf
             depthOffset=newDepthOffset
         )
-
-        self.sigItemAboutToChange.emit(self.key, attribsChanging)
-        self._depthOffset = newDepthOffset
         self._coilToMRITransf = None  # previous transform is invalid with new depth offset
         self._cachedCoilToMRITransf = newCoilToMRITransf
-        self.sigItemChanged.emit(self.key, attribsChanging)
 
     @property
     def entryCoordPlusDepthOffset(self) -> tp.Optional[np.ndarray]:
@@ -233,65 +210,50 @@ class Target(GenericCollectionDictItem[str]):
             return self._cachedCoilToMRITransf
 
     @coilToMRITransf.setter
+    @collectionDictItemAttrSetter(equalityFn=array_equalish)
     def coilToMRITransf(self, newCoilToMRITransf: tp.Optional[np.ndarray]):
         """
         Note that this may be set in a way that conflicts with targetCoord, entryCoord, angle, and depthOffset.
         However, if any of those are changed after setting this, this transf will be reset and be replaced
         with a cached auto-calculated version.
         """
-        if array_equalish(self._coilToMRITransf, newCoilToMRITransf):
-            return
-        self.sigItemAboutToChange.emit(self.key, ['coilToMRITransf'])
-        self._coilToMRITransf = newCoilToMRITransf
-        self.sigItemChanged.emit(self.key, ['coilToMRITransf'])
+        pass
 
     @property
     def isVisible(self):
         return self._isVisible
 
     @isVisible.setter
+    @collectionDictItemAttrSetter()
     def isVisible(self, isVisible: bool):
-        if self._isVisible == isVisible:
-            return
-        self.sigItemAboutToChange.emit(self._key, ['isVisible'])
-        self._isVisible = isVisible
-        self.sigItemChanged.emit(self._key, ['isVisible'])
+        pass
 
     @property
     def isHistorical(self):
         return self._isHistorical
 
     @isHistorical.setter
+    @collectionDictItemAttrSetter()
     def isHistorical(self, isHistorical: bool):
-        if self._isHistorical == isHistorical:
-            return
-        self.sigItemAboutToChange.emit(self._key, ['isHistorical'])
-        self._isHistorical = isHistorical
-        self.sigItemChanged.emit(self._key, ['isHistorical'])
+        pass
 
     @property
     def mayBeADependency(self):
         return self._mayBeADependency
 
     @mayBeADependency.setter
+    @collectionDictItemAttrSetter()
     def mayBeADependency(self, mayBeADependency: bool):
-        if self._mayBeADependency == mayBeADependency:
-            return
-        self.sigItemAboutToChange.emit(self._key, ['mayBeADependency'])
-        self._mayBeADependency = mayBeADependency
-        self.sigItemChanged.emit(self._key, ['mayBeADependency'])
+        pass
 
     @property
     def isSelected(self):
         return self._isSelected
 
     @isSelected.setter
+    @collectionDictItemAttrSetter()
     def isSelected(self, isSelected: bool):
-        if self._isSelected == isSelected:
-            return
-        self.sigItemAboutToChange.emit(self.key, ['isSelected'])
-        self._isSelected = isSelected
-        self.sigItemChanged.emit(self.key, ['isSelected'])
+        pass
 
     @property
     def color(self):
