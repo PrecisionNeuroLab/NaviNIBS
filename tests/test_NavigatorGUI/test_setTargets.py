@@ -5,6 +5,7 @@ import json
 import os
 import pyperclip
 import pytest
+from pytest_lazy_fixtures import lf
 import shutil
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
@@ -23,6 +24,12 @@ logger = logging.getLogger(__name__)
 def targetsDataSourcePath(existingResourcesDataPath):
     return os.path.join(existingResourcesDataPath, 'testSourceData',
                         'sub-test_ExampleTargets.json')
+
+
+@pytest.fixture
+def templateTargetsDataSourcePath(existingResourcesDataPath):
+    return os.path.join(existingResourcesDataPath, 'testSourceData',
+                        'TemplateTargets.json')
 
 
 @pytest.mark.asyncio
@@ -313,5 +320,65 @@ async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
 
     ses = utils.assertSavedSessionIsValid(sessionPath)
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_headModel.py::test_setHeadModel')
+@pytest.mark.parametrize('modelLabel', ('Charm', ''))
+async def test_setTemplateTargets(navigatorGUIWithoutSession: NavigatorGUI,
+                          workingDir: str,
+                          modelLabel: str,
+                          templateTargetsDataSourcePath: str,
+                          screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionKey = f'Set{modelLabel}TemplateTargets'
+    sessionPath = utils.copySessionFolder(workingDir, f'Set{modelLabel}HeadModel', sessionKey)
+
+    # copy template targets file in directly, to mimic opening from a template session
+    fromPath = templateTargetsDataSourcePath
+    toPath = os.path.join(sessionPath, 'SessionConfig_Targets.json')
+    shutil.copyfile(fromPath, toPath)
+
+    baseConfigPath = os.path.join(sessionPath, 'SessionConfig.json')
+    with open(baseConfigPath, 'r+') as f:
+        baseConfig = json.load(f)
+
+        baseConfig['targets'] = 'SessionConfig_Targets.json'
+
+        opts = jsbeautifier.default_options()
+        opts.indent_size = 2
+        beautifier = jsbeautifier.Beautifier(opts)
+        f.seek(0)
+        f.write(beautifier.beautify(json.dumps(baseConfig)))
+        f.truncate()
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on tab
+    navigatorGUI._activateView(navigatorGUI.setTargetsPanel.key)
+
+    # give time for initialization
+    await navigatorGUI.setTargetsPanel.finishedAsyncInit.wait()
+    await asyncio.sleep(1.)
+    for view in navigatorGUI.setTargetsPanel._views.values():
+        await view.redrawQueueIsEmpty.wait()
+
+    # equivalent to clicking on corresponding entry in table
+    navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 't2-45'
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName=f'Set{modelLabel}TemplateTargets',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
 
 
