@@ -304,6 +304,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
     @targetFormatStr.setter
     @collectionDictItemAttrSetter
     def targetFormatStr(self, fmt: str | None) -> None:
+        logger.debug(f'Setting target format string to: {fmt}')
         self._setGridNeedsUpdate()
 
     @property
@@ -510,10 +511,16 @@ class CartesianTargetGrid(TargetGrid):
 
         for i in range(numPoints):
             # TODO: make the baseStr formatter configurable in GUI and grid templates
-            uniqueTargetKey = makeStrUnique(baseStr=f'{self.seedTarget.key} grid point {i + 1}',
-                                            # TODO: include X and Y indices separately in grid key
-                                            existingStrs=self._session.targets.keys(),
-                                            delimiter='#')
+            formatStr = self.targetFormatStr or self.defaultTargetFormatStr
+            uniqueTargetKey = makeStrUnique(baseStr=formatStr.format(
+                gridKey=self.key,
+                seedTargetKey=self.seedTargetKey,
+                i=i + 1,
+                iX=(i // (gridNY * gridNAngle)) % gridNX + 1,
+                iY=(i // gridNAngle) % gridNY + 1,
+                iA=(i % gridNAngle) + 1,
+            ), existingStrs=self._session.targets.keys(),
+                delimiter='#')
 
             newCoilToMRITransf = concatenateTransforms([newCoilToNewTransf, newToMRISpaceTransfs[i]])
             entryCoord_MRISpace = applyTransform((newEntryToNewTransf, newToMRISpaceTransfs[i]), np.asarray([0, 0, 0]))
@@ -608,7 +615,7 @@ class CartesianTargetGrid(TargetGrid):
         self._setGridNeedsUpdate()
 
     @property
-    def defaultCartesianGridFormatStr(self):
+    def defaultTargetFormatStr(self):
          if self._angleN is not None and self._angleN > 1:
             return '{seedTargetKey} grid x{iX} y{iY} θ{iA}'
          else:

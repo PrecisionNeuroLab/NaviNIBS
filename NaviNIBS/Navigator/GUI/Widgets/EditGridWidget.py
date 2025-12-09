@@ -59,6 +59,8 @@ class EditGridWidget:
     _gridHandleAngleWdgts: tuple[AngleDial, AngleDial] = attrs.field(init=False)
     _gridHandleAngleNWdgt: QtWidgets.QSpinBox = attrs.field(init=False)
 
+    _gridFormatStrWdgt: QtWidgets.QLineEdit = attrs.field(init=False)
+
     _autoapplyCheckBox: QtWidgets.QCheckBox = attrs.field(init=False)
     _generateBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
@@ -198,6 +200,13 @@ class EditGridWidget:
         layout.addRow(f'Grid handle angle N', self._gridHandleAngleNWdgt)
         self._disableWidgetsWhenNoGrid.append(self._gridHandleAngleNWdgt)
 
+        self._gridFormatStrWdgt = QtWidgets.QLineEdit()
+        self._gridFormatStrWdgt.setText('')
+        self._gridFormatStrWdgt.editingFinished.connect(self._onGridFormatStrEdited)
+        layout.addRow('Grid point name format:', self._gridFormatStrWdgt)
+        self._disableWidgetsWhenNoGrid.append(self._gridFormatStrWdgt)
+
+
         autoapplyCheckBox = QtWidgets.QCheckBox('Auto-generate on changes')
         autoapplyCheckBox.setChecked(True)
         autoapplyCheckBox.stateChanged.connect(self._onAutoapplyCheckBoxChanged)
@@ -286,6 +295,8 @@ class EditGridWidget:
                 wdgt.value = value
 
             self._gridHandleAngleNWdgt.setValue(self._grid.angleN or 0)  # note: 0 will display special text
+
+            self._gridFormatStrWdgt.setText(self._grid.targetFormatStr or '')
 
             canGenerate, reason = self._grid.canGenerateTargets
             self._generateBtn.setEnabled(canGenerate)
@@ -472,6 +483,12 @@ class EditGridWidget:
             self._gridHandleAngleWdgts[0].value,
             self._gridHandleAngleWdgts[1].value
         )
+
+    def _onGridFormatStrEdited(self):
+        if self._widgetToGridUpdatesBlocked:
+            return
+
+        self.grid.targetFormatStr = self._gridFormatStrWdgt.text() if len(self._gridFormatStrWdgt.text()) > 0 else None
 
     def _onAutoapplyCheckBoxChanged(self, state: int):
         if self._widgetToGridUpdatesBlocked:
