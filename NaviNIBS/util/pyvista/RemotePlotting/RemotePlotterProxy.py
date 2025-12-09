@@ -304,11 +304,16 @@ class RemotePlotterProxyBase:
         for key in kwargs:
             kwargs[key] = convertArgIfNeeded(kwargs[key])
 
-        if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData) and hasattr(kwargs['mesh'], '_obbTree'):
+        if 'mesh' in kwargs and isinstance(kwargs['mesh'], pv.PolyData):
             # clear un-pickleable obbTree field
             # note: this may cause unexpected issues...
-            kwargs['mesh'] = kwargs['mesh'].copy()
-            kwargs['mesh']._obbTree = None
+            if hasattr(kwargs['mesh'], 'obbTree'):
+                # newer pyvista version, where obbTree is a cached_property
+                kwargs['mesh'] = kwargs['mesh'].copy()
+                kwargs['mesh'].obbTree = None
+            elif hasattr(kwargs['mesh'], '_obbTree'):
+                kwargs['mesh'] = kwargs['mesh'].copy()
+                kwargs['mesh']._obbTree = None
 
         logger.debug(f'prepared for call {cmdKey} {fnStr}')
 
