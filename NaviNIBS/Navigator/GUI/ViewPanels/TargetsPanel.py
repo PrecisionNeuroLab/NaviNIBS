@@ -811,7 +811,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         for gridKey in gridKeys:
             grid = self.session.targetGrids[gridKey]
             grid.deleteAnyGeneratedTargets()  # clean up any generated targets associated with the grid
-        self.session.targetGrids.removeItems(gridKeys)
+        self.session.targetGrids.deleteItems(gridKeys)
 
     def _onDuplicateTargetGridBtnClicked(self, checked: bool):
         currentGridKey = self._gridTableWdgt.currentCollectionItemKey
