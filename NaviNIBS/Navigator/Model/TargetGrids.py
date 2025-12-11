@@ -124,7 +124,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
 
     def _setGridNeedsUpdate(self):
         self._gridNeedsUpdate.set()
-        if self._autoGenerateOnChange and self._gridUpdateLoopTask is None or self._gridUpdateLoopTask.done():
+        if self._autoGenerateOnChange and (self._gridUpdateLoopTask is None or self._gridUpdateLoopTask.done()):
             # only launch grid update loop after first request to update grid
             self._gridUpdateLoopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_updateGrid))
 
