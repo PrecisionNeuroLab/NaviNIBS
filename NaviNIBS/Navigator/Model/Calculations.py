@@ -58,9 +58,10 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
         assert isinstance(coordSys, AffineTransformedCoordinateSystem)
         MRIToStdTransf = coordSys.transfWorldToThis
         if True:
-            extraTransf = composeTransform(np.eye(3), np.asarray([0, 0, 20]))  # shift up to reduce odd behavior at negative z
+            yOffset = 15  # shift origin to approximate center of brain along superior/inferior axis
+            zOffset = 20  # shift up to reduce odd behavior at negative z
+            extraTransf = composeTransform(np.eye(3), np.asarray([0, yOffset, zOffset]))
             MRIToStdTransf = concatenateTransforms([MRIToStdTransf, extraTransf])
-
 
     elif 'MNI_SimNIBSNonlinear' in session.coordinateSystems:
         # if a nonlinear MNI transform is available, approximate an affine transform to define aligned coordinate space
@@ -81,7 +82,9 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
         MRIToStdTransf = estimateAligningTransform(np.asarray([centerPt, centerPt + dirDU, centerPt + dirLR]),
                                                    np.asarray([[0, 0, 0], [0, 0, 1], [1, 0, 0]]))
         if True:
-            extraTransf = composeTransform(np.eye(3), np.asarray([0, 0, 20]))  # shift up to reduce odd behavior at negative z
+            yOffset = 15  # shift origin to approximate center of brain along superior/inferior axis
+            zOffset = 20  # shift up to reduce odd behavior at negative z
+            extraTransf = composeTransform(np.eye(3), np.asarray([0, yOffset, zOffset]))
             MRIToStdTransf = concatenateTransforms([MRIToStdTransf, extraTransf])
 
     else:
