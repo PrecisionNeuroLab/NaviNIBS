@@ -30,6 +30,7 @@ from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainV
 from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, refreshROIAutoColors
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.GUI.Icons import getIcon
+from NaviNIBS.util.GUI.QCollapsibleSection import QCollapsibleSection
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
@@ -62,9 +63,9 @@ class VisualizedTarget:
     _target: Target
     _plotter: DefaultBackgroundPlotter = attrs.field(repr=False)
     _style: TargetDisplayStyle = attrs.field(converter=TargetDisplayStyle)
-    _color: str = '#2222FF'
     _actorKeys: set[str] = attrs.field(init=False, factory=set, repr=False)
     _visible: bool = True  # track this separately from self._target.isVisible to allow temporarily overriding
+    _fallbackColor: str = '#2222FF'
 
     def __attrs_post_init__(self):
         self.plot()
@@ -105,6 +106,10 @@ class VisualizedTarget:
         self._style = style
         self.plot()
 
+    @property
+    def color(self):
+        return self._target.color if self._target.color is not None else self._fallbackColor
+
     def plot(self):
         if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # plotter not ready yet
@@ -128,7 +133,7 @@ class VisualizedTarget:
             self._actorKeys.add(actorKey)
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_points(self._target.targetCoord,
-                                         color=self._color,
+                                         color=self.color,
                                          point_size=10.,
                                          render_points_as_spheres=True,
                                          label=self._target.key,
@@ -144,7 +149,7 @@ class VisualizedTarget:
             self._actorKeys.add(actorKey)
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_points(self._target.entryCoord,
-                                         color=self._color,
+                                         color=self.color,
                                          point_size=10.,
                                          render_points_as_spheres=True,
                                          label=self._target.key,
@@ -161,7 +166,7 @@ class VisualizedTarget:
             self._actorKeys.add(actorKey)
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_points(self._target.entryCoordPlusDepthOffset,
-                                         color=self._color,
+                                         color=self.color,
                                          point_size=10.,
                                          render_points_as_spheres=True,
                                          label=self._target.key,
@@ -183,7 +188,7 @@ class VisualizedTarget:
             self._actorKeys.add(actorKey)
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_lines(pts_line,
-                                        color=self._color,
+                                        color=self.color,
                                         width=thickWidth,
                                         label=self._target.key,
                                         name=actorKey,
@@ -203,7 +208,7 @@ class VisualizedTarget:
             self._actorKeys.add(actorKey)
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_lines(pts_line,
-                                        color=self._color,
+                                        color=self.color,
                                         width=thinWidth,
                                         label=self._target.key,
                                         name=actorKey,
@@ -220,7 +225,7 @@ class VisualizedTarget:
             self._actorKeys.add(actorKey)
             with self._plotter.allowNonblockingCalls():
                 self._plotter.add_lines(pts_line,
-                                        color=self._color,
+                                        color=self.color,
                                         width=thinWidth,
                                         label=self._target.key,
                                         name=actorKey,
@@ -245,7 +250,7 @@ class VisualizedTarget:
                         self._actorKeys.add(actorKey)
                         self._plotter.add_lines(pts_wing,
                                                 connected=True,
-                                                color=self._color,
+                                                color=self.color,
                                                 width=thinWidth,
                                                 label=self._target.key,
                                                 name=actorKey,
@@ -290,6 +295,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
     _defaultGridKeyPrefix: str = attrs.field(default='<Target> grid')
+    _defaultTargetColor: str = attrs.field(default='#2222FF')
 
     _enabledOnlyWhenTargetSelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
     _enabledOnlyWhenTargetGridSelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
@@ -378,7 +384,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         btnContainer.layout().addWidget(btn, 2, 1)
         self._enabledOnlyWhenTargetSelected.append(btn)
 
-        self._tableWdgt = FullTargetsTableWidget()
+        self._tableWdgt = FullTargetsTableWidget(defaultTargetColor=self._defaultTargetColor)
         self._tableWdgt.sigCurrentItemChanged.connect(self._onCurrentTargetChanged)
         self._tableWdgt.sigSelectionChanged.connect(self._onSelectionChanged)
         self._tableWdgt.wdgt.setSizePolicy(QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Expanding)
@@ -595,6 +601,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         view = self._views[viewKey]
         style = TargetDisplayStyle(self._targetDispStyle_comboBox.currentText())
         self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
+                                                                    fallbackColor=self._defaultTargetColor,
                                                                     plotter=view.plotter,
                                                                     style=style,
                                                                     visible=target.isVisible)

@@ -62,7 +62,10 @@ class Target(GenericCollectionDictItem[str]):
     Can be used to mark (e.g. when an associated sample is created) that this target is a dependency for other data elements, and a copy should be created and stored in history if this is edited
     """
     _isSelected: bool = False
-    _color: str = '#0000FF'
+    _color: str | None = None
+    """
+    If not specified, a default color will be used when rendering
+    """
 
     _templateTargetCoord: tp.Optional[np.ndarray] = None
     """
@@ -269,6 +272,11 @@ class Target(GenericCollectionDictItem[str]):
     @property
     def color(self):
         return self._color
+
+    @color.setter
+    @collectionDictItemAttrSetter()
+    def color(self, newColor: str | None):
+        pass
 
     @property
     def templateTargetCoord(self):

@@ -497,6 +497,8 @@ class EditTargetWidget:
 
     _entryAngleWdgts: EntryAnglesWidgets = attrs.field(init=False)
 
+    _colorWdgt: QtWidgets.QLineEdit = attrs.field(init=False)
+
     _target: Target | None = attrs.field(init=False, default=None)
 
     _doTrackModelSelectedTarget: bool = True
@@ -566,6 +568,12 @@ class EditTargetWidget:
         )
         # children widgets added to layout internally in constructor
 
+        self._colorWdgt = QtWidgets.QLineEdit()
+        # TODO: add validator to constrain valid text inputs
+        self._colorWdgt.editingFinished.connect(self._onColorChangedFromGUI)
+        layout.addRow('Target color:', self._colorWdgt)
+        # TODO: make GUI color picker instead of or in addition to string field
+
         self._disableWidgetsWhenNoTarget = [
             self._depthOffsetWdgt,
             self._targetCoordWdgt.wdgt,
@@ -574,7 +582,8 @@ class EditTargetWidget:
             self._entryAngleWdgts.pivotWdgt,
             self._entryAngleWdgts.angleRefWdgt,
             self._entryAngleWdgts.angleXWdgt.wdgt,
-            self._entryAngleWdgts.angleYWdgt.wdgt
+            self._entryAngleWdgts.angleYWdgt.wdgt,
+            self._colorWdgt
         ]
 
         self._targetComboBox.setCurrentIndex(-1)
@@ -610,10 +619,12 @@ class EditTargetWidget:
             self._targetComboBox.setCurrentIndex(-1)
             self._handleAngleWdgt.value = 0
             self._depthOffsetWdgt.setValue(0)
+            self._colorWdgt.setText('')
         else:
             self._targetComboBox.setCurrentIndex(self._targetsModel.getIndexFromCollectionItemKey(target.key))
             self._handleAngleWdgt.value = target.angle
             self._depthOffsetWdgt.setValue(target.depthOffset)
+            self._colorWdgt.setText(target.color if target.color is not None else '')
 
     def setEnabled(self, enabled: bool):
         self._wdgt.setEnabled(enabled)
@@ -701,3 +712,18 @@ class EditTargetWidget:
                 logger.debug(f'Changing depth offset for {self.target.key} from {self.target.depthOffset} to {newDepth}')
                 self.target.depthOffset = newDepth
 
+    def _onColorChangedFromGUI(self):
+        if self.target is None:
+            return
+
+        colorTxt = self._colorWdgt.text().strip()
+
+        if len(colorTxt) == 0:
+            colorTxt = None
+
+        logger.info(f'Changing color for target {self.target.key} to {colorTxt}')
+        try:
+            self.target.color = colorTxt
+        except Exception as e:
+            logger.warning(f'Unable to set target color to {colorTxt}.\n{exceptionToStr(e)}')
+            self._colorWdgt.setText(self.target.color if self.target.color is not None else '')

@@ -37,6 +37,7 @@ TM = tp.TypeVar('TM', bound=CollectionTableModel)
 @attrs.define
 class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _Model: tp.Callable[[Session], TM]
+    _modelKwargs: tp.Dict[str, tp.Any] = attrs.field(factory=dict)
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
 
     _tableView: QtWidgets.QTableView = attrs.field(init=False, factory=QtWidgets.QTableView)
@@ -104,7 +105,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         return self._model
 
     def _onSessionSet(self):
-        self._model = self._Model(session=self._session)
+        self._model = self._Model(session=self._session, **self._modelKwargs)
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)
@@ -257,16 +258,24 @@ class SamplesTableWidget(CollectionTableWidget[str, Sample, Samples, SamplesTabl
 @attrs.define
 class FullTargetsTableWidget(CollectionTableWidget[str, Target, Targets, FullTargetsTableModel]):
     _Model: tp.Callable[[Session], FullTargetsTableModel] = FullTargetsTableModel
+    _defaultTargetColor: str = '#2222FF'
+    _doShowColorColumn: bool = True
 
     def __attrs_post_init__(self):
+        self._modelKwargs['defaultTargetColor'] = self._defaultTargetColor
+        self._modelKwargs['doShowColorColumn'] = self._doShowColorColumn
         super().__attrs_post_init__()
 
 
 @attrs.define
 class TargetsTableWidget(CollectionTableWidget[str, Target, Targets, TargetsTableModel]):
     _Model: tp.Callable[[Session], TargetsTableModel] = TargetsTableModel
+    _defaultTargetColor: str = '#2222FF'
+    _doShowColorColumn: bool = False
 
     def __attrs_post_init__(self):
+        self._modelKwargs['defaultTargetColor'] = self._defaultTargetColor
+        self._modelKwargs['doShowColorColumn'] = self._doShowColorColumn
         super().__attrs_post_init__()
 
 
