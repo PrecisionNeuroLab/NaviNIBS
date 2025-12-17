@@ -88,6 +88,7 @@ class VisualizedOrientation:
                         scalar_bar_args = None
                         color=self._colorHandleIndicator
 
+                    self._actorKeys.add(actorKey)
                     self._plotter.addLineSegments(
                         handleLine,
                         name=actorKey,
