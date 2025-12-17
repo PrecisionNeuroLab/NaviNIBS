@@ -292,6 +292,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
     _crosshairsDispCheckbox: QtWidgets.QCheckBox = attrs.field(init=False)
+    _export3DBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -405,6 +406,10 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._crosshairsDispCheckbox.setChecked(True)
         self._crosshairsDispCheckbox.stateChanged.connect(self._onCrosshairsDispCheckboxChanged)
         fieldLayout.addRow('Show cursor crosshairs', self._crosshairsDispCheckbox)
+
+        self._export3DBtn = QtWidgets.QPushButton('Export 3D view...')
+        self._export3DBtn.clicked.connect(self._onExport3DBtnClicked)
+        fieldLayout.addRow(self._export3DBtn)
 
         self._editTargetWdgt = EditTargetWidget(session=self.session,
                                                 wdgt=QtWidgets.QWidget(),
@@ -549,6 +554,19 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         showCrosshairs = (state == QtCore.Qt.CheckState.Checked.value)
         for view in self._views.values():
             view.doShowCrosshairs = showCrosshairs
+
+    def _onExport3DBtnClicked(self):
+        filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
+                                                            'Export 3D view to file',
+                                                            '',
+                                                            'GLTF (*.gltf);;All Files (*)')
+        if not filepath:
+            logger.info('User cancelled 3D view export')
+            return
+
+        logger.debug(f'Exporting 3D view to file {filepath}')
+
+        self._3DView.plotter.export_gltf(filepath)
 
     def _onSliceTransformChanged(self, sourceKey: str):
         logger.debug('Slice {} transform changed'.format(sourceKey))

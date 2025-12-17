@@ -479,6 +479,9 @@ class RemotePlotterProxyBase:
     def enable_image_style(self, *args, **kwargs):
         self._remotePlotterCall('enable_image_style', *args, **kwargs)
 
+    def export_gltf(self, *args, **kwargs):
+        self._remotePlotterCall('export_gltf', *args, **kwargs)
+
     def set_background(self, *args, **kwargs):
         return self._remotePlotterCall('set_background', *args, **kwargs)
 
