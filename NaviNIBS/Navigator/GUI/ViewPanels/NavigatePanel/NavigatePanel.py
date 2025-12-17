@@ -194,6 +194,9 @@ class BackgroundSamplePoseMetadataSetter:
 @attrs.define
 class NavigatePanel(MainViewPanelWithDockWidgets):
     _key: str = 'Navigate'
+
+    _autohideAfterNSamples: int | None = 100
+
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-flash'))
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False, repr=False)
     _targetsTableWdgt: TargetsTableWidget = attrs.field(init=False, repr=False)
@@ -455,6 +458,22 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         self._backgroundSamplePoseMetadataSetter.queueSamples([sample.key])
 
         logger.debug(f'Manually recorded a sample: {sample}')
+
+        if self._autohideAfterNSamples is not None:
+            # hide all but most recent N samples to prevent rendering slowdown
+            # TODO: could implement with k-means clustering to preserve spatial diversity of visible samples
+            visibleSamples = [sample for sample in self.session.samples.values() if sample.isVisible]
+            if len(visibleSamples) > self._autohideAfterNSamples:
+                samplesToHide = visibleSamples[:-self._autohideAfterNSamples]
+                if len(samplesToHide) == 0:
+                    pass  # nothing to do
+                elif len(samplesToHide) == 1:
+                    samplesToHide[0].isVisible = False
+                else:
+                    self.session.samples.setAttribForItems(
+                        [sample.key for sample in samplesToHide],
+                        dict(isVisible=[False for _ in samplesToHide])
+                    )
 
     def _onSampleToTargetBtnClicked(self, _):
         newTarget = self._coordinator.createTargetFromCurrentSample(doAddToSession=True)
