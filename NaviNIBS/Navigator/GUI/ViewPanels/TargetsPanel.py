@@ -396,7 +396,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         fieldContainer.setLayout(fieldLayout)
         upperContainer.layout().addWidget(fieldContainer)
         self._targetDispStyle_comboBox.addItems([key.value for key in TargetDisplayStyle])
-        self._targetDispStyle_comboBox.setCurrentText(TargetDisplayStyle.MINICOIL_AND_EXTENDED_ENTRY.value)
+        self._targetDispStyle_comboBox.setCurrentIndex(0)  # auto
         self._targetDispStyle_comboBox.currentIndexChanged.connect(self._onTargetDispStyleChanged)
         fieldLayout.addRow('Target display style:', self._targetDispStyle_comboBox)
 
@@ -519,9 +519,26 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         """
         return self._views['3D'].sliceOrigin
 
-    def _onTargetDispStyleChanged(self, index: int):
+    def _getDispStyle(self) -> TargetDisplayStyle:
+        dispStyle = self._targetDispStyle_comboBox.currentText()
+        if dispStyle == 'Auto':
+            if self.session is None:
+                numVisibleTargets = 0
+            else:
+                numVisibleTargets = sum(1 for target in self.session.targets.values() if target.isVisible)
+            if numVisibleTargets <= 10:
+                dispStyle = TargetDisplayStyle.MINICOIL_AND_EXTENDED_ENTRY
+            else:
+                dispStyle = TargetDisplayStyle.HANDLE_AND_EXTENDED_ENTRY
+        else:
+            dispStyle = TargetDisplayStyle(dispStyle)
+        return dispStyle
+
+    def _onTargetDispStyleChanged(self, index: int | None = None):
+        dispStyle = self._getDispStyle()
         for visualizedTarget in self._targetActors.values():
-            visualizedTarget.style = TargetDisplayStyle(self._targetDispStyle_comboBox.currentText())
+            visualizedTarget.style = dispStyle
+
 
     def _onSliceTransformChanged(self, sourceKey: str):
         logger.debug('Slice {} transform changed'.format(sourceKey))
@@ -599,7 +616,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         else:
             logger.debug(f'Creating VisualizedTarget for target {target.key}')
         view = self._views[viewKey]
-        style = TargetDisplayStyle(self._targetDispStyle_comboBox.currentText())
+        style = self._getDispStyle()
         self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
                                                                     fallbackColor=self._defaultTargetColor,
                                                                     plotter=view.plotter,
@@ -633,6 +650,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                     elif target.isVisible:
                         self._redrawTargetKeys.add(targetKey)
                         self._queueRedraw(which='targets')
+
+            self._onTargetDispStyleChanged()  # if in auto mode and number of visible targets changed, style may have changed
 
         elif changedTargetAttrs == ['isSelected']:
             pass  # selection update will be handled separately
@@ -734,6 +753,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
                 currentTarget = self._getCurrentTargetKey()
                 self._onCurrentTargetChanged(currentTarget)
+
+                self._onTargetDispStyleChanged()  # if in auto mode and number of visible targets changed, style may have changed
 
         if which == 'ROIAutoColors':
             refreshROIAutoColors(self._session)
