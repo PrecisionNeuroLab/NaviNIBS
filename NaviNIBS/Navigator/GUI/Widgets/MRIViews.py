@@ -168,6 +168,17 @@ class MRISliceView(QueuedRedrawMixin):
         if rotChanged:
             self.sigNormalChanged.emit()
 
+    @property
+    def doShowCrosshairs(self):
+        return self._doShowCrosshairs
+
+    @doShowCrosshairs.setter
+    def doShowCrosshairs(self, newVal: bool):
+        if newVal == self._doShowCrosshairs:
+            return
+        self._doShowCrosshairs = newVal
+        self.updateView()
+
     def _onSlicePointChanged(self):
         pos = self.plotter.picked_point
         logger.debug('Slice point changed: {} {}'.format(self.label, pos))
@@ -403,8 +414,16 @@ class MRISliceView(QueuedRedrawMixin):
                         with self._plotter.allowNonblockingCalls():
                             logger.debug('Moving previous crosshairs')
                             line = self._lineActors[lineKey]
+                            line.SetVisibility(True)
                             pts_pv = pv.lines_from_points(pts)
                             line.GetMapper().SetInputData(pts_pv)
+
+        elif len(self._lineActors) > 0:
+            logger.debug('Hiding crosshairs for {} plot'.format(self.label))
+            for lineKey, line in self._lineActors.items():
+                with self._plotter.allowNonblockingCalls():
+                    line.SetVisibility(False)
+
 
 
         if True:
@@ -522,8 +541,15 @@ class MRI3DView(MRISliceView):
                         with self._plotter.allowNonblockingCalls():
                             logger.debug('Moving previous crosshairs')
                             line = self._lineActors[lineKey]
+                            line.SetVisibility(True)
                             pts_pv = pv.lines_from_points(pts)
                             line.GetMapper().SetInputData(pts_pv)
+
+        else:
+            logger.debug('Hiding crosshairs for {} plot'.format(self.label))
+            for lineKey, line in self._lineActors.items():
+                with self._plotter.allowNonblockingCalls():
+                    line.SetVisibility(False)
 
         self._plotterInitialized = True
 

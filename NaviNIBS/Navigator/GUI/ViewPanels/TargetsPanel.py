@@ -291,6 +291,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _addGridBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
+    _crosshairsDispCheckbox: QtWidgets.QCheckBox = attrs.field(init=False)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
 
@@ -399,6 +400,11 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._targetDispStyle_comboBox.setCurrentIndex(0)  # auto
         self._targetDispStyle_comboBox.currentIndexChanged.connect(self._onTargetDispStyleChanged)
         fieldLayout.addRow('Target display style:', self._targetDispStyle_comboBox)
+
+        self._crosshairsDispCheckbox = QtWidgets.QCheckBox()
+        self._crosshairsDispCheckbox.setChecked(True)
+        self._crosshairsDispCheckbox.stateChanged.connect(self._onCrosshairsDispCheckboxChanged)
+        fieldLayout.addRow('Show cursor crosshairs', self._crosshairsDispCheckbox)
 
         self._editTargetWdgt = EditTargetWidget(session=self.session,
                                                 wdgt=QtWidgets.QWidget(),
@@ -539,6 +545,10 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         for visualizedTarget in self._targetActors.values():
             visualizedTarget.style = dispStyle
 
+    def _onCrosshairsDispCheckboxChanged(self, state: int):
+        showCrosshairs = (state == QtCore.Qt.CheckState.Checked.value)
+        for view in self._views.values():
+            view.doShowCrosshairs = showCrosshairs
 
     def _onSliceTransformChanged(self, sourceKey: str):
         logger.debug('Slice {} transform changed'.format(sourceKey))

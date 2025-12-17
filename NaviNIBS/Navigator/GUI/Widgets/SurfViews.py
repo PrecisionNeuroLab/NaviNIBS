@@ -339,8 +339,15 @@ class Surf3DView(SurfSliceView):
                         with self._plotter.allowNonblockingCalls():
                             logger.debug('Moving previous crosshairs')
                             line = self._lineActors[lineKey]
+                            line.SetVisibility(True)
                             pts_pv = pv.lines_from_points(pts)
                             line.GetMapper().SetInputData(pts_pv)
+
+        elif len(self._lineActors) > 0:
+            logger.debug('Hiding crosshairs for {} plot'.format(self.label))
+            with self._plotter.allowNonblockingCalls():
+                for line in self._lineActors.values():
+                    line.SetVisibility(False)
 
         self._plotterInitialized = True
 
