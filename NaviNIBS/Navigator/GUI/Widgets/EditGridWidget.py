@@ -298,6 +298,8 @@ class EditGridWidget:
 
             self._gridFormatStrWdgt.setText(self._grid.targetFormatStr or '')
 
+            self._autoapplyCheckBox.setChecked(self._grid.autoGenerateOnChange)
+
             canGenerate, reason = self._grid.canGenerateTargets
             self._generateBtn.setEnabled(canGenerate)
             self._generateBtn.setToolTip(reason)
