@@ -290,6 +290,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _editGridWdgt: EditGridWidget = attrs.field(init=False)
     _addGridBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
+    _dispSection: QCollapsibleSection = attrs.field(init=False)
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
     _crosshairsDispCheckbox: QtWidgets.QCheckBox = attrs.field(init=False)
     _export3DBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -393,10 +394,11 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._tableWdgt.wdgt.setMinimumHeight(100)
         upperContainer.layout().addWidget(self._tableWdgt.wdgt)
 
-        fieldContainer = QtWidgets.QWidget()
+        self._dispSection = QCollapsibleSection('Display options', doStartCollapsed=True)
         fieldLayout = QtWidgets.QFormLayout()
-        fieldContainer.setLayout(fieldLayout)
-        upperContainer.layout().addWidget(fieldContainer)
+        self._dispSection.innerWdgt.setLayout(fieldLayout)
+        upperContainer.layout().addWidget(self._dispSection.outerWdgt)
+        self._targetDispStyle_comboBox.addItem('Auto')
         self._targetDispStyle_comboBox.addItems([key.value for key in TargetDisplayStyle])
         self._targetDispStyle_comboBox.setCurrentIndex(0)  # auto
         self._targetDispStyle_comboBox.currentIndexChanged.connect(self._onTargetDispStyleChanged)
