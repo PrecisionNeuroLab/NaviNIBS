@@ -400,6 +400,9 @@ class EntryAnglesWidgets:
             self._angleXWdgt.value = np.rad2deg(angleX)
             self._angleYWdgt.value = np.rad2deg(angleY)
 
+        for wdgt in (self._angleXWdgt, self._angleYWdgt):
+            wdgt.enabled = True
+
     def _applyEntryAngleChangesToModel(self):
 
         if self._target is None:
