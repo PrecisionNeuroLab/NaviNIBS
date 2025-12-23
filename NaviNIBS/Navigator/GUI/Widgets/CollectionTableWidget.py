@@ -110,6 +110,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def _onSessionSet(self):
         self._model = self._Model(session=self._session, **self._modelKwargs)
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
+        self._model.sigItemEdited.connect(lambda *args: asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsSoon)))
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)
         self._tableView.selectionModel().selectionChanged.connect(self._onTableSelectionChanged)
@@ -231,6 +232,20 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             logger.debug('Resizing columns to contents')
             self._tableView.resizeColumnsToContents()
             self._resizeToContentsPending = False
+
+    async def _resizeToContentsSoon(self):
+        """
+        Schedule a resize to contents to happen soon (after a short delay).
+        Multiple calls to this will only result in one resize.
+        Note: this is an expensive operation
+        """
+        self._resizeToContentsPending = True
+        await asyncio.sleep(0.5)
+        if not self._resizeToContentsPending:
+            # someone else already resized
+            return
+        logger.debug('Resizing columns to contents')
+        self.resizeColumnsToContents()
 
     def resizeColumnsToContents(self):
         """

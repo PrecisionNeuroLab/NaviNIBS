@@ -22,7 +22,14 @@ CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
 class CollectionTableModelBase(tp.Generic[K, C, CI]):
     _session: Session = attrs.field(repr=False)
 
-    sigSelectionChanged: Signal = attrs.field(init=False, factory=lambda: Signal((list[K],)))  # emits which keys had selection changed (including both newly selected AND newly deselected keys)
+    sigSelectionChanged: Signal[list[K]] = attrs.field(init=False, factory=Signal)
+    """
+    Emits which keys had selection changed (including both newly selected AND newly deselected keys)
+    """
+    sigItemEdited: Signal[str, str] = attrs.field(init=False, factory=Signal)
+    """
+    Emits (columnKey, itemKey) whenever an item is edited via setData()
+    """
 
     def __attrs_post_init__(self):
         pass
@@ -373,6 +380,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                             # problem adding new row, reject change
                             return False
                         # TODO: change current item to newly created row
+                        self.sigItemEdited.emit(colKey, newItemKey)
                         return True
 
                     if colKey in self._derivedColumnSetters:
@@ -381,6 +389,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                         setattr(self._collection[itemKey], colKey, value)
                     else:
                         raise KeyError
+                    self.sigItemEdited.emit(colKey, itemKey)
                     return True
                 else:
                     return False
@@ -602,6 +611,7 @@ class FilteredCollectionModel(CollectionTableModelBase[K, C, CI], QtCore.QSortFi
         QtCore.QSortFilterProxyModel.__init__(self)
         assert self._proxiedModel is not None, 'Should be set by subclass before calling super().__attrs_post_init__'
         self._proxiedModel.sigSelectionChanged.connect(self._onFullSelectionChanged, priority=-1)
+        self._proxiedModel.sigItemEdited.connect(self.sigItemEdited.emit)
         self.setSourceModel(self._proxiedModel)
 
     def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
