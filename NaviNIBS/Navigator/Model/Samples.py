@@ -160,6 +160,7 @@ class Sample(GenericCollectionDictItem[str]):
     @classmethod
     def fromDict(cls, d: tp.Dict[str, tp.Any]):
 
+        d = d.copy()
         d['timestamp'] = Timestamp.fromisoformat(d['timestamp'])
 
         return attrsWithNumpyFromDict(cls, d, npFields=('coilToMRITransf',))
