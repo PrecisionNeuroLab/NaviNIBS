@@ -556,7 +556,7 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
 
                 # TODO: also only emit for certain columns if attrKeys specified
                 logger.debug(f'minIndex {minIndex}; maxIndex {maxIndex}, numColumns {len(self._columns)}')
-                self.dataChanged.emit(self.index(minIndex, 0), self.index(maxIndex, len(self._columns)))
+                self.dataChanged.emit(self.index(minIndex, 0), self.index(maxIndex, len(self._columns)-1))
 
                 doUpdateSelection = True
 
