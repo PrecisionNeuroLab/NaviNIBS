@@ -68,8 +68,11 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._tableView.setSelectionBehavior(self._tableView.SelectionBehavior.SelectRows)
         self._tableView.setSelectionMode(self._tableView.SelectionMode.ExtendedSelection)
         if self._doAdjustSizeToContents:
-            self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
             asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsLoop))
+
+        # set fixed row height to improve performance
+        self._tableView.verticalHeader().setDefaultSectionSize(25)
+        self._tableView.verticalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Fixed)
 
         """
         Allow drag reordering of columns. However, these won't affect underlying
