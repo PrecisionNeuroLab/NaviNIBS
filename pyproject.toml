@@ -49,6 +49,7 @@ pyshortcuts = "^1.9.5"
 #pyshortcuts = {git = "https://github.com/chriscline/pyshortcuts.git"}  # with spaces fix
 scipy = "^1.16.2"
 distinctipy = "^1.3.4"
+meshio = "^5.3.5"
 
 [tool.poetry.group.test]
 optional = true
