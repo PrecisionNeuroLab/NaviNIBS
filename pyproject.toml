@@ -3,7 +3,7 @@ classifiers = [
     "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)"
 ]
 name = "NaviNIBS"
-version = "0.2.6a8"
+version = "0.2.6a9"
 description = "Software for neuronavigated non-invasive brain stimulation"
 readme = "README.md"
 authors = [
