@@ -14,6 +14,7 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
 
     _checkIcon_planned: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.checkbox-marked-circle', color='blue'))
     _checkIcon_sampled: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.checkbox-marked-circle', color='green'))
+    _checkIcon_sampledUnaligned: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.progress-check', color='olive'))
     _xIcon: QtGui.QIcon = attrs.field(factory=lambda: qta.icon('mdi6.close-circle-outline', color='red'))
 
     def __attrs_post_init__(self):
@@ -62,6 +63,14 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
         self._collection.sigItemsAboutToChange.connect(self._onCollectionAboutToChange, priority=-2)
         self._collection.sigItemsChanged.connect(self._onCollectionChanged, priority=2)
 
+        # update icons when time of last registration changes
+        self._collection.registration.sigTrackerToMRITransfAboutToChange.connect(
+            lambda *args: self._onCollectionAboutToChange(keys=self._collection.keys(),
+                                                          attrKeys=['sampledIsSet']))
+        self._collection.registration.sigTrackerToMRITransfChanged.connect(
+            lambda *args: self._onCollectionChanged(keys=self._collection.keys(),
+                                                   attrKeys=['sampledIsSet']))
+
         super().__attrs_post_init__()
 
     def _checkIfKeyValid(self, fidKey: str, oldKey: str, newKey: str) -> bool:
@@ -82,11 +91,17 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
     def _getSampledIsSet(self, fidKey: str) -> tuple[QtGui.QIcon, str]:
         if self._collection[fidKey].sampledCoord is None:
             return self._xIcon, ''
+        lastRegistration = self._collection.registration.timeOfLastRegistration
+        lastSample = self._collection[fidKey].timeLastSampled
+        if lastRegistration is None or lastSample is None or lastRegistration < lastSample:
+            icon = self._checkIcon_sampledUnaligned
+        else:
+            icon = self._checkIcon_sampled
         numPtsSampled = self._collection[fidKey].sampledCoords.shape[0]
         if numPtsSampled == 1:
-            return self._checkIcon_sampled, ''
+            return icon, ''
         else:
-            return self._checkIcon_sampled, f'{numPtsSampled}'  # show an indicator of how many points have been sampled
+            return icon, f'{numPtsSampled}'  # show an indicator of how many points have been sampled
 
     def _checkIfWeightValid(self, fidKey: str, oldVal: str, newVal: str) -> bool:
         if len(newVal) == 0:

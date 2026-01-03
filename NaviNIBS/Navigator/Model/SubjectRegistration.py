@@ -64,6 +64,11 @@ class Fiducial(GenericCollectionDictItem[str]):
     closely matching NAS.  
     """
 
+    _timeLastSampled: str | None = None
+    """
+    Timestamp string of last time this fiducial was sampled, in format '%y%m%d%H%M%S.%f'.
+    """
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
         if self._sampledCoords is not None:
@@ -113,11 +118,12 @@ class Fiducial(GenericCollectionDictItem[str]):
 
         if newCoord is not None:
             assert newCoord.ndim == 1 and newCoord.shape[0] == 3
-        changingAttrs = ['sampledCoord']
+        changingAttrs = ['sampledCoord', 'timeLastSampled']
         if self._sampledCoords is None:
             changingAttrs.append('sampledCoords')
         self.sigItemAboutToChange.emit(self._key, changingAttrs)
         self._sampledCoord = newCoord
+        self._timeLastSampled = self._getTimestampStr() if newCoord is not None else None
         self.sigItemChanged.emit(self._key, changingAttrs)
 
     @property
@@ -138,12 +144,13 @@ class Fiducial(GenericCollectionDictItem[str]):
 
         if newCoords is not None:
             assert newCoords.ndim == 2 and newCoords.shape[1] == 3
-        changingAttrs = ['sampledCoords']
+        changingAttrs = ['sampledCoords', 'timeLastSampled']
         if newCoords is not None or self._sampledCoord is not None:
             changingAttrs.append('sampledCoord')
         self.sigItemAboutToChange.emit(self._key, changingAttrs)
         self._sampledCoord = None  # reset whenever sampledCoords is set to avoid persisting an out-of-date aggregated sample
         self._sampledCoords = newCoords
+        self._timeLastSampled = self._getTimestampStr() if newCoords is not None else None
         self.sigItemChanged.emit(self._key, changingAttrs)
 
     @property
@@ -158,6 +165,10 @@ class Fiducial(GenericCollectionDictItem[str]):
         self._alignmentWeight = newWeight
         self.sigItemChanged.emit(self._key, ['alignmentWeight'])
 
+    @property
+    def timeLastSampled(self):
+        return self.getDatetimeFromTimestamp(self._timeLastSampled) if self._timeLastSampled is not None else None
+
     def asDict(self) -> dict[str, tp.Any]:
         npFields = ['plannedCoord', 'sampledCoord', 'sampledCoords']
         return attrsWithNumpyAsDict(self, npFields=npFields)
@@ -167,9 +178,22 @@ class Fiducial(GenericCollectionDictItem[str]):
         npFields = ['plannedCoord', 'sampledCoord', 'sampledCoords']
         return attrsWithNumpyFromDict(cls, d, npFields=npFields)
 
+    @staticmethod
+    def _getTimestampStr():
+        return datetime.today().strftime('%y%m%d%H%M%S.%f')
+
+    @staticmethod
+    def getDatetimeFromTimestamp(ts: str) -> datetime:
+        return datetime.strptime(ts, '%y%m%d%H%M%S.%f')
+
 
 @attrs.define
 class Fiducials(GenericCollection[str, Fiducial]):
+    _registration: SubjectRegistration | None = attrs.field(default=None, repr=False, init=False, eq=False)
+    """
+    Reference to parent
+    """
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -194,8 +218,19 @@ class Fiducials(GenericCollection[str, Fiducial]):
     def alignmentWeights(self) -> np.ndarray:
         return np.asarray([fid.alignmentWeight for fid in self.values()])
 
+    @property
+    def registration(self):
+        return self._registration
+
+    @registration.setter
+    def registration(self, newRegistration: SubjectRegistration | None):
+        if self._registration is newRegistration:
+            return
+        assert self._registration is None, "Reassigning registration reference is not allowed"
+        self._registration = newRegistration
+
     @classmethod
-    def fromList(cls, itemList: list[dict[str, tp.Any]]) -> Fiducials:
+    def fromList(cls, itemList: list[dict[str, tp.Any]], registration: SubjectRegistration | None = None) -> Fiducials:
         items = {}
         for itemDict in itemList:
             items[itemDict['key']] = Fiducial.fromDict(itemDict)
@@ -338,6 +373,7 @@ class SubjectRegistration:
     sigTrackerToMRITransfChanged: Signal = attrs.field(init=False, factory=Signal)
 
     def __attrs_post_init__(self):
+        self._fiducials.registration = self
 
         # make sure histories are up to date with current values
         if len(self._fiducials) > 0 and (len(self._fiducialsHistory) == 0 or
@@ -416,6 +452,15 @@ class SubjectRegistration:
         Result should not be modified
         """
         return self._trackerToMRITransfHistory
+
+    @property
+    def timeOfLastRegistration(self):
+        if len(self._trackerToMRITransfHistory) == 0:
+            return None
+        else:
+            # assume history is already sorted
+            lastKey = list(self._trackerToMRITransfHistory.keys())[-1]
+            return self.getDatetimeFromTimestamp(lastKey)
 
     @property
     def isRegistered(self):

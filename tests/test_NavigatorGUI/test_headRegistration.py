@@ -134,6 +134,11 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
 
     await asyncio.sleep(1.)
 
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_InitialFiducialsPreAlign',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
     # equivalent to clicking on align button
     navigatorGUI.subjectRegistrationPanel._alignToFiducialsBtn.click()
 
