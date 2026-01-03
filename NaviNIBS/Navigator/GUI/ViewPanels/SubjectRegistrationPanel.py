@@ -27,7 +27,7 @@ from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTable
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
 from NaviNIBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
+from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy, concatenateLineSegments
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from NaviNIBS.util import makeStrUnique
@@ -1142,7 +1142,7 @@ class SubjectRegistrationPanel(MainViewPanel):
 
         elif which == 'initSampledFids':
 
-            actorKeys = ('sampledFids', 'repeatedSampledFids')
+            actorKeys = ('sampledFids', 'repeatedSampledFids', 'sampledToPlannedFidLines')
 
             sampledFidKeys = [key for key, fid in self.session.subjectRegistration.fiducials.items() if fid.sampledCoord is not None]
             doShowSampledFids = len(sampledFidKeys) > 0 \
@@ -1197,6 +1197,27 @@ class SubjectRegistrationPanel(MainViewPanel):
                 )
             else:
                 actorKey = actorKeys[1]
+                if actorKey in self._actors:
+                    self._plotter.remove_actor(actorKey)
+                    self._actors.pop(actorKey)
+
+            # lines from sampled to planned fiducials
+            lines = []
+            for fidKey in sampledFidKeys:
+                fid = self.session.subjectRegistration.fiducials[fidKey]
+                if fid.plannedCoord is not None:
+                    sampledCoord_mriSpace = applyTransform(self.session.subjectRegistration.trackerToMRITransf, fid.sampledCoord)
+                    linePts = np.vstack((sampledCoord_mriSpace, fid.plannedCoord))
+                    lines.append(pv.lines_from_points(linePts))
+            if len(lines) > 0:
+                self._actors[actorKeys[2]] = self._plotter.addLineSegments(
+                    name=actorKeys[2],
+                    lines=concatenateLineSegments(lines),
+                    color='teal',
+                    width=5
+                )
+            else:
+                actorKey = actorKeys[2]
                 if actorKey in self._actors:
                     self._plotter.remove_actor(actorKey)
                     self._actors.pop(actorKey)
