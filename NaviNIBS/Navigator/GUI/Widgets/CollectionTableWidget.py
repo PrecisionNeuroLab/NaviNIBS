@@ -170,6 +170,19 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         selRows = list(dict.fromkeys(selRows))  # remove duplicates, keep order stable
         return [self._model.getCollectionItemKeyFromIndex(selRow) for selRow in selRows if selRow < self._model.rowCount()]
 
+    @selectedCollectionItemKeys.setter
+    def selectedCollectionItemKeys(self, keys: list[K]):
+        selection = QtCore.QItemSelection()
+        for key in keys:
+            row = self._model.getIndexFromCollectionItemKey(key)
+            if row is None:
+                logger.warning(f'Cannot select item with key {key}, it is not in the model')
+                continue
+            leftIndex = self._model.index(row, 0)
+            rightIndex = self._model.index(row, self._model.columnCount() - 1)
+            selection.merge(QtCore.QItemSelection(leftIndex, rightIndex), QtCore.QItemSelectionModel.Select)
+        self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
+
     def _onTableCurrentChanged(self):
         logger.debug('Current item changed')
         self.sigCurrentItemChanged.emit(self.currentCollectionItemKey)
