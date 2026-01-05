@@ -93,7 +93,7 @@ class RegistrationFiducialsTableModel(CollectionTableModel[str, Fiducials, Fiduc
             return self._xIcon, ''
         lastRegistration = self._collection.registration.timeOfLastRegistration
         lastSample = self._collection[fidKey].timeLastSampled
-        if lastRegistration is None or lastSample is None or lastRegistration < lastSample:
+        if lastRegistration is None or (lastSample is not None and lastRegistration < lastSample):
             icon = self._checkIcon_sampledUnaligned
         else:
             icon = self._checkIcon_sampled

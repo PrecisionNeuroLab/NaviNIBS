@@ -686,7 +686,7 @@ class SubjectRegistrationPanel(MainViewPanel):
             Fiducial(
                 key=newFidKey,
                 plannedCoord=plannedCoord,
-                sampledCoords=sampledCoord
+                sampledCoords=sampledCoord,
             )
         )
 
@@ -716,7 +716,8 @@ class SubjectRegistrationPanel(MainViewPanel):
                 Fiducial(
                     key=newFidKey,
                     plannedCoord=plannedCoord,
-                    sampledCoords=sampledCoord
+                    sampledCoords=sampledCoord,
+                    timeLastSampled=self.session.subjectRegistration.fiducials[selFidKey].timeLastSampled
                 )
             )
 

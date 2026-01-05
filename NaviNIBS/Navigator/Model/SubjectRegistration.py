@@ -64,7 +64,8 @@ class Fiducial(GenericCollectionDictItem[str]):
     closely matching NAS.  
     """
 
-    _timeLastSampled: str | None = None
+    _timeLastSampled: str | None = attrs.field(converter=
+        lambda v: v.strftime('%y%m%d%H%M%S.%f') if isinstance(v, datetime) else v, default=None)
     """
     Timestamp string of last time this fiducial was sampled, in format '%y%m%d%H%M%S.%f'.
     """
