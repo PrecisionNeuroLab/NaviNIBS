@@ -1,16 +1,20 @@
 import asyncio
 import json
 import logging
-import numpy as np
 import os
+import random
+import shutil
+import typing as tp
+
+import jsbeautifier
+import numpy as np
 import pyperclip
 import pytest
 import pytransform3d.transformations as ptt
 import pytransform3d.rotations as ptr
-import random
-import shutil
 
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+from NaviNIBS.Navigator.Model.Samples import Samples, Sample
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
 from NaviNIBS.util.numpy import array_equalish
 from tests.test_NavigatorGUI import utils
@@ -385,4 +389,85 @@ async def test_basicNavigation_rapidPoseUpdates(navigatorGUIWithoutSession: Navi
 
     utils.assertSavedSessionIsValid(sessionPath)
 
+
+@pytest.mark.asyncio
+@pytest.mark.skip('For troubleshooting')
+async def test_openManySamples(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'BasicNavigationManySamples')
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_basicNavigation_manualSampling')
+async def test_basicNavigation_manySamples(navigatorGUIWithoutSession: NavigatorGUI,
+                               workingDir: str,
+                               screenshotsDataSourcePath: str,
+                               simulatedPositionsBasicNav1Path: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionKey = 'BasicNavigationManySamples'
+
+    sessionPath = utils.copySessionFolder(workingDir, 'BasicNavigationManualSampling', sessionKey)
+
+    # edit saved samples to create many more
+    samplesFilepath = os.path.join(sessionPath, 'SessionConfig_Samples.json')
+    with open(samplesFilepath, 'r+') as f:
+        logger.info('Reading previous samples')
+        originalSamplesList: list[dict[str, tp.Any]] = json.load(f)
+        originalSamples = Samples.fromList(originalSamplesList)
+        numOriginalSamples = len(originalSamples)
+
+        logger.info('Creating new samples')
+        random.seed(a=2)
+        shiftDist = 3.
+        approxNumTotalSamples = 2000
+
+        newSamples = Samples.fromList(originalSamplesList)
+        for iO, origSampleKey in enumerate(originalSamples):
+            origSample = originalSamples[origSampleKey]
+            for iR in range((approxNumTotalSamples - numOriginalSamples) // numOriginalSamples):
+                newSample = Sample.fromDict(origSample.asDict())
+                newSample.key = f'{origSample.key}_aug{iR}'
+                newSample.isVisible = False
+                newCoilToMRITransf = origSample.coilToMRITransf.copy()
+                newCoilToMRITransf[:3, 3] = origSample.coilToMRITransf[:3,  3]  + np.array([
+                    random.gauss(sigma=shiftDist) for _ in range(3)])
+                newSample.coilToMRITransf = newCoilToMRITransf
+                newSamples.addItem(newSample)
+
+        newSamplesList = newSamples.asList()
+
+        logger.info('Writing new samples to file')
+        f.seek(0)
+        opts = jsbeautifier.default_options()
+        opts.indent_size = 2
+        beautifier = jsbeautifier.Beautifier(opts)
+        f.seek(0)
+        f.write(beautifier.beautify(json.dumps(newSamplesList)))
+        f.truncate()
+
+    logger.info('Loading session')
+
+    #with utils.tracer(workingDir, sessionKey, doOpen=True):
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(5.)
+
+    for view in navigatorGUI.navigatePanel._views.values():
+        if hasattr(view, 'plotter'):
+            await view.plotter.isReadyEvent.wait()
+
+    await asyncio.sleep(5.)
+
+    # switch to another tab, then back to navigate
+    navigatorGUI._activateView(navigatorGUI.manageSessionPanel.key)
+    await asyncio.sleep(1.)
+    navigatorGUI._activateView(navigatorGUI.navigatePanel.key)
+    await asyncio.sleep(5.)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='BasicNav_ManySamples',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
