@@ -557,6 +557,8 @@ class SubjectRegistrationPanel(MainViewPanel):
             self._redraw(which='initPlannedFids')
         if attribs is None or 'sampledCoord' in attribs or 'sampledCoords' in attribs:
             self._redraw(which=['initSampledFids', 'alignBtn'])
+        if attribs is None or 'timeLastSampled' in attribs:
+            self._redraw(which='refineWithHeadPtsBtn')
 
     def _onHeadpointsChanged(self, ptIndices: list[int], attribs: tp.Optional[list[str]] = None):
         self._redraw(which='initHeadPts')  # TODO: pass which indices to redraw to not entirely redraw each time there's a change
@@ -1223,10 +1225,29 @@ class SubjectRegistrationPanel(MainViewPanel):
                     self._plotter.remove_actor(actorKey)
                     self._actors.pop(actorKey)
 
-        elif which == 'initHeadPts':
+        elif which == 'refineWithHeadPtsBtn':
+            if len(self.session.subjectRegistration.sampledHeadPoints) > 4 \
+                    and self.session.subjectRegistration.trackerToMRITransf is not None:
+                timeOfLastReg = self.session.subjectRegistration.timeOfLastRegistration
+                timesOfLastSamples = [fid.timeLastSampled for fid in self.session.subjectRegistration.fiducials.values() if fid.timeLastSampled is not None]
+                if timeOfLastReg is None or (len(timesOfLastSamples) > 0 and timeOfLastReg < max(timesOfLastSamples)):
+                    # new sampled fiducials since last registration
+                    enableBtn = False
+                else:
+                    enableBtn = True
+            else:
+                enableBtn = False
 
-            self._refineWithHeadpointsBtn.setEnabled(len(self.session.subjectRegistration.sampledHeadPoints) > 4 \
-                                                     and self.session.subjectRegistration.trackerToMRITransf is not None)
+            if enableBtn:
+                toolTipStr = ''
+            else:
+                toolTipStr = 'Cannot refine with head points until after aligning to fiducials'
+
+            self._refineWithHeadpointsBtn.setEnabled(enableBtn)
+            self._refineWithHeadpointsBtn.setToolTip(toolTipStr)
+
+        elif which == 'initHeadPts':
+            self._redraw('refineWithHeadPtsBtn')
 
             actorKeys = ['headPts', 'headPts_selected']
 
