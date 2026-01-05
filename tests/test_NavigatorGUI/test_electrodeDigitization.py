@@ -17,7 +17,7 @@ from tests.test_NavigatorGUI.utils import (
     navigatorGUIWithoutSession,
     workingDir,
     screenshotsDataSourcePath)
-from tests.test_NavigatorGUI.test_headModel import headModelDataSourcePath
+from tests.test_NavigatorGUI.test_headModel import headrecoHeadModelDataSourcePath as headModelDataSourcePath
 
 logger = logging.getLogger(__name__)
 
