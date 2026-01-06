@@ -30,7 +30,7 @@ def trackerToMRITransf():
 
 
 @pytest.fixture
-def headPoints_trackerSpace():
+def headPoints_trackerSpace_base():
     return np.asarray([
     [64.0190871872029, 35.45084207764229, -120.32860818725167],
     [62.71195490629869, 19.402026059320164, -96.90008195442515],
@@ -65,6 +65,44 @@ def headPoints_trackerSpace():
     [-30.93679753035809, 72.15824845155983, -49.142756743883055],
     [-32.9113920815359, 83.72631739165799, -50.129642881821596]
   ])
+
+
+@pytest.fixture
+def headRefCoord_trackerSpace(headPoints_trackerSpace_base):
+    return headPoints_trackerSpace_base[5] + np.asarray([0., 0., 5.])
+
+
+@pytest.fixture
+def headPoints_trackerSpace_3x(headPoints_trackerSpace_base: np.ndarray) -> np.ndarray:
+    """
+    Returns a 3x version of the head points, i.e. 3x as many points with some slight noise added to each point.
+
+    Used for estimating scaling of head point refinement algorithm duration as a function of number of head points.
+    """
+    noise = np.random.normal(scale=1, size=(headPoints_trackerSpace_base.shape[0]*3, headPoints_trackerSpace_base.shape[1]))
+    headPoints_trackerSpace_3x = np.repeat(headPoints_trackerSpace_base, 3, axis=0) + noise
+    return headPoints_trackerSpace_3x
+
+
+@pytest.fixture
+def headPoints_trackerSpace_10x(headPoints_trackerSpace_base: np.ndarray) -> np.ndarray:
+    """
+    Returns a 10x version of the head points, i.e. 10x as many points with some slight noise added to each point.
+
+    Used for estimating scaling of head point refinement algorithm duration as a function of number of head points.
+    """
+    noise = np.random.normal(scale=1, size=(headPoints_trackerSpace_base.shape[0]*10, headPoints_trackerSpace_base.shape[1]))
+    headPoints_trackerSpace_10x = np.repeat(headPoints_trackerSpace_base, 10, axis=0) + noise
+    return headPoints_trackerSpace_10x
+
+
+@pytest.fixture
+def headPoints_trackerSpace(headPoints_trackerSpace_base: np.ndarray) -> np.ndarray:
+    return headPoints_trackerSpace_base
+
+# @pytest.fixture
+# def headPoints_trackerSpace(headPoints_trackerSpace_base: np.ndarray) -> np.ndarray:
+#     return headPoints_trackerSpace_base
 
 
 @pytest.mark.asyncio
@@ -166,6 +204,11 @@ async def test_initialFiducialRegistration(navigatorGUIWithoutSession: Navigator
     # new transform should be identical(ish) to planned transform
     assert array_equalish(ses.subjectRegistration.trackerToMRITransf, trackerToMRITransf)
 
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openHeadRegistrationSession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'HeadPointAcquisition')
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_initialFiducialRegistration')
@@ -274,7 +317,7 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
                                          key=pointerKey,
                                          transf=pointerPose_worldSpace)
 
-        await asyncio.sleep(1.)
+        await asyncio.sleep(0.2)
 
         # equivalent to clicking on sample head point button
         navigatorGUI.subjectRegistrationPanel._sampleHeadPtsBtn.click()
@@ -288,6 +331,11 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
 
     logger.debug('Refining with head points')
     navigatorGUI.subjectRegistrationPanel._refineWithHeadpointsBtn.click()
+
+    if False:
+        # TODO: debug, delete
+        await asyncio.sleep(5.)
+        return
 
     await asyncio.sleep(1.)
 
@@ -361,10 +409,20 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_RefinedThenFiducialSampled',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+    assert not navigatorGUI.subjectRegistrationPanel._refineWithHeadpointsBtn.isEnabled(), 'Refine button should be disabled after fiducial resampling before alignment'
+
     preMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
 
     # equivalent to clicking on align button
     navigatorGUI.subjectRegistrationPanel._alignToFiducialsBtn.click()
+
+    await asyncio.sleep(1.)
+
+    assert navigatorGUI.subjectRegistrationPanel._refineWithHeadpointsBtn.isEnabled(), 'Refine button should be enabled after alignment'
 
     postMoveHeadPoints = navigatorGUI.session.subjectRegistration.sampledHeadPoints.asList()
 
@@ -377,3 +435,93 @@ async def test_headPointRefinement(navigatorGUIWithoutSession: NavigatorGUI,
                                             screenshotName='HeadRegistration_RefinedThenRegistered',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_headPointRefinement')
+async def test_fiducialConversion(navigatorGUIWithoutSession: NavigatorGUI,
+                                  workingDir: str,
+                                  screenshotsDataSourcePath: str,
+                                  trackerToMRITransf: np.ndarray,
+                                  headRefCoord_trackerSpace: np.ndarray):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'HeadPointRefinement', 'FiducialConversion')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # give time for initialization
+    await navigatorGUI.subjectRegistrationPanel.finishedAsyncInitializationEvent.wait()
+    await asyncio.sleep(1.)
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.subjectRegistrationPanel.key
+
+    reg = navigatorGUI.session.subjectRegistration
+    fids = reg.fiducials
+
+    # select existing fiducials
+    navigatorGUI.subjectRegistrationPanel._fidTblWdgt.selectedCollectionItemKeys = ['NAS', 'LPA', 'RPA']
+
+    # convert to planned
+    navigatorGUI.subjectRegistrationPanel._newFidFromSampleBtn.click()
+
+    navigatorGUI.subjectRegistrationPanel._fidTblWdgt.resizeColumnsToContents()
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_FiducialsConverted',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # add head reference point
+    logger.debug(f'Getting subject tracker pose')
+    trackerKey = navigatorGUI.session.tools.subjectTracker.key
+    trackerPose_worldSpace = navigatorGUI.subjectRegistrationPanel._positionsClient.getLatestTransf(trackerKey)
+
+    pointerKey = navigatorGUI.session.tools.pointer.key
+
+    pointerPose_trackerSpace = composeTransform(np.eye(3), headRefCoord_trackerSpace)
+    pointerPose_worldSpace = concatenateTransforms((pointerPose_trackerSpace,
+                                                    trackerPose_worldSpace))
+    await utils.setSimulatedToolPose(navigatorGUI=navigatorGUI,
+                                     key=pointerKey,
+                                     transf=pointerPose_worldSpace)
+
+    await asyncio.sleep(1.)
+
+    navigatorGUI.subjectRegistrationPanel._newFidFromPointerBtn.click()
+
+    await asyncio.sleep(1.)
+
+    fidKey = list(navigatorGUI.session.subjectRegistration.fiducials.keys())[-1]
+    assert fidKey.startswith('SampledFiducial')
+    newFidKey = 'HeadRef'
+    navigatorGUI.session.subjectRegistration.fiducials[fidKey].key = newFidKey
+
+    navigatorGUI.subjectRegistrationPanel._fidTblWdgt.resizeColumnsToContents()
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_WithHeadRef',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skip('For troubleshooting')
+async def test_openFiducialConversion(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'FiducialConversion')
