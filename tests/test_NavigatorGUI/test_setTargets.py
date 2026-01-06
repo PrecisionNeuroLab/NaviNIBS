@@ -39,9 +39,17 @@ async def test_openSetTargetsSession(workingDir):
 
 
 @pytest.mark.asyncio
-# @pytest.mark.skip(reason='For troubleshooting')
+@pytest.mark.skip(reason='For troubleshooting')
 async def test_openSetTargetGridSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'SetTargetGrid')
+
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openSetTargetGridWholeHeadSession(workingDir):
+    with tracer(workingDir, 'SetTargetGridWholeHead', doOpen=True):
+        await utils.openSessionForInteraction(workingDir, 'SetTargetGridWholeHead')
+
 
 
 @pytest.mark.asyncio
@@ -171,9 +179,6 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
     grid = gridWdgt.grid
     assert grid is not None
 
-    # equivalent to changing display style in GUI
-    navigatorGUI.setTargetsPanel._targetDispStyle_comboBox.setCurrentIndex(1)
-
     # equivalent to hiding all targets (prior to grid creation) in GUI
     navigatorGUI.session.targets.setWhichTargetsVisible([])
 
@@ -206,7 +211,7 @@ async def test_setTargetGrid(navigatorGUIWithoutSession: NavigatorGUI,
 
     # equivalent to clicking on corresponding entry in table
     logger.info(f'Targets: {navigatorGUI.session.targets.keys()}')
-    navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 'M1 grid point 13'
+    navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 'M1 grid x3 y3'
 
     navigatorGUI.setTargetsPanel._views['3D'].plotter.camera.zoom(3)  # closer view on head for screenshot
 
@@ -276,33 +281,49 @@ async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
 
     assert navigatorGUI.activeViewKey == navigatorGUI.setTargetsPanel.key
 
-    # equivalent to clicking on "Edit grid" tab
-    navigatorGUI.setTargetsPanel._editGridDock.raiseDock()
+    # equivalent to clicking on "Target grids" tab
+    navigatorGUI.setTargetsPanel._gridDock.raiseDock()
 
     gridWdgt: EditGridWidget = navigatorGUI.setTargetsPanel._editGridWdgt
-
-    # equivalent to changing display style in GUI
-    navigatorGUI.setTargetsPanel._targetDispStyle_comboBox.setCurrentIndex(1)
 
     # equivalent to hiding all targets (prior to grid creation) in GUI
     navigatorGUI.session.targets.setWhichTargetsVisible([])
 
     with tracer(workingDir, sessionKey, doOpen=False):
 
+        assert len(navigatorGUI.session.targetGrids)==0
+
+        navigatorGUI.setTargetsPanel._addGridBtn.click()
+
+        assert len(navigatorGUI.session.targetGrids)==1
+
+        grid = gridWdgt.grid
+        assert grid is not None
+
+        grid.key = 'Whole head grid'
+
+        await asyncio.sleep(1.)
+
+        # TODO: screenshot
+
+        assert not grid._gridNeedsUpdate.is_set()
+
         # equivalent to selecting as seed target
-        gridWdgt.seedTarget = navigatorGUI.session.targets['Vertex']
+        gridWdgt._seedTargetComboBox.setCurrentText('Vertex')
 
         # equivalent to setting grid parameters in GUI
         gridWdgt._gridPrimaryAngleWdgt.value = 0.
         gridWdgt._gridPivotDepth.setValue(80.)
-        for i in range(0, 2):
-            gridWdgt._gridNWdgts[i].setValue(9)
-            gridWdgt._gridWidthWdgts[i].setValue(160)
-        gridWdgt._gridNeedsUpdate.set()
+        gridWdgt._gridNWdgts[0].setValue(11)
+        gridWdgt._gridWidthWdgts[0].setValue(190)
+        gridWdgt._gridNWdgts[1].setValue(11)
+        gridWdgt._gridWidthWdgts[1].setValue(170)
+
+        assert grid._gridNeedsUpdate.is_set()
 
         await asyncio.sleep(.5)
 
-        assert not gridWdgt._gridNeedsUpdate.is_set()
+        assert not grid._gridNeedsUpdate.is_set()
 
         for view in navigatorGUI.setTargetsPanel._views.values():
             await view.redrawQueueIsEmpty.wait()
