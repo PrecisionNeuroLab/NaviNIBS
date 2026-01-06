@@ -43,7 +43,11 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _tableView: QtWidgets.QTableView = attrs.field(init=False, factory=QtWidgets.QTableView)
     _model: tp.Optional[TM] = attrs.field(init=False, default=None)
 
-    _doAdjustSizeToContents: bool = True
+    _doAdjustSizeToContents: bool | None = None
+    """
+    if None, will change automatically based on number of rows, to avoid performance issues with large tables
+    """
+    _doAdjustColumnWidthsToContents: bool = True
 
     _needsResizeToContents: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _resizeToContentsPending: bool = attrs.field(init=False, default=False)
@@ -68,6 +72,12 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._tableView.setSelectionBehavior(self._tableView.SelectionBehavior.SelectRows)
         self._tableView.setSelectionMode(self._tableView.SelectionMode.ExtendedSelection)
         if self._doAdjustSizeToContents:
+            self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
+        else:
+            # default to adjusting on first show only
+            pass
+
+        if self._doAdjustSizeToContents is None or self._doAdjustColumnWidthsToContents:
             asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsLoop))
 
         # set fixed row height to improve performance
@@ -111,11 +121,12 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._model = self._Model(session=self._session, **self._modelKwargs)
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
         self._model.sigItemEdited.connect(lambda *args: asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsSoon)))
+        self._refreshSizeAdjustPolicy()
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)
         self._tableView.selectionModel().selectionChanged.connect(self._onTableSelectionChanged)
         self._model.rowsInserted.connect(self._onTableRowsInserted)
-        self._tableView.resizeColumnsToContents()
+        self._tableView.resizeColumnsToContents()  # adjust regardless of doAdjustColumnWidthsToContents when initializing
 
     @property
     def currentCollectionItemKey(self) -> tp.Optional[K]:
@@ -226,6 +237,17 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
 
         self._tableView.selectionModel().select(selection, QtCore.QItemSelectionModel.ClearAndSelect)
 
+    def _refreshSizeAdjustPolicy(self):
+        if self._model is None:
+            return
+        if self._doAdjustSizeToContents is None:
+            if self._model.rowCount() > 200:
+                self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustIgnored)
+            elif self._model.rowCount() > 50:
+                self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContentsOnFirstShow)
+            else:
+                self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
+
     async def _resizeToContentsLoop(self):
         """
         resizeColumnsToContents is very expensive, so don't run on every update.
@@ -242,8 +264,10 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
                 # someone manually resized while we were waiting
                 continue
 
-            logger.debug('Resizing columns to contents')
-            self._tableView.resizeColumnsToContents()
+            if self._doAdjustColumnWidthsToContents:
+                logger.debug('Resizing columns to contents')
+                self._tableView.resizeColumnsToContents()
+            self._refreshSizeAdjustPolicy()
             self._resizeToContentsPending = False
 
     async def _resizeToContentsSoon(self):
