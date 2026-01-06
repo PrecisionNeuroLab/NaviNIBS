@@ -71,6 +71,10 @@ class VisualizedTarget:
         self.plot()
 
     @property
+    def target(self):
+        return self._target
+
+    @property
     def visible(self):
         return self._visible
 
@@ -532,24 +536,48 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         """
         return self._views['3D'].sliceOrigin
 
-    def _getDispStyle(self) -> TargetDisplayStyle:
+    def _getDispStyle(self, forTargetKey: str) -> TargetDisplayStyle:
         dispStyle = self._targetDispStyle_comboBox.currentText()
         if dispStyle == 'Auto':
             if self.session is None:
-                numVisibleTargets = 0
+                dispStyle = TargetDisplayStyle.TARGET_COORD
             else:
-                numVisibleTargets = sum(1 for target in self.session.targets.values() if target.isVisible)
-            if numVisibleTargets <= 10:
-                dispStyle = TargetDisplayStyle.MINICOIL_AND_EXTENDED_ENTRY
-            else:
-                dispStyle = TargetDisplayStyle.HANDLE_AND_EXTENDED_ENTRY
+                if True:
+                    # set style based on distance to other targets (can vary per target)
+                    minDistToOtherTargets = np.inf
+                    try:
+                        target = self.session.targets[forTargetKey]
+                    except KeyError:
+                        return TargetDisplayStyle.TARGET_COORD
+                    for otherTargetKey, otherTarget in self.session.targets.items():
+                        if otherTargetKey == forTargetKey:
+                            continue
+                        if not otherTarget.isVisible:
+                            continue
+                        if otherTarget.entryCoordPlusDepthOffset is None or target.entryCoordPlusDepthOffset is None:
+                            continue
+                        dist = np.linalg.norm(otherTarget.entryCoordPlusDepthOffset - target.entryCoordPlusDepthOffset)
+                        if dist < minDistToOtherTargets:
+                            minDistToOtherTargets = dist
+
+                    if minDistToOtherTargets > 15:
+                        dispStyle = TargetDisplayStyle.MINICOIL_AND_EXTENDED_ENTRY
+                    else:
+                        dispStyle = TargetDisplayStyle.HANDLE_AND_EXTENDED_ENTRY
+                else:
+                    # set style based on total number of visible targets
+                    numVisibleTargets = sum(1 for target in self.session.targets.values() if target.isVisible)
+                    if numVisibleTargets <= 10:
+                        dispStyle = TargetDisplayStyle.MINICOIL_AND_EXTENDED_ENTRY
+                    else:
+                        dispStyle = TargetDisplayStyle.HANDLE_AND_EXTENDED_ENTRY
         else:
             dispStyle = TargetDisplayStyle(dispStyle)
         return dispStyle
 
     def _onTargetDispStyleChanged(self, index: int | None = None):
-        dispStyle = self._getDispStyle()
         for visualizedTarget in self._targetActors.values():
+            dispStyle = self._getDispStyle(forTargetKey=visualizedTarget.target.key)
             visualizedTarget.style = dispStyle
 
     def _onCrosshairsDispCheckboxChanged(self, state: int):
@@ -646,7 +674,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         else:
             logger.debug(f'Creating VisualizedTarget for target {target.key}')
         view = self._views[viewKey]
-        style = self._getDispStyle()
+        style = self._getDispStyle(forTargetKey=target.key)
         self._targetActors[viewKey + target.key] = VisualizedTarget(target=target,
                                                                     fallbackColor=self._defaultTargetColor,
                                                                     plotter=view.plotter,
