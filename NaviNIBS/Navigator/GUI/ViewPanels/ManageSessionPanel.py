@@ -253,8 +253,12 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         if self._rootDockArea is not None:
             assert self._rootDockArea is dockArea
-            assert self._tabSaveBtn is not None
-            #tCnt.layout.takeAt(tCnt.layout.indexOf(self._tabSaveBtn))
+            if self._tabSaveBtn is not None:
+                try:
+                    if self._tabSaveBtn.parent() is tCnt:
+                        return  # button already in correct TContainer, nothing to do
+                except RuntimeError:
+                    pass  # C++ object was deleted; need to re-add
             self._tabSaveBtn = None
         else:
             assert self._tabSaveBtn is None, 'Save button already added to dock tab strip'
@@ -309,13 +313,16 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 pass  # widget may have been deleted
 
     def _updateSaveBtnStyle(self):
+        isDirty = self.session is not None and len(self.session.dirtyKeys) > 0
+
+        btn = self._saveBtn
+        if btn is not None:
+            btn.setEnabled(isDirty)
+
         btn = self._tabSaveBtn
         if btn is None:
             return
-        isDirty = self.session is not None and len(self.session.dirtyKeys) > 0
-        if self._saveBtnShowsDirty is not None and isDirty == self._saveBtnShowsDirty:
-            return
-        self._saveBtnShowsDirty = isDirty
+
         palette = self.wdgt.palette()
         if isDirty:
             fg = palette.color(QtGui.QPalette.Active, QtGui.QPalette.Text).name()

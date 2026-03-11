@@ -200,6 +200,10 @@ class NavigatorGUI(RunnableAsApp):
                         # sometimes can get errors during restore if other parts of layout have changed
                         logger.error('Unable to restore root dock area state')
 
+                    # restoreState rebuilds the TContainer, destroying any widgets added to it
+                    # (e.g. the save button); re-add them now
+                    self.manageSessionPanel.addSaveButtonToDockTabStrip(self._rootDockArea)
+
                 for panel in self.mainViewPanels.values():
                     # catch up with signals that may have been blocked above
                     await asyncio.sleep(0.01)
