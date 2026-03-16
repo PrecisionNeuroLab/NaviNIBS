@@ -73,6 +73,10 @@ class TargetingCoordinator:
     _doMonitorOnTarget: bool = False
     _monitorOnTargetRate: float = 5.  # in Hz
     _isOnTarget: bool = attrs.field(init=False, default=False)
+    _additionalIsOnTargetChecks: list[tp.Callable[[], bool]] = attrs.field(init=False, factory=list, repr=False)
+    """
+    Allow additional checks to be registered for determining on-target status, e.g. based on Cobot status 
+    """
     _onTargetMaybeChangedAtTime: float | None = None
     _needToCheckIfOnTarget: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _monitorOnTargetTask: asyncio.Task | None = attrs.field(init=False, default=None, repr=False)
@@ -112,6 +116,7 @@ class TargetingCoordinator:
             sample=self._session.samples[self._currentSampleKey] if self._currentSampleKey is not None else None
         )
 
+        self.sigCurrentTargetChanged.connect(self.resetIsOnTarget)
         self.sigCurrentTargetChanged.connect(lambda: self._needToCheckIfOnTarget.set())
 
         if self._doMonitorOnTarget:
@@ -236,6 +241,12 @@ class TargetingCoordinator:
                 if np.isnan(depthDistError) or abs(depthDistError) > self._isOffTargetWhenZDistErrorExceeds:
                     isStillOnTarget = False
 
+            if isStillOnTarget:
+                for additionalCheck in self._additionalIsOnTargetChecks:
+                    if not additionalCheck():
+                        isStillOnTarget = False
+                        break
+
             if self._onTargetMaybeChangedAtTime is not None:
                 if isStillOnTarget:
                     self._onTargetMaybeChangedAtTime = None
@@ -284,6 +295,12 @@ class TargetingCoordinator:
                         depthDistError > self._isOnTargetWhenZDistErrorBetween[1]):
 
                     isStillOffTarget = True
+
+            if not isStillOffTarget:
+                for additionalCheck in self._additionalIsOnTargetChecks:
+                    if not additionalCheck():
+                        isStillOffTarget = True
+                        break
 
             if self._onTargetMaybeChangedAtTime is not None:
                 if isStillOffTarget:
@@ -462,6 +479,27 @@ class TargetingCoordinator:
             # check immediately to make sure we don't give outdated information
             self._checkIfOnTarget()
         return self._isOnTarget
+
+    def resetIsOnTarget(self):
+        """
+        Allow manually clearing isOnTarget to restart on-target duration timer
+        (e.g. to temporarily show as off target after a change in target, even if that otherwise
+         might not be enough to register as off target)
+        """
+        if self._isOnTarget:
+            self._isOnTarget = False
+            self._onTargetMaybeChangedAtTime = None
+            logger.debug(f'isOnTarget: {self._isOnTarget}')
+            self.sigIsOnTargetChanged.emit()
+
+    def registerAdditionalIsOnTargetCheck(self, checkFunc: tp.Callable[[], bool]):
+        """
+        Register an additional check function that will be called when determining on-target status. If any check returns False, the tool will be considered off-target.
+
+        This can be used to incorporate information from other sources, e.g. Cobot status, into the on-target determination.
+        """
+        self._additionalIsOnTargetChecks.append(checkFunc)
+        self._needToCheckIfOnTarget.set()  # check immediately with new check added
 
     def _startMonitoringOnTarget(self):
         assert self._monitorOnTargetTask is None
