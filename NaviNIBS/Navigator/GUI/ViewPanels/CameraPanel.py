@@ -17,7 +17,9 @@ from NaviNIBS.Navigator.Model.Session import Session, SubjectTracker
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import setActorUserTransform, RemotePlotterProxy
 from NaviNIBS.util.GUI.Dock import Dock
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.logging import getLogFilepath

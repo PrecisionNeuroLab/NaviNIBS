@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import logging
@@ -12,8 +14,8 @@ import tempfile
 import time
 import typing as tp
 
-
-from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+if tp.TYPE_CHECKING:
+    from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from NaviNIBS.Navigator.Model.Session import Session
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,8 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
         # disable dark mode for consistent test screenshots
         os.environ['QT_QPA_PLATFORM'] = 'windows:darkmode=0'
 
+    from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
+
     navGUI = NavigatorGUI.createAndRunAsTask()
     if True:
         await raiseMainNavigatorGUI()
@@ -77,6 +81,8 @@ async def openSessionForInteraction(workingDir, sessionKey: str):
     if True:
         # disable dark mode for consistent test screenshots
         os.environ['QT_QPA_PLATFORM'] = 'windows:darkmode=0'
+
+    from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 
     NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath)
     while True:

@@ -10,7 +10,6 @@ import numpy as np
 import os
 import pathlib
 import pyvista as pv
-import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil
@@ -27,7 +26,9 @@ from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidge
 from NaviNIBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.pyvista import setActorUserTransform, Actor, RemotePlotterProxy
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import setActorUserTransform, RemotePlotterProxy
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import transformToString, stringToTransform, concatenateTransforms, invertTransform
 from NaviNIBS.util.GUI.Icons import getIcon

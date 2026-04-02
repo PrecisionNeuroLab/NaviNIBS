@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import numpy as np
 import pyvista as pv
 import typing as tp
 
-Actor = pv._vtk.vtkActor
+if tp.TYPE_CHECKING:
+    Actor = pv._vtk.vtkActor
 
 
 def setActorUserTransform(actor: Actor | str, transf: np.ndarray):

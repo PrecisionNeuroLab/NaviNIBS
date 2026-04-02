@@ -12,7 +12,9 @@ import pyvista as pv
 from qtpy import QtWidgets, QtGui, QtCore
 
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView, defaultSurfColor
-from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model import ROIs

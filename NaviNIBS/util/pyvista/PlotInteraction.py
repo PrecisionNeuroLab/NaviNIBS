@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import functools
 import logging
@@ -12,10 +14,9 @@ if pv.__version__ <= '0.39.1':
 else:
     from pyvista.core.utilities.misc import try_callback
 
-from . import Actor
-
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, getActorUserTransform
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util import Transforms
 
 

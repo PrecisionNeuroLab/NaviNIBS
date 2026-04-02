@@ -5,14 +5,15 @@ from contextlib import contextmanager
 import logging
 import numpy as np
 import pyvista as pv
-from pyvista.plotting.mapper import DataSetMapper
 import pyvistaqt as pvqt
 from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 from typing import ClassVar
 
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import setActorUserTransform
 from NaviNIBS.util.pyvista.ticks import getNiceTicksForRange
 
 logger = logging.getLogger(__name__)
@@ -164,6 +165,7 @@ class PlotterImprovementsMixin:
         assert isinstance(lines, pv.PolyData)
 
         # Create mapper and add lines
+        from pyvista.plotting.mapper import DataSetMapper
         mapper = DataSetMapper(lines)
 
         if scalars is None:
@@ -338,7 +340,8 @@ class PlotterImprovementsMixin:
                               **kwargs)
 
     def set_actors_visibility(self, actors: tp.Iterable[str | Actor] | str | Actor, visible: bool):
-        if isinstance(actors, (str, Actor)):
+        ActorCls = pv._vtk.vtkActor
+        if isinstance(actors, (str, ActorCls)):
             actors = [actors]
         for actor in actors:
             for renderer in self.renderers:

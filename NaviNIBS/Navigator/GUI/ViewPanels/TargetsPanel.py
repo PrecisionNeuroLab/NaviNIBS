@@ -32,7 +32,7 @@ from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QCollapsibleSection import QCollapsibleSection
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
-from NaviNIBS.util.pyvista import Actor, RemotePlotterProxy
+from NaviNIBS.util.pyvista import RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms

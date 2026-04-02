@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 
 import attrs
 import logging
 import numpy as np
 import pyvista as pv
-import pyvistaqt as pvqt
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
@@ -14,7 +15,9 @@ from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import composeTransform, applyTransform, applyDirectionTransform
-from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy, setActorUserTransform, Actor
+from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy, setActorUserTransform
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,8 @@ import shutil
 import typing as tp
 
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
-from NaviNIBS.util.pyvista import Actor
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista import (
     DefaultBackgroundPlotter,
     DefaultPrimaryLayeredPlotter,

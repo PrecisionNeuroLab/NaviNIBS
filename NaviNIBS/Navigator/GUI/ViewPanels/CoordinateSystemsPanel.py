@@ -10,7 +10,6 @@ import numpy as np
 import os
 import pathlib
 import pyvista as pv
-import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import shutil

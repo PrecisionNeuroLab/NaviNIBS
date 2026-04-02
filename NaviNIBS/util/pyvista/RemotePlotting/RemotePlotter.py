@@ -19,7 +19,8 @@ from NaviNIBS.util import ZMQAsyncioFix
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from NaviNIBS.util.logging import createLogFileHandler
-from NaviNIBS.util.pyvista import Actor
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
 from NaviNIBS.util.pyvista.RemotePlotting import ActorRef, PolyDataRef, PolyDataManager
 
@@ -285,8 +286,10 @@ class RemotePlotManagerBase:
         # call method
         result = fn(*args, **kwargs)
 
+        ActorCls = pv._vtk.vtkActor
+
         # convert any Actors to ActorRefs
-        if isinstance(result, (Actor,
+        if isinstance(result, (ActorCls,
                                vtkmodules.vtkRenderingCore.vtkActor2D,
                                vtkmodules.vtkRenderingAnnotation.vtkAxesActor,
                                pv._vtk.vtkVolume)):

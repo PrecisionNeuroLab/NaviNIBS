@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import attrs
 import inspect
@@ -10,7 +12,9 @@ import typing as tp
 from NaviNIBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import setActorUserTransform, concatenateLineSegments
 from NaviNIBS.util.pyvista import DefaultPrimaryLayeredPlotter, DefaultSecondaryLayeredPlotter, RemotePlotterProxy
 
 

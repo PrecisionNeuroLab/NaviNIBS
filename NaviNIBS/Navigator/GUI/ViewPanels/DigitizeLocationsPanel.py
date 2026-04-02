@@ -25,7 +25,9 @@ from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.Signaler import Signal
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import setActorUserTransform
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 

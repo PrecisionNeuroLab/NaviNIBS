@@ -6,7 +6,6 @@ import attrs
 import logging
 import numpy as np
 import pyvista as pv
-import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
@@ -16,7 +15,8 @@ from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.NavigationView import Targe
 from NaviNIBS.util import classproperty
 
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, concatenateLineSegments
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 

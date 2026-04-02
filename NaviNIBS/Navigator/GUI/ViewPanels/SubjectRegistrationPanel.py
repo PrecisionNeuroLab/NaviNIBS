@@ -11,7 +11,6 @@ import numpy as np
 import os
 import pathlib
 import pyvista as pv
-import pyvistaqt as pvqt
 import qtawesome as qta
 from qtpy import QtWidgets, QtGui, QtCore
 import re
@@ -27,7 +26,9 @@ from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import HeadPointsTable
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducial, HeadPoints
 from NaviNIBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
-from NaviNIBS.util.pyvista import Actor, setActorUserTransform, RemotePlotterProxy, concatenateLineSegments
+if tp.TYPE_CHECKING:
+    from NaviNIBS.util.pyvista import Actor
+from NaviNIBS.util.pyvista import setActorUserTransform, RemotePlotterProxy, concatenateLineSegments
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, transformToString, stringToTransform, estimateAligningTransform, concatenateTransforms
 from NaviNIBS.util import makeStrUnique
