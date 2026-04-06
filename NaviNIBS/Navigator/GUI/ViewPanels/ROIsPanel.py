@@ -17,7 +17,7 @@ from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import ROIsTableWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditROIWidget import EditROIWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, refreshROIAutoColors
+from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, VisualizedROIsMesh, refreshROIAutoColors
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
@@ -26,7 +26,10 @@ from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
 from NaviNIBS.Navigator.Model.Session import Session
-from NaviNIBS.Navigator.Model import ROIs
+from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
+from NaviNIBS.Navigator.Model.ROIs import SurfaceMeshROI
+from NaviNIBS.Navigator.Model.ROIs.AtlasSurfaceParcel import AtlasSurfaceParcel
+
 
 if DefaultBackgroundPlotter is RemotePlotterProxy or tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePolyDataProxy, RemotePlotterProxyBase
@@ -54,6 +57,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _resetColorsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _editROIWdgt: EditROIWidget = attrs.field(init=False)
     _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
+    _visualizedROIsMeshes: dict[str, VisualizedROIsMesh] = attrs.field(init=False, factory=dict)
     _enabledOnlyWhenROISelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
 
     _redrawROIKeys: set[str] = attrs.field(init=False, factory=set)
@@ -309,7 +313,8 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                             if True:  # TODO: debug, set to true / remove conditional
                                 visualizedROI = VisualizedROI(roi=roi,
                                                               session=self.session,
-                                                              linked3DView=self._surfView)
+                                                              linked3DView=self._surfView,
+                                                              meshRegistry=self._visualizedROIsMeshes)
                                 self._visualizedROIs[key] = visualizedROI
 
                 self._surfView.updateView()
@@ -326,10 +331,10 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                     except KeyError:
                         pass
                     else:
-                        if isinstance(roi, ROIs.PipelineROI):
+                        if isinstance(roi, PipelineROI):
                             roi = roi.getOutput()
 
-                        if isinstance(roi, ROIs.SurfaceMeshROI):
+                        if isinstance(roi, SurfaceMeshROI):
                             roiCenter = roi.seedCoord
                         else:
                             roiCenter = None
@@ -371,7 +376,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._importROIsFromFile(newFilepath=newFilepath)
 
     def _onImportAtlasROIs(self, atlasKey: str):
-        parcelKeys, parcelLabels = ROIs.AtlasSurfaceParcel.listParcelsInAtlas(
+        parcelKeys, parcelLabels = AtlasSurfaceParcel.listParcelsInAtlas(
             session=self.session,
             atlasKey=atlasKey,
         )
@@ -420,15 +425,15 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._pendingAtlasKey = None
 
     def _onImportAtlasROIsDialogAccepted(self):
+        assert self._atlasROIsImportDialog is not None
         assert self._atlasROIsTree is not None
         selectedParcelKeys = [item.text(0) for item in self._atlasROIsTree.selectedItems()]
         logger.info(f'Importing parcels from "{self._pendingAtlasKey}" atlas: {selectedParcelKeys}')
-        newROIs = ROIs.AtlasSurfaceParcel.loadROIsFromAtlas(session=self.session,
+        newROIs = AtlasSurfaceParcel.loadROIsFromAtlas(session=self.session,
                                                             atlasKey=self._pendingAtlasKey,
                                                             parcelKeys=selectedParcelKeys)
         self.session.ROIs.merge(newROIs)
-        if self._atlasROIsImportDialog is not None:
-            self._atlasROIsImportDialog.accept()
+        self._atlasROIsImportDialog.accept()
 
     def _importROIsFromFile(self, newFilepath: str):
 
@@ -439,7 +444,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
     def _onAddBtnClicked(self, checked: bool):
         roiKey = makeStrUnique('ROI-1', existingStrs=self.session.ROIs.keys(), delimiter='-')
-        roi = ROIs.PipelineROI(key=roiKey)
+        roi = PipelineROI(key=roiKey)
         self.session.ROIs.addItem(roi)
         self._tableWdgt.currentCollectionItemKey = roiKey  # select new ROI
 
@@ -468,5 +473,3 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         newROI['key'] = newROIKey
         newROI['session'] = self._session
         self.session.ROIs.addItem(self.session.ROIs.roiFromDict(newROI))
-
-

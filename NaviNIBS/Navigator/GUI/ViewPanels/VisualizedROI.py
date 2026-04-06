@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-import os
 import typing as tp
 
 import attrs
@@ -17,8 +16,10 @@ if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista import RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model import ROIs
+from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 
 if DefaultBackgroundPlotter is RemotePlotterProxy or tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotterProxy import RemotePolyDataProxy, RemotePlotterProxyBase
@@ -27,17 +28,139 @@ if DefaultBackgroundPlotter is RemotePlotterProxy or tp.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 @attrs.define
+class VisualizedROIsMesh(QueuedRedrawMixin):
+    """
+    Shared mesh visualization for one or more ROIs on the same meshKey.
+    Owns a single mesh copy and actor. Renders background brain color for non-ROI vertices
+    and per-ROI colors (averaged where overlapping) for ROI vertices in one RGBA scalar array.
+    Hides the corresponding Surf3DView actor while active to avoid z-fighting.
+    """
+    _meshKey: str
+    _session: Session
+    _linked3DView: Surf3DView
+    _opacity: float = 0.85
+    _backgroundColor: tuple[int, int, int, int] = attrs.field(init=False)
+
+    _mesh: pv.PolyData | None = attrs.field(init=False, default=None)
+    _meshActor: Actor | None = attrs.field(init=False, default=None)
+    _registeredROIs: list[VisualizedROI] = attrs.field(init=False, factory=list)
+
+    scalarsKey: tp.ClassVar[str] = 'ROIs_combined_rgba'
+
+    def __attrs_post_init__(self):
+        QueuedRedrawMixin.__attrs_post_init__(self)
+        bgColor, bgOpacity = self._linked3DView.getSurfColorAndOpacity(self._meshKey)
+        c = QtGui.QColor(bgColor)
+        self._backgroundColor = (c.red(), c.green(), c.blue(), round(255 * bgOpacity))
+        self._initMesh()
+
+    def _initMesh(self):
+        logger.info(f'Initializing shared mesh for ROIs on {self._meshKey}')
+
+        srcMesh = getattr(self._session.headModel, self._meshKey)
+        self._mesh = pv.PolyData(srcMesh, deep=True)
+
+        # Initialize all vertices to background color
+        self._mesh[self.scalarsKey] = np.tile(self._backgroundColor,
+                                              (self._mesh.n_points, 1)).astype(np.uint8)
+
+        if isinstance(self._linked3DView.plotter, RemotePlotterProxyBase):
+            self._mesh = self._linked3DView.plotter.registerPolyData(
+                polyData=self._mesh,
+                id=self._meshKey + '_VisualizedROIsMesh',
+            )
+
+        self._meshActor = self._linked3DView.plotter.addMesh(
+            self._mesh,
+            scalars=self.scalarsKey,
+            rgba=True,
+            name=f'ROIs_{self._meshKey}',
+            pickable=False,
+            specular=0.5,
+            diffuse=0.5,
+            ambient=0.5,
+        )
+
+        # Hide the Surf3DView's own actor for this surface to avoid duplication/z-fighting
+        self._linked3DView.setSurfaceVisibility(self._meshKey, visible=False)
+
+    @property
+    def isEmpty(self) -> bool:
+        return len(self._registeredROIs) == 0
+
+    def _redraw(self, which: str | None = None, **kwargs):
+        super()._redraw(which=which, **kwargs)
+        match which:
+            case 'mesh':
+                if self._mesh is None:
+                    return
+
+                n = self._mesh.n_points
+                buf = np.zeros((n, 4), dtype=np.float64)  # [R_sum, G_sum, B_sum, count]
+
+                for vROI in self._registeredROIs:
+                    roi = vROI.effectiveROI
+                    if roi is None or not roi.isVisible:
+                        continue
+                    if roi.meshVertexIndices is None or len(roi.meshVertexIndices) == 0:
+                        continue
+                    buf[roi.meshVertexIndices, 0:3] += vROI.effectiveColor  # RGB 0-1
+                    buf[roi.meshVertexIndices, 3] += 1
+
+                roiMask = buf[:, 3] > 0
+
+                if np.any(roiMask):
+                    buf[roiMask, 0:3] /= buf[roiMask, 3:4]  # average to 0-1
+                    buf[roiMask, 0:3] *= 255
+                    buf[roiMask, 3] = round(255 * self._opacity)
+
+                buf[~roiMask] = self._backgroundColor  # broadcast single background RGBA tuple
+
+                np.clip(buf, 0, 255, out=buf)
+                newRGBA = buf.astype(np.uint8)
+
+                with self._linked3DView.plotter.allowNonblockingCalls():
+                    self._mesh[self.scalarsKey] = newRGBA
+                    self._linked3DView.plotter.render()
+            case _:
+                raise NotImplementedError
+
+    def refresh(self):
+        self._queueRedraw('mesh')
+
+    def addROI(self, visualizedROI: VisualizedROI):
+        if visualizedROI not in self._registeredROIs:
+            self._registeredROIs.append(visualizedROI)
+        self._queueRedraw('mesh')
+
+    def removeROI(self, visualizedROI: VisualizedROI):
+        if visualizedROI in self._registeredROIs:
+            self._registeredROIs.remove(visualizedROI)
+        if self.isEmpty:
+            self.clear()
+        else:
+            self._queueRedraw('mesh')
+
+    def clear(self):
+        if self._meshActor is not None:
+            logger.info(f'Clearing shared mesh for ROIs on {self._meshKey}')
+            self._linked3DView.plotter.remove_actor(self._meshActor)
+            self._meshActor = None
+            self._mesh = None
+            # Restore the Surf3DView actor
+            self._linked3DView.setSurfaceVisibility(self._meshKey, visible=True)
+
+
+@attrs.define(eq=False)
 class VisualizedROI:
     _roi: ROIs.ROI
     _session: Session
     _linked3DView: Surf3DView
     _opacity: float = 0.85
+    _meshRegistry: dict[str, VisualizedROIsMesh] = attrs.field(factory=dict)
 
     _meshKey: str | None = attrs.field(init=False, default=None)
-    _mesh: pv.PolyData | None = attrs.field(init=False, default=None)
-    _meshActor: Actor | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
         self._initMesh()
@@ -45,8 +168,24 @@ class VisualizedROI:
         self._roi.sigItemChanged.connect(self._onROIChanged)
 
     @property
-    def scalarsKey(self):
-        return 'ROI_' + self._roi.key + '_rgba'
+    def effectiveROI(self) -> ROIs.SurfaceMeshROI | None:
+        if isinstance(self._roi, PipelineROI):
+            out = self._roi.getOutput()
+            return out if isinstance(out, ROIs.SurfaceMeshROI) else None
+        elif isinstance(self._roi, ROIs.SurfaceMeshROI):
+            return self._roi
+        return None
+
+    @property
+    def effectiveColor(self) -> np.ndarray:
+        roi = self.effectiveROI
+        if roi is None:
+            return np.array([0.5, 0.5, 0.5])
+        if roi.color is not None:
+            return np.asarray(roi.color[0:3], dtype=np.float64)
+        if roi.autoColor is not None:
+            return np.asarray(roi.autoColor, dtype=np.float64)
+        return np.array([0.5, 0.5, 0.5])
 
     def _onROIChanged(self, key: str, changedAttrs: list[str] | None = None):
         if changedAttrs is None:
@@ -67,13 +206,13 @@ class VisualizedROI:
                 if 'meshVertexIndices' in changedAttrs:
                     self._refreshMeshOpacity()
 
-        elif isinstance(self._roi, ROIs.PipelineROI):
+        elif isinstance(self._roi, PipelineROI):
             if 'output' in changedAttrs or 'stages' in changedAttrs:
                 newOutput = self._roi.getOutput()
 
                 if newOutput is None:
                     # pipeline ROI has no output, clear existing visualization
-                    self.clear()
+                    self._unregisterFromMesh()
                     return
 
                 if not isinstance(newOutput, ROIs.SurfaceMeshROI):
@@ -88,21 +227,14 @@ class VisualizedROI:
             raise NotImplementedError(f'Visualization for ROI type {type(self._roi)} not implemented')
 
     def _initMesh(self):
+        logger.info(f'Initializing mesh registration for visualizing ROI {self._roi.key}')
 
-        # TODO: add optional support to crop the mesh to vertices within the ROI
-        # (currently the entire mesh is kept, and only parts of it are made not-transparent, which
-        #  allows rapid ROI changes but is memory- and render-intensive when plotting many ROIs)
-
-        logger.info(f'Initializing mesh for visualizing ROI {self._roi.key}')
-
-        if self._mesh is not None:
-            # clear previous mesh, meshKey, meshActor
-            self.clear()
+        self._unregisterFromMesh()
 
         if not self._roi.isVisible:
-            return  # nothing to do
+            return
 
-        if isinstance(self._roi, ROIs.PipelineROI):
+        if isinstance(self._roi, PipelineROI):
             roi = self._roi.getOutput()
         else:
             roi = self._roi
@@ -115,104 +247,60 @@ class VisualizedROI:
             return
 
         if roi.meshVertexIndices is None or len(roi.meshVertexIndices) == 0:
-            # nothing to visualize
             return
 
         self._meshKey = roi.meshKey
         # TODO: subscribe to head model changes in this mesh
 
-        self._mesh = pv.PolyData(getattr(self._session.headModel, roi.meshKey),
-                                 deep=True)
-
-        self._setMeshRGBA()
-
-        if isinstance(self._linked3DView.plotter, RemotePlotterProxyBase):
-            # wrap mesh as a RemotePolyDataProxy so that future updates
-            # to mesh scalars are reflected in remote plotter
-            self._mesh = self._linked3DView.plotter.registerPolyData(
-                polyData=self._mesh,
-                id=self._roi.key + '_VisualizedROIMesh',  # specify ID so that previous mesh gets overwritten on re-adding
+        if self._meshKey not in self._meshRegistry:
+            self._meshRegistry[self._meshKey] = VisualizedROIsMesh(
+                meshKey=self._meshKey,
+                session=self._session,
+                linked3DView=self._linked3DView,
+                opacity=self._opacity,
             )
+        self._meshRegistry[self._meshKey].addROI(self)
 
-        self._meshActor = self._linked3DView.plotter.addMesh(
-            self._mesh,
-            scalars=self.scalarsKey,
-            rgba=True,
-            name=f'ROI_{self._roi.key}',
-            pickable=False,
-            specular=0.5,
-            diffuse=0.5,
-            ambient=0.5,
-        )
+    def _unregisterFromMesh(self):
+        if self._meshKey is not None:
+            viz = self._meshRegistry.get(self._meshKey)
+            if viz is not None:
+                viz.removeROI(self)
+                if viz.isEmpty:
+                    del self._meshRegistry[self._meshKey]
+            self._meshKey = None
 
     def _refreshMeshVisibility(self):
         logger.info(f'Refreshing mesh visibility for visualizing ROI {self._roi.key}')
-        if self._meshActor is not None:
-            with self._linked3DView.plotter.allowNonblockingCalls():
-                self._meshActor.SetVisibility(self._roi.isVisible)
-                self._linked3DView.plotter.render()
-        elif self._roi.isVisible:
-            self._initMesh()
+        if self._meshKey is None:
+            if self._roi.isVisible:
+                self._initMesh()
+        else:
+            viz = self._meshRegistry.get(self._meshKey)
+            if viz is not None:
+                viz.refresh()
 
     def _refreshMeshColor(self):
         logger.info(f'Refreshing mesh color for visualizing ROI {self._roi.key}')
-        if self._meshActor is None:
+        if self._meshKey is None:
             self._initMesh()
         else:
-            self._setMeshRGBA()
-            with self._linked3DView.plotter.allowNonblockingCalls():
-                self._linked3DView.plotter.render()
+            viz = self._meshRegistry.get(self._meshKey)
+            if viz is not None:
+                viz.refresh()
 
     def _refreshMeshOpacity(self):
         logger.info(f'Refreshing mesh opacity for visualizing ROI {self._roi.key}')
-        if self._meshActor is None:
+        if self._meshKey is None:
             self._initMesh()
         else:
-            self._setMeshRGBA()
-            with self._linked3DView.plotter.allowNonblockingCalls():
-                self._linked3DView.plotter.render()
-
-    def _setMeshRGBA(self):
-        if isinstance(self._roi, ROIs.PipelineROI):
-            roi = self._roi.getOutput()
-        else:
-            assert isinstance(self._roi, ROIs.SurfaceMeshROI)
-            roi = self._roi
-
-        if roi.color is None:
-            if roi.autoColor is None:
-                color = [0.5]*3  # autoColor should be assigned shortly, triggering another refresh
-            else:
-                color = roi.autoColor
-        else:
-            color = roi.color[0:3]  # ignore any pre-set alpha
-        color = list(color)
-
-        # convert color from rgbf (0-1) to rgba (0-255 integer)
-        rgbaColor = [round(255 * c) for c in color]
-
-        logger.debug(f'rgbaColor: {rgbaColor}')
-
-        # will store rgba value (0-255 uint8) per vertex
-        # TODO: possibly cache this array so that it doesn't need to reallocated with each update
-        newRGBA = np.full((self._mesh.n_points, 4), 0, dtype=np.uint8)
-
-        if roi.meshVertexIndices is not None:
-            newRGBA[:, 0:3] = rgbaColor[0:3]
-            newRGBA[roi.meshVertexIndices, 3] = round(255 * self._opacity)  # set alpha for ROI vertices
-
-        with self._linked3DView.plotter.allowNonblockingCalls():
-            # do full assignment rather than subset above to trigger remote observer properly
-            self._mesh[self.scalarsKey] = newRGBA
+            viz = self._meshRegistry.get(self._meshKey)
+            if viz is not None:
+                viz.refresh()
 
     def clear(self):
-        if self._meshActor is not None:
-            # clear previous mesh, meshKey, meshActor
-            logger.info(f'Clearing visualized ROI {self._roi.key}')
-            self._meshKey = None
-            self._mesh = None
-            self._linked3DView.plotter.remove_actor(self._meshActor)
-            self._meshActor = None
+        logger.info(f'Clearing visualized ROI {self._roi.key}')
+        self._unregisterFromMesh()
 
 
 def refreshROIAutoColors(session: Session):
@@ -245,7 +333,7 @@ def refreshROIAutoColors(session: Session):
 
 
 @functools.cache
-def _getDistinctColors(n_colors: int, exclude_colors: tuple[tuple[float, float, float],...] | None = None, rng: int | None = None) -> list[tp.Any]:
+def _getDistinctColors(n_colors: int, exclude_colors: tuple[tuple[float, float, float], ...] | None = None, rng: int | None = None) -> list[tp.Any]:
     """
     distinctipy.get_colors is slow, so cache results
     """

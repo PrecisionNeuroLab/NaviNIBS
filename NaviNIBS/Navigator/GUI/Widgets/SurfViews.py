@@ -206,6 +206,8 @@ class Surf3DView(SurfSliceView):
 
     _pickableSurfs: list[str] | None = None
 
+    _hiddenSurfs: set[str] = attrs.field(init=False, factory=set)
+
     def __attrs_post_init__(self):
         if self._doLayeredPlotters:
             self._primaryPlotter = DefaultPrimaryLayeredPlotter(
@@ -233,6 +235,27 @@ class Surf3DView(SurfSliceView):
                 if actorName in self._surfPlotActors:
                     pickableActors.append(self._surfPlotActors[actorName])
             self.plotter.pickable_actors = pickableActors
+
+    def getSurfColorAndOpacity(self, surfKey: str) -> tuple[str, float]:
+        surfKeys = [self._activeSurf] if isinstance(self._activeSurf, str) else list(self._activeSurf)
+        surfColors = [self._surfColor] if isinstance(self._surfColor, str) else list(self._surfColor)
+        surfOpacities = [self._surfOpacity] if not isinstance(self._surfOpacity, list) else list(self._surfOpacity)
+        if surfKey in surfKeys:
+            idx = surfKeys.index(surfKey)
+            return surfColors[idx % len(surfColors)], surfOpacities[idx % len(surfOpacities)]
+        return defaultSurfColor, 0.0
+
+    def setSurfaceVisibility(self, surfKey: str, visible: bool):
+        if visible:
+            self._hiddenSurfs.discard(surfKey)
+        else:
+            self._hiddenSurfs.add(surfKey)
+        actorName = self.label + '_' + surfKey + '_surf'
+        actor = self._surfPlotActors.get(actorName)
+        if actor is not None:
+            with self._surfPlotter.allowNonblockingCalls():
+                actor.SetVisibility(visible)
+                self._surfPlotter.render()
 
     def _updateView(self):
 
@@ -314,6 +337,12 @@ class Surf3DView(SurfSliceView):
 
             self._surfPlotActors |= actors
             self._plotter.pickable_actors = pickableActors
+
+            # Re-apply any externally-requested hidden state (survives actor recreation)
+            for hiddenSurfKey in self._hiddenSurfs:
+                hiddenActorName = self.label + '_' + hiddenSurfKey + '_surf'
+                if hiddenActorName in self._surfPlotActors:
+                    self._surfPlotActors[hiddenActorName].SetVisibility(False)
 
         if self._doShowCrosshairs:
             logger.debug('Setting crosshairs for {} plot'.format(self.label))
