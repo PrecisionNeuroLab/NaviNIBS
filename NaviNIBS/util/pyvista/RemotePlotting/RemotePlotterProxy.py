@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 from contextlib import contextmanager
 import logging
 import logging.handlers
@@ -629,6 +630,8 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
                                      kwargs=procKwargs)
         logger.debug('Starting remote plotter process')
         self.remoteProc.start()
+        atexit.register(self._terminate)
+
 
     async def _sendReqAndRecv_async(self, msg):
         async with self._areqLock:
@@ -728,6 +731,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
                 # raise a runtime error here
                 logger.warning('Problem while creating window container, giving up')
                 self.remoteProc.terminate()
+                self.remoteProc = None
                 return
 
         self._embedWdgt.setVisible(False)
@@ -760,19 +764,41 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         else:
             return QtWidgets.QWidget.render(self, *args, **kwargs)
 
+    def _terminate(self):
+        if self.remoteProc is not None:
+            logger.info('Terminating remote plotter process')
+            self.remoteProc.terminate()
+            self.remoteProc = None
+            import time
+            time.sleep(1.)
+
     async def close_async(self):
         logger.info('Closing')
         await self._isReady.wait()
+        logger.info('Quitting')
         await self._sendReqAndRecv_async(('quit',))
+        logger.info('Sent quit')
+        await asyncio.sleep(5.)
         self._socketLoopTask.cancel()
-        self.remoteProc.terminate()
-        logger.debug('Closed')
+        self._terminate()
+        logger.info('Closed')
 
     def close(self):
         logger.info('Closing')
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self.close_async))
+        if True:
+            asyncio.create_task(asyncTryAndLogExceptionOnError(self.close_async))
+        else:
+            self.closeImmediately()
         super().close()
-        logger.debug('Closed')
+        logger.info('Closed')
+
+    def closeImmediately(self):
+        logger.info('Closing immediately')
+        self._sendReqAndRecv(('quitImmediately',))
+        import time
+        time.sleep(5.)
+        self._terminate()
+        logger.info('Closed')
 
 
 @attrs.define

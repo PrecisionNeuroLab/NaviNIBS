@@ -90,6 +90,10 @@ class RemotePlotManagerBase:
                 asyncio.create_task(asyncTryAndLogExceptionOnError(self._closeAfterDelay))
                 return 'ack'
 
+            case 'quitImmediately':
+                self._parentLayout.parentWidget().window().close()
+                return 'ack'
+
             case 'getWinID':
                 if True:
                     win = self._parentLayout.parentWidget().window()
@@ -439,6 +443,7 @@ class RemotePlotterApp(RunnableAsApp):
     _logFileHandler: logging.FileHandler = attrs.field(init=False)
 
     def __attrs_post_init__(self):
+
         if self._logFilepath is not None:
             self._logFileHandler = createLogFileHandler(self._logFilepath)
             logging.getLogger('').addHandler(self._logFileHandler)

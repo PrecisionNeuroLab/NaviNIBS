@@ -971,3 +971,10 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             logger.debug(f"{'Disabling' if len(keys) == 0 else 'Enabling'} {widget}")
             widget.setEnabled(len(keys) > 0)
 
+    def close(self):
+        logger.info(f'Closing {self.__class__.__name__}')
+        for plotter in [view.plotter for view in self._views.values()]:
+            if isinstance(plotter, RemotePlotterProxy):
+                plotter.close()
+
+        super().close()

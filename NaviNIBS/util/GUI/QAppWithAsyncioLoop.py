@@ -34,6 +34,8 @@ class RunnableAsApp:
     """
     _win: QMainWindowWithCloseSignal = attr.ib(init=False, default=None)
     _appIsClosing: bool = attr.ib(init=False, default=False)
+    _cleanupFinishedEvent: asyncio.Event = attr.ib(init=False, factory=asyncio.Event)
+    _isRunning: bool = attr.ib(init=False, default=False)
 
     def __attrs_post_init__(self):
         if self._doRunAsApp:
@@ -116,6 +118,7 @@ class RunnableAsApp:
     def _onAppAboutToQuit(self):
         logger.info('About to quit')
         self._appIsClosing = True
+        self._cleanupFinishedEvent.set()  # subclasses can clear this until cleanup is done, then set again
 
     @property
     def appIsClosing(self):
@@ -123,11 +126,12 @@ class RunnableAsApp:
 
     async def _runLoop(self):
         logger.info(f'Running {self.__class__.__name__}')
+        self._isRunning = True
         if self._appLogEveryNLoops is None:
             counter = 1
         else:
             counter = 0
-        while not self._appIsClosing:
+        while not self._appIsClosing or not self._cleanupFinishedEvent.is_set():
             if counter == 0:
                 logger.debug('Main loop: process Qt events')
             try:
@@ -145,6 +149,7 @@ class RunnableAsApp:
             if self._appLogEveryNLoops is not None:
                 counter = (counter + 1) % self._appLogEveryNLoops
         logger.info(f'Closing {self.__class__.__name__}')
+        self._isRunning = False
 
     @classmethod
     def createAndRunAsTask(cls, *args, **kwargs):

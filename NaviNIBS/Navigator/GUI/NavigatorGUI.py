@@ -258,12 +258,27 @@ class NavigatorGUI(RunnableAsApp):
                 await self._restoreRootLayout(needsLock=False)
 
     def _onAppAboutToQuit(self):
+        logger.info(f'App about to quit for {self.__class__.__name__}')
         super()._onAppAboutToQuit()
 
         # close each non-visible panel first to prevent them from initializing right before closing
         for panelKey, panel in self._mainViewPanels.items():
             if not panel.isVisible:
                 panel.close()
+
+        # then close visible panels
+        for panelKey, panel in self._mainViewPanels.items():
+            if panel.isVisible:
+                panel.close()
+
+        self._cleanupFinishedEvent.clear()  # will be set again when cleanup is done
+        asyncio.create_task(asyncTryAndLogExceptionOnError(self._cleanup))
+
+    async def _cleanup(self):
+        logger.debug(f'Starting cleanup delay for {self.__class__.__name__}')
+        await asyncio.sleep(10.)
+        self._cleanupFinishedEvent.set()
+        logger.info(f'Finished cleanup for {self.__class__.__name__}')
 
     def _onSessionAboutToFinishLoading(self, session: Session):
         if self._logFileHandler is not None:

@@ -163,4 +163,5 @@ class MainViewPanel:
         pass
 
     def close(self):
+        logger.info(f'Closing panel {self.key}')
         self._dockWdgt.close()
