@@ -174,7 +174,7 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
     def asDict(self) -> dict[str, tp.Any]:
         d = super().asDict()
-        if 'meshVertexIndices' in d and len(d['meshVertexIndices']) > 1e3:
+        if 'meshVertexIndices' in d and len(d['meshVertexIndices']) > 1e2:
             # for large ROIs, don't save full vertex list and instead reload from original
             # atlas (to avoid very large file sizes in json session configs)
             d.pop('meshVertexIndices')

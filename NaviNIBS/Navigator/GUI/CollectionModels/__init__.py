@@ -11,6 +11,7 @@ from NaviNIBS.util.Signaler import Signal
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 K = tp.TypeVar('K', int, str)  # collection item key type

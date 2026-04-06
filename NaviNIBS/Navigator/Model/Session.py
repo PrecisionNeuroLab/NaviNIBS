@@ -184,7 +184,6 @@ class Session:
     def ROIs(self):
         return self._ROIs
 
-
     @property
     def digitizedLocations(self):
         return self._digitizedLocations
@@ -261,6 +260,7 @@ class Session:
         return self._beautifier
 
     def flagKeyAsDirty(self, key: str):
+        #logger.debug(f'Flagging session config "{key}" as dirty')
         self._dirtyKeys.add(key)
         self._dirtyKeys_autosave.add(key)
         self.sigDirtyKeysChanged.emit()
