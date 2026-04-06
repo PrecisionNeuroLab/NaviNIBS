@@ -169,6 +169,77 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
             stageWidget.deleteLater()
 
 
+_hemisphereOptions: dict[str, str | None] = {
+    '': None,
+    'left': 'l',
+    'right': 'r',
+}
+_hemisphereLabels: dict[str | None, str] = {v: k for k, v in _hemisphereOptions.items()}
+
+
+@attrs.define(init=False, slots=False, kw_only=True)
+class EditAtlasSurfaceParcelInnerWidget(EditROIInnerWidget):
+    _roi: ROIs.AtlasSurfaceParcel
+    _atlasKeyEdit: QtWidgets.QLineEdit = attrs.field(init=False)
+    _hemisphereCombo: QtWidgets.QComboBox = attrs.field(init=False)
+    _parcelKeyEdit: QtWidgets.QLineEdit = attrs.field(init=False)
+    _reloadBtn: QtWidgets.QPushButton = attrs.field(init=False)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        grp = QtWidgets.QGroupBox('Atlas parcel')
+        layout.addWidget(grp)
+
+        form = QtWidgets.QFormLayout()
+        form.setContentsMargins(4, 4, 4, 4)
+        grp.setLayout(form)
+
+        atlasKeyEdit = QtWidgets.QLineEdit(self._roi.atlasKey)
+        atlasKeyEdit.editingFinished.connect(lambda: setattr(self._roi, 'atlasKey', atlasKeyEdit.text()))
+        form.addRow('Atlas:', atlasKeyEdit)
+        self._atlasKeyEdit = atlasKeyEdit
+
+        hemisphereCombo = QtWidgets.QComboBox()
+        hemisphereCombo.addItems(list(_hemisphereOptions.keys()))
+        hemisphereCombo.setCurrentText(_hemisphereLabels.get(self._roi.hemisphere, ''))
+        hemisphereCombo.currentTextChanged.connect(
+            lambda text: setattr(self._roi, 'hemisphere', _hemisphereOptions.get(text)))
+        preventAnnoyingScrollBehaviour(hemisphereCombo)
+        form.addRow('Hemisphere:', hemisphereCombo)
+        self._hemisphereCombo = hemisphereCombo
+
+        parcelKeyEdit = QtWidgets.QLineEdit(self._roi.parcelKey or '')
+        parcelKeyEdit.editingFinished.connect(
+            lambda: setattr(self._roi, 'parcelKey', parcelKeyEdit.text() or None))
+        form.addRow('Parcel:', parcelKeyEdit)
+        self._parcelKeyEdit = parcelKeyEdit
+
+        reloadBtn = QtWidgets.QPushButton('Reload')
+        reloadBtn.clicked.connect(lambda _: self._roi.reload())
+        layout.addWidget(reloadBtn)
+        self._reloadBtn = reloadBtn
+
+        self._roi.sigItemChanged.connect(self._onROIChanged)
+
+    def _onROIChanged(self, key: str, attribs: list[str] | None = None):
+        if attribs is None or 'atlasKey' in attribs:
+            self._atlasKeyEdit.setText(self._roi.atlasKey)
+        if attribs is None or 'hemisphere' in attribs:
+            self._hemisphereCombo.setCurrentText(_hemisphereLabels.get(self._roi.hemisphere, ''))
+        if attribs is None or 'parcelKey' in attribs:
+            self._parcelKeyEdit.setText(self._roi.parcelKey or '')
+
+    def deleteLater(self, /):
+        logger.debug(f'Deleting EditAtlasSurfaceParcelInnerWidget for ROI {self._roi.key}')
+        self._roi.sigItemChanged.disconnect(self._onROIChanged)
+        super().deleteLater()
+
+
 @attrs.define(eq=False)
 class EditROIWidget:
     _session: Session = attrs.field(repr=False)
@@ -274,7 +345,9 @@ class EditROIWidget:
         self._scroll.innerContainerLayout.insertWidget(self._scroll.innerContainerLayout.count()-1,
                                                        self._roiSpecificContainer)
 
-        if isinstance(self._ROI, ROIs.PipelineROI):
+        if isinstance(self._ROI, ROIs.AtlasSurfaceParcel):
+            EditROICls = EditAtlasSurfaceParcelInnerWidget
+        elif isinstance(self._ROI, ROIs.PipelineROI):
             EditROICls = EditPipelineROIInnerWidget
         else:
             raise NotImplementedError

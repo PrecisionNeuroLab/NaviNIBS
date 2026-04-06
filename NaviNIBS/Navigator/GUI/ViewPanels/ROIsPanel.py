@@ -44,9 +44,14 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.map'))
     _tableWdgt: ROIsTableWidget = attrs.field(init=False)
     _surfView: Surf3DView = attrs.field(init=False)
+    _importBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _atlasROIsImportDialog: QtWidgets.QDialog | None = attrs.field(init=False, default=None)
+    _pendingAtlasKey: str | None = attrs.field(init=False, default=None)
+    _atlasROIsTree: QtWidgets.QTreeWidget | None = attrs.field(init=False, default=None)
     _addBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _deleteBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _duplicateBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _resetColorsBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _editROIWdgt: EditROIWidget = attrs.field(init=False)
     _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
     _enabledOnlyWhenROISelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
@@ -85,8 +90,22 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         btnContainer.setLayout(QtWidgets.QGridLayout())
         container.layout().addWidget(btnContainer)
 
-        btn = QtWidgets.QPushButton('Import ROIs from file...')
-        btn.clicked.connect(self._onImportROIsBtnClicked)
+        btn = QtWidgets.QPushButton('Import ROIs...')
+        self._importBtn = btn
+        importMenu = QtWidgets.QMenu(parent=btn, title='Import ROIs...')
+        btn.setMenu(importMenu)
+
+        a = QtWidgets.QAction('from NaviNIBS file...')
+        a.triggered.connect(self._onImportNaviNIBSROIs)
+        importMenu.addAction(a)
+
+        atlasesMenu = QtWidgets.QMenu(title='from surface atlas...')
+        for atlasKey in ('HCPMMP1',):  # TODO: add other atlases
+            a = QtWidgets.QAction(atlasKey + '...', parent=atlasesMenu)
+            a.triggered.connect(lambda _, atlasKey=atlasKey: self._onImportAtlasROIs(atlasKey=atlasKey))
+            atlasesMenu.addAction(a)
+        importMenu.addMenu(atlasesMenu)
+
         btnContainer.layout().addWidget(btn, 0, 0, 1, 2)
 
         btn = QtWidgets.QPushButton('Add ROI')
@@ -105,6 +124,12 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         btnContainer.layout().addWidget(btn, 2, 0)
         self._enabledOnlyWhenROISelected.append(btn)
         self._duplicateBtn = btn
+
+        btn = QtWidgets.QPushButton('Reset colors')
+        btn.clicked.connect(self._onResetColorsBtnClicked)
+        btnContainer.layout().addWidget(btn, 2, 1)
+        self._enabledOnlyWhenROISelected.append(btn)
+        self._resetColorsBtn = btn
 
         self._tableWdgt = ROIsTableWidget()
         self._tableWdgt.sigCurrentItemChanged.connect(self._onCurrentROIChanged)
@@ -333,7 +358,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     def _onCurrentROIChanged(self, roiKey: str | None):
         logger.debug(f'Current ROI changed to {roiKey}')
 
-    def _onImportROIsBtnClicked(self, checked: bool):
+    def _onImportNaviNIBSROIs(self, checked: bool):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
                                                                'Select ROIs file to import',
                                                                os.path.dirname(self.session.filepath),
@@ -344,6 +369,66 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             return
 
         self._importROIsFromFile(newFilepath=newFilepath)
+
+    def _onImportAtlasROIs(self, atlasKey: str):
+        parcelKeys, parcelLabels = ROIs.AtlasSurfaceParcel.listParcelsInAtlas(
+            session=self.session,
+            atlasKey=atlasKey,
+        )
+
+        if self._atlasROIsImportDialog is not None:
+            self._atlasROIsImportDialog.close()  # cancel previous
+
+        self._pendingAtlasKey = atlasKey
+
+        dlg = QtWidgets.QDialog(self._wdgt)
+        dlg.setModal(True)
+        dlg.setWindowTitle('Select atlas ROIs to import')
+        dlg.setWindowModality(QtGui.Qt.WindowModal)
+        dlg.finished.connect(self._onImportAtlasROIsDialogFinished)
+        self._atlasROIsImportDialog = dlg
+
+        topLayout = QtWidgets.QVBoxLayout(self._wdgt)
+        dlg.setLayout(topLayout)
+
+        tree = QtWidgets.QTreeWidget()
+        tree.setColumnCount(1)
+        tree.setSelectionMode(tree.SelectionMode.ExtendedSelection)
+        treeItems = []
+        for parcelKey in parcelKeys:
+            treeItem = QtWidgets.QTreeWidgetItem(None)
+            treeItem.setText(0, parcelKey)
+            treeItems.append(treeItem)
+        tree.addTopLevelItems(treeItems)
+        tree.selectAll()
+        topLayout.addWidget(tree)
+        self._atlasROIsTree = tree
+
+        # Add button box
+        finalizeButtonBox = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
+        finalizeButtonBox.accepted.connect(self._onImportAtlasROIsDialogAccepted)
+        finalizeButtonBox.rejected.connect(dlg.reject)
+        topLayout.addWidget(finalizeButtonBox)
+
+        dlg.show()
+
+
+    def _onImportAtlasROIsDialogFinished(self, result: int):
+        self._atlasROIsImportDialog = None
+        self._atlasROIsTree = None
+        self._pendingAtlasKey = None
+
+    def _onImportAtlasROIsDialogAccepted(self):
+        assert self._atlasROIsTree is not None
+        selectedParcelKeys = [item.text(0) for item in self._atlasROIsTree.selectedItems()]
+        logger.info(f'Importing parcels from "{self._pendingAtlasKey}" atlas: {selectedParcelKeys}')
+        newROIs = ROIs.AtlasSurfaceParcel.loadROIsFromAtlas(session=self.session,
+                                                            atlasKey=self._pendingAtlasKey,
+                                                            parcelKeys=selectedParcelKeys)
+        self.session.ROIs.merge(newROIs)
+        if self._atlasROIsImportDialog is not None:
+            self._atlasROIsImportDialog.accept()
 
     def _importROIsFromFile(self, newFilepath: str):
 
@@ -361,6 +446,11 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     def _onDeleteBtnClicked(self, checked: bool):
         selectedROIKeys = self._tableWdgt.selectedCollectionItemKeys
         self.session.ROIs.deleteItems(selectedROIKeys)
+
+    def _onResetColorsBtnClicked(self, checked: bool):
+        selectedROIKeys = self._tableWdgt.selectedCollectionItemKeys
+        for roiKey in selectedROIKeys:
+            self.session.ROIs[roiKey].color = None
 
     def _onDuplicateBtnClicked(self, checked: bool):
         currentROIKey = self._tableWdgt.currentCollectionItemKey

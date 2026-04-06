@@ -33,6 +33,11 @@ def charmHeadModelDataSourcePath(existingResourcesDataPath):
     return os.path.join(existingResourcesDataPath, 'testSourceData',
                         'sub-test_T1Seq-SagFSPGRBRAVO_SimNIBSCharm', 'm2m_sub-test', 'sub-test.msh')
 
+@pytest.fixture
+def charmFSHeadModelDataSourcePath(existingResourcesDataPath):
+    return os.path.join(existingResourcesDataPath, 'testSourceData',
+                        'sub-test_T1Seq-SagFSPGRBRAVO_SimNIBSCharmFS', 'm2m_sub-test', 'sub-test.msh')
+
 @pytest.mark.asyncio
 @pytest.mark.skip(reason='For troubleshooting')
 async def test_openHeadModelSession(workingDir):
@@ -47,6 +52,7 @@ async def test_openCharmHeadModelSession(workingDir):
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_MRI.py::test_setMRIInfo')
 @pytest.mark.parametrize('modelLabel,headModelDataSourcePath', (
+        ('CharmFS', lf('charmFSHeadModelDataSourcePath')),
         ('Charm', lf('charmHeadModelDataSourcePath')),
         ('', lf('headrecoHeadModelDataSourcePath'))))
 async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
@@ -169,6 +175,7 @@ async def test_setHeadModelWithSeparateMeshes(navigatorGUIWithoutSession: Naviga
 @pytest.mark.parametrize('modelLabel,headModelDataSourcePath', (
         ('', lf('headrecoHeadModelDataSourcePath')),
         ('Charm', lf('charmHeadModelDataSourcePath')),
+        ('CharmFS', lf('charmFSHeadModelDataSourcePath')),
 ))
 async def test_mniTransforms(workingDir: str,
                              modelLabel: str,

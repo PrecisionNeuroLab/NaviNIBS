@@ -4,7 +4,6 @@ import logging
 import numpy as np
 import pytest
 
-
 from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from NaviNIBS.Navigator.GUI.Widgets.EditROIWidget import EditPipelineROIInnerWidget
 from NaviNIBS.Navigator.GUI.Widgets import EditROIStageWidgets as StageWidgets
@@ -56,7 +55,7 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(1.)
 
-    # equivalent to clicking on head model tab
+    # equivalent to clicking on ROIs tab
     navigatorGUI._activateView(navigatorGUI.roisPanel.key)
 
     # give time for initialization
@@ -229,3 +228,123 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
 
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
     ses = utils.assertSavedSessionIsValid(sessionPath)
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_headModel.py::test_setHeadModel')
+async def test_loadParcellationROIs(
+                        workingDir: str,
+                       screenshotsDataSourcePath: str
+                       ):
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmHeadModel', 'ROIs_LoadParcellation')
+
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+
+    roiKey = 'dlPFCPart'
+
+    with utils.tracer(workingDir, 'ROIs_LoadParcellation', doOpen=True):
+        rois = ROIs.AtlasSurfaceParcel.loadROIsFromAtlas(
+            session=ses,
+            atlasKey='HCPMMP1',
+        )
+        ses.ROIs.merge(rois)
+
+    roiKey = '8Av'
+    roi = ses.ROIs[roiKey]
+    assert isinstance(roi, ROIs.SurfaceMeshROI)
+
+    # TODO: create a pipeline ROI merging two or more of the standard atlas parcels
+
+    roi = ses.ROIs[roiKey]
+    assert isinstance(roi, ROIs.PipelineROI)
+    roi.process()
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_headModel.py::test_setHeadModel')
+async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: NavigatorGUI,
+                       workingDir: str,
+                       screenshotsDataSourcePath: str,
+                       exampleCorticalROISeedPointsAndRadii,
+                       exampleCSFROISeedPointAndRadius,
+
+                       ):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmFSHeadModel', 'ImportParcellationROIs')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # equivalent to clicking on ROIs tab
+    navigatorGUI._activateView(navigatorGUI.roisPanel.key)
+
+    # give time for initialization
+    await navigatorGUI.roisPanel.finishedAsyncInit.wait()
+
+    assert navigatorGUI.activeViewKey == navigatorGUI.roisPanel.key
+
+    # equivalent to clicking save button
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+
+    if True:
+        navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='HCPMMP1')  # similar to initiating import from buttons
+
+        # Select specific left hemisphere ROIs by name
+        tree = navigatorGUI.roisPanel._atlasROIsTree
+        dlg = navigatorGUI.roisPanel._atlasROIsImportDialog
+
+        assert tree is not None
+        assert dlg is not None
+
+        leftHemROIKeys = [
+            'L_V1',
+            #'L_1',
+            'L_3a',
+            'L_3b',
+            'L_4',
+            'L_55b',
+            'L_FEF',
+            'L_6v',
+            'L_8C',
+            'L_8Av',
+            'L_i6-8',
+            'L_s6-8',
+            'L_SFL',
+            'L_8BL',
+            'L_9p',
+            'L_9a',
+            'L_8Ad',
+            'L_p9-46v',
+            'L_a9-46v',
+            'L_46',
+            'L_9-46d',
+        ]
+        tree.clearSelection()
+        for roiKey in leftHemROIKeys:
+            found = False
+            for i in range(tree.topLevelItemCount()):
+                item = tree.topLevelItem(i)
+                if item.text(0) == roiKey + '_ROI':
+                    item.setSelected(True)
+                    found = True
+                    break
+            assert found, f'Expected to find atlas parcel {roiKey + "_ROI"!r} in parcel list'
+
+        navigatorGUI.roisPanel._onImportAtlasROIsDialogAccepted()
+    else:
+        navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='HCPMMP1_combined')  # similar to initiating import from buttons
+        dlg = navigatorGUI.roisPanel._atlasROIsImportDialog
+        # Accept the dialog (call accepted handler then close dialog)
+        navigatorGUI.roisPanel._onImportAtlasROIsDialogAccepted()
+
+    navigatorGUI.roisPanel._tableWdgt.resizeColumnsToContents()
+
+    await utils.waitForever()
+
+    raise NotImplementedError  # TODO: continue testing here
+
