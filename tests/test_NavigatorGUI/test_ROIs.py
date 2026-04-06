@@ -8,6 +8,10 @@ from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from NaviNIBS.Navigator.GUI.Widgets.EditROIWidget import EditPipelineROIInnerWidget
 from NaviNIBS.Navigator.GUI.Widgets import EditROIStageWidgets as StageWidgets
 from NaviNIBS.Navigator.Model import ROIs
+from NaviNIBS.Navigator.Model.ROIs import AtlasSurfaceParcel
+from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
+from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
@@ -84,7 +88,7 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI.roisPanel._tableWdgt.resizeColumnsToContents()
 
     roi = navigatorGUI.session.ROIs[newROIKey]
-    assert isinstance(roi, ROIs.PipelineROI)
+    assert isinstance(roi, PipelineROI)
     assert roi.key == newROIKey
 
     # equivalent to clicking on corresponding entry in table
@@ -106,7 +110,7 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
     assert len(roiWdgt._stageWidgets) == 1
     stageWdgt = roiWdgt._stageWidgets[0]
     assert isinstance(stageWdgt, StageWidgets.PassthroughStageWidget)
-    stageWdgt._typeField.setCurrentText(ROIs.SelectSurfaceMesh.type)
+    stageWdgt._typeField.setCurrentText(ROIStages.SelectSurfaceMesh.type)
 
     # set surface mesh
     await asyncio.sleep(0.1)
@@ -132,7 +136,7 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
 
         # change to AddFromSeedPoint stage
         stageWdgt = roiWdgt._stageWidgets[-2]
-        stageWdgt._typeField.setCurrentText(ROIs.AddFromSeedPoint.type)
+        stageWdgt._typeField.setCurrentText(AddFromSeedPoint.type)
 
         await asyncio.sleep(0.1)
         stageWdgt = roiWdgt._stageWidgets[-2]
@@ -194,7 +198,7 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
 
     roi = navigatorGUI.session.ROIs[newROIKey]
     assert roi.session is not None
-    assert isinstance(roi, ROIs.PipelineROI)
+    assert isinstance(roi, PipelineROI)
     assert roi.key == newROIKey
 
     # make changes programmatically instead of through GUI elements
@@ -203,10 +207,10 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
     roi.stages[:] = roi.stages[:2]
     assert len(roi.stages) == 2
     surfStage = roi.stages[0]
-    assert isinstance(surfStage, ROIs.SelectSurfaceMesh)
+    assert isinstance(surfStage, ROIStages.SelectSurfaceMesh)
     surfStage.meshKey = 'csfSurf'  # change selected mesh
     addPointsStage = roi.stages[1]
-    assert isinstance(addPointsStage, ROIs.AddFromSeedPoint)
+    assert isinstance(addPointsStage, AddFromSeedPoint)
     addPointsStage.seedPoint = exampleCSFROISeedPointAndRadius[0]  # change seed point
     addPointsStage.radius = exampleCSFROISeedPointAndRadius[1]  # change radius
 
@@ -244,7 +248,7 @@ async def test_loadParcellationROIs(
     roiKey = 'dlPFCPart'
 
     with utils.tracer(workingDir, 'ROIs_LoadParcellation', doOpen=True):
-        rois = ROIs.AtlasSurfaceParcel.loadROIsFromAtlas(
+        rois = AtlasSurfaceParcel.AtlasSurfaceParcel.loadROIsFromAtlas(
             session=ses,
             atlasKey='HCPMMP1',
         )
@@ -257,7 +261,7 @@ async def test_loadParcellationROIs(
     # TODO: create a pipeline ROI merging two or more of the standard atlas parcels
 
     roi = ses.ROIs[roiKey]
-    assert isinstance(roi, ROIs.PipelineROI)
+    assert isinstance(roi, PipelineROI)
     roi.process()
 
 

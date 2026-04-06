@@ -17,6 +17,10 @@ from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.GUI.CollectionModels.ROIsTableModel import ROIsTableModel
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets import EditROIStageWidgets as StageWidgets
+from NaviNIBS.Navigator.Model.ROIs.AtlasSurfaceParcel import AtlasSurfaceParcel
+from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
+import NaviNIBS.Navigator.Model.ROIs.PipelineROIStages as ROIStages
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
 from NaviNIBS.util import exceptionToStr
@@ -59,7 +63,7 @@ class EditROIInnerWidget(QtWidgets.QWidget):
 
 @attrs.define(init=False, slots=False, kw_only=True)
 class EditPipelineROIInnerWidget(EditROIInnerWidget):
-    _roi: ROIs.PipelineROI
+    _roi: PipelineROI
     _innerLayout: QtWidgets.QVBoxLayout = attrs.field(init=False)
 
     _stageWidgets: list[StageWidgets.ROIStageWidget] = attrs.field(factory=list, init=False)
@@ -92,10 +96,10 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
         # TODO: add drag and drop support for reordering stages
 
     def _onAddStageClicked(self, _):
-        stage = ROIs.PassthroughStage()
+        stage = ROIStages.PassthroughStage()
         self._roi.stages.append(stage)
 
-    def _onStagesChanged(self, changedStages: set[ROIs.ROIStage], changedAttrs: list[str] | None = None):
+    def _onStagesChanged(self, changedStages: set[ROIStages.ROIStage], changedAttrs: list[str] | None = None):
         # add new stage widgets
         needsRebuild = False
         for stage in changedStages:
@@ -130,11 +134,11 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
         # add widgets for all stages
         for index, stage in enumerate(self._roi.stages):
             match stage.type:
-                case ROIs.PassthroughStage.type:
+                case ROIStages.PassthroughStage.type:
                     StageWidgetCls = StageWidgets.PassthroughStageWidget
-                case ROIs.SelectSurfaceMesh.type:
+                case ROIStages.SelectSurfaceMesh.type:
                     StageWidgetCls = StageWidgets.SelectSurfaceMeshStageWidget
-                case ROIs.AddFromSeedPoint.type:
+                case AddFromSeedPoint.type:
                     StageWidgetCls = StageWidgets.AddFromSeedPointStageWidget
                 case _:
                     StageWidgetCls = StageWidgets.JsonReprStageWidget
@@ -150,7 +154,7 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
             self._innerLayout.insertWidget(index, stageWidget)
             self._stageWidgets.append(stageWidget)
 
-    def changeTypeOfStage(self, stage: ROIs.ROIStage, newType: str):
+    def changeTypeOfStage(self, stage: ROIStages.ROIStage, newType: str):
         oldStage = stage
         index = self._roi.stages.index(oldStage)
         stageClass = self._roi.stageLibrary[newType]
@@ -179,7 +183,7 @@ _hemisphereLabels: dict[str | None, str] = {v: k for k, v in _hemisphereOptions.
 
 @attrs.define(init=False, slots=False, kw_only=True)
 class EditAtlasSurfaceParcelInnerWidget(EditROIInnerWidget):
-    _roi: ROIs.AtlasSurfaceParcel
+    _roi: AtlasSurfaceParcel.AtlasSurfaceParcel
     _atlasKeyEdit: QtWidgets.QLineEdit = attrs.field(init=False)
     _hemisphereCombo: QtWidgets.QComboBox = attrs.field(init=False)
     _parcelKeyEdit: QtWidgets.QLineEdit = attrs.field(init=False)
@@ -345,9 +349,9 @@ class EditROIWidget:
         self._scroll.innerContainerLayout.insertWidget(self._scroll.innerContainerLayout.count()-1,
                                                        self._roiSpecificContainer)
 
-        if isinstance(self._ROI, ROIs.AtlasSurfaceParcel):
+        if isinstance(self._ROI, AtlasSurfaceParcel):
             EditROICls = EditAtlasSurfaceParcelInnerWidget
-        elif isinstance(self._ROI, ROIs.PipelineROI):
+        elif isinstance(self._ROI, PipelineROI):
             EditROICls = EditPipelineROIInnerWidget
         else:
             raise NotImplementedError

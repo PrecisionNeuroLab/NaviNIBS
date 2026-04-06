@@ -16,6 +16,9 @@ from NaviNIBS.Navigator.Model import ROIs
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.GUI.CollectionModels.ROIsTableModel import ROIsTableModel
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
+from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
+from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
 from NaviNIBS.util import exceptionToStr
@@ -39,8 +42,8 @@ logger = logging.getLogger(__name__)
 
 @attrs.define(init=False, slots=False)
 class ROIStageWidget(QtWidgets.QGroupBox):
-    _stage: ROIs.ROIStage
-    _roi: ROIs.PipelineROI = attrs.field(repr=False)
+    _stage: ROIStages.ROIStage
+    _roi: PipelineROI = attrs.field(repr=False)
     _roiWidget: EditPipelineROIInnerWidget = attrs.field(repr=False)
     _session: Session = attrs.field(repr=False)
     _linkTo3DView: Surf3DView | None = attrs.field(default=None, repr=False)
@@ -109,7 +112,7 @@ class ROIStageWidget(QtWidgets.QGroupBox):
     def stage(self):
         return self._stage
 
-    def _onStageChanged(self, stage: ROIs.ROIStage, changedAttrs: list[str] | None = None):
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
         pass
 
     def _onTypeChanged(self):
@@ -121,7 +124,7 @@ class ROIStageWidget(QtWidgets.QGroupBox):
 
     def _onInsertAboveClicked(self, _):
         logger.debug(f'Inserting stage above {self._stage}')
-        stage = ROIs.PassthroughStage()
+        stage = ROIStages.PassthroughStage()
         index = self._roi.stages.index(self._stage)
         self._roi.stages.insert(index, stage)
 
@@ -141,7 +144,7 @@ class ROIStageWidget(QtWidgets.QGroupBox):
 
 @attrs.define(init=False, slots=False, kw_only=True)
 class PassthroughStageWidget(ROIStageWidget):
-    _stage: ROIs.PassthroughStage
+    _stage: ROIStages.PassthroughStage
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -150,7 +153,7 @@ class PassthroughStageWidget(ROIStageWidget):
 
 @attrs.define(init=False, slots=False, kw_only=True)
 class SelectSurfaceMeshStageWidget(ROIStageWidget):
-    _stage: ROIs.SelectSurfaceMesh
+    _stage: ROIStages.SelectSurfaceMesh
 
     _meshComboBox: QtWidgets.QComboBox = attrs.field(init=False)
 
@@ -176,7 +179,7 @@ class SelectSurfaceMeshStageWidget(ROIStageWidget):
 
         self._formLayout.addRow('Surface mesh:', self._meshComboBox)
 
-    def _onStageChanged(self, stage: ROIs.ROIStage, changedAttrs: list[str] | None = None):
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
         super()._onStageChanged(stage, changedAttrs)
         if changedAttrs is None or 'meshKey' in changedAttrs:
             if self._stage.meshKey is None:
@@ -202,7 +205,7 @@ class SelectSurfaceMeshStageWidget(ROIStageWidget):
 
 @attrs.define(init=False, slots=False, kw_only=True)
 class AddFromSeedPointStageWidget(ROIStageWidget):
-    _stage: ROIs.AddFromSeedPoint
+    _stage: AddFromSeedPoint
 
     _selectSeedBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _cancelSeedSelectBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -262,7 +265,7 @@ class AddFromSeedPointStageWidget(ROIStageWidget):
 
         self._onStageChanged(self._stage, ['seedPoint'])  # initialize seed point display
 
-    def _onStageChanged(self, stage: ROIs.ROIStage, changedAttrs: list[str] | None = None):
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
         super()._onStageChanged(stage, changedAttrs)
         if changedAttrs is None or 'radius' in changedAttrs:
             self._radiusField.valueChanged.disconnect(self._onRadiusFieldValueChanged)
@@ -431,7 +434,7 @@ class JsonReprStageWidget(ROIStageWidget):
         self._textEdit.text = jsonStr
         self._textEdit.textSubmitted.connect(self._onTextEditChanged)
 
-    def _onStageChanged(self, stage: ROIs.ROIStage, changedAttrs: list[str] | None = None):
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
         super()._onStageChanged(stage, changedAttrs)
         self._updateTextEdit()
 
