@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import os
 import typing as tp
@@ -88,6 +89,10 @@ class VisualizedROI:
 
     def _initMesh(self):
 
+        # TODO: add optional support to crop the mesh to vertices within the ROI
+        # (currently the entire mesh is kept, and only parts of it are made not-transparent, which
+        #  allows rapid ROI changes but is memory- and render-intensive when plotting many ROIs)
+
         logger.info(f'Initializing mesh for visualizing ROI {self._roi.key}')
 
         if self._mesh is not None:
@@ -155,7 +160,8 @@ class VisualizedROI:
             self._initMesh()
         else:
             self._setMeshRGBA()
-            self._linked3DView.plotter.render()
+            with self._linked3DView.plotter.allowNonblockingCalls():
+                self._linked3DView.plotter.render()
 
     def _refreshMeshOpacity(self):
         logger.info(f'Refreshing mesh opacity for visualizing ROI {self._roi.key}')
@@ -163,7 +169,8 @@ class VisualizedROI:
             self._initMesh()
         else:
             self._setMeshRGBA()
-            self._linked3DView.plotter.render()
+            with self._linked3DView.plotter.allowNonblockingCalls():
+                self._linked3DView.plotter.render()
 
     def _setMeshRGBA(self):
         if isinstance(self._roi, ROIs.PipelineROI):
@@ -173,8 +180,10 @@ class VisualizedROI:
             roi = self._roi
 
         if roi.color is None:
-            assert roi.autoColor is not None, 'autoColor should have been set before visualization'
-            color = roi.autoColor
+            if roi.autoColor is None:
+                color = [0.5]*3  # autoColor should be assigned shortly, triggering another refresh
+            else:
+                color = roi.autoColor
         else:
             color = roi.color[0:3]  # ignore any pre-set alpha
         color = list(color)
@@ -192,8 +201,9 @@ class VisualizedROI:
             newRGBA[:, 0:3] = rgbaColor[0:3]
             newRGBA[roi.meshVertexIndices, 3] = round(255 * self._opacity)  # set alpha for ROI vertices
 
-        # do full assignment rather than subset above to trigger remote observer properly
-        self._mesh[self.scalarsKey] = newRGBA
+        with self._linked3DView.plotter.allowNonblockingCalls():
+            # do full assignment rather than subset above to trigger remote observer properly
+            self._mesh[self.scalarsKey] = newRGBA
 
     def clear(self):
         if self._meshActor is not None:
@@ -214,7 +224,7 @@ def refreshROIAutoColors(session: Session):
 
     fixedROIs = [roi for roi in session.ROIs.values() if roi.color is not None and roi.isVisible]
 
-    excludeColors = [[0., 0., 0.], [1., 1., 1.]]
+    excludeColors = [(0., 0., 0.), (1., 1., 1.)]
 
     meshColors = [defaultSurfColor,]
     # could dynamically get current mesh colors, but then this may produce different
@@ -224,11 +234,19 @@ def refreshROIAutoColors(session: Session):
     meshColors = [QtGui.QColor(colorStr).getRgbF()[0:3] for colorStr in meshColors]
     excludeColors.extend(meshColors)
 
-    fixedROIColors = [list(roi.color) for roi in fixedROIs]
+    fixedROIColors = [tuple(roi.color[0:3]) for roi in fixedROIs]
     excludeColors.extend(fixedROIColors)
 
-    autoROIColors = distinctipy.get_colors(len(autoROIs),
-                                           exclude_colors=excludeColors,
-                                           rng=0)
+    autoROIColors = _getDistinctColors(len(autoROIs),
+                                       exclude_colors=tuple(excludeColors),
+                                       rng=0)
     for iROI, roi in enumerate(autoROIs):
         roi.autoColor = autoROIColors[iROI]
+
+
+@functools.cache
+def _getDistinctColors(n_colors: int, exclude_colors: tuple[tuple[float, float, float],...] | None = None, rng: int | None = None) -> list[tp.Any]:
+    """
+    distinctipy.get_colors is slow, so cache results
+    """
+    return distinctipy.get_colors(n_colors, exclude_colors=list(exclude_colors), rng=rng)
