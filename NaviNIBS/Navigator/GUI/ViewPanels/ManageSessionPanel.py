@@ -512,14 +512,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         return session
 
-    def loadSession(self, sesFilepath: tp.Optional[str] = None):
-        self._tryVerifyThenCloseSession()
-
-        session = self._loadSession(sesFilepath=sesFilepath)
-
-        if session is None:
-            return
-
+    def _finishLoadingSession(self, session: Session):
         self.sigAboutToFinishLoadingSession.emit(session)
         self.session = session
         try:
@@ -527,6 +520,100 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         except Exception as e:
             logger.error('Problem handling loaded session:\n{}'.format(exceptionToStr(e)))
             raise e
+
+    async def _checkAndRestoreAutosave(self, session: Session,
+                                       autosaves: list[tuple[datetime, str]]):
+        """
+        Shows a non-blocking modal dialog letting the user choose an autosave timepoint
+        to restore.  The asyncio event loop continues running while the dialog is open.
+        Calls _finishLoadingSession when done (with original or restored session).
+        """
+        try:
+            logger.info(f'Found {len(autosaves)} autosave(s) newer than last save')
+
+            dlg = QtWidgets.QDialog(self._wdgt)
+            dlg.setWindowTitle('Restore unsaved changes?')
+            layout = QtWidgets.QVBoxLayout(dlg)
+
+            layout.addWidget(QtWidgets.QLabel(
+                'Unsaved changes were found. Select a timepoint to restore:'))
+
+            combo = QtWidgets.QComboBox()
+            for dt, path in autosaves:
+                combo.addItem(dt.strftime('%Y-%m-%d %H:%M:%S'), userData=path)
+            layout.addWidget(combo)
+
+            summaryLabel = QtWidgets.QLabel()
+            summaryLabel.setWordWrap(True)
+            layout.addWidget(summaryLabel)
+
+            def updateSummary(index):
+                path = combo.itemData(index)
+                changed = Session.getAutosaveChangeSummary(session.unpackedSessionDir, path)
+                summaryLabel.setText(
+                    ('Changes: ' + ', '.join(changed)) if changed else '(no detected changes)')
+
+            combo.currentIndexChanged.connect(updateSummary)
+            updateSummary(0)
+
+            btnBox = QtWidgets.QDialogButtonBox()
+            btnBox.addButton('Restore', QtWidgets.QDialogButtonBox.ButtonRole.AcceptRole)
+            btnBox.addButton('Cancel', QtWidgets.QDialogButtonBox.ButtonRole.RejectRole)
+            btnBox.accepted.connect(dlg.accept)
+            btnBox.rejected.connect(dlg.reject)
+            layout.addWidget(btnBox)
+
+            # Show as window-modal without blocking the asyncio event loop.
+            # dlg.open() sets WindowModal and returns immediately.
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[bool] = loop.create_future()
+            dlg.accepted.connect(lambda: future.set_result(True) if not future.done() else None)
+            dlg.rejected.connect(lambda: future.set_result(False) if not future.done() else None)
+            dlg.open()
+
+            accepted = await future
+
+            if accepted:
+                autosavePath = combo.currentData()
+                logger.info(f'Restoring session from autosave: {autosavePath}')
+                unpackedSessionDir = session.unpackedSessionDir
+                assert unpackedSessionDir is not None
+                session = Session.loadFromUnpackedDir(
+                    unpackedSessionDir=unpackedSessionDir,
+                    filepath=session.filepath,
+                    configPath=autosavePath,
+                )
+                # Rewrite main config files so the unpacked dir is self-consistent and
+                # the next saveToFile() will include the restored data.
+                session.saveToUnpackedDir(saveDirtyOnly=False)
+            else:
+                logger.info('User declined autosave restoration')
+
+        except Exception as e:
+            logger.warning(f'Failed to check/restore autosave: {e}')
+
+        self._finishLoadingSession(session)
+
+    def loadSession(self, sesFilepath: tp.Optional[str] = None,
+                    offerAutosaveRestore: bool = False):
+        self._tryVerifyThenCloseSession()
+
+        session = self._loadSession(sesFilepath=sesFilepath)
+
+        if session is None:
+            return
+
+        if offerAutosaveRestore:
+            unpackedSessionDir = session.unpackedSessionDir
+            assert unpackedSessionDir is not None
+            autosaves = Session.findAutosaves(unpackedSessionDir)
+            if autosaves:
+                # Autosaves found — show dialog asynchronously so the event loop stays responsive
+                asyncio.create_task(asyncTryAndLogExceptionOnError(
+                    self._checkAndRestoreAutosave, session, autosaves))
+                return
+
+        self._finishLoadingSession(session)
 
     def importSession(self, sesFilepath: tp.Optional[str] = None):
         logger.info(f'Loading other session for import from {sesFilepath}')
@@ -558,9 +645,12 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         logger.info('Recover session data dir: {}'.format(sesDataDir))
 
         session = Session.loadFromUnpackedDir(unpackedSessionDir=sesDataDir)
-        self.sigAboutToFinishLoadingSession.emit(session)
-        self.session = session
-        self.sigLoadedSession.emit(self.session)
+        autosaves = Session.findAutosaves(sesDataDir)
+        if autosaves:
+            asyncio.create_task(asyncTryAndLogExceptionOnError(
+                self._checkAndRestoreAutosave, session, autosaves))
+        else:
+            self._finishLoadingSession(session)
 
     def _cloneSession(self, fromSesFilepath: tp.Optional[str] = None, toSesFilepath: tp.Optional[str] = None):
         if fromSesFilepath is None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 
 import attrs
@@ -618,8 +619,16 @@ class Session:
         return cls.loadFromUnpackedDir(unpackedSessionDir=folderpath, filepath=folderpath, **kwargs)
 
     @classmethod
-    def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None, **kwargs):
-        configPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename + '.json')
+    def loadFromUnpackedDir(cls, unpackedSessionDir: str, filepath: tp.Optional[str] = None,
+                            configPath: tp.Optional[str] = None, **kwargs):
+        """
+        configPath: Optional path to the SessionConfig JSON to load from. Defaults to
+            {unpackedSessionDir}/SessionConfig.json. Primarily used for autosave restoration:
+            pass an autosave config path (e.g. from findAutosaves()) to reload from that
+            specific timepoint.
+        """
+        if configPath is None:
+            configPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename + '.json')
         with open(configPath, 'r') as f:
             config = json.load(f)
         # TODO: validate against schema
@@ -707,3 +716,54 @@ class Session:
     @classmethod
     def getTempUnpackDir(cls):
         return tempfile.TemporaryDirectory(prefix='NaviNIBSSession_').name
+
+    @classmethod
+    def findAutosaves(cls, unpackedSessionDir: str) -> list[tuple[datetime, str]]:
+        """
+        Returns a list of (autosave_datetime, autosave_config_path) for all autosave configs
+        that are newer than the main SessionConfig.json, sorted newest-first.
+        """
+        mainConfigPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename + '.json')
+        if not os.path.exists(mainConfigPath):
+            return []
+        mainConfigMtime = datetime.fromtimestamp(os.path.getmtime(mainConfigPath))
+
+        autosaveDir = os.path.join(unpackedSessionDir, 'autosaved')
+        if not os.path.isdir(autosaveDir):
+            return []
+
+        prefix = 'autosaved-'
+        suffix = '_' + cls._sessionConfigFilename + '.json'
+
+        results: list[tuple[datetime, str]] = []
+        for filename in os.listdir(autosaveDir):
+            if filename.startswith(prefix) and filename.endswith(suffix):
+                timestampStr = filename[len(prefix):-len(suffix)]
+                try:
+                    fileTime = datetime.strptime(timestampStr, '%y%m%d%H%M%S.%f')
+                except ValueError:
+                    continue
+                if fileTime > mainConfigMtime:
+                    results.append((fileTime, os.path.join(autosaveDir, filename)))
+
+        results.sort(key=lambda x: x[0], reverse=True)  # newest first
+        return results
+
+    @classmethod
+    def getAutosaveChangeSummary(cls, unpackedSessionDir: str, autosaveConfigPath: str) -> list[str]:
+        """
+        Returns a list of human-readable section names that changed in the given autosave
+        relative to the main SessionConfig.json.
+        """
+        mainConfigPath = os.path.join(unpackedSessionDir, cls._sessionConfigFilename + '.json')
+        with open(mainConfigPath, 'r') as f:
+            mainConfig = json.load(f)
+        with open(autosaveConfigPath, 'r') as f:
+            autosaveConfig = json.load(f)
+
+        changed = []
+        for key in set(mainConfig) | set(autosaveConfig):
+            if autosaveConfig.get(key) != mainConfig.get(key):
+                # convert camelCase keys to nicer labels
+                changed.append(re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', key).lower())
+        return changed

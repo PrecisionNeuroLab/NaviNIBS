@@ -84,7 +84,7 @@ async def openSessionForInteraction(workingDir, sessionKey: str):
 
     from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 
-    app = NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath)
+    app = NavigatorGUI.createAndRunAsTask(sesFilepath=sessionPath, offerAutosaveRestore=False)
     while True:
         await asyncio.sleep(1.)
         if not app._isRunning:

@@ -47,6 +47,7 @@ class NavigatorGUI(RunnableAsApp):
 
     _sesFilepath: tp.Optional[str] = None  # only used to load session on startup
     _inProgressBaseDir: tp.Optional[str] = None
+    _offerAutosaveRestore: bool = True
 
     _session: tp.Optional[Session] = None
 
@@ -468,7 +469,9 @@ class NavigatorGUI(RunnableAsApp):
     async def _loadAfterSetup(self, filepath):
         await asyncio.sleep(1.)
         logger.info(f'Loading session from {filepath}')
-        self._mainViewPanels['Manage session'].loadSession(sesFilepath=filepath)
+        self._mainViewPanels['Manage session'].loadSession(
+            sesFilepath=filepath,
+            offerAutosaveRestore=self._offerAutosaveRestore)
         logger.debug('Done loading session')
 
     def _updateEnabledPanels(self):
@@ -510,6 +513,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sesFilepath', type=str, default=None)
     parser.add_argument('--createShortcut', action='store_true', help='Create a desktop shortcut to NaviNIBS Navigator GUI and exit')
+    parser.add_argument('--noAutosaveRestore', action='store_false', dest='offerAutosaveRestore',
+                        help='Disable offer to restore from autosave on session load')
     args = parser.parse_args()
 
     if args.createShortcut:
@@ -519,6 +524,8 @@ def main():
                                   terminal=False)
 
         return
+
+    kwargs = dict(offerAutosaveRestore=args.offerAutosaveRestore)
 
     if args.sesFilepath is None:
         if False:  # TODO: debug, delete or set to False
@@ -532,11 +539,11 @@ def main():
             else:
                 sesFilepath = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..',
                                            'data/TestSession1.rtnabs')
-            NavigatorGUI.createAndRun(sesFilepath=sesFilepath)
+            NavigatorGUI.createAndRun(sesFilepath=sesFilepath, **kwargs)
         else:
-            NavigatorGUI.createAndRun()
+            NavigatorGUI.createAndRun(**kwargs)
     else:
-        NavigatorGUI.createAndRun(sesFilepath=args.sesFilepath)
+        NavigatorGUI.createAndRun(sesFilepath=args.sesFilepath, **kwargs)
 
 
 if __name__ == '__main__':
