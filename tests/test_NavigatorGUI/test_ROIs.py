@@ -12,6 +12,7 @@ from NaviNIBS.Navigator.Model.ROIs import AtlasSurfaceParcel
 from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
 
 from tests.test_NavigatorGUI import utils
 from tests.test_NavigatorGUI.utils import (
@@ -40,6 +41,20 @@ def exampleCSFROISeedPointAndRadius():
 async def test_openSetROIsSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'SetROIs')
 
+
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openImportParcellationROIsSession(workingDir):
+    # with utils.tracer(workingDir, 'ImportParcellationROIs', True):
+    await utils.openSessionForInteraction(workingDir, 'ImportParcellationROIs')
+
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openTargetROIsSession(workingDir):
+    # with utils.tracer(workingDir, 'TargetROI', True):
+    await utils.openSessionForInteraction(workingDir, 'TargetROI')
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_planFiducials.py::test_planFiducials')
@@ -295,7 +310,7 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
 
-    if True:
+    if False:
         navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='HCPMMP1')  # similar to initiating import from buttons
 
         # Select specific left hemisphere ROIs by name
@@ -343,6 +358,7 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
     else:
         navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='HCPMMP1_combined')  # similar to initiating import from buttons
         dlg = navigatorGUI.roisPanel._atlasROIsImportDialog
+        assert dlg is not None
         # Accept the dialog (call accepted handler then close dialog)
         navigatorGUI.roisPanel._onImportAtlasROIsDialogAccepted()
 
