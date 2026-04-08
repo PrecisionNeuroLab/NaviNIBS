@@ -261,6 +261,9 @@ class EditROIWidget:
 
     _ROI: ROIs.ROI | None = attrs.field(init=False, default=None)
     _roisModel: ROIsTableModel = attrs.field(init=False)
+    _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
+    _colorBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _colorResetBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         outerLayout = QtWidgets.QVBoxLayout()
@@ -289,6 +292,30 @@ class EditROIWidget:
         preventAnnoyingScrollBehaviour(self._roiComboBox)
         self._roisModel.sigSelectionChanged.connect(self._onModelSelectionChanged)
         layout.addRow('Editing ROI:', self._roiComboBox)
+
+        self._formLayout = layout
+
+        colorContainer = QtWidgets.QWidget()
+        colorContainerLayout = QtWidgets.QHBoxLayout()
+        colorContainerLayout.setContentsMargins(0, 0, 0, 0)
+        colorContainer.setLayout(colorContainerLayout)
+
+        colorBtn = QtWidgets.QPushButton()
+        colorBtn.setFixedWidth(48)
+        colorBtn.clicked.connect(self._onColorBtnClicked)
+        colorContainerLayout.addWidget(colorBtn)
+        self._colorBtn = colorBtn
+
+        colorResetBtn = QtWidgets.QPushButton('Auto')
+        colorResetBtn.setFixedWidth(48)
+        colorResetBtn.setToolTip('Reset to automatic color')
+        colorResetBtn.clicked.connect(self._onColorResetBtnClicked)
+        colorContainerLayout.addWidget(colorResetBtn)
+        colorContainerLayout.addStretch()
+        self._colorResetBtn = colorResetBtn
+
+        layout.addRow('Color:', colorContainer)
+        self._updateColorBtn()
 
         self._roiComboBox.setCurrentIndex(-1)
         self._onROIComboBoxCurrentIndexChanged(self._roiComboBox.currentIndex())  # enable/disable widgets
@@ -346,6 +373,7 @@ class EditROIWidget:
             self._roiSpecificInnerWdgt = None
 
         if self._ROI is None:
+            self._updateColorBtn()
             return
 
         self._roiSpecificContainer = QtWidgets.QWidget()
@@ -369,8 +397,45 @@ class EditROIWidget:
         self._roiSpecificContainer.setLayout(innerLayout)
         innerLayout.addWidget(self._roiSpecificInnerWdgt)
 
+        self._updateColorBtn()
+
     def _onROIItemChanged(self, roiKey: str, attribsChanged: list[str] | None = None):
-        pass
+        if attribsChanged is None or 'color' in attribsChanged:
+            self._updateColorBtn()
+
+    def _updateColorBtn(self):
+        roi = self._ROI
+        if roi is None:
+            self._colorBtn.setEnabled(False)
+            self._colorBtn.setStyleSheet('')
+            self._colorResetBtn.setEnabled(False)
+            return
+        self._colorBtn.setEnabled(True)
+        color = roi.color if roi.color is not None else roi.autoColor
+        if color is not None:
+            if len(color) == 3:
+                color = list(color) + [1.]
+            qc = QtGui.QColor.fromRgbF(*color)
+            self._colorBtn.setStyleSheet(f'QPushButton {{ background-color: {qc.name()}; }}')
+        else:
+            self._colorBtn.setStyleSheet('')
+        self._colorResetBtn.setEnabled(roi.color is not None)
+
+    def _onColorBtnClicked(self):
+        if self._ROI is None:
+            return
+        color = self._ROI.color if self._ROI.color is not None else self._ROI.autoColor
+        if color is not None and len(color) == 3:
+            color = list(color) + [1.]
+        initial = QtGui.QColor.fromRgbF(*color) if color is not None else QtGui.QColor('white')
+        newColor = QtWidgets.QColorDialog.getColor(initial, self._wdgt, 'Choose ROI Color',
+                                                   options=QtWidgets.QColorDialog.ShowAlphaChannel)
+        if newColor.isValid():
+            self._ROI.color = (newColor.redF(), newColor.greenF(), newColor.blueF(), newColor.alphaF())
+
+    def _onColorResetBtnClicked(self):
+        if self._ROI is not None:
+            self._ROI.color = None
 
     def _onROIComboBoxCurrentIndexChanged(self, index: int):
 
