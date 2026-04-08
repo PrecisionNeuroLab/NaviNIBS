@@ -10,6 +10,7 @@ from NaviNIBS.Navigator.Model.GenericCollection import GenericList
 from NaviNIBS.Navigator.Model.ROIs import ROI
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import ROIStage, PassthroughStage, SelectSurfaceMesh, SurfaceMeshROI
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint, AddFromSeedLine
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
 if tp.TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.attrs import attrsAsDict
@@ -43,6 +44,7 @@ class PipelineROI(ROI):
                     SelectSurfaceMesh,
                     AddFromSeedPoint,
                     AddFromSeedLine,
+                    AddFromTarget,
             ):
                 self._stageLibrary[cls.type] = cls
 

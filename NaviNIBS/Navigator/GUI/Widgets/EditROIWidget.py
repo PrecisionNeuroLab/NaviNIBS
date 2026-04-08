@@ -21,6 +21,7 @@ from NaviNIBS.Navigator.Model.ROIs.AtlasSurfaceParcel import AtlasSurfaceParcel
 from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 import NaviNIBS.Navigator.Model.ROIs.PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
 from NaviNIBS.util import exceptionToStr
@@ -140,6 +141,8 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
                     StageWidgetCls = StageWidgets.SelectSurfaceMeshStageWidget
                 case AddFromSeedPoint.type:
                     StageWidgetCls = StageWidgets.AddFromSeedPointStageWidget
+                case AddFromTarget.type:
+                    StageWidgetCls = StageWidgets.AddFromTargetStageWidget
                 case _:
                     StageWidgetCls = StageWidgets.JsonReprStageWidget
 

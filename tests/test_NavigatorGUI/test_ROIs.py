@@ -348,7 +348,145 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
 
     navigatorGUI.roisPanel._tableWdgt.resizeColumnsToContents()
 
-    await utils.waitForever()
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='ParcelROIs',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
 
-    raise NotImplementedError  # TODO: continue testing here
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+    assert len(ses.ROIs) > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_setTargets.py::test_setTargets')
+async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
+                         workingDir: str,
+                         screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetTargets', 'TargetROI')
+
+    # open session
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(1.)
+
+    # navigate to ROIs panel
+    navigatorGUI._activateView(navigatorGUI.roisPanel.key)
+    await navigatorGUI.roisPanel.finishedAsyncInit.wait()
+    assert navigatorGUI.activeViewKey == navigatorGUI.roisPanel.key
+
+    # add a new ROI and rename it
+    initialROICount = len(navigatorGUI.session.ROIs)
+    navigatorGUI.roisPanel._addBtn.click()
+    assert len(navigatorGUI.session.ROIs) == initialROICount + 1
+    originalROIKey = list(navigatorGUI.session.ROIs.keys())[-1]
+    newROIKey = 'TargetROI'
+    navigatorGUI.session.ROIs[originalROIKey].key = newROIKey
+
+    await asyncio.sleep(0.1)
+
+    navigatorGUI.roisPanel._tableWdgt.resizeColumnsToContents()
+
+    roi = navigatorGUI.session.ROIs[newROIKey]
+    assert isinstance(roi, PipelineROI)
+
+    # select the ROI in the table
+    navigatorGUI.roisPanel._tableWdgt.currentCollectionItemKey = newROIKey
+
+    await asyncio.sleep(0.5)
+
+    roiWdgt = navigatorGUI.roisPanel._editROIWdgt._roiSpecificInnerWdgt
+    assert isinstance(roiWdgt, EditPipelineROIInnerWidget)
+
+    # add SelectSurfaceMesh stage
+    roiWdgt._addStageBtn.click()
+    stageWdgt = roiWdgt._stageWidgets[0]
+    assert isinstance(stageWdgt, StageWidgets.PassthroughStageWidget)
+    stageWdgt._typeField.setCurrentText(ROIStages.SelectSurfaceMesh.type)
+
+    await asyncio.sleep(0.1)
+    stageWdgt = roiWdgt._stageWidgets[0]
+    assert isinstance(stageWdgt, StageWidgets.SelectSurfaceMeshStageWidget)
+    stageWdgt._meshComboBox.setCurrentText('gmSurf')
+
+    await asyncio.sleep(0.1)
+
+    # add AddFromTarget stage
+    roiWdgt._addStageBtn.click()
+    stageWdgt = roiWdgt._stageWidgets[-1]
+    assert isinstance(stageWdgt, StageWidgets.PassthroughStageWidget)
+    stageWdgt._typeField.setCurrentText(AddFromTarget.type)
+
+    await asyncio.sleep(0.1)
+    stageWdgt = roiWdgt._stageWidgets[-1]
+    assert isinstance(stageWdgt, StageWidgets.AddFromTargetStageWidget)
+
+    # set target to M1 and initial radii
+    stageWdgt._targetCombo.setCurrentText('M1')
+    stageWdgt._radiusXField.setValue(15.0)
+    stageWdgt._radiusYField.setValue(3.0)
+
+    await asyncio.sleep(0.5)
+
+    navigatorGUI.roisPanel._queueRedraw('cameraPos')
+    await asyncio.sleep(0.5)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='TargetROI_1',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # change radii to 10 mm (x) and 5 mm (y)
+    stageWdgt._radiusXField.setValue(10.0)
+    stageWdgt._radiusYField.setValue(5.0)
+
+    await asyncio.sleep(0.5)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='TargetROI_2',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # change M1 angle to 0 degrees from midline
+    navigatorGUI.session.targets['M1'].angle = 0.
+
+    await asyncio.sleep(0.5)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='TargetROI_3',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # change angle back to -45 degrees from midline
+    navigatorGUI.session.targets['M1'].angle = -45.
+
+    await asyncio.sleep(0.5)
+
+    # change to frontal target (t2-45)
+    stageWdgt._targetCombo.setCurrentText('t2-45')
+
+    await asyncio.sleep(0.5)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='TargetROI_4',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # change the mesh surface from cortex (gmSurf) to skin (skinSurf)
+    selectMeshWdgt = roiWdgt._stageWidgets[0]
+    assert isinstance(selectMeshWdgt, StageWidgets.SelectSurfaceMeshStageWidget)
+    selectMeshWdgt._meshComboBox.setCurrentText('skinSurf')
+
+    await asyncio.sleep(0.5)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='TargetROI_5',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # save and validate
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+    utils.assertSavedSessionIsValid(sessionPath)
 

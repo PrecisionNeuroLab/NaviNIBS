@@ -19,6 +19,8 @@ from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import FullTargetsTableModel
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
 from NaviNIBS.util import exceptionToStr
@@ -463,3 +465,139 @@ class JsonReprStageWidget(ROIStageWidget):
         logger.info(f'Updating stage {self._stage} from JSON repr')
         index = self._roi.stages.index(self._stage)
         self._roi.stages[index] = newStage  # replace stage
+
+
+@attrs.define(init=False, slots=False, kw_only=True)
+class AddFromTargetStageWidget(ROIStageWidget):
+    _stage: AddFromTarget
+
+    _targetsModel: FullTargetsTableModel = attrs.field(init=False)
+    _targetCombo: QtWidgets.QComboBox = attrs.field(init=False)
+    _radiusXField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _radiusYField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _depthThicknessField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+
+    _preChangeTargetComboBoxIndex: list[int] = attrs.field(init=False, factory=list)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._targetsModel = FullTargetsTableModel(session=self._session)
+
+        self._targetCombo = QtWidgets.QComboBox()
+        self._targetCombo.setModel(self._targetsModel)
+        preventAnnoyingScrollBehaviour(self._targetCombo)
+        self._targetsModel.collection.sigItemsAboutToChange.connect(
+            self._onTargetsCollectionAboutToChange, priority=1)
+        self._targetsModel.collection.sigItemsChanged.connect(
+            self._onTargetsCollectionChanged, priority=-1)
+        self._targetCombo.setCurrentIndex(-1)
+        if self._stage.targetKey is not None:
+            index = self._targetsModel.getIndexFromCollectionItemKey(self._stage.targetKey)
+            if index is not None:
+                self._targetCombo.setCurrentIndex(index)
+        self._targetCombo.currentIndexChanged.connect(self._onTargetComboCurrentIndexChanged)
+        self._formLayout.addRow('Target:', self._targetCombo)
+
+        self._radiusXField = QtWidgets.QDoubleSpinBox()
+        self._radiusXField.setRange(0.0, 1e3)
+        self._radiusXField.setValue(self._stage.radiusX if self._stage.radiusX is not None else 0.0)
+        self._radiusXField.setSpecialValueText(' ')
+        preventAnnoyingScrollBehaviour(self._radiusXField)
+        self._radiusXField.valueChanged.connect(self._onRadiusXValueChanged)
+        self._formLayout.addRow('Radius X (mm):', self._radiusXField)
+
+        self._radiusYField = QtWidgets.QDoubleSpinBox()
+        self._radiusYField.setRange(0.0, 1e3)
+        self._radiusYField.setValue(self._stage.radiusY if self._stage.radiusY is not None else 0.0)
+        self._radiusYField.setSpecialValueText(' ')
+        preventAnnoyingScrollBehaviour(self._radiusYField)
+        self._radiusYField.valueChanged.connect(self._onRadiusYValueChanged)
+        self._formLayout.addRow('Radius Y (mm):', self._radiusYField)
+
+        self._depthThicknessField = QtWidgets.QDoubleSpinBox()
+        self._depthThicknessField.setRange(0.0, 1e3)
+        self._depthThicknessField.setValue(self._stage.depthThickness)
+        preventAnnoyingScrollBehaviour(self._depthThicknessField)
+        self._depthThicknessField.valueChanged.connect(self._onDepthThicknessValueChanged)
+        self._formLayout.addRow('Depth thickness (mm):', self._depthThicknessField)
+
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
+        super()._onStageChanged(stage, changedAttrs)
+
+        if changedAttrs is None or 'targetKey' in changedAttrs:
+            self._targetCombo.currentIndexChanged.disconnect(self._onTargetComboCurrentIndexChanged)
+            if self._stage.targetKey is None:
+                self._targetCombo.setCurrentIndex(-1)
+            else:
+                index = self._targetsModel.getIndexFromCollectionItemKey(self._stage.targetKey)
+                self._targetCombo.setCurrentIndex(index if index is not None else -1)
+            self._targetCombo.currentIndexChanged.connect(self._onTargetComboCurrentIndexChanged)
+
+        if changedAttrs is None or 'radiusX' in changedAttrs:
+            self._radiusXField.valueChanged.disconnect(self._onRadiusXValueChanged)
+            self._radiusXField.setValue(self._stage.radiusX if self._stage.radiusX is not None else 0.0)
+            self._radiusXField.valueChanged.connect(self._onRadiusXValueChanged)
+
+        if changedAttrs is None or 'radiusY' in changedAttrs:
+            self._radiusYField.valueChanged.disconnect(self._onRadiusYValueChanged)
+            self._radiusYField.setValue(self._stage.radiusY if self._stage.radiusY is not None else 0.0)
+            self._radiusYField.valueChanged.connect(self._onRadiusYValueChanged)
+
+        if changedAttrs is None or 'depthThickness' in changedAttrs:
+            self._depthThicknessField.valueChanged.disconnect(self._onDepthThicknessValueChanged)
+            self._depthThicknessField.setValue(self._stage.depthThickness)
+            self._depthThicknessField.valueChanged.connect(self._onDepthThicknessValueChanged)
+
+    def _onTargetsCollectionAboutToChange(self, *args, **kwargs):
+        if len(self._preChangeTargetComboBoxIndex) == 0:
+            self._targetCombo.currentIndexChanged.disconnect(self._onTargetComboCurrentIndexChanged)
+        self._preChangeTargetComboBoxIndex.append(self._targetCombo.currentIndex())
+
+    def _onTargetsCollectionChanged(self, *args, **kwargs):
+        if len(self._preChangeTargetComboBoxIndex) > 0:
+            prevIndex = self._preChangeTargetComboBoxIndex.pop()
+            if len(self._preChangeTargetComboBoxIndex) == 0:
+                if prevIndex == -1:
+                    self._targetCombo.setCurrentIndex(-1)
+                elif prevIndex != self._targetCombo.currentIndex():
+                    self._onTargetComboCurrentIndexChanged(self._targetCombo.currentIndex())
+                self._targetCombo.currentIndexChanged.connect(self._onTargetComboCurrentIndexChanged)
+
+    def _onTargetComboCurrentIndexChanged(self, index: int):
+        if index == -1:
+            newKey = None
+        else:
+            newKey = self._targetsModel.getCollectionItemKeyFromIndex(index)
+
+        if self._stage.targetKey == newKey:
+            return
+
+        logger.info(f'Updating AddFromTarget stage targetKey to {newKey!r}')
+        self._stage.targetKey = newKey
+
+    def _onRadiusXValueChanged(self, newValue: float):
+        newRadius = None if newValue == 0.0 else newValue
+        if self._stage.radiusX == newRadius:
+            return
+        logger.info(f'Updating AddFromTarget stage radiusX to {newRadius}')
+        self._stage.radiusX = newRadius
+
+    def _onRadiusYValueChanged(self, newValue: float):
+        newRadius = None if newValue == 0.0 else newValue
+        if self._stage.radiusY == newRadius:
+            return
+        logger.info(f'Updating AddFromTarget stage radiusY to {newRadius}')
+        self._stage.radiusY = newRadius
+
+    def _onDepthThicknessValueChanged(self, newValue: float):
+        if self._stage.depthThickness == newValue:
+            return
+        logger.info(f'Updating AddFromTarget stage depthThickness to {newValue}')
+        self._stage.depthThickness = newValue
+
+    def deleteLater(self, /):
+        logger.debug(f'Deleting AddFromTargetStageWidget for stage {self._stage}')
+        self._targetsModel.collection.sigItemsAboutToChange.disconnect(self._onTargetsCollectionAboutToChange)
+        self._targetsModel.collection.sigItemsChanged.disconnect(self._onTargetsCollectionChanged)
+        super().deleteLater()

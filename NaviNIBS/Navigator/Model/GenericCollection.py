@@ -98,6 +98,32 @@ def collectionDictItemAttrSetter(
     return decorator
 
 
+def listItemAttrSetter(
+        equalityFn: tp.Callable[[tp.Any, tp.Any], bool] = lambda a, b: a == b,
+        extraAttrsToSignalOnChange: tp.Optional[tp.List[str]] = None):
+    """
+    Like collectionDictItemAttrSetter but for GenericListItem, which signals (self, attribNames) rather than (key, attribNames).
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, value):
+            # assume method name is the public attribute name
+            publicName = func.__name__
+            privateName = f'_{publicName}'
+            if equalityFn(getattr(self, privateName), value):
+                return None
+            attrsToSignal = [publicName]
+            if extraAttrsToSignalOnChange is not None:
+                attrsToSignal.extend(extraAttrsToSignalOnChange)
+            self.sigItemAboutToChange.emit(self, attrsToSignal)
+            result = func(self, value)
+            setattr(self, privateName, value)
+            self.sigItemChanged.emit(self, attrsToSignal)
+            return result
+        return wrapper
+    return decorator
+
+
 CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
 
 
