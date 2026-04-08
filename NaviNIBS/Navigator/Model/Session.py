@@ -19,6 +19,8 @@ from NaviNIBS.Navigator.Model.MRI import MRI
 from NaviNIBS.Navigator.Model.HeadModel import HeadModel
 from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
 from NaviNIBS.Navigator.Model.ROIs import ROIs, ROI
+from NaviNIBS.Navigator.Model.ROIs.AtlasSurfaceParcel import AtlasSurfaceParcel
+from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.Targets import Targets, Target
 from NaviNIBS.Navigator.Model.TargetGrids import TargetGrids, TargetGrid
 from NaviNIBS.Navigator.Model.Samples import Samples, Sample
@@ -105,7 +107,7 @@ class Session:
         self.MRI.sigManualClimChanged.connect(lambda *args: self.flagKeyAsDirty('MRI'))
         self.headModel.sigFilepathChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
         self.headModel.sigTransformChanged.connect(lambda: self.flagKeyAsDirty('headModel'))
-        self.ROIs.sigItemsChanged.connect(lambda roiKeys, attribKeys: self.flagKeyAsDirty('ROIs'))
+        self.ROIs.sigItemsChanged.connect(self._onROIsChanged)
         self.subjectRegistration.fiducials.sigItemsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigHeadpointsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
         self.subjectRegistration.sampledHeadPoints.sigAttribsChanged.connect(lambda *args: self.flagKeyAsDirty('subjectRegistration'))
@@ -489,6 +491,30 @@ class Session:
                 break
         if isDirty:
             self.flagKeyAsDirty('coordinateSystems')
+
+    def _onROIsChanged(self, keys: list[str], changedAttrs: tp.Optional[list[str]] = None):
+        if changedAttrs is None:
+            isDirty = True
+        elif len(changedAttrs) == 1:
+            isDirty = False
+            for key in keys:
+                if 'meshVertexIndices' in changedAttrs and isinstance(self.ROIs[key], AtlasSurfaceParcel):
+                    # this attr not included in saved config, so don't need to mark as dirty
+                    pass
+                elif changedAttrs[0] in ('output',) and isinstance(self.ROIs[key], PipelineROI):
+                    # don't need to signal about these changes
+                    pass
+                elif changedAttrs[0] in ('session', 'autoColor'):
+                    # don't need to signal about these changes
+                    pass
+                else:
+                    isDirty = True
+                    break
+        else:
+            isDirty = True
+
+        if isDirty:
+            self.flagKeyAsDirty('ROIs')
 
     def _onAddonsAboutToChange(self, addonKeys: list[str], changingAttrs: tp.Optional[list[str]] = None):
         for addonKey in addonKeys:

@@ -100,8 +100,7 @@ class PipelineROI(ROI):
         self._stages.sigItemsAboutToChange.connect(lambda stageKeys, whichAttrs=None: \
                 self.sigItemAboutToChange.emit(self.key, ['stages']))
 
-        self._stages.sigItemsChanged.connect(lambda stageKeys, whichAttrs=None: \
-                self.sigItemChanged.emit(self.key, ['stages']))
+        self._stages.sigItemsChanged.connect(self._onStagesChanged)
 
         self._stages.sigItemsChanged.connect(lambda *args: self.clearCache(), priority=1)
 
@@ -164,6 +163,12 @@ class PipelineROI(ROI):
                 or 'autoColor' in changedAttrs:
             # since colors are copied to output during processing, need to refresh if they change
             self.clearCache()
+
+    def _onStagesChanged(self, stageKeys: list[str], whichAttrs: list[str] | None):
+        if whichAttrs is not None and len(whichAttrs) == 1 and 'session' in whichAttrs:
+            # don't need to signal about this change
+            return
+        self.sigItemChanged.emit(self.key, ['stages'])
 
     def getOutput(self) -> ROI | None:
         if self._cachedOutput is _emptyCache:
