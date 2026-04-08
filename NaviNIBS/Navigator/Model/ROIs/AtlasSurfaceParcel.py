@@ -161,10 +161,13 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
         logger.debug('Querying nearest pial vertices for head mesh vertices')
         headMesh = getattr(self.session.headModel, self.meshKey)
-        _, nearestPialIndices = pialTree.query(headMesh.points, workers=-1)
+        maxDistanceSeparation = 5  # in mm
+        _, nearestPialIndices = pialTree.query(headMesh.points,
+                                               workers=-1,
+                                               distance_upper_bound=maxDistanceSeparation)
 
         logger.debug('Finding head mesh vertices whose nearest pial vertex belongs to target parcel')
-        parcelPialMask = np.zeros(len(allPialCoords), dtype=bool)
+        parcelPialMask = np.zeros(len(allPialCoords)+1, dtype=bool)
         parcelPialMask[pialVertexIndices] = True
         headMeshVertexIndices = np.where(parcelPialMask[nearestPialIndices])[0]
 
@@ -174,8 +177,8 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
     def asDict(self) -> dict[str, tp.Any]:
         d = super().asDict()
-        if 'meshVertexIndices' in d and len(d['meshVertexIndices']) > 1e2:
-            # for large ROIs, don't save full vertex list and instead reload from original
+        if 'meshVertexIndices' in d:
+            # don't save full vertex list and instead reload from original
             # atlas (to avoid very large file sizes in json session configs)
             d.pop('meshVertexIndices')
         return d

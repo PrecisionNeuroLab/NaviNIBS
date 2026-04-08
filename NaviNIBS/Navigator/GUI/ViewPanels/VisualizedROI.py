@@ -97,28 +97,30 @@ class VisualizedROIsMesh(QueuedRedrawMixin):
                     return
 
                 n = self._mesh.n_points
-                buf = np.zeros((n, 4), dtype=np.float64)  # [R_sum, G_sum, B_sum, count]
+                buf = np.zeros((n, 5), dtype=np.float64)  # [R_sum, G_sum, B_sum, alpha_sum, count]
 
                 for vROI in self._registeredROIs:
+                    if not vROI.isVisible:
+                        continue
                     roi = vROI.effectiveROI
-                    if roi is None or not roi.isVisible:
+                    if roi is None:
                         continue
                     if roi.meshVertexIndices is None or len(roi.meshVertexIndices) == 0:
                         continue
-                    buf[roi.meshVertexIndices, 0:3] += vROI.effectiveColor  # RGB 0-1
-                    buf[roi.meshVertexIndices, 3] += 1
+                    buf[roi.meshVertexIndices, :4] += vROI.effectiveColor  # RGBA 0-1
+                    buf[roi.meshVertexIndices, 4] += 1
 
-                roiMask = buf[:, 3] > 0
+                roiMask = buf[:, 4] > 0
 
                 if np.any(roiMask):
-                    buf[roiMask, 0:3] /= buf[roiMask, 3:4]  # average to 0-1
-                    buf[roiMask, 0:3] *= 255
-                    buf[roiMask, 3] = round(255 * self._opacity)
+                    buf[roiMask, :4] /= buf[roiMask, 4:5]  # average to 0-1
+                    buf[roiMask, :4] *= 255
+                    buf[roiMask, 4] *= self._opacity
 
-                buf[~roiMask] = self._backgroundColor  # broadcast single background RGBA tuple
+                buf[~roiMask, :4] = self._backgroundColor  # broadcast single background RGBA tuple
 
                 np.clip(buf, 0, 255, out=buf)
-                newRGBA = buf.astype(np.uint8)
+                newRGBA = buf[:, :4].astype(np.uint8)
 
                 with self._linked3DView.plotter.allowNonblockingCalls():
                     self._mesh[self.scalarsKey] = newRGBA
@@ -145,6 +147,7 @@ class VisualizedROIsMesh(QueuedRedrawMixin):
     def clear(self):
         if self._meshActor is not None:
             logger.info(f'Clearing shared mesh for ROIs on {self._meshKey}')
+
             self._linked3DView.plotter.remove_actor(self._meshActor)
             self._meshActor = None
             self._mesh = None
@@ -168,6 +171,10 @@ class VisualizedROI:
         self._roi.sigItemChanged.connect(self._onROIChanged)
 
     @property
+    def isVisible(self) -> bool:
+        return self._roi.isVisible
+
+    @property
     def effectiveROI(self) -> ROIs.SurfaceMeshROI | None:
         if isinstance(self._roi, PipelineROI):
             out = self._roi.getOutput()
@@ -180,12 +187,16 @@ class VisualizedROI:
     def effectiveColor(self) -> np.ndarray:
         roi = self.effectiveROI
         if roi is None:
-            return np.array([0.5, 0.5, 0.5])
+            return np.array([0.5, 0.5, 0.5, 1.0])
         if roi.color is not None:
-            return np.asarray(roi.color[0:3], dtype=np.float64)
+            if len(roi.color) == 3:
+                return np.asarray(list(roi.color[0:3]) + [1.], dtype=np.float64)
+            else:
+                assert len(roi.color) == 4
+                return np.asarray(roi.color, dtype=np.float64)
         if roi.autoColor is not None:
-            return np.asarray(roi.autoColor, dtype=np.float64)
-        return np.array([0.5, 0.5, 0.5])
+            return np.asarray(list(roi.autoColor) + [1.], dtype=np.float64)
+        return np.array([0.5, 0.5, 0.5, 1.0])
 
     def _onROIChanged(self, key: str, changedAttrs: list[str] | None = None):
         if changedAttrs is None:

@@ -82,6 +82,9 @@ class RemoteActorProxy:
     def SetUseBounds(self, useBounds: bool):
         return self._plotter._remoteActorCall(self, 'SetUseBounds', useBounds)
 
+    def SetOpacity(self, opacity: float):
+        return self._plotter._remoteActorPropertyCall(self, 'SetOpacity', opacity)
+
 
 @attrs.define
 class RemoteCameraProxy:
@@ -376,8 +379,11 @@ class RemotePlotterProxyBase:
 
     def _remoteActorCall(self, actor: RemoteActorProxy, fnStr, *args, **kwargs):
         actorRef = ActorRef(actorID=actor.actorID)
-
         return self._remoteCall('callActorMethod', fnStr, args, kwargs, cmdArgs=(actorRef,))
+
+    def _remoteActorPropertyCall(self, actor: RemoteActorProxy, fnStr, *args, **kwargs):
+        actorRef = ActorRef(actorID=actor.actorID)
+        return self._remoteCall('callActorPropertyMethod', fnStr, args, kwargs, cmdArgs=(actorRef,))
 
     def _remoteActorMapperCall(self, actor: RemoteActorProxy, fnStr: str, *args, **kwargs):
         actorRef = ActorRef(actorID=actor.actorID)

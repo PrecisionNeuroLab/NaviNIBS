@@ -132,6 +132,9 @@ class RemotePlotManagerBase:
             case 'callActorMethod':
                 return self._callActorMethod(msg[1], msg[2:])
 
+            case 'callActorPropertyMethod':
+                return self._callActorPropertyMethod(msg[1], msg[2:])
+
             case 'callActorMapperMethod':
                 return self._callMapperMethod(msg[2:], msg[1])
 
@@ -231,6 +234,14 @@ class RemotePlotManagerBase:
     def _callActorMethod(self, actor: ActorRef, msg):
         actor = self._actorManager.getActor(actor)
         fn = getattr(actor, msg[0])
+        args = list(msg[1])
+        kwargs = msg[2]
+
+        return self._callMethod(fn, args, kwargs)
+
+    def _callActorPropertyMethod(self, actor: ActorRef, msg):
+        actor = self._actorManager.getActor(actor)
+        fn = getattr(actor.GetProperty(), msg[0])
         args = list(msg[1])
         kwargs = msg[2]
 

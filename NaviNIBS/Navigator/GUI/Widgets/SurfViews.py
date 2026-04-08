@@ -254,7 +254,11 @@ class Surf3DView(SurfSliceView):
         actor = self._surfPlotActors.get(actorName)
         if actor is not None:
             with self._surfPlotter.allowNonblockingCalls():
-                actor.SetVisibility(visible)
+                if visible:
+                    _, opacity = self.getSurfColorAndOpacity(surfKey)
+                    actor.SetOpacity(opacity)
+                else:
+                    actor.SetOpacity(0.001)
                 self._surfPlotter.render()
 
     def _updateView(self):
@@ -342,7 +346,8 @@ class Surf3DView(SurfSliceView):
             for hiddenSurfKey in self._hiddenSurfs:
                 hiddenActorName = self.label + '_' + hiddenSurfKey + '_surf'
                 if hiddenActorName in self._surfPlotActors:
-                    self._surfPlotActors[hiddenActorName].SetVisibility(False)
+                    with self._plotter.allowNonblockingCalls():
+                        self._surfPlotActors[hiddenActorName].SetOpacity(0.0)
 
         if self._doShowCrosshairs:
             logger.debug('Setting crosshairs for {} plot'.format(self.label))

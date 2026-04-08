@@ -27,7 +27,7 @@ from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import TargetGridsTabl
 from NaviNIBS.Navigator.GUI.Widgets.EditTargetWidget import EditTargetWidget
 from NaviNIBS.Navigator.GUI.Widgets.EditGridWidget import EditGridWidget
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
-from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, refreshROIAutoColors
+from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, VisualizedROIsMesh, refreshROIAutoColors
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QCollapsibleSection import QCollapsibleSection
@@ -287,6 +287,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _3DView: Surf3DView = attrs.field(init=False)
     _targetActors: dict[str, VisualizedTarget] = attrs.field(init=False, factory=dict)
     _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
+    _visualizedROIsMeshes: dict[str, VisualizedROIsMesh] = attrs.field(init=False, factory=dict)
 
     _targetDock: Dock = attrs.field(init=False)
     _gridDock: Dock = attrs.field(init=False)
@@ -840,7 +841,8 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                             if True:  # TODO: debug, set to true / remove conditional
                                 visualizedROI = VisualizedROI(roi=roi,
                                                               session=self.session,
-                                                              linked3DView=self._3DView)
+                                                              linked3DView=self._3DView,
+                                                              meshRegistry=self._visualizedROIsMeshes)
                                 self._visualizedROIs[key] = visualizedROI
 
                 self._3DView.updateView()
