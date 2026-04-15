@@ -240,7 +240,7 @@ class SinglePlotterNavigationView(NavigationView):
             cameraPts = np.asarray([[0, 0, 0], [0, 0, self._cameraDist], [0, 1, 0]])  # focal point, position, and up respectively
 
             if self._alignCameraTo is None:
-                with self._plotter.allowNonblockingCalls:
+                with self._plotter.allowNonblockingCalls():
                     self._plotter.reset_camera()
                     self._plotter.render()
 

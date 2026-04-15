@@ -440,7 +440,7 @@ class CartesianTargetGrid(TargetGrid):
         #     concatenateTransforms((extraTransf, self.seedTarget.coilToMRITransf)),
         #     np.asarray([0, 0, -pivotDepth]))
 
-        # TODO: update grid spacing below to be defined based on arc lengths around pivot origin, instead of in a 2D plane
+        # note: grid spacing defined based on arc lengths around pivot origin, instead of in a 2D plane
 
         # note: even in 'Autoset entry' mode, we use pivot to define target locations
         # (so that large offsets don't cause as large of depth changes)
@@ -551,7 +551,7 @@ class CartesianTargetGrid(TargetGrid):
                         point_MRISpace=self.seedTarget.entryCoord)
                     # signed offset from closest skin point along entry direction
                     seedEntryToSkinOffset = Vector(self.seedTarget.entryCoord - closestPt_skin_seed).dot(
-                        entryDir)  # TODO: check sign
+                        entryDir)
                     newTarget.autosetEntryCoord(offsetFromSkin=seedEntryToSkinOffset)
 
             logger.debug(f'New target: {newTarget}')

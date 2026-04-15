@@ -73,7 +73,18 @@ async def navigatorGUIWithoutSession() -> NavigatorGUI:
     if True:
         await raiseMainNavigatorGUI()
     yield navGUI
+
+    logger.debug('Closing navigator GUI')
+
     navGUI._win.close()
+
+    if True:
+        # give time for cleanup between test runs
+        counter = 0
+        logger.debug('Cleaning up')
+        while counter < 30 and navGUI._isRunning:
+            await asyncio.sleep(1.)
+        logger.debug('Done cleaning up')
 
 async def openSessionForInteraction(workingDir, sessionKey: str):
     sessionPath = getSessionPath(workingDir, sessionKey)
@@ -261,7 +272,8 @@ async def setSimulatedToolPose(navigatorGUI: NavigatorGUI, key: str, transf: np.
 
 
 @contextlib.contextmanager
-def tracer(workingDir, sessionKey: str, doOpen: bool = True):
+def tracer(workingDir, sessionKey: str, doOpen: bool = True,
+           maxStackDepth: int = -1,):
     from viztracer import VizTracer
     from datetime import datetime
     tracePath = os.path.join(workingDir, f'Test_{sessionKey}_time-%s_VizTraceResults.json' % datetime.today().strftime('%y%m%d%H%M%S'))
@@ -269,7 +281,8 @@ def tracer(workingDir, sessionKey: str, doOpen: bool = True):
         with VizTracer(
                 tracer_entries=5000000,
                 output_file=tracePath,
-                log_async=True
+                log_async=True,
+                max_stack_depth=maxStackDepth,
         ) as tracer:
             yield tracer
     finally:

@@ -417,8 +417,21 @@ class RemotePlotterProxyBase:
 
     def registerPolyData(self, polyData: pv.PolyData, id: str | None = None) -> RemotePolyDataProxy:
         logger.info(f'Registering polyData with ID {id}')
+        if True:
+            # clear un-pickleable obbTree field
+            # note: this may cause unexpected issues...
+            if hasattr(polyData, 'obbTree'):
+                # newer pyvista version, where obbTree is a cached_property
+                polyDataToSend = polyData.copy()
+                polyDataToSend.obbTree = None
+            elif hasattr(polyData, '_obbTree'):
+                polyDataToSend = polyData
+                polyDataToSend._obbTree = None
+            else:
+                polyDataToSend = polyData
+
         with self.disallowNonblockingCalls():
-            ref = self._remoteCall('registerPolyData', id, (polyData,))
+            ref = self._remoteCall('registerPolyData', id, (polyDataToSend,))
         polyDataRef = self._polyDataManager.addPolyData(polyData, id=ref.id)
         return RemotePolyDataProxy(ref=polyDataRef, data=polyData, plotter=self)
 

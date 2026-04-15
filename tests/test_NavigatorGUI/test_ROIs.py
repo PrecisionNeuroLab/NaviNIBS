@@ -262,22 +262,21 @@ async def test_loadParcellationROIs(
 
     roiKey = 'dlPFCPart'
 
-    with utils.tracer(workingDir, 'ROIs_LoadParcellation', doOpen=True):
-        rois = AtlasSurfaceParcel.AtlasSurfaceParcel.loadROIsFromAtlas(
-            session=ses,
-            atlasKey='HCPMMP1',
-        )
-        ses.ROIs.merge(rois)
+    #with utils.tracer(workingDir, 'ROIs_LoadParcellation', doOpen=True):
+    rois = AtlasSurfaceParcel.AtlasSurfaceParcel.loadROIsFromAtlas(
+        session=ses,
+        atlasKey='HCPMMP1',
+    )
+    ses.ROIs.merge(rois)
 
-    roiKey = '8Av'
+    roiKey = 'L_8Av'
     roi = ses.ROIs[roiKey]
     assert isinstance(roi, ROIs.SurfaceMeshROI)
 
     # TODO: create a pipeline ROI merging two or more of the standard atlas parcels
 
     roi = ses.ROIs[roiKey]
-    assert isinstance(roi, PipelineROI)
-    roi.process()
+    assert isinstance(roi, AtlasSurfaceParcel.AtlasSurfaceParcel)
 
 
 
@@ -356,7 +355,8 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
 
         navigatorGUI.roisPanel._onImportAtlasROIsDialogAccepted()
     else:
-        navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='HCPMMP1_combined')  # similar to initiating import from buttons
+        # navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='HCPMMP1_combined')  # similar to initiating import from buttons
+        navigatorGUI.roisPanel._onImportAtlasROIs(atlasKey='lh.HCPMMP1')
         dlg = navigatorGUI.roisPanel._atlasROIsImportDialog
         assert dlg is not None
         # Accept the dialog (call accepted handler then close dialog)
@@ -485,6 +485,8 @@ async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
 
     await asyncio.sleep(0.5)
 
+    navigatorGUI.roisPanel._queueRedraw('cameraPos')  # reorient camera to see ROI
+
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
                                             screenshotName='TargetROI_4',
@@ -494,6 +496,9 @@ async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
     selectMeshWdgt = roiWdgt._stageWidgets[0]
     assert isinstance(selectMeshWdgt, StageWidgets.SelectSurfaceMeshStageWidget)
     selectMeshWdgt._meshComboBox.setCurrentText('skinSurf')
+
+    # and make the ROI partially transparent
+    roi.color = (*roi.autoColor[:3], 0.5)
 
     await asyncio.sleep(0.5)
 
