@@ -95,14 +95,15 @@ class TargetingCrosshairsLayer(PlotViewLayer):
 
             depthLine = pv.lines_from_points(np.asarray([[0, 0, 0], [0, 0, zOffset]]))
 
-            self._actors[actorKey] = self._plotter.addLineSegments(
-                                                     concatenateLineSegments([lines, offsetLines, depthLine]),
-                                                     name=actorKey,
-                                                     color=self._color,
-                                                     width=self._lineWidth,
-                                                     opacity=self._opacity)
+            with self._plotter.renderingPaused():
+                self._actors[actorKey] = self._plotter.addLineSegments(
+                                                         concatenateLineSegments([lines, offsetLines, depthLine]),
+                                                         name=actorKey,
+                                                         color=self._color,
+                                                         width=self._lineWidth,
+                                                         opacity=self._opacity)
 
-            self._redraw(which=['updatePositions', 'crosshairVisibility'])
+                self._redraw(which=['updatePositions', 'crosshairVisibility'])
 
         elif which == 'updatePositions':
             if not self._canShow():

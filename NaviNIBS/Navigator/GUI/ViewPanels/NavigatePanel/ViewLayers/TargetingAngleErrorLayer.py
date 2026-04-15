@@ -57,13 +57,15 @@ class TargetingAngleErrorLayer(PlotViewLayer):
             # start with dummy position, to be updated later
             pts_line = np.linspace([0, 0, 0], [1, 1, 1], self._numArcSegments + 1)
 
-            self._actors[actorKey] = self._plotter.add_lines(pts_line,
-                                                             connected=True,
-                                                             color=self._color,
-                                                             width=self._lineWidth,
-                                                             name=actorKey)
+            with self._plotter.renderingPaused():
 
-            self._redraw(which='updateAngle')
+                self._actors[actorKey] = self._plotter.add_lines(pts_line,
+                                                                 connected=True,
+                                                                 color=self._color,
+                                                                 width=self._lineWidth,
+                                                                 name=actorKey)
+
+                self._redraw(which='updateAngle')
 
         elif which == 'updateAngle':
             actor = self._actors[actorKey]

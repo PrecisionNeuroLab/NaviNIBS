@@ -550,10 +550,12 @@ class RemotePlotterProxyBase:
         return self._remotePlotterCall('pauseRendering')
 
     def maybeResumeRendering(self):
-        return self._remotePlotterCall('maybeResumeRendering')
+        with self.allowNonblockingCalls():
+            return self._remotePlotterCall('maybeResumeRendering')
 
     def resumeRendering(self):
-        return self._remotePlotterCall('resumeRendering')
+        with self.allowNonblockingCalls():
+            return self._remotePlotterCall('resumeRendering')
 
     @contextmanager
     def renderingPaused(self):

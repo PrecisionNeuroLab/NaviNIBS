@@ -58,15 +58,16 @@ class TargetingPointLayer(PlotViewLayer):
         elif which == 'initPoint':
             actorKey = self._getActorKey('point')
 
-            self._actors[actorKey] = self._plotter.add_points(np.asarray([0., 0., 0.]),
-                                                              color=self._color,
-                                                              opacity=self._opacity,
-                                                              point_size=self._radius*2,
-                                                              reset_camera=False,
-                                                              render_points_as_spheres=True,
-                                                              name=actorKey)
+            with self._plotter.renderingPaused():
+                self._actors[actorKey] = self._plotter.add_points(np.asarray([0., 0., 0.]),
+                                                                  color=self._color,
+                                                                  opacity=self._opacity,
+                                                                  point_size=self._radius*2,
+                                                                  reset_camera=False,
+                                                                  render_points_as_spheres=True,
+                                                                  name=actorKey)
 
-            self._redraw('updatePosition')
+                self._redraw('updatePosition')
 
         elif which == 'updatePosition':
             actorKey = self._getActorKey('point')

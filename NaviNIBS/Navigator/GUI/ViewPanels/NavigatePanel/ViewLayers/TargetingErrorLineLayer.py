@@ -51,12 +51,14 @@ class TargetingErrorLineLayer(PlotViewLayer):
             # start with dummy position, to be updated later
             pts_line = np.asarray([[0., 0., 0.], [1., 1., 1.]])
 
-            self._actors[actorKey] = self._plotter.add_lines(pts_line,
-                                                             color=self._color,
-                                                             width=self._lineWidth,
-                                                             name=actorKey)
+            with self._plotter.renderingPaused():
 
-            self._redraw(which='updatePosition')
+                self._actors[actorKey] = self._plotter.add_lines(pts_line,
+                                                                 color=self._color,
+                                                                 width=self._lineWidth,
+                                                                 name=actorKey)
+
+                self._redraw(which='updatePosition')
 
         elif which == 'updatePosition':
             actor = self._actors[actorKey]

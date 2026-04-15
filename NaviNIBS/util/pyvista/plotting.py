@@ -88,7 +88,9 @@ class _DelayedPlotter:
         while True:
             await asyncio.sleep(self.minRenderPeriod)
             await self._needsRender.wait()
-            await self._renderingNotPaused.wait()
+            if not self._renderingNotPaused.is_set():
+                await self._renderingNotPaused.wait()
+                continue
             self._renderNow()
 
     def render(self, doRenderImmediately: bool = False):
