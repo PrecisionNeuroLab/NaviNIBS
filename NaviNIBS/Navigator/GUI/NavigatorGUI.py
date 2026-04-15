@@ -43,7 +43,7 @@ _VP = tp.TypeVar('_VP', bound=MainViewPanel)
 
 @attrs.define
 class NavigatorGUI(RunnableAsApp):
-    _appName: str = 'NaviNIBS Navigator GUI'
+    _appName: str = 'NaviNIBS'
 
     _sesFilepath: tp.Optional[str] = None  # only used to load session on startup
     _inProgressBaseDir: tp.Optional[str] = None

@@ -77,9 +77,8 @@ class VisualizedROIsMesh(QueuedRedrawMixin):
             rgba=True,
             name=f'ROIs_{self._meshKey}',
             pickable=False,
-            specular=0.5,
-            diffuse=0.5,
-            ambient=0.5,
+            render=False,
+            reset_camera=False
         )
 
         # Hide the Surf3DView's own actor for this surface to avoid duplication/z-fighting

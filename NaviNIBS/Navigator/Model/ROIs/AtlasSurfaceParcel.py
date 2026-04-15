@@ -239,7 +239,7 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
     def listParcelsInAtlas(cls, session: Session, atlasKey: str) -> tuple[list[str], list[str]]:
         if atlasKey[0:3] in ('lh.', 'rh.'):
             # allow specifying one hemisphere by prefixing atlasKey with 'lh.' or 'rh.'
-            lr, atlasKey = atlasKey[0:2], atlasKey[3:]
+            lr, atlasKey = atlasKey[0], atlasKey[3:]
             lrs = (lr,)
         else:
             lrs = ('l', 'r')
@@ -262,7 +262,7 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
         if atlasKey[0:3] in ('lh.', 'rh.'):
             # allow specifying one hemisphere by prefixing atlasKey with 'lh.' or 'rh.'
-            lr, atlasKey = atlasKey[0:2], atlasKey[3:]
+            lr, atlasKey = atlasKey[0], atlasKey[3:]
             lrs = (lr,)
         else:
             lrs = ('l', 'r')

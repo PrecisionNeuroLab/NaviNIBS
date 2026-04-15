@@ -251,10 +251,13 @@ class TargetOrientationsLayer(OrientationsLayer):
         return self._coordinator.session.targets
 
     def _orientationIsVisible(self, key: str) -> bool:
-        return key in self._coordinator.session.targets and \
-               self._coordinator.session.targets[key].coilToMRITransf is not None and \
-               (self._coordinator.session.targets[key].isVisible or
-                self._coordinator.session.targets[key].isSelected)
+        try:
+            target = self._coordinator.session.targets[key]
+        except KeyError:
+            return False
+        if target.isHistorical or target.coilToMRITransf is None or (not target.isVisible and not target.isSelected):
+            return False
+        return True
 
     def _onTargetsChanged(self, changedKeys: tp.List[str], changedAttrs: tp.Optional[tp.List[str]]):
         self._queueRedraw(which='orientations', changedOrientationKeys=changedKeys)

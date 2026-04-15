@@ -103,9 +103,9 @@ async def raiseMainNavigatorGUI():
 def _raiseMainNavigatorGUIWindow():
     logger.debug('Finding running NaviNIBS app')
     from pywinauto import Application as PWAApp
-    app = PWAApp(backend="uia").connect(title="NaviNIBS Navigator GUI")
+    app = PWAApp(backend="uia").connect(title="NaviNIBS")
     logger.debug('Finding NaviNIBS main window and raising to foreground')
-    app.NavigatorGUI.set_focus()
+    app.NaviNIBS.set_focus()
     logger.debug('Done raising NaviNIBS main window')
 
 

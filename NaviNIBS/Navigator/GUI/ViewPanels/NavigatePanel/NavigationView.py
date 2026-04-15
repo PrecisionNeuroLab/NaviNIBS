@@ -333,7 +333,7 @@ class SinglePlotterNavigationView(NavigationView):
                 self._plotter.camera.up = cameraPts[2, :] - cameraPts[1, :]
                 if True:
                     # force fixed zoom in parallel camera views
-                    self.plotter.camera.parallel_scale = self._cameraDist / 2
+                    self.plotter.camera.parallel_scale = self._cameraDist / 4
 
                 if False:
                     # force fixed zoom in perspective camera views
