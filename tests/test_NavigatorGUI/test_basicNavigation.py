@@ -391,6 +391,87 @@ async def test_basicNavigation_rapidPoseUpdates(navigatorGUIWithoutSession: Navi
 
 
 @pytest.mark.asyncio
+@pytest.mark.order(after='test_basicNavigation_manualSampling')
+async def test_basicNavigation_deleteSamples(navigatorGUIWithoutSession: NavigatorGUI,
+                                             workingDir: str,
+                                             monkeypatch):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'BasicNavigationManualSampling', 'BasicNavigationDeleteSamples')
+
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+
+    await asyncio.sleep(5.)
+
+    for view in navigatorGUI.navigatePanel._views.values():
+        if hasattr(view, 'plotter'):
+            await view.plotter.isReadyEvent.wait()
+
+    await asyncio.sleep(5.)
+
+    navigatePanel = navigatorGUI.navigatePanel
+    samplesTableWdgt = navigatePanel._samplesTableWdgt
+    deleteSamplesBtn = navigatePanel._deleteSamplesBtn
+
+    allSampleKeys = list(navigatorGUI.session.samples.keys())
+    assert len(allSampleKeys) > 5, 'Expected multiple samples in BasicNavigationManualSampling session'
+
+    # with no selection, delete button should be disabled
+    assert len(samplesTableWdgt.selectedCollectionItemKeys) == 0
+    assert not deleteSamplesBtn.isEnabled()
+
+    # select multiple samples — button should be enabled with plural text
+    samplesTableWdgt.selectedCollectionItemKeys = allSampleKeys[:3]
+    await asyncio.sleep(0.1)
+
+    assert deleteSamplesBtn.isEnabled()
+    assert deleteSamplesBtn.text() == 'Delete samples'
+
+    # select just one sample — button should have singular text
+    samplesTableWdgt.selectedCollectionItemKeys = allSampleKeys[:1]
+    await asyncio.sleep(0.1)
+
+    assert deleteSamplesBtn.isEnabled()
+    assert deleteSamplesBtn.text() == 'Delete sample'
+
+    # deselect all — button should be disabled again
+    samplesTableWdgt.selectedCollectionItemKeys = []
+    await asyncio.sleep(0.1)
+
+    assert not deleteSamplesBtn.isEnabled()
+
+    # select a subset to delete
+    keysToDelete = allSampleKeys[:5]
+    keysToKeep = allSampleKeys[5:]
+    samplesTableWdgt.selectedCollectionItemKeys = keysToDelete
+    await asyncio.sleep(0.1)
+
+    assert deleteSamplesBtn.isEnabled()
+    assert deleteSamplesBtn.text() == 'Delete samples'
+
+    # patch QMessageBox.warning to auto-accept the confirmation dialog
+    from qtpy import QtWidgets
+    monkeypatch.setattr(
+        QtWidgets.QMessageBox,
+        'warning',
+        lambda *args, **kwargs: QtWidgets.QMessageBox.StandardButton.Ok,
+    )
+
+    deleteSamplesBtn.click()
+    await asyncio.sleep(0.5)
+
+    # verify the selected samples were deleted and the rest remain
+    for key in keysToDelete:
+        assert key not in navigatorGUI.session.samples
+    for key in keysToKeep:
+        assert key in navigatorGUI.session.samples
+    assert len(navigatorGUI.session.samples) == len(keysToKeep)
+
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+    utils.assertSavedSessionIsValid(sessionPath)
+
+
+@pytest.mark.asyncio
 @pytest.mark.skip('For troubleshooting')
 async def test_openManySamples(workingDir):
     await utils.openSessionForInteraction(workingDir, 'BasicNavigationManySamples')

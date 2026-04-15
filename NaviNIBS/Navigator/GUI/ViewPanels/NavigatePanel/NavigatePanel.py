@@ -205,6 +205,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
     _sampleBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
     _hideAllSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
     _sampleToTargetBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
+    _deleteSamplesBtn: QtWidgets.QPushButton = attrs.field(init=False, repr=False)
     _views: dict[str, NavigationView] = attrs.field(init=False, factory=dict, repr=False)
 
     _coordinator: TargetingCoordinator = attrs.field(init=False, repr=False)
@@ -316,6 +317,12 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         btnContainerLayout.addWidget(btn)
         self._hideAllSamplesBtn = btn
 
+        btn = QtWidgets.QPushButton('Delete sample')
+        btn.clicked.connect(self._onDeleteSamplesBtnClicked)
+        btnContainerLayout.addWidget(btn)
+        btn.setEnabled(False)
+        self._deleteSamplesBtn = btn
+
         # TODO: add a 'Create target from pose' button (but clearly separate, maybe in different panel, from 'Create target from sample' button)
 
         self._samplesTableWdgt = SamplesTableWidget()
@@ -426,8 +433,29 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
 
             self._sampleToTargetBtn.setEnabled(len(selectedKeys) > 0)
 
+            self._deleteSamplesBtn.setEnabled(len(selectedKeys) > 0)
+            self._deleteSamplesBtn.setText(
+                'Delete sample' if len(selectedKeys) <= 1 else 'Delete samples'
+            )
+
     def _onSampleBtnClicked(self, _):
         self._recordSample(timestamp=pd.Timestamp.now())
+
+    def _onDeleteSamplesBtnClicked(self, _):
+        selectedKeys = self._samplesTableWdgt.selectedCollectionItemKeys
+        n = len(selectedKeys)
+        if n == 0:
+            return
+        noun = 'sample' if n == 1 else f'{n} samples'
+        result = QtWidgets.QMessageBox.warning(
+            self._wdgt,
+            'Confirm delete',
+            f'Delete {noun}? This cannot be undone.',
+            QtWidgets.QMessageBox.StandardButton.Ok | QtWidgets.QMessageBox.StandardButton.Cancel,
+            QtWidgets.QMessageBox.StandardButton.Cancel,
+        )
+        if result == QtWidgets.QMessageBox.StandardButton.Ok:
+            self.session.samples.deleteItems(selectedKeys)
 
     def _onReceivedTrigger(self, triggerEvt: TriggerEvent):
         self._recordSample(timestamp=triggerEvt.time,

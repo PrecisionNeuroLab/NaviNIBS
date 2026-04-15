@@ -57,7 +57,11 @@ class SamplesTableModel(CollectionTableModel[str, Samples, Sample]):
             if sampleKeys is None:
                 sampleKeys = self._collection.keys()
             for sampleKey in sampleKeys:
-                sample = self._collection[sampleKey]
+                try:
+                    sample = self._collection[sampleKey]
+                except KeyError:
+                    # sample was presumably deleted
+                    continue
                 for metadataKey in sample.metadata.keys():
                     if metadataKey not in self.derivedColumns:
                         assert metadataKey not in self.columns

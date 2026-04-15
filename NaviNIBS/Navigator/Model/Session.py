@@ -476,7 +476,12 @@ class Session:
     def _onSamplesChanged(self, keys: list[str], changedAttrs: tp.Optional[list[str]] = None):
         if changedAttrs is None or 'targetKey' in changedAttrs:
             for sampleKey in keys:
-                sample = self.samples[sampleKey]
+                try:
+                    sample = self.samples[sampleKey]
+                except KeyError:
+                    # sample was presumably deleted
+                    continue
+
                 targetKey = sample.targetKey
                 if targetKey is not None and targetKey in self._targets:
                     # mark that if there are future changes in the target, a copy may need to be kept (or this sample may need to be notified)
