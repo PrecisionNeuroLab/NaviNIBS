@@ -1,5 +1,6 @@
 import asyncio
 import attrs
+from contextlib import contextmanager
 import logging
 import typing as tp
 
@@ -18,17 +19,21 @@ class QueuedRedrawMixin:
     """
     _redrawQueue: list[str | tuple[str, dict]] = attrs.field(init=False, factory=list)
     _redrawQueueModified: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _redrawingNotPaused: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _pauseStackCount_: int = attrs.field(init=False, default=0)
 
     redrawQueueIsEmpty: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         self.redrawQueueIsEmpty.set()
+        self._redrawingNotPaused.set()
         asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_queuedRedraw))
 
     async def _loop_queuedRedraw(self):
         while True:
             await self._redrawQueueModified.wait()
             await asyncio.sleep(0.01)  # rate limit  # TODO: make this a parameter
+            await self._redrawingNotPaused.wait()
             while len(self._redrawQueue) > 0:
                 toRedraw = self._redrawQueue.pop(0)
                 logger.debug(f'Dequeuing redraw for {self.__class__.__name__} {toRedraw}')
@@ -91,3 +96,35 @@ class QueuedRedrawMixin:
                 self._redrawQueueModified.set()
 
         # subclass should handle the rest
+
+    @property
+    def _pauseStackCount(self):
+        return self._pauseStackCount_
+
+    @_pauseStackCount.setter
+    def _pauseStackCount(self, value: int):
+        if value < 0:
+            value = 0
+        self._pauseStackCount_ = value
+        if self._pauseStackCount_ == 0:
+            self._redrawingNotPaused.set()
+        else:
+            self._redrawingNotPaused.clear()
+
+    def pauseRedrawing(self):
+        logger.debug(f'Pause redrawing {self._pauseStackCount + 1}')
+        self._pauseStackCount += 1
+
+    def maybeResumeRedrawing(self):
+        logger.debug(f'Maybe resume redrawing {self._pauseStackCount - 1}')
+        self._pauseStackCount -= 1
+
+    def resumeRedrawing(self):
+        logger.debug(f'Resume redrawing')
+        self._pauseStackCount = 0
+
+    @contextmanager
+    def redrawingPaused(self):
+        self.pauseRedrawing()
+        yield
+        self.maybeResumeRedrawing()

@@ -166,6 +166,18 @@ class SinglePlotterNavigationView(NavigationView):
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
         self._coordinator.positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
 
+        if True:
+            # pause rendering during target changed and coil position changed updates to improve synchronization
+            # of visualization updates across layers
+
+            #self._plotter.pauseRendering()  # TODO: debug, delete
+
+            for sig in (self._coordinator.sigCurrentTargetChanged,
+                        self._coordinator.sigCurrentCoilPositionChanged,
+                        self._coordinator.positionsClient.sigLatestPositionsChanged,):
+                sig.connect(lambda *args: self._plotter.pauseRendering(), priority=2)
+                sig.connect(lambda *args: self._plotter.maybeResumeRendering(), priority=-2)
+
         if self._doParallelProjection:
             self._plotter.camera.enable_parallel_projection()
 
@@ -387,6 +399,12 @@ class SinglePlotterNavigationView(NavigationView):
                                 coordinator=self._coordinator,
                                 plotter=plotter,
                                 plotInSpace=self._plotInSpace)
+
+        for sig in (self._coordinator.sigCurrentTargetChanged,
+                    self._coordinator.sigCurrentCoilPositionChanged,
+                    self._coordinator.positionsClient.sigLatestPositionsChanged,):
+            sig.connect(lambda *args: self._layers[key].pauseRedrawing(), priority=1)
+            sig.connect(lambda *args: self._layers[key].maybeResumeRedrawing(), priority=-1)
 
         plotter.render()
 

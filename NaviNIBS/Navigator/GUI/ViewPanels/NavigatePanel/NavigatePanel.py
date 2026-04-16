@@ -401,7 +401,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         for view in self._views.values():
             if isinstance(view, SinglePlotterNavigationView):
                 if not isinstance(view.plotter, RemotePlotterProxy) or view.plotter.isReadyEvent.is_set():
-                    view.plotter.resumeRendering()
+                    view.plotter.maybeResumeRendering()
 
     def _onPanelHidden(self):
         super()._onPanelHidden()

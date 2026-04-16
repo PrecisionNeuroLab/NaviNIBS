@@ -547,7 +547,8 @@ class RemotePlotterProxyBase:
         return self._remotePlotterCall('remove_actor', *args, **kwargs)
 
     def pauseRendering(self):
-        return self._remotePlotterCall('pauseRendering')
+        with self.allowNonblockingCalls():
+            return self._remotePlotterCall('pauseRendering')
 
     def maybeResumeRendering(self):
         with self.allowNonblockingCalls():

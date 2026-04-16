@@ -58,12 +58,15 @@ class _DelayedPlotter:
             self._renderingNotPaused.clear()
 
     def pauseRendering(self):
+        logger.debug(f'Pause rendering {self._pauseStackCount + 1}')
         self._pauseStackCount += 1
 
     def maybeResumeRendering(self):
+        logger.debug(f'Maybe resume rendering {self._pauseStackCount - 1}')
         self._pauseStackCount -= 1
 
     def resumeRendering(self):
+        logger.debug(f'Resume rendering')
         self._pauseStackCount = 0
 
     @contextmanager
@@ -606,6 +609,11 @@ class PrimaryLayeredPlotter(BackgroundPlotter):
         super().resumeRendering()
         for plotter in self._secondaryPlotters.values():
             plotter.resumeRendering()
+
+    def maybeResumeRendering(self):
+        super().maybeResumeRendering()
+        for plotter in self._secondaryPlotters.values():
+            plotter.maybeResumeRendering()
 
     def _renderNow(self):
         if self._doAutoAdjustCameraClippingRange:
