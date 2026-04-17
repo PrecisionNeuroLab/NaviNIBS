@@ -30,7 +30,7 @@ class _DelayedPlotter:
     _doNotDelayStackCount_: int
     minRenderPeriod: float
 
-    def __init__(self, minRenderPeriod: float = 0.05):
+    def __init__(self, minRenderPeriod: float = 0.03):
         logger.debug(f'Initializing {self.__class__.__name__}')
         self._needsRender = asyncio.Event()
         self._renderingNotPaused = asyncio.Event()
