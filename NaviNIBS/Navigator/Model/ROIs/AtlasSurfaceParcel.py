@@ -173,6 +173,15 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
         logger.debug('Setting mesh vertex indices')
         self.meshVertexIndices = headMeshVertexIndices
+
+        # Set seedCoord to the vertex within the ROI closest to the ROI centroid
+        if len(headMeshVertexIndices) > 0:
+            roiVertexCoords = headMesh.points[headMeshVertexIndices]
+            centroid = roiVertexCoords.mean(axis=0)
+            distances = np.linalg.norm(roiVertexCoords - centroid, axis=1)
+            closestIdx = np.argmin(distances)
+            self.seedCoord = tuple(float(v) for v in roiVertexCoords[closestIdx])
+
         logger.debug('done')
 
     def asDict(self) -> dict[str, tp.Any]:
