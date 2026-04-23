@@ -466,6 +466,7 @@ class Session:
                 historicalTarget = Target.fromDict(deepcopy(target.asDict()), session=self)
                 historicalTarget.key = targetKey + ' pre ' + datetime.today().strftime('%y%m%d%H%M%S.%f')
                 historicalTarget.isHistorical = True
+                historicalTarget.isVisible = False
                 target.mayBeADependency = False
                 self._targets.addItem(historicalTarget)
                 self._updateSamplesForNewTargetKey(fromKey=target.key, toKey=historicalTarget.key)
