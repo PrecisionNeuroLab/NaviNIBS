@@ -942,7 +942,19 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             logger.warning('No target selected')
 
     def _onImportTargetGridsBtnClicked(self, checked: bool):
-        raise NotImplementedError()  # TODO: implement import of target grids from file
+        newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
+                                                               'Select target grids file to import',
+                                                               os.path.dirname(self.session.filepath),
+                                                               'json (*.json);; NaviNIBS (*.navinibs)')
+        if len(newFilepath) == 0:
+            logger.warning('Import cancelled')
+            return
+
+        self._importTargetGridsFromFile(newFilepath=newFilepath)
+
+    def _importTargetGridsFromFile(self, newFilepath: str):
+        self.session.mergeFromFile(filepath=newFilepath, sections=['targetGrids'])
+        self._gridTableWdgt.resizeColumnsToContents()
 
     def _onAddTargetGridBtnClicked(self, checked: bool):
         DefaultGridCls = CartesianTargetGrid

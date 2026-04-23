@@ -586,6 +586,17 @@ class Session:
                     newTargets = Targets.fromList(d, session=self)
                 self.targets.merge(newTargets)
 
+            if sections is None or 'targetGrids' in sections:
+                if sections is not None:
+                    sections.remove('targetGrids')
+                if isinstance(d, dict):
+                    assert 'targetGrids' in d, 'TargetGrids to import/merge should be in json with "targetGrids" as a field in a root-level dict'
+                    newTargetGrids = TargetGrids.fromList(d['targetGrids'], session=self)
+                else:
+                    assert isinstance(d, list)
+                    newTargetGrids = TargetGrids.fromList(d, session=self)
+                self.targetGrids.merge(newTargetGrids)
+
             if sections is None or 'tools' in sections:
                 if sections is not None:
                     sections.remove('tools')
