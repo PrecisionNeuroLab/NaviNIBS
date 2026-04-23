@@ -41,6 +41,7 @@ from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 from NaviNIBS.util.pyvista.dataset import find_closest_point, find_closest_cell
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -98,7 +99,7 @@ class _PointerDistanceReadout:
 
 
 @attrs.define
-class _PointerDistanceReadouts:
+class _PointerDistanceReadouts(QueuedRedrawMixin):
     _session: Session = attrs.field(repr=False)
     _positionsClient: ToolPositionsClient
     _title: str = 'Current pointer position'
@@ -111,6 +112,8 @@ class _PointerDistanceReadouts:
     _distToSampledFidReadout: _PointerDistanceReadout = attrs.field(init=False)
 
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
         self._wdgt = QtWidgets.QGroupBox(self._title)
         self._layout = QtWidgets.QFormLayout()
         self._wdgt.setLayout(self._layout)
@@ -133,10 +136,12 @@ class _PointerDistanceReadouts:
             doHideWhenNaN=True
         )
 
-        self._positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
-
-        # note: could subscribe to fiducial location and head model mesh change signal here, but instead
-        # assume that pointer position changes often enough to catch up on any such changes anyway
+        self._positionsClient.sigLatestPositionsChanged.connect(
+            lambda *_: self._queueRedraw(which='update'))
+        self._session.subjectRegistration.fiducials.sigItemsChanged.connect(
+            lambda *_: self._queueRedraw(which='update'))
+        self._session.subjectRegistration.sigTrackerToMRITransfChanged.connect(
+            lambda *_: self._queueRedraw(which='update'))
 
     @property
     def wdgt(self):
@@ -150,8 +155,10 @@ class _PointerDistanceReadouts:
     def session(self, newSes: Session):
         self._session = newSes
 
-    def _onLatestPositionsChanged(self):
-        self._update()
+    def _redraw(self, which: str = 'update', **kwargs):
+        super()._redraw(which=which, **kwargs)
+        if which == 'update':
+            self._update()
 
     def _update(self):
         pointerToCameraTransf = self._positionsClient.getLatestTransf(self.session.tools.pointer.trackerKey, None)
