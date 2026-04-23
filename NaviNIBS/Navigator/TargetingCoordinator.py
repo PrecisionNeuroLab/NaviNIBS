@@ -60,15 +60,15 @@ class TargetingCoordinator:
     _isOnTargetWhenDistErrorUnder: float = 1  # in mm
     _isOnTargetWhenZAngleErrorUnder: float = 2.  # in deg
     _isOnTargetWhenHorizAngleErrorUnder: float = 4.  # in deg
-    _isOnTargetWhenZDistErrorBetween: tuple[float, float] = (-8, 4.)  # in mm
+    _isOnTargetWhenZDistErrorBetween: tuple[float, float] = (-4, 2.)  # in mm
     """
     in mm. Uses span to allow greater error in negative region (i.e. coil closer to head than planned).
     """
     _isOnTargetMinTime: float = 0.5  # in sec, don't report being on target until after staying on target for at least this long
-    _isOffTargetWhenDistErrorExceeds: float = 2.  # in mm
-    _isOffTargetWhenZAngleErrorExceeds: float = 4.  # in deg
-    _isOffTargetWhenHorizAngleErrorExceeds: float = 8.  # in deg
-    _isOffTargetWhenZDistErrorExceeds: float = 8.  # in mm
+    _isOffTargetWhenDistErrorExceeds: float = 1.5  # in mm
+    _isOffTargetWhenZAngleErrorExceeds: float = 3.  # in deg
+    _isOffTargetWhenHorizAngleErrorExceeds: float = 6.  # in deg
+    _isOffTargetWhenZDistErrorExceeds: float = 4.  # in mm
     _isOffTargetMinTime: float = 0.1  # in sec, don't report being off target until after staying off target for at least this long
     _doMonitorOnTarget: bool = False
     _monitorOnTargetRate: float = 5.  # in Hz
