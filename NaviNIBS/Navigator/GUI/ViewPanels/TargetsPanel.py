@@ -31,6 +31,7 @@ from NaviNIBS.Navigator.GUI.ViewPanels.VisualizedROI import VisualizedROI, Visua
 from NaviNIBS.util import makeStrUnique
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QCollapsibleSection import QCollapsibleSection
+from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.pyvista import RemotePlotterProxy
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
@@ -66,6 +67,7 @@ class VisualizedTarget:
     _actorKeys: set[str] = attrs.field(init=False, factory=set, repr=False)
     _visible: bool = True  # track this separately from self._target.isVisible to allow temporarily overriding
     _fallbackColor: str = '#2222FF'
+    _handleLineLength: float = 7.0
 
     def __attrs_post_init__(self):
         self.plot()
@@ -108,6 +110,18 @@ class VisualizedTarget:
 
         self.clearActors()
         self._style = style
+        self.plot()
+
+    @property
+    def handleLineLength(self):
+        return self._handleLineLength
+
+    @handleLineLength.setter
+    def handleLineLength(self, length: float):
+        if self._handleLineLength == length:
+            return
+        self.clearActors()
+        self._handleLineLength = length
         self.plot()
 
     @property
@@ -206,7 +220,7 @@ class VisualizedTarget:
             TargetDisplayStyle.MINICOIL_AND_EXTENDED_ENTRY,
         ) and self._target.coilToMRITransf is not None:
             # draw line for coil handle
-            coilHandleLength = 7
+            coilHandleLength = self._handleLineLength
             pts_line = applyTransform(self._target.coilToMRITransf, np.asarray([[0, -coilHandleLength, 0], [0, 0, 0]]))
             actorKey = self._target.key + 'handleline'
             self._actorKeys.add(actorKey)
@@ -298,6 +312,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _dispSection: QCollapsibleSection = attrs.field(init=False)
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
     _crosshairsDispCheckbox: QtWidgets.QCheckBox = attrs.field(init=False)
+    _handleLineLengthSpinBox: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
     _export3DBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
@@ -413,6 +428,16 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._crosshairsDispCheckbox.setChecked(True)
         self._crosshairsDispCheckbox.stateChanged.connect(self._onCrosshairsDispCheckboxChanged)
         fieldLayout.addRow('Show cursor crosshairs', self._crosshairsDispCheckbox)
+
+        self._handleLineLengthSpinBox = QtWidgets.QDoubleSpinBox()
+        preventAnnoyingScrollBehaviour(self._handleLineLengthSpinBox)
+        self._handleLineLengthSpinBox.setDecimals(1)
+        self._handleLineLengthSpinBox.setMinimum(1)
+        self._handleLineLengthSpinBox.setMaximum(200)
+        self._handleLineLengthSpinBox.setValue(7)
+        self._handleLineLengthSpinBox.setSuffix(' mm')
+        self._handleLineLengthSpinBox.editingFinished.connect(self._onHandleLineLengthChanged)
+        fieldLayout.addRow('Handle line length:', self._handleLineLengthSpinBox)
 
         self._export3DBtn = QtWidgets.QPushButton('Export 3D view...')
         self._export3DBtn.clicked.connect(self._onExport3DBtnClicked)
@@ -581,6 +606,11 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             dispStyle = self._getDispStyle(forTargetKey=visualizedTarget.target.key)
             visualizedTarget.style = dispStyle
 
+    def _onHandleLineLengthChanged(self):
+        length = self._handleLineLengthSpinBox.value()
+        for visualizedTarget in self._targetActors.values():
+            visualizedTarget.handleLineLength = length
+
     def _onCrosshairsDispCheckboxChanged(self, state: int):
         showCrosshairs = (state == QtCore.Qt.CheckState.Checked.value)
         for view in self._views.values():
@@ -680,6 +710,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                                                                     fallbackColor=self._defaultTargetColor,
                                                                     plotter=view.plotter,
                                                                     style=style,
+                                                                    handleLineLength=self._handleLineLengthSpinBox.value(),
                                                                     visible=target.isVisible)
 
     def _onTargetsChanged(self, changedTargetKeys: tp.Optional[tp.List[str]] = None, changedTargetAttrs: tp.Optional[tp.List[str]] = None):
