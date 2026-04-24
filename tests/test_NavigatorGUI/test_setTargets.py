@@ -92,7 +92,13 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # equivalent to clicking on corresponding entry in table
+    navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 'M1'
+    await asyncio.sleep(5.)
+    assert navigatorGUI.setTargetsPanel._editTargetWdgt._targetComboBox.currentText() == 'M1'
+
     navigatorGUI.setTargetsPanel._tableWdgt.currentCollectionItemKey = 't2-45'
+    await asyncio.sleep(1.)
+    assert navigatorGUI.setTargetsPanel._editTargetWdgt._targetComboBox.currentText() == 't2-45'
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
@@ -108,6 +114,8 @@ async def test_setTargets(navigatorGUIWithoutSession: NavigatorGUI,
     # TODO: wait for signal to indicate plots have been updated instead of waiting fixed time here
     for view in navigatorGUI.setTargetsPanel._views.values():
         await view.redrawQueueIsEmpty.wait()
+
+    await asyncio.sleep(1.)
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
                                             sessionPath=sessionPath,
