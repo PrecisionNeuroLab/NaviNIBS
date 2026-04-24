@@ -287,7 +287,6 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
                        screenshotsDataSourcePath: str,
                        exampleCorticalROISeedPointsAndRadii,
                        exampleCSFROISeedPointAndRadius,
-
                        ):
     navigatorGUI = navigatorGUIWithoutSession
 
@@ -362,6 +361,10 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
         # Accept the dialog (call accepted handler then close dialog)
         navigatorGUI.roisPanel._onImportAtlasROIsDialogAccepted()
 
+        await asyncio.sleep(1.)
+
+        navigatorGUI.roisPanel._tableWdgt.currentCollectionItemKey = 'L_46'
+
     navigatorGUI.roisPanel._tableWdgt.resizeColumnsToContents()
 
     await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
@@ -387,6 +390,8 @@ async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
 
     await asyncio.sleep(1.)
+
+    navigatorGUI.session.ROIs['M1'].isVisible = False  # hide older ROI
 
     # navigate to ROIs panel
     navigatorGUI._activateView(navigatorGUI.roisPanel.key)
@@ -441,8 +446,8 @@ async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
 
     # set target to M1 and initial radii
     stageWdgt._targetCombo.setCurrentText('M1')
-    stageWdgt._radiusXField.setValue(15.0)
-    stageWdgt._radiusYField.setValue(3.0)
+    stageWdgt._radiusXField.setValue(30.0)
+    stageWdgt._radiusYField.setValue(5.0)
 
     await asyncio.sleep(0.5)
 
@@ -455,8 +460,8 @@ async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
     # change radii to 10 mm (x) and 5 mm (y)
-    stageWdgt._radiusXField.setValue(10.0)
-    stageWdgt._radiusYField.setValue(5.0)
+    stageWdgt._radiusXField.setValue(20.0)
+    stageWdgt._radiusYField.setValue(10.0)
 
     await asyncio.sleep(0.5)
 
