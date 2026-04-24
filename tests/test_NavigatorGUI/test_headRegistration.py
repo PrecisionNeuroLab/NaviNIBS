@@ -505,6 +505,7 @@ async def test_fiducialConversion(navigatorGUIWithoutSession: NavigatorGUI,
     assert fidKey.startswith('SampledFiducial')
     newFidKey = 'HeadRef'
     navigatorGUI.session.subjectRegistration.fiducials[fidKey].key = newFidKey
+    navigatorGUI.session.subjectRegistration.fiducials[newFidKey].alignmentWeight = 100.
 
     navigatorGUI.subjectRegistrationPanel._fidTblWdgt.resizeColumnsToContents()
 
@@ -519,6 +520,30 @@ async def test_fiducialConversion(navigatorGUIWithoutSession: NavigatorGUI,
                                             sessionPath=sessionPath,
                                             screenshotName='HeadRegistration_WithHeadRef',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # move pointer and re-sample head ref to demonstrate error indicator
+    newHeadRefCoord_trackerSpace = headRefCoord_trackerSpace + np.asarray([5, -10, -17.])
+    pointerPose_trackerSpace = composeTransform(np.eye(3), newHeadRefCoord_trackerSpace)
+    pointerPose_worldSpace = concatenateTransforms((pointerPose_trackerSpace,
+                                                    trackerPose_worldSpace))
+    await utils.setSimulatedToolPose(navigatorGUI=navigatorGUI,
+                                     key=pointerKey,
+                                     transf=pointerPose_worldSpace)
+
+    navigatorGUI.subjectRegistrationPanel._fidTblWdgt.selectedCollectionItemKeys = [newFidKey]
+
+    await asyncio.sleep(1.)
+
+    navigatorGUI.subjectRegistrationPanel._sampleFiducialBtn.click()
+
+    await asyncio.sleep(1.)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='HeadRegistration_WithHeadRefResampled',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+
 
 
 @pytest.mark.asyncio
