@@ -294,7 +294,7 @@ class Surf3DView(SurfSliceView):
                 self.plotter.enable_point_picking(show_message=False,
                                                   show_point=False,
                                                   pickable_window=False,
-                                                  callback=lambda newPt: self._onSlicePointChanged())
+                                                  callback=lambda newPt: self.__onSlicePointChanged())
                 if isinstance(self.plotter, RemotePlotterProxy):
                     pass  # TODO: enable right button press response for remote plotter
                 else:
@@ -388,6 +388,12 @@ class Surf3DView(SurfSliceView):
 
         with self._primaryPlotter.allowNonblockingCalls():
             self._primaryPlotter.render()
+
+    def __onSlicePointChanged(self):
+        try:
+            self._onSlicePointChanged()
+        except Exception as e:
+            logger.error('Error during slice point change handling: {}'.format(e), exc_info=True)
 
     def _onSlicePointChanged(self):
         pos = self.plotter.picked_point
