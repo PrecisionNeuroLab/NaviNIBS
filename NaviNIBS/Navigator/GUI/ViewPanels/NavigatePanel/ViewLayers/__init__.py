@@ -77,6 +77,7 @@ class ViewLayer:
     _key: str
     _type: ClassVar[str]
     _coordinator: TargetingCoordinator
+    _label: str | None = None
 
     def __attrs_post_init__(self):
         pass
@@ -85,11 +86,16 @@ class ViewLayer:
     def type(cls):
         return cls._type
 
+    @property
+    def label(self):
+        return self._label if self._label is not None else self._key
 
-@attrs.define
+
+@attrs.define(kw_only=True)
 class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
     _plotter: DefaultBackgroundPlotter  # note that this one plotter may be shared between multiple ViewLayers
     _plotInSpace: str = 'MRI'
+    _isEnabled: bool = True
 
     _actors: dict[str, Actor | str | None] = attrs.field(init=False, factory=dict)
     _legendEntries: list[LegendEntry] = attrs.field(init=False, factory=dict)
@@ -97,7 +103,9 @@ class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
     def __attrs_post_init__(self):
         ViewLayer.__attrs_post_init__(self)
         QueuedRedrawMixin.__attrs_post_init__(self)
-        self._redraw('all')
+        if not self._isEnabled:
+            self.pauseRedrawing()
+        self._queueRedraw('all')
 
     @property
     def legendEntries(self):
@@ -106,12 +114,50 @@ class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
     def _registerLegendEntry(self, entry: LegendEntry):
         self._legendEntries.append(entry)
 
+    @property
+    def isEnabled(self) -> bool:
+        return self._isEnabled
+
+    def _hideActors(self):
+        for actor in self._actors.values():
+            if actor is not None and hasattr(actor, 'SetVisibility'):
+                actor.SetVisibility(False)
+        if self._actors:
+            self._plotter.render()
+
+    def _showActors(self):
+        """Show all registered actors. Subclasses may override for selective visibility."""
+        for actor in self._actors.values():
+            if actor is not None and hasattr(actor, 'SetVisibility'):
+                actor.SetVisibility(True)
+        if self._actors:
+            self._plotter.render()
+
+    def disable(self):
+        if not self._isEnabled:
+            return
+        self._hideActors()
+        self._isEnabled = False
+        self.pauseRedrawing()
+
+    def enable(self):
+        if self._isEnabled:
+            return
+        self._isEnabled = True
+        self.resumeRedrawing()
+        self._showActors()
+
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         QueuedRedrawMixin._redraw(self, which=which)
+
+        if not self._isEnabled:
+            self._queueRedraw(which=which)
+            return
 
         if isinstance(self._plotter, RemotePlotterProxy) and not self._plotter.isReadyEvent.is_set():
             # remote plotter not ready yet
             return
+
 
         #logger.debug('redraw {}'.format(which))
 

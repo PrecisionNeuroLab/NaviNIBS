@@ -64,10 +64,30 @@ class NavigationView(QueuedRedrawMixin):
 
         self._wdgt.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
-        # TODO: add context menu to be able to change view type with right click on title bar (?)
+        self._dock.label.sigContextMenuRequested.connect(self._onDockLabelContextMenuRequested)
 
     def addLayer(self, key: str, type: str, **kwargs):
         raise NotImplementedError()  # should be implemented by subclass
+
+    def _onDockLabelContextMenuRequested(self, ev):
+        if not self._layers:
+            return
+        menu = QtWidgets.QMenu()
+        for key, layer in self._layers.items():
+            if isinstance(layer, PlotViewLayer):
+                action = menu.addAction(layer.label)
+                action.setCheckable(True)
+                action.setChecked(layer.isEnabled)
+                action.triggered.connect(lambda _, k=key: self._toggleLayer(k))
+        menu.exec(ev.globalPos())
+
+    def _toggleLayer(self, key: str):
+        layer = self._layers[key]
+        if isinstance(layer, PlotViewLayer):
+            if layer.isEnabled:
+                layer.disable()
+            else:
+                layer.enable()
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         #logger.debug(f'redraw {which}')
@@ -362,7 +382,7 @@ class SinglePlotterNavigationView(NavigationView):
             self._wdgt.setVisible(True)
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
-                 plotterLayer: tp.Optional[int] = None, **kwargs):
+                 plotterLayer: tp.Optional[int] = None, isEnabled: bool = True, **kwargs):
         """
         Note: layer is added aynchronously later, to support delayed plotter initialization
         """
@@ -371,11 +391,12 @@ class SinglePlotterNavigationView(NavigationView):
                                                            key=key,
                                                            layeredPlotterKey=layeredPlotterKey,
                                                            plotterLayer=plotterLayer,
+                                                           isEnabled=isEnabled,
                                                            **kwargs
                                                            ))
 
     async def _addLayer_async(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
-                              plotterLayer: tp.Optional[int] = None, **kwargs):
+                              plotterLayer: tp.Optional[int] = None, isEnabled: bool = True, **kwargs):
 
         if isinstance(self._plotter, RemotePlotterProxy):
             await self._plotter.isReadyEvent.wait()
@@ -398,7 +419,8 @@ class SinglePlotterNavigationView(NavigationView):
         self._layers[key] = cls(key=key, **kwargs,
                                 coordinator=self._coordinator,
                                 plotter=plotter,
-                                plotInSpace=self._plotInSpace)
+                                plotInSpace=self._plotInSpace,
+                                isEnabled=isEnabled)
 
         for sig in (self._coordinator.sigCurrentTargetChanged,
                     self._coordinator.sigCurrentCoilPositionChanged,
@@ -461,9 +483,9 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
             #self._plotter.secondaryPlotters['SkinMesh'].enable_depth_peeling(2)
 
 
-        if False and self._alignCameraTo == 'target':
+        if True and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
-                          key='Brain',
+                          key='Brain with Vpp',
                           surfKey='gmSurf',
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
@@ -474,17 +496,18 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                           relevantSampleDepth='intersection',
                           kernelRadius=8,
                           layeredPlotterKey='Brain',
-                          plotterLayer=plotLayer)
-        else:
-            self.addLayer(type='HeadMeshSurface', key='Brain', surfKey='gmSurf',
-                          layeredPlotterKey='Brain',
-                          plotterLayer=plotLayer)
+                          plotterLayer=plotLayer,
+                          isEnabled=False)
+
+        self.addLayer(type='HeadMeshSurface', key='Brain', surfKey='gmSurf',
+                      layeredPlotterKey='Brain',
+                      plotterLayer=plotLayer)
 
         plotLayer += 1
 
-        if False and self._alignCameraTo == 'target':
+        if True and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
-                          key='ScalpVpps',
+                          key='CSF Vpp',
                           surfKey='csfSurf',
                           opacity=0.5,
                           meshOpacityOutsideInterpolatedRegion=0.,
@@ -495,8 +518,9 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
                               20 * np.log10(1): '1 mV',
                           },
                           relevantSampleDepth='intersection',
-                          layeredPlotterKey='ScalpVpps',
-                          plotterLayer=plotLayer)
+                          layeredPlotterKey='CSFVpps',
+                          plotterLayer=plotLayer,
+                          isEnabled=False)
             plotLayer += 1
 
         if True:

@@ -446,6 +446,12 @@ class DockLabel(QtWidgets.QFrame):
         if ev.button() == QtCore.Qt.MouseButton.LeftButton:
             self.dock.float()
 
+    sigContextMenuRequested = QtCore.Signal(object)  # passes QContextMenuEvent
+
+    def contextMenuEvent(self, ev):
+        self.sigContextMenuRequested.emit(ev)
+        ev.accept()
+
 
 class DockDrop(pgdd.DockDrop):
     def __init__(self, *args, **kwargs):
