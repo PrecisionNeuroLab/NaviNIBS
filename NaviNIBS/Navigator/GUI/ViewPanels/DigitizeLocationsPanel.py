@@ -40,7 +40,7 @@ logger.setLevel(logging.INFO)
 class DigitizeLocationsPanel(MainViewPanel):
     _key: str = 'Digitize'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.dots-hexagon'))
-    _surfKey: str = 'skinSurf'
+    _surfKey: str = 'skinSimpleDisplaySurf'
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
 

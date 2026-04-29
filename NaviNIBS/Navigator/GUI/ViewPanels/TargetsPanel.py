@@ -315,7 +315,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _handleLineLengthSpinBox: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
     _export3DBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
-    _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSurf'])
+    _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSimpleDisplaySurf'])
 
     _defaultGridKeyPrefix: str = attrs.field(default='<Target> grid')
     _defaultTargetColor: str = attrs.field(default='#2222FF')

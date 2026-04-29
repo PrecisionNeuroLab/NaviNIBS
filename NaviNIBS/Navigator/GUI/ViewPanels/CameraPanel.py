@@ -49,6 +49,8 @@ class CameraObjectsView(QueuedRedrawMixin):
 
         self._session.tools.sigItemsChanged.connect(lambda *args: self._queueRedraw('afterToolsChanged'))
 
+        self._session.headModel.sigDataChanged.connect(self._onHeadModelDataChanged)
+
         asyncCreateTask(self._finishInitialization_async)
 
     @property
@@ -198,10 +200,10 @@ class CameraObjectsView(QueuedRedrawMixin):
                                     doShow = False
 
                     if isinstance(tool, SubjectTracker) and actorKey == tool.key + '_subject':
-                        if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSurf is not None:
+                        if self.session.subjectRegistration.trackerToMRITransf is not None and self.session.headModel.skinSimpleDisplaySurf is not None:
                             doShow = True
                             if actorKey not in self._actors:
-                                self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSurf,
+                                self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSimpleDisplaySurf,
                                                                                 color='#d9a5b2',
                                                                                 # opacity=0.8,
                                                                                 name=actorKey)
@@ -242,6 +244,21 @@ class CameraObjectsView(QueuedRedrawMixin):
 
         else:
             raise NotImplementedError
+
+    def _onHeadModelDataChanged(self, which: str | None = None):
+        if which is None or 'skinSimpleDisplaySurf' in which:
+            actorKeys = list(self._actors.keys())
+            needsRedraw = False
+            for actorKey in actorKeys:
+                if actorKey.endswith('_subject'):
+                    # force redraw of any subject mesh actors
+                    self._plotter.remove_actor(self._actors.pop(actorKey))
+                    needsRedraw = True
+
+            if needsRedraw:
+                self._queueRedraw(which='toolPositions')
+
+
 
 
 @attrs.define
@@ -377,6 +394,8 @@ class CameraPanel(MainViewPanelWithDockWidgets):
 
         if self._hasInitialized:
             self._onPanelInitializedAndSessionSet()
+
+
 
     def _onPanelInitializedAndSessionSet(self):
 

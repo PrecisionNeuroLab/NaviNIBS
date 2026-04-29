@@ -36,6 +36,7 @@ class HeadModelPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _skinFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
     _gmFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
+    _defaceSkinCheckbox: QtWidgets.QCheckBox = attrs.field(init=False, default=None)
     _meshToMRITransformWdgt: SpatialTransformDisplayWidget = attrs.field(init=False, default=None)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
@@ -95,6 +96,11 @@ class HeadModelPanel(MainViewPanel):
         wdgt.sigFilepathChanged.connect(lambda *args: self._onBrowsedNewFilepath('gmFilepath', *args))
         formWdgt.layout().addRow('Gray matter surface file', wdgt)
         self._gmFilepathWdgt = wdgt
+
+        wdgt = QtWidgets.QCheckBox()
+        wdgt.stateChanged.connect(self._onDefaceSkinCheckboxChanged)
+        formWdgt.layout().addRow('Deface skin for display', wdgt)
+        self._defaceSkinCheckbox = wdgt
 
         self._activeSurfWidget = QtWidgets.QListWidget()
         self._activeSurfWidget.itemSelectionChanged.connect(lambda *args, **kwargs: self._onSurfSelectionChanged())
@@ -160,6 +166,10 @@ class HeadModelPanel(MainViewPanel):
 
         self._meshToMRITransformWdgt.transform = self.session.headModel.meshToMRITransform
 
+        self._defaceSkinCheckbox.blockSignals(True)
+        self._defaceSkinCheckbox.setChecked(self.session.headModel.defaceSkinForDisplay)
+        self._defaceSkinCheckbox.blockSignals(False)
+
         for key, view in self._views.items():
             view.session = self.session
 
@@ -197,6 +207,11 @@ class HeadModelPanel(MainViewPanel):
                     break
 
             self._meshToMRITransformWdgt.transform = self.session.headModel.meshToMRITransform
+
+        if self.session is not None:
+            self._defaceSkinCheckbox.blockSignals(True)
+            self._defaceSkinCheckbox.setChecked(self.session.headModel.defaceSkinForDisplay)
+            self._defaceSkinCheckbox.blockSignals(False)
 
         self._activeSurfWidget.setMaximumHeight(ceil(self._activeSurfWidget.sizeHintForRow(0) * (self._activeSurfWidget.count() + 0.2)))
 
@@ -242,6 +257,10 @@ class HeadModelPanel(MainViewPanel):
             case _:
                 logger.error(f'Unknown file selection: {which}')
                 return
+
+    def _onDefaceSkinCheckboxChanged(self):
+        if self.session is not None:
+            self.session.headModel.defaceSkinForDisplay = self._defaceSkinCheckbox.isChecked()
 
     def _onTransformChanged(self):
         logger.info('meshToMRITransform changed')

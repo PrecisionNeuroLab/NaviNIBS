@@ -21,6 +21,10 @@ from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from NaviNIBS.Navigator.Model.Session import Session
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,6 +72,18 @@ class HeadModel:
     Optional 4x4 transform matrix to convert mesh coordinates to MRI coordinates. Applied to all
     meshes when loading. Should not be needed in typical use cases.
     """
+    _defaceSkinForDisplay: bool = False
+    """
+    Whether to try to deface the skin by cropping below LPA/RPA up to NAS for display purposes.
+    This only works if fiducials with expected names are set.
+    """
+    _defaceFiducialNames: tuple[str, str, str] = ('LPA', 'NAS', 'RPA')
+    """
+    Names of fiducials to use for defacing, in (LPA, NAS, RPA) order.
+    LPA and RPA define the 10 mm inferior cut level; NAS defines the 5 mm inferior cut level.
+    Override if fiducials use non-standard names.
+    """
+    _session: Session | None = attrs.field(default=None, repr=False)
 
     _msh: tp.Optional[pv.PolyData] = attrs.field(init=False, default=None)
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -75,6 +91,8 @@ class HeadModel:
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinConvexSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _skinDefacedSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _skinSimpleDefacedSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
     _mshVersion: tp.Optional[MshVersion] = attrs.field(init=False, default=None)
@@ -93,6 +111,61 @@ class HeadModel:
     def __attrs_post_init__(self):
         self.sigFilepathChanged.connect(self._onFilepathChanged)
         self.validateFilepath(self._filepath)
+
+    @property
+    def defaceFiducialNames(self) -> tuple[str, str, str]:
+        return self._defaceFiducialNames
+
+    @defaceFiducialNames.setter
+    def defaceFiducialNames(self, value: tuple[str, str, str]):
+        if self._defaceFiducialNames != value:
+            self._defaceFiducialNames = value
+            if self._skinDefacedSurf is not None:
+                self._skinDefacedSurf = None
+                self.sigDataChanged.emit('skinDefacedSurf')
+            if self._skinSimpleDefacedSurf is not None:
+                self._skinSimpleDefacedSurf = None
+                self.sigDataChanged.emit('skinSimpleDefacedSurf')
+
+    @property
+    def defaceSkinForDisplay(self) -> bool:
+        return self._defaceSkinForDisplay
+
+    @defaceSkinForDisplay.setter
+    def defaceSkinForDisplay(self, value: bool):
+        if self._defaceSkinForDisplay != value:
+            self._defaceSkinForDisplay = value
+            self.sigDataChanged.emit(None)
+
+    @property
+    def session(self) -> Session | None:
+        return self._session
+
+    @session.setter
+    def session(self, session: Session):
+        if self._session is not session:
+            self._session = session
+            if session is not None:
+                session.subjectRegistration.fiducials.sigItemsChanged.connect(
+                    self._onFiducialsChanged)
+                if self._skinDefacedSurf is not None:
+                    self._skinDefacedSurf = None
+                    self.sigDataChanged.emit('skinDefacedSurf')
+                if self._skinSimpleDefacedSurf is not None:
+                    self._skinSimpleDefacedSurf = None
+                    self.sigDataChanged.emit('skinSimpleDefacedSurf')
+
+    def _onFiducialsChanged(self, keys: list[str], attrNames: list[str] | None):
+        if not any(k in self._defaceFiducialNames for k in keys):
+            return
+        if attrNames is not None and 'plannedCoord' not in attrNames:
+            return
+        if self._skinDefacedSurf is not None:
+            self._skinDefacedSurf = None
+            self.sigDataChanged.emit('skinDefacedSurf')
+        if self._skinSimpleDefacedSurf is not None:
+            self._skinSimpleDefacedSurf = None
+            self.sigDataChanged.emit('skinSimpleDefacedSurf')
 
     @property
     def m2mDir(self) -> str | None:
@@ -257,6 +330,59 @@ class HeadModel:
             # don't apply meshToMRITransform here since it was already applied to the unsimplified mesh
             setattr(self, '_' + which, convexMesh)
 
+        elif which == 'skinDefacedSurf':
+            skinSurf = self.skinSurf
+            if skinSurf is None:
+                logger.warning('No skin surface available for defacing')
+                return
+
+            defaced = None
+            if self._session is None:
+                logger.warning('No session set on HeadModel, cannot deface skin surface')
+            else:
+                plannedFiducials = self._session.subjectRegistration.fiducials.plannedFiducials
+                lpaName, nasName, rpaName = self._defaceFiducialNames
+                lpa = plannedFiducials.get(lpaName)
+                nas = plannedFiducials.get(nasName)
+                rpa = plannedFiducials.get(rpaName)
+                if any(coord is None for coord in (lpa, nas, rpa)):
+                    logger.warning(f'Missing one or more defacing fiducials ({self._defaceFiducialNames}), '
+                                   f'cannot deface skin surface')
+                else:
+                    center = (lpa + rpa) / 2
+                    dir_lr = rpa - lpa
+                    dir_lr /= np.linalg.norm(dir_lr)
+                    dir_pa = nas - center
+                    dir_pa /= np.linalg.norm(dir_pa)
+                    dir_sup = np.cross(dir_lr, dir_pa)
+                    dir_sup /= np.linalg.norm(dir_sup)
+
+                    p_nas = nas - 1.0 * dir_sup
+                    p_lpa = lpa - 2.0 * dir_sup
+                    p_rpa = rpa - 2.0 * dir_sup
+
+                    normal = np.cross(p_lpa - p_nas, p_rpa - p_nas)
+                    normal /= np.linalg.norm(normal)
+
+                    logger.info('Defacing skin surface')
+                    defaced = tp.cast(SurfMesh, skinSurf.clip(normal=normal, origin=p_nas, invert=False))
+                    logger.debug('Done defacing skin surface')
+
+            if defaced is None:
+                defaced = skinSurf  # fall back to full surface
+
+            self._skinDefacedSurf = defaced
+
+        elif which == 'skinSimpleDefacedSurf':
+            mesh = self.skinDefacedSurf
+            if mesh is None:
+                logger.warning('No defaced skin surface available for simplification')
+                return
+            logger.info('Simplifying skinDefacedSurf')
+            mesh = mesh.decimate(0.8)
+            logger.debug('Done simplifying skinDefacedSurf')
+            self._skinSimpleDefacedSurf = mesh
+
         elif which == 'eegPositions':
             csvPath = os.path.join(self.m2mDir, 'eeg_positions', 'EEG10-10_UI_Jurak_2007.csv')
             columnLabels = ('type', 'x', 'y', 'z', 'label')
@@ -294,14 +420,14 @@ class HeadModel:
     def clearCache(self, which: str):
 
         if which == 'all':
-            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf', 'eegPositions',
-                       'mshVersion')  # TODO: add more keys here once implemented
+            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf',
+                       'skinConvexSurf', 'skinDefacedSurf', 'skinSimpleDefacedSurf', 'eegPositions', 'mshVersion')
             for w in allKeys:
                 self.clearCache(which=w)
             return
 
-        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf', 'eegPositions',
-                     'mshVersion'):
+        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf',
+                     'skinConvexSurf', 'skinDefacedSurf', 'skinSimpleDefacedSurf', 'eegPositions', 'mshVersion'):
             if getattr(self, '_' + which) is None:
                 return
             setattr(self, '_' + which, None)
@@ -435,6 +561,35 @@ class HeadModel:
         if self.skinSurfIsSet and self._skinConvexSurf is None:
             self.loadCache(which='skinConvexSurf')
         return self._skinConvexSurf
+    
+    @property
+    def skinDisplaySurf(self):
+        if self._defaceSkinForDisplay:
+            return self.skinDefacedSurf
+        else:
+            return self.skinSurf
+
+    @property
+    def skinSimpleDisplaySurf(self):
+        if self._defaceSkinForDisplay:
+            return self.skinSimpleDefacedSurf
+        else:
+            return self.skinSimpleSurf
+
+    @property
+    def skinSimpleDefacedSurf(self):
+        """
+        Simplified version of skinDefacedSurf, for faster rendering.
+        """
+        if self.skinSurfIsSet and self._skinSimpleDefacedSurf is None:
+            self.loadCache(which='skinSimpleDefacedSurf')
+        return self._skinSimpleDefacedSurf
+
+    @property
+    def skinDefacedSurf(self):
+        if self.skinSurfIsSet and self._skinDefacedSurf is None:
+            self.loadCache(which='skinDefacedSurf')
+        return self._skinDefacedSurf
 
     @property
     def eegPositions(self):
@@ -452,7 +607,8 @@ class HeadModel:
         return d
 
     @classmethod
-    def fromDict(cls, d: tp.Dict[str, tp.Any], filepathRelTo: str) -> HeadModel:
+    def fromDict(cls, d: tp.Dict[str, tp.Any], filepathRelTo: str,
+                 session: Session | None = None) -> HeadModel:
         # TODO: validate against schema
 
         for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath'):
@@ -464,7 +620,9 @@ class HeadModel:
                 else:
                     assert os.path.exists(d[key]), f'File not found at {d[key]}'
 
-        return attrsWithNumpyFromDict(cls, d, npFields=('meshToMRITransform',))
+        result = attrsWithNumpyFromDict(cls, d, npFields=('meshToMRITransform',))
+        result.session = session
+        return result
 
     @classmethod
     def validateFilepath(cls, filepath: tp.Optional[str], strict: bool = False) -> None:

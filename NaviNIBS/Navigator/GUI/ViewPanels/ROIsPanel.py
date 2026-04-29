@@ -140,7 +140,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._tableWdgt.sigSelectionChanged.connect(self._onSelectionChanged)
         container.layout().addWidget(self._tableWdgt.wdgt)
 
-        surfKeys = ['gmSurf', 'skinSurf']
+        surfKeys = ['gmSurf', 'skinSimpleDisplaySurf']
         surfOpacities = [0.8, 0.3]
 
         self._surfView = Surf3DView(label='Head model', normal=np.eye(3),

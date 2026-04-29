@@ -133,6 +133,7 @@ class Session:
         self.targets.session = self
         self.targetGrids.session = self
         self.ROIs.session = self
+        self.headModel.session = self
 
         # TODO
 

@@ -208,6 +208,12 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
         if self._plotInSpace != 'MRI':
             self._coordinator.positionsClient.sigLatestPositionsChanged.connect(lambda: self._queueRedraw(which='updatePosition'))
 
+        self._coordinator.session.headModel.sigDataChanged.connect(self._onDataChanged)
+
+    def _onDataChanged(self, which: str | None = None):
+        if which is None or self._surfKey in which:
+            self._queueRedraw(which='initSurf')
+
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
 

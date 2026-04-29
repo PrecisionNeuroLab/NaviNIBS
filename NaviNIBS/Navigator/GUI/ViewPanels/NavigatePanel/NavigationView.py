@@ -472,7 +472,7 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         plotLayer = 0
 
         if self._doShowSkinSurf:
-            self.addLayer(type='HeadMeshSurface', key='Skin', surfKey='skinSimpleSurf',
+            self.addLayer(type='HeadMeshSurface', key='Skin', surfKey='skinSimpleDisplaySurf',
                           color='#c9c5c2',
                           layeredPlotterKey='SkinMesh',
                           plotterLayer=plotLayer)
