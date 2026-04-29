@@ -9,7 +9,7 @@ import zmq.asyncio as azmq
 
 from NaviNIBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
 from NaviNIBS.util import ZMQAsyncioFix
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.ZMQConnector import ZMQConnectorClient, logger as logger_ZMQConnector
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.Signaler import Signal
@@ -60,14 +60,11 @@ class ToolPositionsClient:
                                              connAddr=self._serverHostname,
                                              allowAsyncCalls=True)
 
-        self._startupTask = asyncio.create_task(asyncTryAndLogExceptionOnError(
-            self._requestLatestPositionsOnStart))
+        self._startupTask = asyncCreateTask(self._requestLatestPositionsOnStart)
 
-        self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(
-            self._receiveLatestPositionsLoop))
+        self._pollTask = asyncCreateTask(self._receiveLatestPositionsLoop)
 
-        self._monitorTask = asyncio.create_task(asyncTryAndLogExceptionOnError(
-            self._monitorServerStatus))
+        self._monitorTask = asyncCreateTask(self._monitorServerStatus)
 
     @property
     def latestPositions(self):

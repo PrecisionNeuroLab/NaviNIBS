@@ -16,7 +16,7 @@ from zmq import asyncio as azmq
 
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util import ZMQAsyncioFix
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from NaviNIBS.util.logging import createLogFileHandler
 if tp.TYPE_CHECKING:
@@ -87,7 +87,7 @@ class RemotePlotManagerBase:
                 return 'ack'
 
             case 'quit':
-                asyncio.create_task(asyncTryAndLogExceptionOnError(self._closeAfterDelay))
+                asyncCreateTask(self._closeAfterDelay)
                 return 'ack'
 
             case 'quitImmediately':
@@ -374,7 +374,7 @@ class RemotePlotManager(RemotePlotManagerBase):
         else:
             self._pullSock.bind(f'tcp://{self._addr}:{self._pullPort}')
 
-        self._socketLoopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._socketLoop))
+        self._socketLoopTask = asyncCreateTask(self._socketLoop)
 
     async def _socketLoop(self):
 
@@ -431,7 +431,7 @@ class RemotePlotManager(RemotePlotManagerBase):
 
     def _executeCallback(self, callbackKey: str, *args, **kwargs):
         logger.debug(f'Queuing async task for callback {callbackKey}')
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._executeCallbackAsync, callbackKey, *args, **kwargs))
+        asyncCreateTask(self._executeCallbackAsync, callbackKey, *args, **kwargs)
 
     async def _executeCallbackAsync(self, callbackKey: str, *args, **kwargs):
         async with self._reqLock:

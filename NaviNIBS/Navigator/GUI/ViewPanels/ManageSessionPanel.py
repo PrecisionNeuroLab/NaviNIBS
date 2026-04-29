@@ -18,7 +18,7 @@ from NaviNIBS import __version__
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.Navigator.GUI.EditWindows.ImportSessionWindow import ImportSessionWindow
 from NaviNIBS.util import exceptionToStr
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.Dock import Dock, DockArea, TContainer
 from NaviNIBS.util.GUI.ErrorDialog import raiseErrorDialog
 from NaviNIBS.util.GUI.Icons import getIcon
@@ -221,7 +221,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
 
         self._updateEnabledWdgts()
 
-        self._autosaveTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._autosaveOccasionally))
+        self._autosaveTask = asyncCreateTask(self._autosaveOccasionally)
 
     def addSaveButtonToDockTabStrip(self, dockArea: DockArea):
         # hack in a save button next to root dock area tab strip
@@ -609,8 +609,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
             autosaves = Session.findAutosaves(unpackedSessionDir)
             if autosaves:
                 # Autosaves found — show dialog asynchronously so the event loop stays responsive
-                asyncio.create_task(asyncTryAndLogExceptionOnError(
-                    self._checkAndRestoreAutosave, session, autosaves))
+                asyncCreateTask(self._checkAndRestoreAutosave, session, autosaves)
                 return
 
         self._finishLoadingSession(session)
@@ -647,8 +646,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         session = Session.loadFromUnpackedDir(unpackedSessionDir=sesDataDir)
         autosaves = Session.findAutosaves(sesDataDir)
         if autosaves:
-            asyncio.create_task(asyncTryAndLogExceptionOnError(
-                self._checkAndRestoreAutosave, session, autosaves))
+            asyncCreateTask(self._checkAndRestoreAutosave, session, autosaves)
         else:
             self._finishLoadingSession(session)
 

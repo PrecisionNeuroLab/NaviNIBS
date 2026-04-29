@@ -11,7 +11,7 @@ import numpy as np
 import pyvista as pv
 from qtpy import QtWidgets, QtGui, QtCore
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.Dock import Dock, DockArea
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import ROIsTableWidget
@@ -180,7 +180,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             logger.debug(f'Disabling {widget}')
             widget.setEnabled(False)
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
         for view in [self._surfView]:

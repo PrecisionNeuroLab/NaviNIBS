@@ -21,7 +21,7 @@ from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Tools import CalibrationPlate, Pointer
 from NaviNIBS.Navigator.Model.Triggering import TriggerReceiver, TriggerEvent
 from NaviNIBS.Navigator.Model.Samples import Sample
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.CoilOrientations import PoseMetricCalculator
 from NaviNIBS.util.GUI.Dock import Dock
 from NaviNIBS.util.GUI.Icons import getIcon
@@ -54,7 +54,7 @@ class _PoseMetricGroup:
     _updateRateLimit: float = 2  # in Hz
 
     def __attrs_post_init__(self):
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_keepUpdated))
+        asyncCreateTask(self._loop_keepUpdated)
 
     @property
     def calculatorKey(self):
@@ -127,7 +127,7 @@ class BackgroundSamplePoseMetadataSetter:
     _calculator: PoseMetricCalculator | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_keepUpdated))
+        asyncCreateTask(self._loop_keepUpdated)
 
     async def _loop_keepUpdated(self):
         while True:
@@ -340,7 +340,7 @@ class NavigatePanel(MainViewPanelWithDockWidgets):
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
         for view in self._views.values():

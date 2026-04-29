@@ -12,7 +12,7 @@ import pyvista as pv
 
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLayers import SampleOrientationsLayer, VisualizedOrientation
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 if DefaultBackgroundPlotter is RemotePlotterProxy or tp.TYPE_CHECKING:
@@ -117,7 +117,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
         self._coordinator.session.samples.sigItemsChanged.connect(self._onSamplesChanged)
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_reinterpolate))
+        asyncCreateTask(self._loop_reinterpolate)
 
     async def _loop_reinterpolate(self):
         """

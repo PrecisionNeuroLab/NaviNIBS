@@ -12,7 +12,7 @@ import zmq.asyncio as azmq
 from . import exceptionToStr
 from . import ZMQAsyncioFix
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class ZMQConnectorServer:
             self._pubSocket.linger = 0
             self._pubSocket.bind('tcp://%s:%d' % (self._bindAddr, self._pubSubPort))
 
-        self._asyncPollingTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._asyncPoll))
+        self._asyncPollingTask = asyncCreateTask(self._asyncPoll)
 
     def __del__(self):
         logger.debug("Deleting ZMQConnectorServer")
@@ -276,7 +276,7 @@ class ZMQConnectorClient:
             self._subSocket.connect('tcp://%s:%d' % (self._connAddr, self._pubSubPort))
             self._subSocket.setsockopt(zmq.SUBSCRIBE, b'')
 
-            asyncio.create_task(asyncTryAndLogExceptionOnError(self._asyncPoll))  # only need to poll if checking for published updates
+            asyncCreateTask(self._asyncPoll)  # only need to poll if checking for published updates
             logger.debug('Finished setting up subscribe')
 
     def close(self, linger=0):

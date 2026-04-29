@@ -12,7 +12,7 @@ from ..Signaler import Signal
 
 
 from NaviNIBS.util import exceptionToStr
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ class RunnableAsApp:
     def createAndRunAsTask(cls, *args, **kwargs):
         logger.debug('Creating %s' % (cls.__name__,))
         self = cls(*args, doRunAsApp=True, **kwargs)
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._runLoop))
+        asyncCreateTask(self._runLoop)
         return self
 
     @classmethod

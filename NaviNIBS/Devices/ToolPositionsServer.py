@@ -9,7 +9,7 @@ import zmq.asyncio as azmq
 
 from NaviNIBS.Devices import positionsServerHostname, positionsServerPubPort, positionsServerCmdPort, TimestampedToolPosition
 from NaviNIBS.util import ZMQAsyncioFix
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.logging import createLogFileHandler
 from NaviNIBS.util.ZMQConnector import ZMQConnectorServer, logger as logger_ZMQConnector
 
@@ -57,7 +57,7 @@ class ToolPositionsServer:
             self._logFileHandler = createLogFileHandler(self._logFilepath)
             logging.getLogger('').addHandler(self._logFileHandler)
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._publishLatestPositionsLoop))
+        asyncCreateTask(self._publishLatestPositionsLoop)
 
     @property
     def type(self):

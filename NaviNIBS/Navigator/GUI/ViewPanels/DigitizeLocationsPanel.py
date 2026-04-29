@@ -22,7 +22,7 @@ from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.DigitizedLocations import DigitizedLocation
 from NaviNIBS.Navigator.Model.Tools import CoilTool, CalibrationPlate
 from NaviNIBS.util import makeStrUnique
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.Signaler import Signal
 if tp.TYPE_CHECKING:
@@ -131,7 +131,7 @@ class DigitizeLocationsPanel(MainViewPanel):
         self._plotter = DefaultBackgroundPlotter()
         self._wdgt.layout().addWidget(self._plotter)
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()

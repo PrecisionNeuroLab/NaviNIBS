@@ -20,7 +20,7 @@ from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
 from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Transforms import applyTransform, composeTransform, concatenateTransforms
 from NaviNIBS.util.GUI.Dock import Dock
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
@@ -171,7 +171,7 @@ class SinglePlotterNavigationView(NavigationView):
                     ):
             self._layerLibrary[cls.type] = cls
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self.__finishInitialization_async))
+        asyncCreateTask(self.__finishInitialization_async)
 
     async def __finishInitialization_async(self):
         # call _finishInitialization_async() here to allow extending in subclass while still setting event only after fully initialized
@@ -386,14 +386,13 @@ class SinglePlotterNavigationView(NavigationView):
         """
         Note: layer is added aynchronously later, to support delayed plotter initialization
         """
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._addLayer_async,
-                                                           type=type,
-                                                           key=key,
-                                                           layeredPlotterKey=layeredPlotterKey,
-                                                           plotterLayer=plotterLayer,
-                                                           isEnabled=isEnabled,
-                                                           **kwargs
-                                                           ))
+        asyncCreateTask(self._addLayer_async,
+                        type=type,
+                        key=key,
+                        layeredPlotterKey=layeredPlotterKey,
+                        plotterLayer=plotterLayer,
+                        isEnabled=isEnabled,
+                        **kwargs)
 
     async def _addLayer_async(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
                               plotterLayer: tp.Optional[int] = None, isEnabled: bool = True, **kwargs):

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import logging
 import typing as tp
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -27,7 +27,7 @@ class QueuedRedrawMixin:
     def __attrs_post_init__(self):
         self.redrawQueueIsEmpty.set()
         self._redrawingNotPaused.set()
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_queuedRedraw))
+        asyncCreateTask(self._loop_queuedRedraw)
 
     async def _loop_queuedRedraw(self):
         while True:

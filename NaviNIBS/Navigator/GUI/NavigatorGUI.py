@@ -14,7 +14,7 @@ import qtawesome as qta
 from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.QAppWithAsyncioLoop import RunnableAsApp
 from NaviNIBS.util.GUI.Dock import DockArea
 from NaviNIBS.util.GUI.ErrorDialog import asyncTryAndRaiseDialogOnError
@@ -129,7 +129,9 @@ class NavigatorGUI(RunnableAsApp):
         #self._activateView('Navigate')  # TODO: debug, delete
 
         if self._sesFilepath is not None:
-            asyncio.create_task(asyncTryAndRaiseDialogOnError(self._loadAfterSetup, filepath=self._sesFilepath))
+            asyncio.create_task(asyncTryAndRaiseDialogOnError(
+                self._loadAfterSetup, filepath=self._sesFilepath),
+                name='Load session on startup')
 
         if self._doRunAsApp:
             logger.debug('Showing window')
@@ -237,7 +239,7 @@ class NavigatorGUI(RunnableAsApp):
     def _onRestoredPanelLayout(self):
         if self._restoringLayoutLock.locked():
             return  # ignore if in the middle of a whole-app restore
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._restoreRootLayout))
+        asyncCreateTask(self._restoreRootLayout)
 
     async def restoreLayoutIfAvailable(self):
         async with self._restoringLayoutLock:
@@ -277,7 +279,7 @@ class NavigatorGUI(RunnableAsApp):
                 panel.close()
 
         self._cleanupFinishedEvent.clear()  # will be set again when cleanup is done
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._cleanup))
+        asyncCreateTask(self._cleanup)
 
     async def _cleanup(self):
         logger.debug(f'Starting cleanup delay for {self.__class__.__name__}')
@@ -308,7 +310,7 @@ class NavigatorGUI(RunnableAsApp):
 
         self._refreshGUIAppearance()
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self.restoreLayoutIfAvailable))
+        asyncCreateTask(self.restoreLayoutIfAvailable)
 
         self._updateEnabledPanels()
         session.MRI.sigFilepathChanged.connect(self._updateEnabledPanels)

@@ -10,7 +10,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from NaviNIBS.Navigator.Model.Session import Session
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.numpy import array_equalish
 from NaviNIBS.util.Signaler import Signal
@@ -65,7 +65,7 @@ class MRISliceView(QueuedRedrawMixin):
         else:
             pass  # presumably was initialized by subclass
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finish_init))
+        asyncCreateTask(self._finish_init)
 
     async def _finish_init(self):
         if isinstance(self._plotter, RemotePlotterProxy):

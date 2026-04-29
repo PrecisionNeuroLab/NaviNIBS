@@ -17,7 +17,7 @@ from typing import ClassVar
 
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.CoilOrientations import PoseMetricCalculator
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms, applyTransform
@@ -504,7 +504,7 @@ class TargetingCoordinator:
     def _startMonitoringOnTarget(self):
         assert self._monitorOnTargetTask is None
         self._needToCheckIfOnTarget.set()
-        self._monitorOnTargetTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_monitorOnTarget))
+        self._monitorOnTargetTask = asyncCreateTask(self._loop_monitorOnTarget)
 
     def _stopMonitoringOnTarget(self):
         assert self._monitorOnTargetTask is not None

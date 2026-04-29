@@ -24,7 +24,7 @@ from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import FullTarget
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
 from NaviNIBS.util import exceptionToStr
-from NaviNIBS.util.Asyncio import asyncWait, asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncWait, asyncCreateTask
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
 from NaviNIBS.util import makeStrUnique
@@ -282,7 +282,7 @@ class AddFromSeedPointStageWidget(ROIStageWidget):
 
     def _onSelectSeedBtnClicked(self, _):
         logger.info(f'Selecting seed point for AddFromSeedPoint stage {self._stage}')
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._selectSeedPointInteractive))
+        asyncCreateTask(self._selectSeedPointInteractive)
         # TODO: start interactive point picking session
 
     async def _selectSeedPointInteractive(self):

@@ -21,7 +21,7 @@ from typing import ClassVar, TYPE_CHECKING
 import functools
 
 from NaviNIBS.util import makeStrUnique
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.attrs import attrsAsDict
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
@@ -126,7 +126,7 @@ class TargetGrid(GenericCollectionDictItem[str]):
         self._gridNeedsUpdate.set()
         if self._autoGenerateOnChange and (self._gridUpdateLoopTask is None or self._gridUpdateLoopTask.done()):
             # only launch grid update loop after first request to update grid
-            self._gridUpdateLoopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_updateGrid))
+            self._gridUpdateLoopTask = asyncCreateTask(self._loop_updateGrid)
 
     async def _loop_updateGrid(self):
         while True:

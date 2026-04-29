@@ -18,7 +18,7 @@ import shutil
 import typing as tp
 
 from NaviNIBS.Navigator.Model.TargetGrids import CartesianTargetGrid, DepthMethod, EntryAngleMethod, SpacingMethod
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.Dock import Dock, DockArea
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
@@ -543,7 +543,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
         self._onTargetsChanged()
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
         for view in self._views.values():

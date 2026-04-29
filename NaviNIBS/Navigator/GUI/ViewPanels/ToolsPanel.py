@@ -25,7 +25,7 @@ from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWi
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import ToolsTableWidget
 from NaviNIBS.Navigator.Model.Session import Session, Tools, Tool, CoilTool, Pointer
 from NaviNIBS.util import makeStrUnique
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista import setActorUserTransform, RemotePlotterProxy
@@ -209,7 +209,7 @@ class ToolWidget:
         plotterContainer.layout().addWidget(self._trackerSpacePlotter)
         plotContainer.layout().addWidget(plotterContainer)
 
-        self._asyncInitTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        self._asyncInitTask = asyncCreateTask(self._finishInitialization_async)
 
         QtCore.QTimer.singleShot(0, lambda: self._onToolChanged(self._tool.key, attribsChanged=None))
 
@@ -620,7 +620,7 @@ class ToolsPanel(MainViewPanel):
         super()._onSessionSet()
 
         if any(tool.initialTrackerPose is not None for tool in self.session.tools.values()):
-            asyncio.create_task(asyncTryAndLogExceptionOnError(self._recordInitialToolPoses))
+            asyncCreateTask(self._recordInitialToolPoses)
 
         self._session.tools.sigItemsChanged.connect(self._onToolsChanged)
 
@@ -632,7 +632,7 @@ class ToolsPanel(MainViewPanel):
                 or any(x in changedAttribs for x in (
                 'initialTrackerPose',
                 'initialTrackerPoseRelativeTo')):
-            asyncio.create_task(asyncTryAndLogExceptionOnError(self._recordInitialToolPoses, toolKeys=toolKeys, timestamp=time.time()))
+            asyncCreateTask(self._recordInitialToolPoses, toolKeys=toolKeys, timestamp=time.time())
 
     async def _recordInitialToolPoses(self, toolKeys: list[str] | None = None,
                                       timestamp: float | None = None):

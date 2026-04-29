@@ -18,7 +18,6 @@ from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTab
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
 from NaviNIBS.util import makeStrUnique
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
 from NaviNIBS.util.GUI.QDial import AngleDial

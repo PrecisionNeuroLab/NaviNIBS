@@ -18,7 +18,7 @@ import typing as tp
 from . import MainViewPanel
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import SurfSliceView, Surf3DView
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
@@ -163,7 +163,7 @@ class HeadModelPanel(MainViewPanel):
         for key, view in self._views.items():
             view.session = self.session
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
         for view in self._views.values():

@@ -8,7 +8,7 @@ import typing as tp
 
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetGridsTableModel import TargetGridsTableModel
 from NaviNIBS.Navigator.Model.TargetGrids import TargetGrid
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
 from NaviNIBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
@@ -78,7 +78,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             pass
 
         if self._doAdjustSizeToContents is None or self._doAdjustColumnWidthsToContents:
-            asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsLoop))
+            asyncCreateTask(self._resizeToContentsLoop)
 
         # set fixed row height to improve performance
         self._tableView.verticalHeader().setDefaultSectionSize(25)
@@ -120,7 +120,7 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     def _onSessionSet(self):
         self._model = self._Model(session=self._session, **self._modelKwargs)
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
-        self._model.sigItemEdited.connect(lambda *args: asyncio.create_task(asyncTryAndLogExceptionOnError(self._resizeToContentsSoon)))
+        self._model.sigItemEdited.connect(lambda *args: asyncCreateTask(self._resizeToContentsSoon))
         self._refreshSizeAdjustPolicy()
         self._tableView.setModel(self._model)
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)

@@ -19,7 +19,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 from zmq import asyncio as azmq
 
 from NaviNIBS.util import exceptionToStr, makeStrUnique
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.pyvista.RemotePlotting import ActorRef, PolyDataRef, PolyDataManager
 from NaviNIBS.util.pyvista.RemotePlotting.RemotePlotter import RemotePlotterApp
 
@@ -622,7 +622,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
         self.remoteProc = None
         self._startRemoteProc(procKwargs, **kwargs)
 
-        self._socketLoopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._socketLoop))
+        self._socketLoopTask = asyncCreateTask(self._socketLoop)
 
     @property
     def isReadyEvent(self):
@@ -808,7 +808,7 @@ class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
     def close(self):
         logger.info('Closing')
         if True:
-            asyncio.create_task(asyncTryAndLogExceptionOnError(self.close_async))
+            asyncCreateTask(self.close_async)
         else:
             self.closeImmediately()
         super().close()

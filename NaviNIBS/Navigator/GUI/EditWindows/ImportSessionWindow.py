@@ -10,7 +10,7 @@ import typing as tp
 
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.Model.Session import Session, Tool, Fiducial, Target, Sample, DigitizedLocation, TriggerSource, Addon
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Signaler import Signal
 
 logger = logging.getLogger(__name__)
@@ -390,7 +390,7 @@ class ImportSessionWindow:
 
         self._wdgt.show()
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_refreshComboBox))
+        asyncCreateTask(self._loop_refreshComboBox)
 
     def _getPresetKeys(self) -> list[str]:
         return ['Custom', 'Different subject', 'Same subject, different session']

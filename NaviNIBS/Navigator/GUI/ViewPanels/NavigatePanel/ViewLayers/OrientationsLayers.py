@@ -12,7 +12,7 @@ from typing import ClassVar
 from . import PlotViewLayer
 from NaviNIBS.Navigator.Model.Samples import Sample, Samples
 from NaviNIBS.Navigator.Model.Targets import Target, Targets
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.pyvista import DefaultBackgroundPlotter, RemotePlotterProxy
 
 
@@ -131,7 +131,7 @@ class OrientationsLayer(PlotViewLayer):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._loopTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._loop_drawPendingOrientations))
+        self._loopTask = asyncCreateTask(self._loop_drawPendingOrientations)
 
     def _createVisualizedOrientationForSample(self, key: str) -> VisualizedOrientation:
         isSelected = self.orientations[key].isSelected

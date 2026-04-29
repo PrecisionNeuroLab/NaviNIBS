@@ -14,7 +14,7 @@ if pv.__version__ <= '0.39.1':
 else:
     from pyvista.core.utilities.misc import try_callback
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util import Transforms
@@ -167,7 +167,7 @@ async def pickActor(plotter: pv.Plotter,
         async def removeSelectActorAfterDelay():
             await asyncio.sleep(0.5)
             plotter.remove_actor(selectActor)
-        asyncio.create_task(asyncTryAndLogExceptionOnError(removeSelectActorAfterDelay))
+        asyncCreateTask(removeSelectActorAfterDelay)
 
     picker.RemoveObserver(endPickObserver)
     if left_clicking:
@@ -218,7 +218,7 @@ async def interactivelyMoveActor(plotter: pv.Plotter, actor: Actor, onNewTransf:
             onNewTransf(newestTransf)
             await asyncio.sleep(0.1)  # don't publish updates more frequently than this
 
-    publishTask = asyncio.create_task(asyncTryAndLogExceptionOnError(publishNewPosition))
+    publishTask = asyncCreateTask(publishNewPosition)
 
     def interactionCallback(obj, event_type):
         nonlocal newestTransf

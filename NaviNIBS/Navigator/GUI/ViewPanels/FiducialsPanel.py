@@ -15,7 +15,7 @@ import shutil
 import typing as tp
 
 from . import MainViewPanel
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import PlanningFiducialsTableWidget
@@ -116,7 +116,7 @@ class FiducialsPanel(MainViewPanel):
 
         self._onPlannedFiducialsChanged()
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
         for viewKey, view in self._views.items():

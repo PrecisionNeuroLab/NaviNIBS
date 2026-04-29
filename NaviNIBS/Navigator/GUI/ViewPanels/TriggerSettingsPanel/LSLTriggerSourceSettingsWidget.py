@@ -12,7 +12,7 @@ from qtpy import QtWidgets
 
 from .TriggerSourceSettingsWidget import TriggerSourceSettingsWidget
 from NaviNIBS.Navigator.Model.Triggering import LSLTriggerSource, TriggerEvent, TriggerSource
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.lsl.LSLStreamSelector import LSLStreamSelector
 
 
@@ -50,7 +50,7 @@ class LSLTriggerSourceSettingsWidget(TriggerSourceSettingsWidget[LSLTriggerSourc
 
         self._wdgt.layout().addRow('Trigger stream', self._streamSelector.wdgt)
 
-        self._pollTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._pollForData))
+        self._pollTask = asyncCreateTask(self._pollForData)
 
         if self.fallbackTriggerSource is not None:
             self.fallbackTriggerSource.isEnabled = True

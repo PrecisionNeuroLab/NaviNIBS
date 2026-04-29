@@ -520,7 +520,9 @@ class SubjectRegistrationPanel(MainViewPanel):
         self._plotter = DefaultBackgroundPlotter()
         self._wdgt.layout().addWidget(self._plotter)
 
-        asyncio.create_task(asyncTryAndRaiseDialogOnError(self._finishInitialization_async))
+        asyncio.create_task(asyncTryAndRaiseDialogOnError(
+            self._finishInitialization_async), 
+            name='SubjectRegistrationPanel async initialization')
 
     async def _finishInitialization_async(self):
         if isinstance(self._plotter, RemotePlotterProxy):

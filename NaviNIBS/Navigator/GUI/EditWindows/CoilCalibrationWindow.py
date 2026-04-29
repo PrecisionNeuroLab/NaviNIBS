@@ -10,7 +10,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
 from NaviNIBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
@@ -104,7 +104,7 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
 
         self._wdgt.resize(QtCore.QSize(900, 700))
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
 

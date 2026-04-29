@@ -16,7 +16,7 @@ from NaviNIBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServ
 from NaviNIBS.Navigator.Model.Session import Session, SubjectTracker
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista import setActorUserTransform, RemotePlotterProxy
@@ -49,7 +49,7 @@ class CameraObjectsView(QueuedRedrawMixin):
 
         self._session.tools.sigItemsChanged.connect(lambda *args: self._queueRedraw('afterToolsChanged'))
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     @property
     def plotter(self):
@@ -349,7 +349,7 @@ class CameraPanel(MainViewPanelWithDockWidgets):
         self._wdgt.addDock(dock, position='right')
         self._mainCameraDock = dock
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
 

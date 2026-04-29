@@ -19,7 +19,7 @@ import typing as tp
 from . import MainViewPanel
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView, MRI3DView
 from NaviNIBS.Navigator.Model.Session import Session
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QMouseWheelAdjustmentGuard import preventAnnoyingScrollBehaviour
@@ -144,7 +144,7 @@ class MRIPanel(MainViewPanel):
         for key, view in self._views.items():
             view.session = self.session
 
-        asyncio.create_task(asyncTryAndLogExceptionOnError(self._finishInitialization_async))
+        asyncCreateTask(self._finishInitialization_async)
 
     async def _finishInitialization_async(self):
         for view in self._views.values():
