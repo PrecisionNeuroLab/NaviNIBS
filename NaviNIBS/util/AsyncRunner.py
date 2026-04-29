@@ -1,6 +1,7 @@
 import asyncio
 import atexit
 import logging
+from pprint import pformat
 import typing as tp
 
 from . import exceptionToStr
@@ -10,8 +11,7 @@ logger = logging.getLogger(__name__)
 
 def asyncioRunAndHandleExceptions(fn: tp.Callable[..., tp.Awaitable], *args, **kwargs):
     def handleExceptionInAsyncTask(loop: asyncio.AbstractEventLoop, context: dict):
-        from pprint import pprint
-        logger.error('Unhandled exception in async task, will stop loop. Exception context:\n%s' % (pprint(context),))
+        logger.error('Unhandled exception in async task, will stop loop. Exception context:\n%s' % pformat(context))
         loop.stop()
 
     if False:
