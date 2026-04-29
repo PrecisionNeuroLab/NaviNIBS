@@ -216,6 +216,9 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
         elif which == 'interpolateValues':
 
+            if self._mesh is None:
+                self._redraw(which='initSurf')
+
             if self._scalarsOpacityKey is None:
                 self._interpolateValuesOntoMesh()
                 # just call update rather than completely re-adding the mesh to plotter
