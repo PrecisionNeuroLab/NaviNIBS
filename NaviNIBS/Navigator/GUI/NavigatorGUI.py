@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 
 import attrs
 import contextlib
@@ -164,6 +165,7 @@ class NavigatorGUI(RunnableAsApp):
 
         sz = self._win.size()
         layout.winSize = (sz.width(), sz.height())
+        layout.winGeometry = base64.b64encode(bytes(self._win.saveGeometry())).decode('ascii')
         layout.state = self._rootDockArea.saveState()
 
     def saveLayout(self):
@@ -180,7 +182,9 @@ class NavigatorGUI(RunnableAsApp):
         await asyncio.sleep(0.01)
         layout = self.session.dockWidgetLayouts.get('NavigatorGUI', None)
 
-        if layout is not None and layout.winSize is not None:
+        if layout is not None and layout.winGeometry is not None:
+            self._win.restoreGeometry(QtCore.QByteArray(base64.b64decode(layout.winGeometry)))
+        elif layout is not None and layout.winSize is not None:
             self._win.resize(QtCore.QSize(*layout.winSize))
 
         if layout is not None and layout.state is not None:

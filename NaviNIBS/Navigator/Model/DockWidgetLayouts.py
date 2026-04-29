@@ -21,6 +21,11 @@ class DockWidgetLayout(GenericCollectionDictItem[str]):
     """
     Mainly used for root window size, using for other windows may conflict with saved dock states.
     """
+    _winGeometry: str | None = None
+    """
+    Base64-encoded bytes from QMainWindow.saveGeometry(). Encodes position, size, and window state.
+    When present, takes precedence over _winSize.
+    """
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -52,6 +57,18 @@ class DockWidgetLayout(GenericCollectionDictItem[str]):
         self.sigItemAboutToChange.emit(self.key, ['winSize'])
         self._winSize = winSize
         self.sigItemChanged.emit(self.key, ['winSize'])
+
+    @property
+    def winGeometry(self):
+        return self._winGeometry
+
+    @winGeometry.setter
+    def winGeometry(self, winGeometry: str | None):
+        if self._winGeometry == winGeometry:
+            return
+        self.sigItemAboutToChange.emit(self.key, ['winGeometry'])
+        self._winGeometry = winGeometry
+        self.sigItemChanged.emit(self.key, ['winGeometry'])
 
 
 @attrs.define
