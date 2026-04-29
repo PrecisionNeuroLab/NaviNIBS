@@ -56,9 +56,10 @@ async def asyncTryAndLogExceptionOnError(fn: tp.Callable[..., tp.Awaitable], *ar
 def asyncCreateTask(
         fn: tp.Callable[..., tp.Awaitable],
         *args,
-        name: str | None = None,
+        asyncTaskName: str | None = None,
+        raiseException: bool = False,
         **kwargs) -> asyncio.Task:
-    asyncTaskName = name if name is not None else fn.__qualname__
+    name = asyncTaskName if asyncTaskName is not None else fn.__qualname__
     creationTraceback = traceback.extract_stack()[:-1]
 
     async def _wrapper():
@@ -66,12 +67,13 @@ def asyncCreateTask(
             return await fn(*args, **kwargs)
         except Exception as e:
             logger.error('Exception in task %r\nCreated at:\n%s%s',
-                         asyncTaskName,
+                         name,
                          ''.join(traceback.format_list(creationTraceback)),
                          exceptionToStr(e))
-            raise
+            if raiseException:
+                raise
 
-    return asyncio.create_task(_wrapper(), name=asyncTaskName)
+    return asyncio.create_task(_wrapper(), name=name)
 
 
 def asyncAtomicCancellable(fn: tp.Callable[..., tp.Awaitable], *args, **kwargs):
