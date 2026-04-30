@@ -1,10 +1,17 @@
+import logging
 import typing as tp
 import attr
 import contextlib
 
+from NaviNIBS.util import exceptionToStr
+
+
 ET = tp.TypeVarTuple('ET')
 # Connection = tp.Callable[..., None]
 Connection = tp.Callable[[*ET], None]
+
+
+logger = logging.getLogger(__name__)
 
 
 @attr.s(auto_attribs=True, eq=False)
@@ -63,7 +70,11 @@ class Signal(tp.Generic[*ET]):
             connectionSet = self._connections[priority].copy()
             for fn in connectionSet:
                 if fn in self._connections[priority]:
-                    fn(*args, **kwargs)
+                    try:
+                        fn(*args, **kwargs)
+                    except Exception as e:
+                        logger.error(f'Exception in connected slot: {exceptionToStr(e)}')
+                        raise e
 
     @contextlib.contextmanager
     def blocked(self):

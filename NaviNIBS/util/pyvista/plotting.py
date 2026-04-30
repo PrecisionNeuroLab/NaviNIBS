@@ -10,7 +10,7 @@ from qtpy import QtGui, QtCore, QtWidgets
 import typing as tp
 from typing import ClassVar
 
-from NaviNIBS.util.Asyncio import asyncTryAndLogExceptionOnError
+from NaviNIBS.util.Asyncio import asyncCreateTask
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
 from NaviNIBS.util.pyvista import setActorUserTransform
@@ -30,7 +30,7 @@ class _DelayedPlotter:
     _doNotDelayStackCount_: int
     minRenderPeriod: float
 
-    def __init__(self, minRenderPeriod: float = 0.03):
+    def __init__(self, minRenderPeriod: float = 0.05):
         logger.debug(f'Initializing {self.__class__.__name__}')
         self._needsRender = asyncio.Event()
         self._renderingNotPaused = asyncio.Event()
@@ -41,7 +41,7 @@ class _DelayedPlotter:
 
         self.minRenderPeriod = minRenderPeriod
 
-        self._renderTask = asyncio.create_task(asyncTryAndLogExceptionOnError(self._renderLoop))
+        self._renderTask = asyncCreateTask(self._renderLoop)
 
     @property
     def _pauseStackCount(self):
@@ -146,6 +146,9 @@ class PlotterImprovementsMixin:
                 clims = [0, 1]
             for mapper in self._scalar_bars._scalar_bar_mappers[scalarBarKey]:
                 mapper.scalar_range = clims
+
+    def setScalarBarVisibility(self, title: str, visible: bool):
+        actor = self.scalar_bars._scalar_bar_actors[title].SetVisibility(visible)
 
     def addLineSegments(self, lines: pv.PolyData,
         color = 'w',
