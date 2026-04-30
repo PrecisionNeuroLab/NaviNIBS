@@ -573,6 +573,15 @@ class RemotePlotterProxyBase:
     def update_scalar_bar_range(self, *args, **kwargs):
         return self._remotePlotterCall('update_scalar_bar_range', *args, **kwargs)
 
+    def add_scalar_bar(self, *args, **kwargs):
+        return self._remotePlotterCall('add_scalar_bar', *args, **kwargs)
+
+    def remove_scalar_bar(self, *args, **kwargs):
+        return self._remotePlotterCall('remove_scalar_bar', *args, **kwargs)
+
+    def setScalarBarVisibility(self, *args, **kwargs):
+        return self._remotePlotterCall('setScalarBarVisibility', *args, **kwargs)
+
     def updateScalarBarRangeWithVol(self, *args, **kwargs):
         return self._remotePlotterCall('updateScalarBarRangeWithVol', *args, **kwargs)
 

@@ -214,7 +214,7 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
         if which is None or self._surfKey in which:
             self._queueRedraw(which='initSurf')
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+    def _redraw(self, which: list[str] | str | None = None):
         super()._redraw(which=which)
 
         if not isinstance(which, str):
@@ -227,23 +227,7 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
             return
 
         if which == 'initSurf':
-            mesh = getattr(self._coordinator.session.headModel, self._surfKey)
-
-            actorKey = self._getActorKey('surf')
-
-            self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
-                                                            color=self._color,
-                                                            opacity=self._opacity,
-                                                            specular=0.5,
-                                                            diffuse=0.5,
-                                                            ambient=0.5,
-                                                            smooth_shading=True,
-                                                            split_sharp_edges=True,
-                                                            name=actorKey)
-
-            self._plotter.reset_camera_clipping_range()
-
-            self._redraw('updatePosition')
+            self._redraw_initSurf()
 
         elif which == 'updatePosition':
             match self._plotInSpace:
@@ -294,3 +278,23 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
 
         else:
             raise NotImplementedError
+
+
+    def _redraw_initSurf(self):
+        mesh = getattr(self._coordinator.session.headModel, self._surfKey)
+
+        actorKey = self._getActorKey('surf')
+
+        self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
+                                                        color=self._color,
+                                                        opacity=self._opacity,
+                                                        specular=0.5,
+                                                        diffuse=0.5,
+                                                        ambient=0.5,
+                                                        smooth_shading=True,
+                                                        split_sharp_edges=True,
+                                                        name=actorKey)
+
+        self._plotter.reset_camera_clipping_range()
+
+        self._redraw('updatePosition')

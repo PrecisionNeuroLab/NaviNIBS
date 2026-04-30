@@ -10,6 +10,7 @@ import typing as tp
 from typing import ClassVar
 import pyvista as pv
 
+from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers import PlotViewLayer
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLayers import SampleOrientationsLayer, VisualizedOrientation
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
 from NaviNIBS.util.Asyncio import asyncCreateTask
@@ -111,6 +112,7 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     _needsReinterpolation: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     _cachedSampleIntersections: dict[str, np.ndarray] = attrs.field(init=False, factory=dict)
+    __colorbarLabel: str | None = None
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -139,82 +141,17 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                 await asyncio.sleep(10.)
                 self._needsReinterpolation.set()
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
-        logger.debug(f'redraw {which}')
-        if which == 'initSurf':
-            assert self._mesh is None
+    def _redraw(self, which: list[str] | str | None = None):
 
-            # override parent method to use sample metadata to interpolate surface
-            self._mesh = pv.PolyData(getattr(self._coordinator.session.headModel, self._surfKey),
-                                     deep=True)
+        if not isinstance(which, str):
+            super()._redraw(which=which)
 
-            if True:  # TODO: troubleshoot to be able to set initValue to nan instead of zero
-                # this seems to cause issues with colorbar scaling
-                initValue = np.nan
-            else:
-                initValue = 0.
-            initValues = np.full((self._mesh.n_points,), initValue)
-            initValues[0] = -40  # TODO: debug, delete
-            self._mesh[self._scalarsKey] = initValues
-
-            actorKey = self._getActorKey('surf')
-
-            if self._colorbarLabel is None:
-                colorbarLabel = self._metadataKey
-            else:
-                colorbarLabel = self._colorbarLabel
-            scalar_bar_args = dict(
-                title=colorbarLabel,
-                bold=True,
-                title_font_size=12,
-                label_font_size=10,
-                vertical=True,
-            )
-
-            self._interpolateValuesOntoMesh()
-
-            if self._scalarsOpacityKey is not None:
-                opacity = self._scalarsOpacityKey
-            else:
-                opacity = self._opacity
-
-            if isinstance(self._plotter, RemotePlotterProxyBase):
-                # wrap mesh as a RemotePolyDataProxy so that future updates
-                # to mesh scalars are reflected in remote plotter
-                self._mesh = self._plotter.registerPolyData(
-                    polyData=self._mesh,
-                    id=self._key + '_mesh',  # specify ID so that previous mesh gets overwritten on re-adding
-                )
-
-            self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
-                                                            color=self._color,
-                                                            nan_color=self._color,
-                                                            nan_opacity=self._meshOpacityOutsideInterpolatedRegion,
-                                                            scalars=self._scalarsKey,
-                                                            scalar_bar_args=scalar_bar_args,
-                                                            annotations=self._scalarAnnotations,
-                                                            opacity=opacity,
-                                                            specular=0.5,
-                                                            diffuse=0.5,
-                                                            ambient=0.5,
-                                                            #smooth_shading=True,  # disabled since this breaks scalar value updates later
-                                                            #split_sharp_edges=True,
-                                                            name=actorKey)
-
-            #self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
-
-            self._plotter.reset_camera_clipping_range()
-
-            if False:
-                # if not immmediately interpolating values above, need to do afterwards
-                self._redraw(['updatePosition', 'interpolateValues'])
-            else:
-                self._redraw(['updatePosition'])
-
-        elif which == 'queueInterpolateValues':
+        if which == 'queueInterpolateValues':
+            PlotViewLayer._redraw(self, which=which)
             self._needsReinterpolation.set()
 
         elif which == 'interpolateValues':
+            PlotViewLayer._redraw(self, which=which)
 
             if self._mesh is None:
                 self._redraw(which='initSurf')
@@ -279,6 +216,93 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
         else:
             super()._redraw(which=which)
+
+    def _redraw_initSurf(self):
+        if self._mesh is not None:
+            logger.info(f'Reinitializing mesh for {self.__class__.__name__}')
+
+        # override parent method to use sample metadata to interpolate surface
+        self._mesh = pv.PolyData(getattr(self._coordinator.session.headModel, self._surfKey),
+                                 deep=True)
+
+        if True:  # TODO: troubleshoot to be able to set initValue to nan instead of zero
+            # this seems to cause issues with colorbar scaling
+            initValue = np.nan
+        else:
+            initValue = 0.
+        initValues = np.full((self._mesh.n_points,), initValue)
+        initValues[0] = -40  # TODO: debug, delete
+        self._mesh[self._scalarsKey] = initValues
+
+        actorKey = self._getActorKey('surf')
+
+        if self._colorbarLabel is None:
+            colorbarLabel = self._metadataKey
+        else:
+            colorbarLabel = self._colorbarLabel
+        scalar_bar_args = dict(
+            title=colorbarLabel,
+            bold=True,
+            title_font_size=12,
+            label_font_size=10,
+            vertical=True,
+        )
+
+        self._interpolateValuesOntoMesh()
+
+        if self._scalarsOpacityKey is not None:
+            opacity = self._scalarsOpacityKey
+        else:
+            opacity = self._opacity
+
+        if isinstance(self._plotter, RemotePlotterProxyBase):
+            # wrap mesh as a RemotePolyDataProxy so that future updates
+            # to mesh scalars are reflected in remote plotter
+            self._mesh = self._plotter.registerPolyData(
+                polyData=self._mesh,
+                id=self._key + '_mesh',  # specify ID so that previous mesh gets overwritten on re-adding
+            )
+
+        self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
+                                                       color=self._color,
+                                                       nan_color=self._color,
+                                                       nan_opacity=self._meshOpacityOutsideInterpolatedRegion,
+                                                       scalars=self._scalarsKey,
+                                                       scalar_bar_args=scalar_bar_args,
+                                                       annotations=self._scalarAnnotations,
+                                                       opacity=opacity,
+                                                       specular=0.5,
+                                                       diffuse=0.5,
+                                                       ambient=0.5,
+                                                       # smooth_shading=True,  # disabled since this breaks scalar value updates later
+                                                       # split_sharp_edges=True,
+                                                       name=actorKey)
+
+        self.__colorbarLabel = colorbarLabel  # save as an effective actor key for the scalar bar
+
+        # self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
+
+        self._plotter.reset_camera_clipping_range()
+
+        if False:
+            # if not immmediately interpolating values above, need to do afterwards
+            self._redraw(['updatePosition', 'interpolateValues'])
+        else:
+            self._redraw(['updatePosition'])
+
+    def _hideActors(self):
+        if self.__colorbarLabel is not None:
+            self._plotter.setScalarBarVisibility(self.__colorbarLabel, visible=False)
+
+        super()._hideActors()
+
+    def _showActors(self):
+        self._queueRedraw('interpolateValues')
+
+        if self.__colorbarLabel is not None:
+            self._plotter.setScalarBarVisibility(self.__colorbarLabel, visible=True)
+
+        super()._showActors()
 
     def _interpolateValuesOntoMesh(self):
         self._needsReinterpolation.clear()
@@ -424,4 +448,4 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                     self._cachedSampleIntersections.pop(key)
                 except KeyError:
                     pass
-        self._redraw(which='queueInterpolateValues')
+        self._queueRedraw(which='queueInterpolateValues')

@@ -166,7 +166,8 @@ class OrientationsLayer(PlotViewLayer):
                 for actorKey in self._visualizedOrientations[key].actorKeys:
                     self._actors[actorKey] = actorKey
             else:
-                logger.debug(f'Skipping drawing of {key} since it should not be visible')
+                pass
+                # logger.debug(f'Skipping drawing of {key} since it should not be visible')
 
     def _orientationIsVisible(self, key: str) -> bool:
         """

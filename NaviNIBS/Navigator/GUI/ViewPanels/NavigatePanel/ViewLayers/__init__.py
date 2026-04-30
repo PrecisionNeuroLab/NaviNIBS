@@ -147,7 +147,7 @@ class PlotViewLayer(ViewLayer, QueuedRedrawMixin):
         self.resumeRedrawing()
         self._showActors()
 
-    def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
+    def _redraw(self, which: list[str] | str | None = None):
         QueuedRedrawMixin._redraw(self, which=which)
 
         if not self._isEnabled:
