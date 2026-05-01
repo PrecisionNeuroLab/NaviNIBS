@@ -76,7 +76,7 @@ class VisualizedROIsMesh(QueuedRedrawMixin):
             scalars=self.scalarsKey,
             rgba=True,
             name=f'ROIs_{self._meshKey}',
-            pickable=False,
+            pickable=True,
             render=False,
             reset_camera=False
         )
