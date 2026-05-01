@@ -61,6 +61,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _enabledOnlyWhenROISelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
 
     _redrawROIKeys: set[str] = attrs.field(init=False, factory=set)
+    _suppressCameraOnSelect: bool = attrs.field(init=False, default=False)
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
@@ -187,6 +188,12 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             if isinstance(view.plotter, RemotePlotterProxy):
                 await view.plotter.isReadyEvent.wait()
 
+        self._surfView.plotter.enable_point_picking(
+            show_message=False,
+            show_point=False,
+            pickable_window=False,
+            callback=self._onROIPickedFromView,
+        )
         self._onROIsChanged()
 
         self.finishedAsyncInit.set()
@@ -206,7 +213,8 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             view.session = self.session
 
     def _onSelectionChanged(self, keys: list[str]):
-        self._queueRedraw(which='cameraPos')
+        if not self._suppressCameraOnSelect:
+            self._queueRedraw(which='cameraPos')
         for widget in self._enabledOnlyWhenROISelected:
             # logger.debug(f"{'Disabling' if len(keys)==0 else 'Enabling'} {widget}")
             widget.setEnabled(len(keys)>0)
@@ -359,6 +367,47 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
     def _getCurrentROIKey(self) -> str | None:
         return self._tableWdgt.currentCollectionItemKey
+
+    def _findROIAtPoint(self, pickedPt: np.ndarray) -> str | None:
+        bestROIKey = None
+        bestDist = np.inf
+
+        for meshKey, vizMesh in self._visualizedROIsMeshes.items():
+            srcMesh = getattr(self.session.headModel, meshKey)
+            if srcMesh is None:
+                continue
+            meshPv = srcMesh if isinstance(srcMesh, pv.PolyData) else pv.PolyData(srcMesh)
+            closestIdx = meshPv.find_closest_point(pickedPt)
+
+            for vROI in vizMesh._registeredROIs:
+                if not vROI.isVisible:
+                    continue
+                roi = vROI.effectiveROI
+                if roi is None or roi.meshVertexIndices is None:
+                    continue
+                if closestIdx not in roi.meshVertexIndices:
+                    continue
+                if roi.seedCoord is not None:
+                    repPt = np.asarray(roi.seedCoord)
+                else:
+                    repPt = meshPv.points[roi.meshVertexIndices].mean(axis=0)
+                dist = np.linalg.norm(pickedPt - repPt)
+                if dist < bestDist:
+                    bestDist = dist
+                    bestROIKey = vROI._roi.key
+
+        return bestROIKey
+
+    def _onROIPickedFromView(self, pickedPt):
+        if pickedPt is None:
+            return
+        bestROIKey = self._findROIAtPoint(np.asarray(pickedPt))
+        if bestROIKey is not None:
+            self._suppressCameraOnSelect = True
+            try:
+                self._tableWdgt.currentCollectionItemKey = bestROIKey
+            finally:
+                self._suppressCameraOnSelect = False
 
     def _onCurrentROIChanged(self, roiKey: str | None):
         logger.debug(f'Current ROI changed to {roiKey}')
