@@ -484,13 +484,29 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         if True and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
-                          key='Brain with Vpp',
+                          key='Brain with Vpp (dBmV)',
                           surfKey='gmSurf',
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
                           scalarAnnotations={
-                              20*np.log10(50e-3): '50 uV',
+                              20*np.log10(50e-3): '50 μV',
                               20*np.log10(1): '1 mV',
+                          },
+                          relevantSampleDepth='intersection',
+                          kernelRadius=8,
+                          layeredPlotterKey='Brain',
+                          plotterLayer=plotLayer,
+                          isEnabled=False)
+            
+            self.addLayer(type='SampleMetadataInterpolatedSurface',
+                          key='Brain with Vpp (dBμV)',
+                          surfKey='gmSurf',
+                          metadataKey='Vpp_dBuV',
+                          colorbarLabel='Vpp (dBμV)',
+                          scalarAnnotations={
+                              20*np.log10(10): '10 μV',
+                              20*np.log10(50): '50 μV',
+                              20*np.log10(1e3): '1 mV',
                           },
                           relevantSampleDepth='intersection',
                           kernelRadius=8,
@@ -506,15 +522,32 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
 
         if True and self._alignCameraTo == 'target':
             self.addLayer(type='SampleMetadataInterpolatedSurface',
-                          key='CSF Vpp',
+                          key='CSF Vpp (dBmV)',
                           surfKey='csfSurf',
                           opacity=0.5,
                           meshOpacityOutsideInterpolatedRegion=0.,
                           metadataKey='Vpp_dBmV',
                           colorbarLabel='Vpp (dBmV)',
                           scalarAnnotations={
-                              20 * np.log10(50e-3): '50 uV',
+                              20 * np.log10(50e-3): '50 μV',
                               20 * np.log10(1): '1 mV',
+                          },
+                          relevantSampleDepth='intersection',
+                          layeredPlotterKey='CSFVpps',
+                          plotterLayer=plotLayer,
+                          isEnabled=False)
+
+            self.addLayer(type='SampleMetadataInterpolatedSurface',
+                          key='CSF Vpp (dBμV)',
+                          surfKey='csfSurf',
+                          opacity=0.5,
+                          meshOpacityOutsideInterpolatedRegion=0.,
+                          metadataKey='Vpp_dBuV',
+                          colorbarLabel='Vpp (dBμV)',
+                          scalarAnnotations={
+                              20 * np.log10(10): '10 μV',
+                              20 * np.log10(50): '50 μV',
+                              20 * np.log10(1e3): '1 mV',
                           },
                           relevantSampleDepth='intersection',
                           layeredPlotterKey='CSFVpps',
