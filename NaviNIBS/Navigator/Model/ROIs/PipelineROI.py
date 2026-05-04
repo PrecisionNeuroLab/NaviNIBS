@@ -6,11 +6,11 @@ from typing import ClassVar
 
 import attrs
 
+from NaviNIBS.Navigator.Model.ROIs import SurfaceMeshROI
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import ROIStage
+
 from NaviNIBS.Navigator.Model.GenericCollection import GenericList
 from NaviNIBS.Navigator.Model.ROIs import ROI
-from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import ROIStage, PassthroughStage, SelectSurfaceMesh, SurfaceMeshROI
-from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint, AddFromSeedLine
-from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
 if tp.TYPE_CHECKING:
     from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.util.attrs import attrsAsDict
@@ -39,6 +39,9 @@ class PipelineROI(ROI):
             super().__attrs_post_init__()
             self.sigItemsChanged.connect(self._setSessionOnItemsChanged)
 
+            from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import PassthroughStage, SelectSurfaceMesh
+            from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint, AddFromSeedLine
+            from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
             for cls in (
                     PassthroughStage,
                     SelectSurfaceMesh,
