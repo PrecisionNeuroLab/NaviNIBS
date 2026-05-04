@@ -7,7 +7,6 @@ from typing import ClassVar
 import attrs
 import numpy as np
 
-from NaviNIBS.Navigator.Model.GenericCollection import listItemAttrSetter
 from NaviNIBS.Navigator.Model.ROIs import ROI, SurfaceMeshROI
 from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import ROIStage
@@ -26,6 +25,8 @@ class Combine(ROIStage, ABC):
     If no entries are None, the inputROI to this stage will be ignored.
     """
 
+    _connectedROIs: list[ROI] = attrs.field(init=False, factory=list, repr=False)
+
     _minNumROIs: ClassVar[int | None] = None
     _maxNumROIs: ClassVar[int | None] = None
 
@@ -37,12 +38,54 @@ class Combine(ROIStage, ABC):
         return list(self._roiKeys)
 
     @roiKeys.setter
-    @listItemAttrSetter()
     def roiKeys(self, newRoiKeys: list[str | None]):
+        if self._roiKeys == newRoiKeys:
+            return
         if self._minNumROIs is not None and len(newRoiKeys) < self._minNumROIs:
             raise ValueError(f'{self.type} requires at least {self._minNumROIs} ROI keys, got {len(newRoiKeys)}')
         if self._maxNumROIs is not None and len(newRoiKeys) > self._maxNumROIs:
             raise ValueError(f'{self.type} allows at most {self._maxNumROIs} ROI keys, got {len(newRoiKeys)}')
+        self._disconnectFromROIs()
+        self.sigItemAboutToChange.emit(self, ['roiKeys'])
+        self._roiKeys = newRoiKeys
+        self.sigItemChanged.emit(self, ['roiKeys'])
+        self._connectToROIs()
+
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, newSession):
+        if self._session is newSession:
+            return
+        self._disconnectFromROIs()
+        self.sigItemAboutToChange.emit(self, ['session'])
+        self._session = newSession
+        self.sigItemChanged.emit(self, ['session'])
+        self._connectToROIs()
+
+    def _connectToROIs(self):
+        if self._session is None:
+            return
+        for key in self._roiKeys:
+            if key is not None and key in self._session.ROIs:
+                roi = self._session.ROIs[key]
+                roi.sigItemChanged.connect(self._onReferencedROIChanged)
+                self._connectedROIs.append(roi)
+
+    def _disconnectFromROIs(self):
+        for roi in self._connectedROIs:
+            try:
+                roi.sigItemChanged.disconnect(self._onReferencedROIChanged)
+            except Exception:
+                pass
+        self._connectedROIs.clear()
+
+    def _onReferencedROIChanged(self, key: str, changedAttrs: list[str] | None = None):
+        if changedAttrs is not None and set(changedAttrs).issubset({'session', 'isVisible', 'color', 'autoColor'}):
+            return
+        self.sigItemChanged.emit(self, ['referencedROIUpdate'])
 
     def _resolveROIs(self, inputROI: ROI | None) -> list[SurfaceMeshROI]:
         if self._session is None:
