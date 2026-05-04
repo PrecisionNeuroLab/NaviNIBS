@@ -22,6 +22,7 @@ from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 import NaviNIBS.Navigator.Model.ROIs.PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Intersect, Union, Difference
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
 from NaviNIBS.util import exceptionToStr
@@ -143,6 +144,12 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
                     StageWidgetCls = StageWidgets.AddFromSeedPointStageWidget
                 case AddFromTarget.type:
                     StageWidgetCls = StageWidgets.AddFromTargetStageWidget
+                case Intersect.type:
+                    StageWidgetCls = StageWidgets.CombineStageWidget
+                case Union.type:
+                    StageWidgetCls = StageWidgets.CombineStageWidget
+                case Difference.type:
+                    StageWidgetCls = StageWidgets.CombineStageWidget
                 case _:
                     StageWidgetCls = StageWidgets.JsonReprStageWidget
 

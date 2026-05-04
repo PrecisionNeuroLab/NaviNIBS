@@ -20,6 +20,7 @@ from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Combine
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import FullTargetsTableModel
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
@@ -600,4 +601,136 @@ class AddFromTargetStageWidget(ROIStageWidget):
         logger.debug(f'Deleting AddFromTargetStageWidget for stage {self._stage}')
         self._targetsModel.collection.sigItemsAboutToChange.disconnect(self._onTargetsCollectionAboutToChange)
         self._targetsModel.collection.sigItemsChanged.disconnect(self._onTargetsCollectionChanged)
+        super().deleteLater()
+
+
+@attrs.define(init=False, slots=False, kw_only=True)
+class CombineStageWidget(ROIStageWidget):
+    _stage: Combine
+
+    _roiKeyContainerLayout: QtWidgets.QVBoxLayout = attrs.field(init=False)
+    _addROIKeyBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _roiKeyWidgets: list[tuple[QtWidgets.QComboBox, QtWidgets.QWidget]] = attrs.field(
+        init=False, factory=list)  # (combo, rowContainer)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        roiKeyContainer = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        roiKeyContainer.setLayout(layout)
+        self._roiKeyContainerLayout = layout
+        self._formLayout.addRow('ROIs:', roiKeyContainer)
+
+        self._addROIKeyBtn = QtWidgets.QPushButton(getIcon('mdi6.plus'), 'Add ROI')
+        self._addROIKeyBtn.clicked.connect(self._onAddROIKeyClicked)
+        layout.addWidget(self._addROIKeyBtn)
+
+        self._session.ROIs.sigItemsAboutToChange.connect(
+            self._onROIsAboutToChange, priority=1)
+        self._session.ROIs.sigItemsChanged.connect(
+            self._onROIsChanged, priority=-1)
+
+        self._rebuildROIKeyWidgets()
+
+    def _getAvailableROIKeys(self) -> list[str]:
+        return [key for key in self._session.ROIs.keys() if key != self._roi.key]
+
+    def _populateCombo(self, combo: QtWidgets.QComboBox, currentValue: str | None):
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem('(pipeline input)')  # index 0 → None
+        for key in self._getAvailableROIKeys():
+            combo.addItem(key)
+        if currentValue is None:
+            combo.setCurrentIndex(0)
+        else:
+            idx = combo.findText(currentValue)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+        combo.blockSignals(False)
+
+    def _rebuildROIKeyWidgets(self):
+        for _combo, rowContainer in self._roiKeyWidgets:
+            rowContainer.setParent(None)
+            rowContainer.deleteLater()
+        self._roiKeyWidgets.clear()
+
+        for key in self._stage.roiKeys:
+            self._appendROIKeyWidget(key)
+
+        self._updateAddBtnState()
+
+    def _appendROIKeyWidget(self, key: str | None):
+        rowContainer = QtWidgets.QWidget()
+        rowLayout = QtWidgets.QHBoxLayout()
+        rowLayout.setContentsMargins(0, 0, 0, 0)
+        rowContainer.setLayout(rowLayout)
+
+        combo = QtWidgets.QComboBox()
+        preventAnnoyingScrollBehaviour(combo)
+        self._populateCombo(combo, key)
+        combo.currentIndexChanged.connect(
+            lambda _idx, c=combo: self._onROIKeyComboChanged(c))
+        rowLayout.addWidget(combo, 1)
+
+        removeBtn = QtWidgets.QPushButton(getIcon('mdi6.delete'), '')
+        removeBtn.setFixedSize(24, 24)
+        removeBtn.clicked.connect(
+            lambda _, rc=rowContainer: self._onRemoveROIKeyClicked(rc))
+        rowLayout.addWidget(removeBtn)
+
+        insertPos = self._roiKeyContainerLayout.count() - 1
+        self._roiKeyContainerLayout.insertWidget(insertPos, rowContainer)
+        self._roiKeyWidgets.append((combo, rowContainer))
+
+    def _updateAddBtnState(self):
+        maxNum = self._stage._maxNumROIs
+        self._addROIKeyBtn.setEnabled(maxNum is None or len(self._stage.roiKeys) < maxNum)
+
+    def _onAddROIKeyClicked(self, _):
+        self._stage.roiKeys = list(self._stage.roiKeys) + [None]
+
+    def _onRemoveROIKeyClicked(self, rowContainer: QtWidgets.QWidget):
+        row_index = next(
+            i for i, (_c, rc) in enumerate(self._roiKeyWidgets) if rc is rowContainer)
+        new_keys = list(self._stage.roiKeys)
+        del new_keys[row_index]
+        self._stage.roiKeys = new_keys
+
+    def _onROIKeyComboChanged(self, combo: QtWidgets.QComboBox):
+        row_index = next(
+            i for i, (c, _rc) in enumerate(self._roiKeyWidgets) if c is combo)
+        new_key = None if combo.currentIndex() == 0 else combo.currentText()
+        current_keys = list(self._stage.roiKeys)
+        if row_index >= len(current_keys) or current_keys[row_index] == new_key:
+            return
+        current_keys[row_index] = new_key
+        self._stage.sigItemChanged.disconnect(self._onStageChanged)
+        try:
+            self._stage.roiKeys = current_keys
+        finally:
+            self._stage.sigItemChanged.connect(self._onStageChanged)
+
+    def _onStageChanged(self, stage, changedAttrs=None):
+        super()._onStageChanged(stage, changedAttrs)
+        if changedAttrs is None or 'roiKeys' in changedAttrs:
+            self._rebuildROIKeyWidgets()
+
+    def _onROIsAboutToChange(self, *args, **kwargs):
+        self._savedComboValues = [
+            None if c.currentIndex() == 0 else c.currentText()
+            for c, _rc in self._roiKeyWidgets
+        ]
+
+    def _onROIsChanged(self, *args, **kwargs):
+        saved = getattr(self, '_savedComboValues', [])
+        for i, (combo, _rc) in enumerate(self._roiKeyWidgets):
+            self._populateCombo(combo, saved[i] if i < len(saved) else None)
+        self._updateAddBtnState()
+
+    def deleteLater(self, /):
+        logger.debug(f'Deleting CombineStageWidget for stage {self._stage}')
+        self._session.ROIs.sigItemsAboutToChange.disconnect(self._onROIsAboutToChange)
+        self._session.ROIs.sigItemsChanged.disconnect(self._onROIsChanged)
         super().deleteLater()
