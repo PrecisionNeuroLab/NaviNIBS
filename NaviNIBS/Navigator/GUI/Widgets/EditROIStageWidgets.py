@@ -21,6 +21,7 @@ from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Combine
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Project import ProjectBetweenSurfaces
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import FullTargetsTableModel
 from NaviNIBS.Navigator.Model.Session import Session
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
@@ -204,6 +205,59 @@ class SelectSurfaceMeshStageWidget(ROIStageWidget):
 
         logger.info(f'Updating SelectSurfaceMesh stage meshKey to {newMeshKey}')
         self._stage.meshKey = newMeshKey
+
+
+@attrs.define(init=False, slots=False, kw_only=True)
+class ProjectBetweenSurfacesStageWidget(ROIStageWidget):
+    _stage: ProjectBetweenSurfaces
+
+    _toSurfaceComboBox: QtWidgets.QComboBox = attrs.field(init=False)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._toSurfaceComboBox = QtWidgets.QComboBox()
+        self._toSurfaceComboBox.addItem('')  # allow no selection
+        for surfKey in self._session.headModel.surfKeys:
+            self._toSurfaceComboBox.addItem(surfKey)
+
+        if self._stage.toSurfaceKey is not None:
+            if self._stage.toSurfaceKey not in self._session.headModel.surfKeys:
+                logger.error(f'ProjectBetweenSurfaces stage has invalid toSurfaceKey {self._stage.toSurfaceKey}, resetting to None')
+                self._stage.toSurfaceKey = None
+            else:
+                self._toSurfaceComboBox.setCurrentText(self._stage.toSurfaceKey)
+
+        if self._stage.toSurfaceKey is None:
+            self._toSurfaceComboBox.setCurrentText('')
+
+        self._toSurfaceComboBox.currentIndexChanged.connect(self._onToSurfaceComboBoxCurrentIndexChanged)
+        preventAnnoyingScrollBehaviour(self._toSurfaceComboBox)
+
+        self._formLayout.addRow('To surface:', self._toSurfaceComboBox)
+
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
+        super()._onStageChanged(stage, changedAttrs)
+        if changedAttrs is None or 'toSurfaceKey' in changedAttrs:
+            if self._stage.toSurfaceKey is None:
+                self._toSurfaceComboBox.setCurrentText('')
+            else:
+                self._toSurfaceComboBox.setCurrentText(self._stage.toSurfaceKey)
+
+    def _onToSurfaceComboBoxCurrentIndexChanged(self, index: int):
+        if index == -1:
+            newToSurfaceKey = None
+        else:
+            newToSurfaceKey = self._toSurfaceComboBox.currentText()
+
+        if newToSurfaceKey == '':
+            newToSurfaceKey = None
+
+        if self._stage.toSurfaceKey == newToSurfaceKey:
+            return
+
+        logger.info(f'Updating ProjectBetweenSurfaces stage toSurfaceKey to {newToSurfaceKey}')
+        self._stage.toSurfaceKey = newToSurfaceKey
 
 
 @attrs.define(init=False, slots=False, kw_only=True)

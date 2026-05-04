@@ -46,7 +46,7 @@ class ROIStage(GenericListItem, ABC):
         self._session = newSession
         self.sigItemChanged.emit(self, ['session'])
 
-    def _process(self, roiKey: str, inputROI: ROI | None) -> ROI:
+    def _process(self, roiKey: str, inputROI: ROI | None) -> ROI | None:
         raise NotImplementedError('_process must be implemented in subclasses')
 
     def process(self, roiKey: str, inputROI: ROI | None) -> ROI | None:
