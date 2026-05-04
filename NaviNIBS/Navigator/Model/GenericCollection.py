@@ -89,7 +89,11 @@ def collectionDictItemAttrSetter(
                 attrsToSignal.extend(extraAttrsToSignalOnChange)
             self.sigItemAboutToChange.emit(self.key, attrsToSignal)
             # allow any custom per-setter logic to run
-            result = func(self, value)
+            try:
+                result = func(self, value)
+            except Exception:
+                self.sigItemChanged.emit(self.key, attrsToSignal)
+                raise
             # actually set the backing attribute and trigger update
             setattr(self, privateName, value)
             self.sigItemChanged.emit(self.key, attrsToSignal)
@@ -116,7 +120,11 @@ def listItemAttrSetter(
             if extraAttrsToSignalOnChange is not None:
                 attrsToSignal.extend(extraAttrsToSignalOnChange)
             self.sigItemAboutToChange.emit(self, attrsToSignal)
-            result = func(self, value)
+            try:
+                result = func(self, value)
+            except Exception:
+                self.sigItemChanged.emit(self, attrsToSignal)
+                raise
             setattr(self, privateName, value)
             self.sigItemChanged.emit(self, attrsToSignal)
             return result
