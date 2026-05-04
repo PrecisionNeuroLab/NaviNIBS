@@ -88,7 +88,7 @@ class PipelineROI(ROI):
 
     type: ClassVar[str] = 'PipelineROI'
 
-    _cachedOutput: ROI | _EmptyCache = attrs.field(init=False, default=_emptyCache)
+    _cachedOutput: ROI | None | _EmptyCache = attrs.field(init=False, default=_emptyCache)
 
     _stages: PipelineStages = attrs.field(factory=PipelineStages)
 
@@ -135,25 +135,23 @@ class PipelineROI(ROI):
 
         if len(self._stages) == 0:
             logger.info(f'PipelineROI {self.key} has no stages')
-            ROI = SurfaceMeshROI(key=self.key)
+            roi: ROI | None = SurfaceMeshROI(key=self.key)
         else:
-            ROI = None
+            roi = None
             for iStage, stage in enumerate(self._stages):
                 logger.debug(f'Processing ROI stage {iStage}: {stage}')
-                ROI = stage.process(roiKey=f'{iStage}', inputROI=ROI)
+                roi = stage.process(roiKey=f'{iStage}', inputROI=roi)
                 if upThroughStage is not None and iStage == upThroughStage:
-                    return ROI
-
-        if ROI is not None:
-            # apply some fields from parent to child if not set
+                    return roi
+    
+        if roi is not None:
+            # override colors from children
             vars = ['color', 'autoColor']
             for var in vars:
-                if getattr(ROI, var) is None:
-                    setattr(ROI, var, getattr(self, var))
-        else:
-            pass
+                #if getattr(roi, var) is None:
+                setattr(roi, var, getattr(self, var))
 
-        self._cachedOutput = ROI
+        self._cachedOutput = roi
 
         self.sigItemChanged.emit(self.key, ['output'])
 
