@@ -416,7 +416,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
                                                                'Select ROIs file to import',
                                                                os.path.dirname(self.session.filepath),
-                                                               'json (*.json);; NaviNIBS (*.navinibs)')
+                                                               'json (*.json);;NaviNIBS (*.navinibs)')
 
         if len(newFilepath) == 0:
             logger.warning('Import cancelled')

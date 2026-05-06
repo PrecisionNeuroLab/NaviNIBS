@@ -57,7 +57,7 @@ class MRIPanel(MainViewPanel):
         self._wdgt.setLayout(QtWidgets.QVBoxLayout())
 
         wdgt = QFileSelectWidget(browseMode='getOpenFilename',
-                                 extFilters='Nifti (*.nii; *.nii.gz)')
+                                 extFilters='Nifti (*.nii *.nii.gz)')
         # TODO: set supported file formats to (.nii | .nii.gz) only
         self._wdgt.layout().addWidget(wdgt)
         self._filepathWdgt = wdgt

@@ -128,7 +128,7 @@ class ToolWidget:
             filepath=self._tool.trackerStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             showRelativePrefix=self._tool.filepathsRelToKey,
-            extFilters='STL (*.stl); PLY (*.ply)',
+            extFilters='STL (*.stl);;PLY (*.ply)',
             browseCaption='Choose 3D model for tracker visualization'
         )
         self._trackerStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onTrackerStlFilepathEdited())
@@ -139,7 +139,7 @@ class ToolWidget:
             filepath=self._tool.toolStlFilepath,
             showRelativeTo=self._tool.filepathsRelTo,
             showRelativePrefix=self._tool.filepathsRelToKey,
-            extFilters='STL (*.stl); PLY (*.ply)',
+            extFilters='STL (*.stl);;PLY (*.ply)',
             browseCaption='Choose 3D model for tool visualization'
         )
         self._toolStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onToolStlFilepathEdited())
@@ -672,7 +672,7 @@ class ToolsPanel(MainViewPanel):
         newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
                                                                'Select tools file to import',
                                                                os.path.dirname(self.session.filepath),
-                                                               'json (*.json);; NaviNIBS (*.navinibs)')
+                                                               'json (*.json);;NaviNIBS (*.navinibs)')
 
         if len(newFilepath) == 0:
             logger.warning('Import cancelled')
