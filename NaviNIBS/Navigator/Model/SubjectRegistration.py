@@ -20,6 +20,8 @@ from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.numpy import array_equalish, attrsWithNumpyAsDict, attrsWithNumpyFromDict, attrsOptionalNDArrayField
 
 from NaviNIBS.Navigator.Model.GenericCollection import GenericCollection, GenericCollectionDictItem
+if tp.TYPE_CHECKING:
+    from NaviNIBS.Navigator.Model.Session import Session
 
 
 logger = logging.getLogger(__name__)
@@ -229,6 +231,41 @@ class Fiducials(GenericCollection[str, Fiducial]):
             return
         assert self._registration is None, "Reassigning registration reference is not allowed"
         self._registration = newRegistration
+
+    def autosetPlannedFiducialsFromHeadModel(self, session: Session):
+        eegPositions = session.headModel.eegPositions
+        if eegPositions is None:
+            raise ValueError('No EEG positions available in head model')
+
+        labelMapping = {'LPA': 'LPA', 'NAS': 'Nz', 'RPA': 'RPA'}
+
+        coords = np.zeros((3, 3))
+        for iLabel, (label, altLabel) in enumerate(labelMapping.items()):
+            coords[iLabel, :] = eegPositions.loc[altLabel, ['x', 'y', 'z']].values
+            if label in self:
+                self[label].plannedCoord = coords[iLabel, :]
+            else:
+                self[label] = Fiducial(key=label,
+                                                   plannedCoord=coords[iLabel, :])
+
+        if False:
+            # also set approximate nose tip
+            downDir = -1 * np.cross(coords[2, :] - coords[0, :], coords[1, :] - coords[0, :])
+            downDir /= np.linalg.norm(downDir)
+            centerToNoseDir = coords[1, :] + downDir * 20 - (coords[2, :] + coords[0, :]) / 2
+            centerToNoseDir /= np.linalg.norm(centerToNoseDir)
+            projPts = np.dot(getattr(self.session.headModel, self._surfKey).points, centerToNoseDir)
+            iMax = np.argmax(projPts)
+            noseCoord = getattr(self.session.headModel, self._surfKey).points[iMax, :]
+            label = 'NoseTip'
+            if label in self:
+                self[label].plannedCoord = noseCoord
+            else:
+                self[label] = Fiducial(key=label,
+                                                   plannedCoord=noseCoord)
+
+        # note: any pre-existing fiducials with non-standard names will remain unchanged
+
 
     @classmethod
     def fromList(cls, itemList: list[dict[str, tp.Any]], registration: SubjectRegistration | None = None) -> Fiducials:

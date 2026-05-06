@@ -24,8 +24,7 @@ from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.pyvista import RemotePlotterProxy
 from NaviNIBS.Navigator.Model.Session import Session
-from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducial
-
+from NaviNIBS.Navigator.Model.SubjectRegistration import Fiducial, Fiducials
 
 logger = logging.getLogger(__name__)
 
@@ -227,39 +226,7 @@ class FiducialsPanel(MainViewPanel):
         pass
 
     def _onAutosetBtnClicked(self, checked: bool):
-        eegPositions = self.session.headModel.eegPositions
-        subReg = self.session.subjectRegistration
-        if eegPositions is None:
-            raise ValueError('No EEG positions available in head model')
-
-        labelMapping = {'LPA': 'LPA', 'NAS': 'Nz', 'RPA': 'RPA'}
-
-        coords = np.zeros((3, 3))
-        for iLabel, (label, altLabel) in enumerate(labelMapping.items()):
-            coords[iLabel, :] = eegPositions.loc[altLabel, ['x', 'y', 'z']].values
-            if label in subReg.fiducials:
-                subReg.fiducials[label].plannedCoord = coords[iLabel, :]
-            else:
-                subReg.fiducials[label] = Fiducial(key=label,
-                                                   plannedCoord=coords[iLabel, :])
-
-        if False:
-            # also set approximate nose tip
-            downDir = -1 * np.cross(coords[2, :] - coords[0, :], coords[1, :] - coords[0, :])
-            downDir /= np.linalg.norm(downDir)
-            centerToNoseDir = coords[1, :] + downDir * 20 - (coords[2, :] + coords[0, :]) / 2
-            centerToNoseDir /= np.linalg.norm(centerToNoseDir)
-            projPts = np.dot(getattr(self.session.headModel, self._surfKey).points, centerToNoseDir)
-            iMax = np.argmax(projPts)
-            noseCoord = getattr(self.session.headModel, self._surfKey).points[iMax, :]
-            label = 'NoseTip'
-            if label in subReg.fiducials:
-                subReg.fiducials[label].plannedCoord = noseCoord
-            else:
-                subReg.fiducials[label] = Fiducial(key=label,
-                                                   plannedCoord=noseCoord)
-
-        # note: any pre-existing fiducials with non-standard names will remain unchanged
+        self.session.registration.fiducials.autosetPlannedFiducialsFromHeadModel(self.session)
 
         self._tblWdgt.resizeColumnsToContents()
 
