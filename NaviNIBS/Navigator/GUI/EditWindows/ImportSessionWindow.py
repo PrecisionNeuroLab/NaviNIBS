@@ -86,14 +86,14 @@ class SessionTreeItem:
             if len(self._children) > 0:
                 # If there are children, check their state
                 if all(child.checked == QtCore.Qt.Checked for child in self._children):
-                    self.checked = QtCore.Qt.Checked
+                    self._checked = QtCore.Qt.Checked
                 elif all(child.checked == QtCore.Qt.Unchecked for child in self._children):
-                    self.checked = QtCore.Qt.Unchecked
+                    self._checked = QtCore.Qt.Unchecked
                 else:
-                    self.checked = QtCore.Qt.PartiallyChecked
+                    self._checked = QtCore.Qt.PartiallyChecked
             else:
                 # If there are no children, default to unchecked
-                self.checked = QtCore.Qt.Unchecked
+                self._checked = QtCore.Qt.Unchecked
         
         return self._checked
 
@@ -101,7 +101,6 @@ class SessionTreeItem:
     def checked(self, value: QtCore.Qt.CheckState):
         if value == self._checked:
             return
-        logger.debug(f'Setting checked state of {self._label} to {value}')
         self._checked = value
         if self._checked != QtCore.Qt.PartiallyChecked:
             # Update the checked state of all children
