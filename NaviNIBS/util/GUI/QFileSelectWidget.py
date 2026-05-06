@@ -1,7 +1,7 @@
 import logging
+from typing import Literal
 
 import attrs
-import typing as tp
 import os
 from qtpy import QtWidgets, QtGui, QtCore
 
@@ -14,21 +14,27 @@ logger = logging.getLogger(__name__)
 @attrs.define(init=False, slots=False)
 class QFileSelectWidget(QtWidgets.QWidget):
 
-    _browseMode: str  # one of ('getSaveFileName', 'getOpenFilename', 'getExistingDirectory')
+    _browseMode: Literal[
+        'getSaveFileName',
+        'getOpenFilename',
+        'getExistingDirectory',
+        'getExistingDirectoryOrFilename',
+        'getSaveDirectoryOrFilename',
+    ]
 
-    _filepath: tp.Optional[str] = None
-    _showRelativeTo: tp.Optional[str] = None
-    _showRelativePrefix: tp.Optional[str] = None  # if showing relative to path, can show this prefix in displayed QLineEdit to make origin of rel path clear, e.g. '[NaviNIBS]'
-    _extFilters: tp.Optional[str] = None
-    _browseCaption: tp.Optional[str] = None
-    _placeholderText: tp.Optional[str] = None  # text to show in QLineEdit when no filepath is set
+    _filepath: str | None = None
+    _showRelativeTo: str | None = None
+    _showRelativePrefix: str | None = None  # if showing relative to path, can show this prefix in displayed QLineEdit to make origin of rel path clear, e.g. '[NaviNIBS]'
+    _extFilters: str | None = None
+    _browseCaption: str | None = None
+    _placeholderText: str | None = None  # text to show in QLineEdit when no filepath is set
 
     _textWidget: QtWidgets.QLineEdit = attrs.field(init=False)
     _browseBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=lambda: Signal((str,)))
 
-    def __init__(self, *args, parent: tp.Optional[QtWidgets.QWidget] = None, **kwargs):
+    def __init__(self, *args, parent: QtWidgets.QWidget | None = None, **kwargs):
         super().__init__(parent=parent)
         self.__attrs_init__(*args, **kwargs)
 
@@ -43,16 +49,29 @@ class QFileSelectWidget(QtWidgets.QWidget):
             self._textWidget.setPlaceholderText(self._placeholderText)
         layout.addWidget(self._textWidget)
 
-        self._browseBtn = QtWidgets.QPushButton('Browse')
+        btnLabel = 'Browse...'
+        self._browseBtn = QtWidgets.QPushButton(btnLabel)
         self._browseBtn.setSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
-        self._browseBtn.clicked.connect(lambda _: self.browse())
+        self._browseBtn.clicked.connect(lambda _: self._onBrowseClicked())
         layout.addWidget(self._browseBtn)
 
         self.sigFilepathChanged.connect(lambda _: self._updateFilepathDisplay())
 
         self._updateFilepathDisplay()
 
-    def browse(self):
+    def _onBrowseClicked(self):
+        if self._browseMode in ('getExistingDirectoryOrFilename', 'getSaveDirectoryOrFilename'):
+            menu = QtWidgets.QMenu(self)
+            menu.addAction('...to folder', lambda: self.browse(forceMode='getExistingDirectory'))
+            fileMode = 'getOpenFilename' if self._browseMode == 'getExistingDirectoryOrFilename' else 'getSaveFileName'
+            menu.addAction('...to file', lambda: self.browse(forceMode=fileMode))
+            menu.exec_(self._browseBtn.mapToGlobal(self._browseBtn.rect().bottomLeft()))
+        else:
+            self.browse()
+
+    def browse(self, forceMode: str | None = None):
+        effectiveMode = forceMode if forceMode is not None else self._browseMode
+
         if self._browseCaption is None:
             browseCaption = ''  # TODO: do mode-dependent auto caption (e.g. 'Select save path')
         else:
@@ -68,23 +87,24 @@ class QFileSelectWidget(QtWidgets.QWidget):
             prevFilepath = self._showRelativeTo
 
         logger.info('Showing browse dialog')
-        if self._browseMode == 'getSaveFileName':
+        if effectiveMode == 'getSaveFileName':
             newFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self,
                                                                    browseCaption,
                                                                    prevFilepath,
                                                                    extFilters)
-        elif self._browseMode == 'getOpenFilename':
+        elif effectiveMode == 'getOpenFilename':
             newFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self,
                                                                    browseCaption,
                                                                    prevFilepath,
                                                                    extFilters)
-        elif self._browseMode == 'getExistingDirectory':
-            assert self._extFilters is None
-            newFilepath, _ = QtWidgets.QFileDialog.getExistingDirectory(self,
-                                                                   browseCaption,
-                                                                   prevFilepath)
+        elif effectiveMode == 'getExistingDirectory':
+            if self._browseMode == 'getExistingDirectory':
+                assert self._extFilters is None
+            newFilepath = QtWidgets.QFileDialog.getExistingDirectory(self,
+                                                                     browseCaption,
+                                                                     prevFilepath or '')
         else:
-            raise NotImplementedError('Unexpected browseMode: {}'.format(self._browseMode))
+            raise NotImplementedError('Unexpected browseMode: {}'.format(effectiveMode))
 
         if len(newFilepath) == 0:
             logger.info('Browse cancelled')
@@ -125,7 +145,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
             return self._showRelativeTo.replace('\\', '/')
 
     @showRelativeTo.setter
-    def showRelativeTo(self, newPath: tp.Optional[str]):
+    def showRelativeTo(self, newPath: str | None):
         if newPath is not None:
             newPath = os.path.normpath(newPath)
         if self._showRelativeTo == newPath:
@@ -138,7 +158,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
         return self._showRelativePrefix
 
     @showRelativePrefix.setter
-    def showRelativePrefix(self, newPrefix: tp.Optional[str]):
+    def showRelativePrefix(self, newPrefix: str | None):
         if self._showRelativePrefix == newPrefix:
             return
         self._showRelativePrefix = newPrefix
@@ -149,7 +169,7 @@ class QFileSelectWidget(QtWidgets.QWidget):
         return self._placeholderText
 
     @placeholderText.setter
-    def placeholderText(self, newPlaceholderText: tp.Optional[str]):
+    def placeholderText(self, newPlaceholderText: str | None):
         if self._placeholderText == newPlaceholderText:
             return
         self._placeholderText = newPlaceholderText
