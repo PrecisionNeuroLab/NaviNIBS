@@ -26,17 +26,56 @@ _novalue = object()
 
 
 @attrs.define
-class ToolPositionsClient:
+class ToolPositionsClientBase:
+    _latestPositions: dict[str, tp.Optional[TimestampedToolPosition]] | None = attrs.field(init=False, default=None, repr=False)
+
+    sigLatestPositionsChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
+    sigIsConnectedChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
+
+    def __attrs_post_init__(self):
+        pass
+
+    @property
+    def latestPositions(self):
+        """
+        Note that returned positions may be absolute (rel to world) or relative, based on pos.relativeTo
+        """
+        return self._latestPositions if self._latestPositions is not None else dict()
+
+    @property
+    def isConnected(self) -> bool:
+        return False
+
+    def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
+        """
+        Note that returned transf is always absolute, even if the underlying latest position was relative
+
+        If key is not found, raises KeyError unless a default value is provided (default can be set to None).
+        """
+        tsPos = self.latestPositions.get(key, None)
+        if tsPos is None or tsPos.transf is None:
+            if default is _novalue:
+                raise KeyError('No matching, valid transf found')
+            else:
+                return default
+        if tsPos.relativeTo != 'world':
+            # convert relative transform to world transform
+            otherTransf = self.getLatestTransf(key=tsPos.relativeTo, default=None)
+            if otherTransf is None:
+                return default
+            else:
+                return concatenateTransforms((tsPos.transf, otherTransf))
+        return tsPos.transf
+
+
+@attrs.define
+class ToolPositionsClient(ToolPositionsClientBase):
     _serverHostname: str = positionsServerHostname
     _serverPubPort: int = positionsServerPubPort
     _serverCmdPort: int = positionsServerCmdPort
 
-    _latestPositions: dict[str, tp.Optional[TimestampedToolPosition]] | None = attrs.field(init=False, default=None, repr=False)
-
     _subSocket: azmq.Socket = attrs.field(init=False)
     _connector: ZMQConnectorClient = attrs.field(init=False, repr=False)
-
-    sigLatestPositionsChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
 
     _timeLastHeardFromServer: tp.Optional[float] = None
     _isConnected: bool = False
@@ -46,9 +85,9 @@ class ToolPositionsClient:
     _monitorTask: asyncio.Task | None = attrs.field(init=False, repr=False)
     _startupTask: asyncio.Task | None = attrs.field(init=False, repr=False)
 
-    sigIsConnectedChanged: Signal = attrs.field(init=False, factory=Signal, repr=False)
-
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+        
         ctx = azmq.Context()
         self._subSocket = ctx.socket(zmq.SUB)
         logger.debug('Connecting {}:{}'.format(self._serverHostname, self._serverPubPort))
@@ -65,13 +104,6 @@ class ToolPositionsClient:
         self._pollTask = asyncCreateTask(self._receiveLatestPositionsLoop)
 
         self._monitorTask = asyncCreateTask(self._monitorServerStatus)
-
-    @property
-    def latestPositions(self):
-        """
-        Note that returned positions may be absolute (rel to world) or relative, based on pos.relativeTo
-        """
-        return self._latestPositions if self._latestPositions is not None else dict()
 
     def getServerType(self) -> str:
         return self._connector.get('type')
@@ -95,27 +127,6 @@ class ToolPositionsClient:
             connectedChangedEvent.clear()
             if self.isConnected:
                 self.requestLatestPositions()
-
-    def getLatestTransf(self, key: str, default: tp.Any = _novalue) -> tp.Optional[np.ndarray]:
-        """
-        Note that returned transf is always absolute, even if the underlying latest position was relative
-
-        If key is not found, raises KeyError unless a default value is provided (default can be set to None).
-        """
-        tsPos = self.latestPositions.get(key, None)
-        if tsPos is None or tsPos.transf is None:
-            if default is _novalue:
-                raise KeyError('No matching, valid transf found')
-            else:
-                return default
-        if tsPos.relativeTo != 'world':
-            # convert relative transform to world transform
-            otherTransf = self.getLatestTransf(key=tsPos.relativeTo, default=None)
-            if otherTransf is None:
-                return default
-            else:
-                return concatenateTransforms((tsPos.transf, otherTransf))
-        return tsPos.transf
 
     async def recordNewPosition_async(self, key: str, position: TimestampedToolPosition):
         """

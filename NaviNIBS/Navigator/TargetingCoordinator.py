@@ -15,7 +15,7 @@ import shutil
 import typing as tp
 from typing import ClassVar
 
-from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient, ToolPositionsClientBase
 from NaviNIBS.Navigator.Model.Session import Session, Tool, CoilTool, SubjectTracker, Target, Sample
 from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.CoilOrientations import PoseMetricCalculator
@@ -48,7 +48,7 @@ class TargetingCoordinator:
     _session: Session = attrs.field(repr=False)
     _currentTargetKey: tp.Optional[str] = None
     _currentSampleKey: tp.Optional[str] = None
-    _positionsClient: ToolPositionsClient = attrs.field(factory=ToolPositionsClient)
+    _positionsClient: ToolPositionsClientBase = attrs.field(factory=ToolPositionsClient)
     __cachedActiveCoilKey: str | None = attrs.field(init=False, default=None)
     __cachedActiveCoil: CoilTool | None = attrs.field(init=False, default=None)
 
