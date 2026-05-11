@@ -52,6 +52,7 @@ async def asyncTryAndLogExceptionOnError(fn: tp.Callable[..., tp.Awaitable], *ar
         logger.error('Exception: %s' % exceptionToStr(e))
         raise e
 
+_asyncTasks = []
 
 def asyncCreateTask(
         fn: tp.Callable[..., tp.Awaitable],
@@ -73,7 +74,11 @@ def asyncCreateTask(
             if raiseException:
                 raise
 
-    return asyncio.create_task(_wrapper(), name=name)
+    newTask = asyncio.create_task(_wrapper(), name=name)
+
+    _asyncTasks.append(newTask)  # keep reference to task to prevent garbage collection of task before it finishes
+
+    return newTask
 
 
 def asyncAtomicCancellable(fn: tp.Callable[..., tp.Awaitable], *args, **kwargs):
