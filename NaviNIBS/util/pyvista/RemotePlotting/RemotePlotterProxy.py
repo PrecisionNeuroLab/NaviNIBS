@@ -584,6 +584,9 @@ class RemotePlotterProxyBase:
 
     def updateScalarBarRangeWithVol(self, *args, **kwargs):
         return self._remotePlotterCall('updateScalarBarRangeWithVol', *args, **kwargs)
+    
+    def screenshot(self, *args, **kwargs):
+        return self._remotePlotterCall('screenshot', *args, **kwargs)
 
 
 class RemotePlotterProxy(RemotePlotterProxyBase, QtWidgets.QWidget):
