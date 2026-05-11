@@ -516,3 +516,85 @@ async def test_targetROI(navigatorGUIWithoutSession: NavigatorGUI,
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
     utils.assertSavedSessionIsValid(sessionPath)
 
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_headModel.py::test_setHeadModel')
+async def test_combineROIs(navigatorGUIWithoutSession: NavigatorGUI,
+                           workingDir: str,
+                           screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmHeadModel', 'CombineROIs')
+
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+    await asyncio.sleep(1.)
+
+    ses = navigatorGUI.session
+
+    # Create target with auto-computed entry coord
+    target = Target(
+        key='dlPFCSearchCtr',
+        targetCoord=np.array([-38.8, 32.35, 40.65]),
+        angle=0.0,
+    )
+    ses.targets.addItem(target)
+    assert target.entryCoord is not None  # auto-entry was computed on session attach
+
+    # Create target-based ROI on CSF surface (10 mm x 20 mm radii)
+    targetROI = PipelineROI(key='dlPFCSearchCtrROI')
+    ses.ROIs.addItem(targetROI)
+    targetROI.stages[:] = [
+        ROIStages.SelectSurfaceMesh(meshKey='csfSurf'),
+        AddFromTarget(targetKey='dlPFCSearchCtr', radiusX=10.0, radiusY=20.0),
+    ]
+
+    # Import specific left-hemisphere HCPMMP1 atlas parcels
+    parcelKeys = ['L_46', 'L_p9-46v', 'L_8C', 'L_8Av']
+    atlasROIs = AtlasSurfaceParcel.AtlasSurfaceParcel.loadROIsFromAtlas(
+        session=ses,
+        atlasKey='HCPMMP1',
+        parcelKeys=parcelKeys,
+    )
+    ses.ROIs.merge(atlasROIs)
+    for key in parcelKeys:
+        assert key in ses.ROIs
+
+    # Create pipeline ROI: union of atlas parcels projected onto CSF surface
+    combinedROI = PipelineROI(key='dlPFCAtlasUnionCSF')
+    ses.ROIs.addItem(combinedROI)
+    combinedROI.stages[:] = [
+        Union(roiKeys=parcelKeys),
+        ProjectBetweenSurfaces(toSurfaceKey='csfSurf'),
+    ]
+
+    # Open ROIs panel and render
+    navigatorGUI._activateView(navigatorGUI.roisPanel.key)
+    await navigatorGUI.roisPanel.finishedAsyncInit.wait()
+    assert navigatorGUI.activeViewKey == navigatorGUI.roisPanel.key
+
+    # Screenshot: target-based ROI on CSF
+    navigatorGUI.roisPanel._tableWdgt.currentCollectionItemKey = 'dlPFCSearchCtrROI'
+    navigatorGUI.roisPanel._queueRedraw('cameraPos')
+    await asyncio.sleep(1.)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CombineROIs_targetROI',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # Screenshot: combined atlas union projected to CSF
+    navigatorGUI.roisPanel._tableWdgt.currentCollectionItemKey = 'dlPFCAtlasUnionCSF'
+    navigatorGUI.roisPanel._queueRedraw('cameraPos')
+    await asyncio.sleep(1.)
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='CombineROIs_atlasUnion',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # Save and validate
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+    assert 'dlPFCSearchCtrROI' in ses.ROIs
+    assert 'dlPFCAtlasUnionCSF' in ses.ROIs
+    for key in parcelKeys:
+        assert key in ses.ROIs
+
