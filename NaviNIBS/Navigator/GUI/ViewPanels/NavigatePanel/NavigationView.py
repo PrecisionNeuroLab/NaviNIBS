@@ -18,7 +18,8 @@ from .ViewLayers.SampleMetadataOrientationsLayer import SampleMetadataOrientatio
 from .ViewLayers.TargetingCrosshairsLayer import TargetingCoilCrosshairsLayer, TargetingTargetCrosshairsLayer
 from .ViewLayers.TargetingAngleErrorLayer import TargetingAngleErrorLayer
 from .ViewLayers.TargetingPointLayer import TargetingCoilPointsLayer, TargetingTargetPointsLayer
-from. ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
+from .ViewLayers.TargetingErrorLineLayer import TargetingErrorLineLayer
+from .ViewLayers.SurfaceROIsLayer import SurfaceROIsLayer
 
 from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Transforms import applyTransform, composeTransform, concatenateTransforms
@@ -168,6 +169,7 @@ class SinglePlotterNavigationView(NavigationView):
                     TargetingCoilPointsLayer,
                     TargetingErrorLineLayer,
                     TargetingAngleErrorLayer,
+                    SurfaceROIsLayer,
                     ):
             self._layerLibrary[cls.type] = cls
 
@@ -517,6 +519,17 @@ class TargetingCrosshairsView(SinglePlotterNavigationView):
         self.addLayer(type='HeadMeshSurface', key='Brain', surfKey='gmSurf',
                       layeredPlotterKey='Brain',
                       plotterLayer=plotLayer)
+        
+        if True:
+            self.addLayer(type='SurfaceROIs', key='ROIs',
+                          layeredPlotterKey='Brain',
+                          plotterLayer=plotLayer,
+                          isEnabled=False,
+                          surfOpacities=dict(
+                              gmSurf=0.,
+                              csfSurf=0.,
+                              skinSurf=0.
+                          ))
 
         plotLayer += 1
 

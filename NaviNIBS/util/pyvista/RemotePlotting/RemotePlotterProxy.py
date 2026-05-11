@@ -864,3 +864,18 @@ class RemoteMapper:
             return self._parentPlotter._remoteMapperCall('update')
         else:
             return self._parentActor.plotter._remoteActorMapperCall(self._parentActor, 'update')
+        
+    def SetResolveCoincidentTopologyToPolygonOffset(self):
+        if self._parentActor is None:
+            return self._parentPlotter._remoteMapperCall('SetResolveCoincidentTopologyToPolygonOffset')
+        else:
+            return self._parentActor.plotter._remoteActorMapperCall(self._parentActor, 'SetResolveCoincidentTopologyToPolygonOffset')
+        
+    def SetRelativeCoincidentTopologyPolygonOffsetParameters(self, factor: float, units: float):
+        if self._parentActor is None:
+            return self._parentPlotter._remoteMapperCall('SetRelativeCoincidentTopologyPolygonOffsetParameters', factor, units)
+        else:
+            return self._parentActor.plotter._remoteActorMapperCall(self._parentActor, 'SetRelativeCoincidentTopologyPolygonOffsetParameters', factor, units)
+        
+
+        

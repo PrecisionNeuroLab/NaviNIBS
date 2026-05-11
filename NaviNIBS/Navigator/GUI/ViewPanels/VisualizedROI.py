@@ -311,6 +311,7 @@ class VisualizedROI:
     def clear(self):
         logger.info(f'Clearing visualized ROI {self._roi.key}')
         self._unregisterFromMesh()
+        self._roi.sigItemChanged.disconnect(self._onROIChanged)
 
 
 def refreshROIAutoColors(session: Session):
