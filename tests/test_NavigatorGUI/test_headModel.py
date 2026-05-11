@@ -38,6 +38,10 @@ def charmFSHeadModelDataSourcePath(existingResourcesDataPath):
     return os.path.join(existingResourcesDataPath, 'testSourceData',
                         'sub-test_T1Seq-SagFSPGRBRAVO_SimNIBSCharmFS', 'm2m_sub-test', 'sub-test.msh')
 
+@pytest.fixture
+def freesurferOutputDataSourcePath(existingResourcesDataPath):
+    return os.path.join(existingResourcesDataPath, 'testSourceData', 'sub-test_FreeSurfer.zip')
+
 @pytest.mark.asyncio
 @pytest.mark.skip(reason='For troubleshooting')
 async def test_openHeadModelSession(workingDir):
@@ -48,18 +52,24 @@ async def test_openHeadModelSession(workingDir):
 async def test_openCharmHeadModelSession(workingDir):
     await utils.openSessionForInteraction(workingDir, 'SetCharmHeadModel')
 
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openCharmFSHeadModelSession(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'SetCharmFSHeadModel')
+
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_MRI.py::test_setMRIInfo')
-@pytest.mark.parametrize('modelLabel,headModelDataSourcePath', (
-        ('CharmFS', lf('charmFSHeadModelDataSourcePath')),
-        ('Charm', lf('charmHeadModelDataSourcePath')),
-        ('', lf('headrecoHeadModelDataSourcePath'))))
+@pytest.mark.parametrize('modelLabel,headModelDataSourcePath, freesurferDataSourcePath', (
+        ('CharmFS', lf('charmFSHeadModelDataSourcePath'), lf('freesurferOutputDataSourcePath')),
+        ('Charm', lf('charmHeadModelDataSourcePath'), None),
+        ('', lf('headrecoHeadModelDataSourcePath'), None)))
 async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
                             modelLabel: str,
                           headModelDataSourcePath: tuple[str, str],
-                          screenshotsDataSourcePath: str):
+                          screenshotsDataSourcePath: str,
+                            freesurferDataSourcePath: str | None):
     navigatorGUI = navigatorGUIWithoutSession
 
     sessionPath = utils.copySessionFolder(workingDir, 'SetMRI', f'Set{modelLabel}HeadModel')
@@ -92,6 +102,14 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
     headModelTestSourcePath = os.path.join(headModelTestDir, headModelMeshName)
 
     navigatorGUI.headModelPanel._filepathWdgt.filepath = headModelTestSourcePath
+
+    if freesurferDataSourcePath is not None:
+        # copy freesurfer zip from source to test dir (keep it zipped)
+        freesurferTestZipPath = os.path.join(sessionPath, '..', os.path.basename(freesurferDataSourcePath))
+        if not os.path.exists(freesurferTestZipPath):
+            shutil.copyfile(freesurferDataSourcePath, freesurferTestZipPath)
+
+        navigatorGUI.headModelPanel._freesurferFilepathWdgt.filepath = freesurferTestZipPath
 
     # equivalent to clicking save button
     navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
