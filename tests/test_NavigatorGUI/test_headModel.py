@@ -79,6 +79,12 @@ async def test_setHeadModel(navigatorGUIWithoutSession: NavigatorGUI,
 
     headModelSourceDir, headModelMeshName = os.path.split(headModelDataSourcePath)
     headModelDirName = os.path.split(headModelSourceDir)[1]
+    if headModelDirName.startswith('m2m_'):
+        # go one level higher for charm models
+        headModelMeshName = os.path.join(headModelDirName, headModelMeshName)
+        headModelSourceDir, _ = os.path.split(headModelSourceDir)
+        headModelDirName = os.path.split(headModelSourceDir)[1]
+
     headModelTestDir = os.path.join(sessionPath, '..', headModelDirName)
     if len(glob.glob(os.path.join(headModelTestDir, '*.msh'))) < 1:
         shutil.copytree(headModelSourceDir, headModelTestDir, dirs_exist_ok=True)
