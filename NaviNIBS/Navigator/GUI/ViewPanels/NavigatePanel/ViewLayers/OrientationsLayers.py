@@ -133,13 +133,25 @@ class OrientationsLayer(PlotViewLayer):
 
         self._loopTask = asyncCreateTask(self._loop_drawPendingOrientations)
 
+    def _getColorDepthIndicator(self, key: str) -> str:
+        if self.orientations[key].isSelected:
+            return self._colorDepthIndicatorSelected
+        else:
+            return self._colorDepthIndicator
+        
+    def _getColorHandleIndicator(self, key: str) -> str:
+        if self.orientations[key].isSelected:
+            return self._colorHandleIndicatorSelected
+        else:
+            return self._colorHandleIndicator
+
     def _createVisualizedOrientationForSample(self, key: str) -> VisualizedOrientation:
         isSelected = self.orientations[key].isSelected
         return VisualizedOrientation(
             orientation=self.orientations[key],
             plotter=self._plotter,
-            colorHandleIndicator=self._colorHandleIndicatorSelected if isSelected else self._colorHandleIndicator,
-            colorDepthIndicator=self._colorDepthIndicatorSelected if isSelected else self._colorDepthIndicator,
+            colorHandleIndicator=self._getColorHandleIndicator(key),
+            colorDepthIndicator=self._getColorDepthIndicator(key),
             opacity=self._opacity,
             lineWidth=self._lineWidth,
             style=self._style,
@@ -236,10 +248,13 @@ class SampleOrientationsLayer(OrientationsLayer):
 class TargetOrientationsLayer(OrientationsLayer):
     _type: ClassVar[str] = 'TargetOrientations'
 
-    _colorDepthIndicator: str = '#2a25e3'
-    _colorHandleIndicator: str = '#2320eb'
-    _colorDepthIndicatorSelected: str = '#2b20ab'
-    _colorHandleIndicatorSelected: str = '#2b20a2'
+    _colorDepthIndicator: str | None = '#2a25e3'
+    _colorHandleIndicator: str | None = '#2320eb'
+    _colorDepthIndicatorSelected: str | None | float = '#2b20ab'
+    _colorHandleIndicatorSelected: str | None |  float = '#2b20a2'
+    """
+    If selected colors are specified as scalar floats, will be used to brighten (>0) or darken (<0) the base color for selected targets
+    """
     _lineWidth: float = 4.5
 
     def __attrs_post_init__(self):
@@ -250,6 +265,42 @@ class TargetOrientationsLayer(OrientationsLayer):
     @OrientationsLayer.orientations.getter
     def orientations(self) -> Targets:
         return self._coordinator.session.targets
+    
+    def _getColorIndicator(self, key: str, default: str | float | None, defaultSelected: str | float | None) -> str:
+        color = default
+        if color is None:
+            # use target color if available
+            color = self.orientations[key].color if self.orientations[key].color is not None else '#2a25e3' 
+
+        if self.orientations[key].isSelected:
+            selectedColor = defaultSelected
+        
+            if isinstance(selectedColor, float):
+                # brighten or darken non-selected color
+                if isinstance(color, str):
+                    baseColor = pv.parse_color(color)[:3]  # ignore alpha if present
+                    brightnessFactor = 1 + selectedColor
+                    brightenedColor = tuple(np.clip(baseColor * brightnessFactor, 0, 255))
+                    color = brightenedColor
+                else:
+                    logger.warning(f'Cannot apply brightness factor to non-string color for target orientations layer: {color}')
+            elif selectedColor is not None:
+                color = selectedColor
+            else:
+                # use target color if available
+                color = self.orientations[key].color if self.orientations[key].color is not None else '#2b20ab'
+
+        return color
+
+    def _getColorDepthIndicator(self, key: str) -> str:
+        return self._getColorIndicator(key, 
+                                       default=self._colorDepthIndicator, 
+                                       defaultSelected=self._colorDepthIndicatorSelected)
+    
+    def _getColorHandleIndicator(self, key: str) -> str:
+        return self._getColorIndicator(key, 
+                                       default=self._colorHandleIndicator, 
+                                       defaultSelected=self._colorHandleIndicatorSelected)
 
     def _orientationIsVisible(self, key: str) -> bool:
         try:
