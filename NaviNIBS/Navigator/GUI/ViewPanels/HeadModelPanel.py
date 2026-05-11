@@ -36,6 +36,7 @@ class HeadModelPanel(MainViewPanel):
     _filepathWdgt: QFileSelectWidget = attrs.field(init=False)
     _skinFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
     _gmFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
+    _freesurferFilepathWdgt: QFileSelectWidget = attrs.field(init=False, default=None)
     _defaceSkinCheckbox: QtWidgets.QCheckBox = attrs.field(init=False, default=None)
     _meshToMRITransformWdgt: SpatialTransformDisplayWidget = attrs.field(init=False, default=None)
     _activeSurfWidget: QtWidgets.QListWidget = attrs.field(init=False)
@@ -96,6 +97,15 @@ class HeadModelPanel(MainViewPanel):
         wdgt.sigFilepathChanged.connect(lambda *args: self._onBrowsedNewFilepath('gmFilepath', *args))
         formWdgt.layout().addRow('Gray matter surface file', wdgt)
         self._gmFilepathWdgt = wdgt
+
+        wdgt = QFileSelectWidget(
+            browseMode='getExistingDirectoryOrFilename',
+            extFilters='Zip archive (*.zip)',
+            browseCaption='Select FreeSurfer output directory or zip archive',
+        )
+        wdgt.sigFilepathChanged.connect(lambda *args: self._onBrowsedNewFilepath('freesurferFilepath', *args))
+        formWdgt.layout().addRow('FreeSurfer path', wdgt)
+        self._freesurferFilepathWdgt = wdgt
 
         wdgt = QtWidgets.QCheckBox()
         wdgt.stateChanged.connect(self._onDefaceSkinCheckboxChanged)
@@ -230,6 +240,7 @@ class HeadModelPanel(MainViewPanel):
         self._filepathWdgt.filepath = self.session.headModel.filepath
         self._skinFilepathWdgt.filepath = self.session.headModel.skinSurfFilepath
         self._gmFilepathWdgt.filepath = self.session.headModel.gmSurfFilepath
+        self._freesurferFilepathWdgt.filepath = self.session.headModel.freesurferFilepath
         if self.session.headModel.filepath is not None:
             self._skinFilepathWdgt.placeholderText = 'From SimNIBS .msh file'
             self._gmFilepathWdgt.placeholderText = 'From SimNIBS .msh file'
@@ -242,7 +253,8 @@ class HeadModelPanel(MainViewPanel):
             self._updateRelativeToPath()
 
     def _updateRelativeToPath(self):
-        for wdgt in (self._filepathWdgt, self._skinFilepathWdgt, self._gmFilepathWdgt):
+        for wdgt in (self._filepathWdgt, self._skinFilepathWdgt, self._gmFilepathWdgt,
+                     self._freesurferFilepathWdgt):
             wdgt.showRelativeTo = os.path.dirname(self.session.filepath)
             wdgt.showRelativePrefix = '<session>'
 
@@ -254,6 +266,8 @@ class HeadModelPanel(MainViewPanel):
                 self.session.headModel.skinSurfFilepath = newFilepath
             case 'gmFilepath':
                 self.session.headModel.gmSurfFilepath = newFilepath
+            case 'freesurferFilepath':
+                self.session.headModel.freesurferFilepath = newFilepath
             case _:
                 logger.error(f'Unknown file selection: {which}')
                 return

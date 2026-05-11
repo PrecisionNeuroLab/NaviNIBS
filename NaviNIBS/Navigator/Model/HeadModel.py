@@ -83,7 +83,13 @@ class HeadModel:
     LPA and RPA define the 10 mm inferior cut level; NAS defines the 5 mm inferior cut level.
     Override if fiducials use non-standard names.
     """
-    _session: Session | None = attrs.field(default=None, repr=False)
+    _freesurferFilepath: str | None = None
+    """
+    Path to FreeSurfer output directory or zip archive.
+    Used to derive MNI nonlinear transforms from SynthMorph warp files,
+    and potentially other FreeSurfer-based processing in the future.
+    """
+    _session: Session | None = attrs.field(init=False, default=None, repr=False)
 
     _msh: tp.Optional[pv.PolyData] = attrs.field(init=False, default=None)
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -96,6 +102,7 @@ class HeadModel:
     _gmSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _eegPositions: tp.Optional[pd.DataFrame] = attrs.field(init=False, default=None)
     _mshVersion: tp.Optional[MshVersion] = attrs.field(init=False, default=None)
+    _freesurferTempDir: tempfile.TemporaryDirectory | None = attrs.field(init=False, default=None)
 
     sigFilepathChanged: Signal = attrs.field(init=False, factory=Signal)
     """
@@ -487,6 +494,47 @@ class HeadModel:
         self.sigFilepathChanged.emit()
 
     @property
+    def freesurferFilepath(self) -> str | None:
+        return self._freesurferFilepath
+
+    @freesurferFilepath.setter
+    def freesurferFilepath(self, newPath: str | None):
+        if self._freesurferFilepath == newPath:
+            return
+        if newPath is not None:
+            assert os.path.exists(newPath), f'FreeSurfer path not found at {newPath}'
+        self._freesurferFilepath = newPath
+        self._freesurferTempDir = None  # invalidate cached extractions
+        self.sigFilepathChanged.emit()
+
+    def getFreesurferSubfilePath(self, subpath: str) -> str | None:
+        """
+        Returns the path to a file within the FreeSurfer directory or zip archive.
+        For zip archives, extracts just the requested file to a temporary directory
+        on first access (cached per HeadModel instance; cleared when freesurferFilepath changes).
+        Returns None if freesurferFilepath is not set or the file cannot be found.
+        """
+        import zipfile
+        if self._freesurferFilepath is None:
+            return None
+        if os.path.isdir(self._freesurferFilepath):
+            return os.path.join(self._freesurferFilepath, subpath)
+        # treat as zip archive
+        if self._freesurferTempDir is None:
+            self._freesurferTempDir = tempfile.TemporaryDirectory(prefix='NaviNIBSFreeSurfer_')
+        extractedPath = os.path.join(self._freesurferTempDir.name, subpath)
+        if not os.path.exists(extractedPath):
+            zipSubpath = subpath.replace('\\', '/')
+            logger.info(f'Extracting {zipSubpath} from FreeSurfer zip {self._freesurferFilepath}')
+            try:
+                with zipfile.ZipFile(self._freesurferFilepath, 'r') as zf:
+                    zf.extract(zipSubpath, self._freesurferTempDir.name)
+            except (KeyError, FileNotFoundError):
+                logger.error(f'File {zipSubpath} not found in zip {self._freesurferFilepath}')
+                return None
+        return extractedPath
+
+    @property
     def isSet(self):
         return self._filepath is not None or self._skinSurfFilepath is not None and self._gmSurfFilepath is not None
 
@@ -600,7 +648,7 @@ class HeadModel:
     def asDict(self, filepathRelTo: str) -> tp.Dict[str, tp.Any]:
         d = attrsWithNumpyAsDict(self, npFields=('meshToMRITransform',))
         # convert to relative paths
-        for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath'):
+        for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath', 'freesurferFilepath'):
             if key in d:
                 d[key] = os.path.relpath(d[key], filepathRelTo)
 
@@ -611,7 +659,7 @@ class HeadModel:
                  session: Session | None = None) -> HeadModel:
         # TODO: validate against schema
 
-        for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath'):
+        for key in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath', 'freesurferFilepath'):
             if key in d and d[key] is not None:
                 # convert to absolute paths
                 d[key] = os.path.abspath(os.path.join(filepathRelTo, d[key]))
