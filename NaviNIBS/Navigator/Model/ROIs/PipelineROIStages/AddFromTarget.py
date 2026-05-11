@@ -113,6 +113,17 @@ class AddFromTarget(ROIStage):
                     pass
 
     def _onTargetChanged(self, key, changedAttrs=None):
+        if changedAttrs is not None:
+            changedAttrs = changedAttrs.copy()
+            # ignore irrelevant attribute changes
+            for k in ('isSelected', 'isVisible', 'isHistorical', 'mayBeADependency', 'color'):
+                try:
+                    changedAttrs.remove(k)
+                except ValueError:
+                    pass
+            if len(changedAttrs) == 0:
+                # nothing left of interest
+                return
         self.sigItemChanged.emit(self, ['targetUpdate'])
 
     def _process(self, roiKey: str, inputROI: ROI | None) -> SurfaceMeshROI:
