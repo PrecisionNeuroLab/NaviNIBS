@@ -55,7 +55,7 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
     if 'MNI_SimNIBS12DoF' in session.coordinateSystems:
         # if an affine MNI transform is available, use that to define aligned coordinate space
         coordSys = session.coordinateSystems['MNI_SimNIBS12DoF']
-        from NaviNIBS.Navigator.Model.CoordinateSystems import AffineTransformedCoordinateSystem
+        from NaviNIBS.Navigator.Model.CoordinateSystems.Affine import AffineTransformedCoordinateSystem
         assert isinstance(coordSys, AffineTransformedCoordinateSystem)
         MRIToStdTransf = coordSys.transfWorldToThis
         if True:
@@ -67,7 +67,7 @@ def calculateMidlineRefDirectionsFromCoilToMRITransf(session: Session, coilToMRI
     elif 'MNI_SimNIBSNonlinear' in session.coordinateSystems:
         # if a nonlinear MNI transform is available, approximate an affine transform to define aligned coordinate space
         coordSys = session.coordinateSystems['MNI_SimNIBSNonlinear']
-        from NaviNIBS.Navigator.Model.CoordinateSystems import NonlinearTransformedCoordinateSystem
+        from NaviNIBS.Navigator.Model.CoordinateSystems.Nonlinear import NonlinearTransformedCoordinateSystem
         assert isinstance(coordSys, NonlinearTransformedCoordinateSystem)
 
         centerPt = coordSys.transformFromThisToWorld(np.asarray([0, 0, 0]))

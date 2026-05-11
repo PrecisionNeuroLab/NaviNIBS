@@ -18,7 +18,7 @@ import NaviNIBS
 from NaviNIBS.Navigator.Model.MiscSettings import MiscSettings
 from NaviNIBS.Navigator.Model.MRI import MRI
 from NaviNIBS.Navigator.Model.HeadModel import HeadModel
-from NaviNIBS.Navigator.Model.CoordinateSystems import CoordinateSystems, CoordinateSystem
+from NaviNIBS.Navigator.Model.CoordinateSystems.CoordinateSystems import CoordinateSystems
 from NaviNIBS.Navigator.Model.ROIs import ROIs, ROI
 from NaviNIBS.Navigator.Model.ROIs.AtlasSurfaceParcel import AtlasSurfaceParcel
 from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
