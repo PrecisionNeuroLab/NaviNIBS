@@ -14,6 +14,7 @@ from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
 from NaviNIBS.Navigator.Model.Session import Session, Tool
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
+from NaviNIBS.Navigator.Model.CoordinateSystems.SBM import SBMTransformedCoordinateSystem
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
@@ -203,7 +204,16 @@ class CoordinateWidget:
             self._setCoordButton.setEnabled(True)
 
         assert 'World' not in self._session.coordinateSystems
-        coordSysKeys = ['World'] + list(self._session.coordinateSystems.keys())
+        sessionCoordSysKeys = list(self._session.coordinateSystems.keys())
+        if self._whichCoord == 'entry':
+            # SBM coord systems map via pial surface, which is not meaningful for
+            # entry coords (typically at skin). Hide them from the entry widget.
+            sessionCoordSysKeys = [
+                key for key in sessionCoordSysKeys
+                if not isinstance(self._session.coordinateSystems[key],
+                                  SBMTransformedCoordinateSystem)
+            ]
+        coordSysKeys = ['World'] + sessionCoordSysKeys
         for iKey, key in enumerate(coordSysKeys):
             if key not in self._coordInSysWdgts:
                 wdgt = QtWidgets.QLabel()
