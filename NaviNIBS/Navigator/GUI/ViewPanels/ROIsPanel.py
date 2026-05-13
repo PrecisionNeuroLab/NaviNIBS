@@ -58,6 +58,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _editROIWdgt: EditROIWidget = attrs.field(init=False)
     _visualizedROIs: dict[str, VisualizedROI] = attrs.field(init=False, factory=dict)
     _visualizedROIsMeshes: dict[str, VisualizedROIsMesh] = attrs.field(init=False, factory=dict)
+    _selectionLabelKeys: set[str] = attrs.field(init=False, factory=set)
     _enabledOnlyWhenROISelected: list[QtWidgets.QWidget] = attrs.field(init=False, factory=list)
 
     _redrawROIKeys: set[str] = attrs.field(init=False, factory=set)
@@ -195,6 +196,8 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             callback=self._onROIPickedFromView,
         )
         self._onROIsChanged()
+        if len(self._tableWdgt.selectedCollectionItemKeys) > 0:
+            self._queueRedraw(which='ROISelectionLabels')
 
         self.finishedAsyncInit.set()
 
@@ -215,6 +218,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     def _onSelectionChanged(self, keys: list[str]):
         if not self._suppressCameraOnSelect:
             self._queueRedraw(which='cameraPos')
+        self._queueRedraw(which='ROISelectionLabels')
         for widget in self._enabledOnlyWhenROISelected:
             # logger.debug(f"{'Disabling' if len(keys)==0 else 'Enabling'} {widget}")
             widget.setEnabled(len(keys)>0)
@@ -252,6 +256,12 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         if changedAttrs is None or 'color' in changedAttrs:
             self._queueRedraw(which='ROIAutoColors')
 
+        selectedKeys = set(self._tableWdgt.selectedCollectionItemKeys)
+        if selectedKeys.intersection(changedKeys) and (
+                changedAttrs is None
+                or any(a in changedAttrs for a in ('color', 'autoColor', 'seedCoord', 'output'))):
+            self._queueRedraw(which='ROISelectionLabels')
+
         if changedAttrs == ['isVisible']:
             # only visibility changed
             self._queueRedraw(which='ROIAutoColors')
@@ -265,6 +275,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
 
         elif changedAttrs == ['isSelected']:
             self._queueRedraw(which='cameraPos')
+            self._queueRedraw(which='ROISelectionLabels')
             # TODO: change opacity for selected / deselected ROIs to make it clear which are active
             pass  # selection update will be handled separately
 
@@ -292,7 +303,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
             return
 
         if which == 'all':
-            self._redraw(which=['ROIAutoColors', 'ROIs', 'cameraPos'])
+            self._redraw(which=['ROIAutoColors', 'ROIs', 'cameraPos', 'ROISelectionLabels'])
             return
 
         if which == 'ROIAutoColors':
@@ -364,6 +375,110 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
                                 lookDirection /= np.linalg.norm(lookDirection)
                                 plotter.camera.position = roiCenter + lookDirection * cameraDistance
                                 plotter.render()
+
+        if which == 'ROISelectionLabels':
+            plotter = self._surfView.plotter
+            selectedKeys = set(self._tableWdgt.selectedCollectionItemKeys)
+
+            try:
+                headCenter = self.session.coordinateSystems['MNI_SimNIBS12DoF'].transformFromThisToWorld(np.asarray([0, 0, 0]))
+            except KeyError:
+                headCenter = np.array([0, 0, 0])
+            headCenter = np.asarray(headCenter, dtype=np.float64)
+
+            skinSurf: pv.PolyData | None = None
+            try:
+                skinSurf = self.session.headModel.skinSimpleDisplaySurf
+            except Exception:
+                skinSurf = None
+
+            extraOffsetMm = 20.0  # distance beyond scalp surface (or beyond seed if no scalp hit)
+
+            def _labelName(k: str) -> str:
+                return f'roi_selection_label_{k}'
+
+            def _lineName(k: str) -> str:
+                return f'roi_selection_line_{k}'
+
+            with plotter.allowNonblockingCalls():
+                staleKeys = self._selectionLabelKeys - selectedKeys
+                for key in staleKeys:
+                    plotter.remove_actor(_labelName(key), reset_camera=False, render=False)
+                    plotter.remove_actor(_lineName(key), reset_camera=False, render=False)
+                    self._selectionLabelKeys.discard(key)
+
+                for key in selectedKeys:
+                    vROI = self._visualizedROIs.get(key)
+                    if vROI is None:
+                        # not yet rendered; clear any prior label
+                        if key in self._selectionLabelKeys:
+                            plotter.remove_actor(_labelName(key), reset_camera=False, render=False)
+                            plotter.remove_actor(_lineName(key), reset_camera=False, render=False)
+                            self._selectionLabelKeys.discard(key)
+                        continue
+                    roi = vROI.effectiveROI
+                    if roi is None or roi.seedCoord is None:
+                        if key in self._selectionLabelKeys:
+                            plotter.remove_actor(_labelName(key), reset_camera=False, render=False)
+                            plotter.remove_actor(_lineName(key), reset_camera=False, render=False)
+                            self._selectionLabelKeys.discard(key)
+                        continue
+
+                    seed = np.asarray(roi.seedCoord, dtype=np.float64)
+                    outward = seed - headCenter
+                    norm = np.linalg.norm(outward)
+                    if norm < 1e-6:
+                        outward = np.array([0., 0., 1.])
+                    else:
+                        outward = outward / norm
+
+                    # ray-trace outward from head center through scalp; place label just beyond exit point
+                    labelPos: np.ndarray | None = None
+                    if skinSurf is not None:
+                        rayEnd = headCenter + outward * 500.0
+                        try:
+                            hits, _ = skinSurf.ray_trace(headCenter, rayEnd)
+                        except Exception:
+                            hits = np.empty((0, 3))
+                        if len(hits) > 0:
+                            hits = np.asarray(hits)
+                            dists = np.linalg.norm(hits - headCenter, axis=1)
+                            outerPt = hits[int(np.argmax(dists))]
+                            labelPos = outerPt + outward * extraOffsetMm
+                    if labelPos is None:
+                        # fallback: at least 30 mm beyond seed in outward direction
+                        labelPos = seed + outward * 30.0
+                    # ensure label is at least slightly outside the seed
+                    if np.dot(labelPos - seed, outward) < extraOffsetMm:
+                        labelPos = seed + outward * extraOffsetMm
+
+                    rgba = vROI.effectiveColor
+                    color = tuple(float(c) for c in rgba[:3])
+
+                    plotter.add_point_labels(
+                        points=np.array([labelPos]),
+                        labels=[key],
+                        name=_labelName(key),
+                        shape='rounded_rect',
+                        shape_color=color,
+                        shape_opacity=0.4,
+                        text_color='black',
+                        font_size=14,
+                        always_visible=True,
+                        render_points_as_spheres=False,
+                        point_size=1,
+                        reset_camera=False,
+                        render=False,
+                    )
+                    plotter.add_lines(
+                        np.array([seed, labelPos]),
+                        color=color,
+                        width=2,
+                        name=_lineName(key),
+                    )
+                    self._selectionLabelKeys.add(key)
+
+                plotter.render()
 
     def _getCurrentROIKey(self) -> str | None:
         return self._tableWdgt.currentCollectionItemKey
