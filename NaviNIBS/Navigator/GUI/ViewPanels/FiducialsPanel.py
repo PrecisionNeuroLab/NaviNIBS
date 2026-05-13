@@ -226,7 +226,7 @@ class FiducialsPanel(MainViewPanel):
         pass
 
     def _onAutosetBtnClicked(self, checked: bool):
-        self.session.registration.fiducials.autosetPlannedFiducialsFromHeadModel(self.session)
+        self.session.subjectRegistration.fiducials.autosetPlannedFiducialsFromHeadModel(self.session)
 
         self._tblWdgt.resizeColumnsToContents()
 
