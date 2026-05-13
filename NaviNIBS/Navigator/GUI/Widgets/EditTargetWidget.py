@@ -510,7 +510,10 @@ class EditTargetWidget:
 
     _entryAngleWdgts: EntryAnglesWidgets = attrs.field(init=False)
 
-    _colorWdgt: QtWidgets.QLineEdit = attrs.field(init=False)
+    _colorBtn: QtWidgets.QPushButton = attrs.field(init=False)
+    _colorResetBtn: QtWidgets.QPushButton = attrs.field(init=False)
+
+    _fallbackColor: tp.ClassVar[str] = '#2222FF'
 
     _target: Target | None = attrs.field(init=False, default=None)
 
@@ -581,11 +584,25 @@ class EditTargetWidget:
         )
         # children widgets added to layout internally in constructor
 
-        self._colorWdgt = QtWidgets.QLineEdit()
-        # TODO: add validator to constrain valid text inputs
-        self._colorWdgt.editingFinished.connect(self._onColorChangedFromGUI)
-        layout.addRow('Target color:', self._colorWdgt)
-        # TODO: make GUI color picker instead of or in addition to string field
+        colorContainer = QtWidgets.QWidget()
+        colorContainerLayout = QtWidgets.QHBoxLayout()
+        colorContainerLayout.setContentsMargins(0, 0, 0, 0)
+        colorContainer.setLayout(colorContainerLayout)
+
+        self._colorBtn = QtWidgets.QPushButton()
+        self._colorBtn.setFixedWidth(48)
+        self._colorBtn.clicked.connect(self._onColorBtnClicked)
+        colorContainerLayout.addWidget(self._colorBtn)
+
+        self._colorResetBtn = QtWidgets.QPushButton('Auto')
+        self._colorResetBtn.setFixedWidth(48)
+        self._colorResetBtn.setToolTip('Reset to automatic color')
+        self._colorResetBtn.clicked.connect(self._onColorResetBtnClicked)
+        colorContainerLayout.addWidget(self._colorResetBtn)
+        colorContainerLayout.addStretch()
+
+        layout.addRow('Target color:', colorContainer)
+        self._updateColorBtn()
 
         self._disableWidgetsWhenNoTarget = [
             self._depthOffsetWdgt,
@@ -596,7 +613,8 @@ class EditTargetWidget:
             self._entryAngleWdgts.angleRefWdgt,
             self._entryAngleWdgts.angleXWdgt.wdgt,
             self._entryAngleWdgts.angleYWdgt.wdgt,
-            self._colorWdgt
+            self._colorBtn,
+            self._colorResetBtn,
         ]
 
         self._targetComboBox.setCurrentIndex(-1)
@@ -632,12 +650,12 @@ class EditTargetWidget:
             self._targetComboBox.setCurrentIndex(-1)
             self._handleAngleWdgt.value = 0
             self._depthOffsetWdgt.setValue(0)
-            self._colorWdgt.setText('')
         else:
             self._targetComboBox.setCurrentIndex(self._targetsModel.getIndexFromCollectionItemKey(target.key))
             self._handleAngleWdgt.value = target.angle
             self._depthOffsetWdgt.setValue(target.depthOffset)
-            self._colorWdgt.setText(target.color if target.color is not None else '')
+
+        self._updateColorBtn()
 
     def setEnabled(self, enabled: bool):
         self._wdgt.setEnabled(enabled)
@@ -711,6 +729,9 @@ class EditTargetWidget:
         if attribsChanged is None or 'depthOffset' in attribsChanged:
             self._depthOffsetWdgt.setValue(self.target.depthOffset)
 
+        if attribsChanged is None or 'color' in attribsChanged:
+            self._updateColorBtn()
+
     def _onHandleAngleChangedFromGUI(self, newAngle: float):
         logger.info(f'Handle angle changed to {newAngle} degrees')
         if self.target is not None:
@@ -725,18 +746,36 @@ class EditTargetWidget:
                 logger.debug(f'Changing depth offset for {self.target.key} from {self.target.depthOffset} to {newDepth}')
                 self.target.depthOffset = newDepth
 
-    def _onColorChangedFromGUI(self):
-        if self.target is None:
+    def _resolveDisplayColor(self) -> QtGui.QColor:
+        if self._target is not None and self._target.color is not None:
+            qc = QtGui.QColor(self._target.color)
+            if qc.isValid():
+                return qc
+        return QtGui.QColor(self._fallbackColor)
+
+    def _updateColorBtn(self):
+        if self._target is None:
+            self._colorBtn.setStyleSheet('')
+            self._colorBtn.setEnabled(False)
+            self._colorResetBtn.setEnabled(False)
             return
+        qc = self._resolveDisplayColor()
+        self._colorBtn.setStyleSheet(f'QPushButton {{ background-color: {qc.name()}; }}')
+        self._colorBtn.setEnabled(True)
+        self._colorResetBtn.setEnabled(self._target.color is not None)
 
-        colorTxt = self._colorWdgt.text().strip()
+    def _onColorBtnClicked(self):
+        if self._target is None:
+            return
+        initial = self._resolveDisplayColor()
+        newColor = QtWidgets.QColorDialog.getColor(initial, self._wdgt, 'Choose target color')
+        if newColor.isValid():
+            hexStr = newColor.name()
+            logger.info(f'Changing color for target {self._target.key} to {hexStr}')
+            self._target.color = hexStr
 
-        if len(colorTxt) == 0:
-            colorTxt = None
-
-        logger.info(f'Changing color for target {self.target.key} to {colorTxt}')
-        try:
-            self.target.color = colorTxt
-        except Exception as e:
-            logger.warning(f'Unable to set target color to {colorTxt}.\n{exceptionToStr(e)}')
-            self._colorWdgt.setText(self.target.color if self.target.color is not None else '')
+    def _onColorResetBtnClicked(self):
+        if self._target is None:
+            return
+        logger.info(f'Resetting color for target {self._target.key} to None')
+        self._target.color = None
