@@ -259,7 +259,7 @@ async def test_loadParcellationROIs(
                        screenshotsDataSourcePath: str
                        ):
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmHeadModel', 'ROIs_LoadParcellation')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmFSHeadModel', 'ROIs_LoadParcellation')
 
     ses = utils.assertSavedSessionIsValid(sessionPath)
 
@@ -527,7 +527,7 @@ async def test_combineROIs(navigatorGUIWithoutSession: NavigatorGUI,
                            screenshotsDataSourcePath: str):
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmHeadModel', 'CombineROIs')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmFSHeadModel', 'CombineROIs')
 
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
     await asyncio.sleep(1.)

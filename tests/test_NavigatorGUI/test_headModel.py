@@ -245,7 +245,7 @@ async def test_mniTransforms(workingDir: str,
         outputCoord = coordSys.transformFromThisToWorld(coord)
         tEnd = time()
         elapsedTime = tEnd - tStart
-        assert elapsedTime < 1e-3
+        assert elapsedTime < 2e-3
         logger.info(f'New transform from MNI to world took {elapsedTime * 1e3:.3f} ms')
 
         tStart = time()

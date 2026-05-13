@@ -17,13 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openPlanFiducials(workingDir):
+    await utils.openSessionForInteraction(workingDir, 'PlanFiducials')
+
+
+@pytest.mark.asyncio
 @pytest.mark.order(after='test_headModel.py::test_setHeadModel')
 async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
                           screenshotsDataSourcePath: str):
     navigatorGUI = navigatorGUIWithoutSession
 
-    sessionPath = utils.copySessionFolder(workingDir, 'SetHeadModel', 'PlanFiducials')
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmFSHeadModel', 'PlanFiducials')
 
     # open session
     navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
@@ -60,7 +66,8 @@ async def test_planFiducials(navigatorGUIWithoutSession: NavigatorGUI,
 
     ses = utils.assertSavedSessionIsValid(sessionPath)
 
-    assert ses.subjectRegistration.fiducials.plannedFiducials['RPA'].round(1).tolist() == [76.4, 5.1, -35.5]
+    # assert ses.subjectRegistration.fiducials.plannedFiducials['RPA'].round(1).tolist() == [76.4, 5.1, -35.5]
+    assert ses.subjectRegistration.fiducials.plannedFiducials['RPA'].round(1).tolist() == [73.5, 4.5, -42.5]
 
     # TODO: trigger fiducials table column size refresh or wait for it to automatically refresh
 

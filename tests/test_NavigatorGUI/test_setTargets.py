@@ -353,7 +353,7 @@ async def test_setTargetGridWholeHead(navigatorGUIWithoutSession: NavigatorGUI,
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_headModel.py::test_setHeadModel')
-@pytest.mark.parametrize('modelLabel', ('Charm', ''))
+@pytest.mark.parametrize('modelLabel', ('CharmFS', 'Charm', ''))
 async def test_setTemplateTargets(navigatorGUIWithoutSession: NavigatorGUI,
                           workingDir: str,
                           modelLabel: str,
