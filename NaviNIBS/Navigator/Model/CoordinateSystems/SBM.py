@@ -23,6 +23,7 @@ T = tp.TypeVar('T')
 @attrs.define(kw_only=True)
 class SBMTransformedCoordinateSystem(CoordinateSystem):
 
+    _isVisible: bool = False  # slow on first access (~1.5GB fsaverage download); user opts in via the visibility dialog
     _nativePial_filepaths: tuple[str, str]
     _nativeSphere_filepaths: tuple[str, str]
 

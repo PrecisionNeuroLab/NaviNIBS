@@ -12,8 +12,6 @@ from NaviNIBS.Navigator.Model.CoordinateSystems.CoordinateSystem import Coordina
 logger = logging.getLogger(__name__)
 
 
-
-
 T = tp.TypeVar('T')
 
 
@@ -26,6 +24,7 @@ invalid = Invalid()
 
 @attrs.define(kw_only=True)
 class NonlinearTransformedCoordinateSystem(CoordinateSystem):
+    _isVisible: bool = False  # slow on first access; user opts in via the visibility dialog
     _deformationFieldThisToWorld_filepath: str = None
     _deformationFieldWorldToThis_filepath: str = None
     _isDeltas: bool = False

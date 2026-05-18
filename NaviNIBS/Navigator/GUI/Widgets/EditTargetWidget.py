@@ -9,12 +9,13 @@ from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 import qtawesome as qta
 
+from NaviNIBS.Navigator.Model.CoordinateSystems.SBM import SBMTransformedCoordinateSystem
 from NaviNIBS.Navigator.Model.Targets import Target
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import TargetsTableModel, FullTargetsTableModel
 from NaviNIBS.Navigator.Model.Session import Session, Tool
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh, calculateCoilToMRITransfFromTargetEntryAngle
-from NaviNIBS.Navigator.Model.CoordinateSystems.SBM import SBMTransformedCoordinateSystem
+from NaviNIBS.Navigator.Model.CoordinateSystems.Placeholder import PlaceholderCoordinateSystem
 from NaviNIBS.util import exceptionToStr
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import applyTransform, invertTransform, composeTransform, concatenateTransforms, applyDirectionTransform, calculateRotationMatrixFromVectorToVector
@@ -62,9 +63,16 @@ class CoordinateWidget:
             self._setCoordButton = QtWidgets.QPushButton(self._setCoordButtonLabel)
             self._setCoordButton.clicked.connect(self._onSetCoordButtonClicked)
             self._layout.addRow(self._setCoordButton)
+
+        if self._onNewCoordRequested is not None:
             self._autoUpdateOtherCoordCheckbox = QtWidgets.QCheckBox('')
             self._autoUpdateOtherCoordCheckbox.setChecked(self._doAutoUpdateOtherCoord)
             self._layout.addRow(f'Auto-update {self._whichOtherCoord} on set', self._autoUpdateOtherCoordCheckbox)
+
+        if self._session is not None:
+            # attrs assigns _session directly during __init__ without calling the setter,
+            # so wire the initial signal connection here.
+            self._session.coordinateSystems.sigItemsChanged.connect(self._onCoordSysCollectionChanged)
 
     @property
     def session(self):
@@ -72,8 +80,20 @@ class CoordinateWidget:
 
     @session.setter
     def session(self, newSes: tp.Optional[Session]):
+        if self._session is newSes:
+            return
+        if self._session is not None:
+            self._session.coordinateSystems.sigItemsChanged.disconnect(self._onCoordSysCollectionChanged)
         self._session = newSes
+        if self._session is not None:
+            self._session.coordinateSystems.sigItemsChanged.connect(self._onCoordSysCollectionChanged)
         self._redraw()
+
+    def _onCoordSysCollectionChanged(self, keys: list[str], attribsChanged: list[str] | None = None):
+        # Redraw when items are added/removed (attribsChanged is None) or when visibility flips.
+        # Other per-item attribute changes (e.g., description) don't affect what we display, so skip them.
+        if attribsChanged is None or 'isVisible' in attribsChanged:
+            self._redraw()
 
     @property
     def target(self):
@@ -204,15 +224,20 @@ class CoordinateWidget:
             self._setCoordButton.setEnabled(True)
 
         assert 'World' not in self._session.coordinateSystems
-        sessionCoordSysKeys = list(self._session.coordinateSystems.keys())
+        sessionCoordSysKeys = [
+            key for key, cs in self._session.coordinateSystems.items()
+            if cs.isVisible and not isinstance(cs, PlaceholderCoordinateSystem)
+        ]
         if self._whichCoord == 'entry':
             # SBM coord systems map via pial surface, which is not meaningful for
-            # entry coords (typically at skin). Hide them from the entry widget.
+            # entry coords (typically at skin). Hide them from the entry widget 
+            # regardless of visibility setting.
             sessionCoordSysKeys = [
                 key for key in sessionCoordSysKeys
                 if not isinstance(self._session.coordinateSystems[key],
                                   SBMTransformedCoordinateSystem)
             ]
+        
         coordSysKeys = ['World'] + sessionCoordSysKeys
         for iKey, key in enumerate(coordSysKeys):
             if key not in self._coordInSysWdgts:

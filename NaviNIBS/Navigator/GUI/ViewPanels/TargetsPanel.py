@@ -38,6 +38,7 @@ from NaviNIBS.util.pyvista import DefaultBackgroundPlotter
 from NaviNIBS.util.Signaler import Signal
 from NaviNIBS.util.Transforms import composeTransform, applyTransform, invertTransform, concatenateTransforms
 from NaviNIBS.Navigator.Model.Session import Session, Target
+from NaviNIBS.Navigator.Model.CoordinateSystems.Placeholder import PlaceholderCoordinateSystem
 
 
 logger = logging.getLogger(__name__)
@@ -313,6 +314,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _targetDispStyle_comboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
     _crosshairsDispCheckbox: QtWidgets.QCheckBox = attrs.field(init=False)
     _handleLineLengthSpinBox: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _editCoordSysVisibilityBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _export3DBtn: QtWidgets.QPushButton = attrs.field(init=False)
 
     _surfKeys: tp.List[str] = attrs.field(factory=lambda: ['gmSurf', 'skinSimpleDisplaySurf'])
@@ -427,7 +429,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._crosshairsDispCheckbox = QtWidgets.QCheckBox()
         self._crosshairsDispCheckbox.setChecked(True)
         self._crosshairsDispCheckbox.stateChanged.connect(self._onCrosshairsDispCheckboxChanged)
-        fieldLayout.addRow('Show cursor crosshairs', self._crosshairsDispCheckbox)
+        fieldLayout.addRow('Show cursor crosshairs:', self._crosshairsDispCheckbox)
 
         self._handleLineLengthSpinBox = QtWidgets.QDoubleSpinBox()
         preventAnnoyingScrollBehaviour(self._handleLineLengthSpinBox)
@@ -438,6 +440,15 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         self._handleLineLengthSpinBox.setSuffix(' mm')
         self._handleLineLengthSpinBox.editingFinished.connect(self._onHandleLineLengthChanged)
         fieldLayout.addRow('Handle line length:', self._handleLineLengthSpinBox)
+
+
+        self._editCoordSysVisibilityBtn = QtWidgets.QPushButton('Edit visibility...')
+        self._editCoordSysVisibilityBtn.setIcon(getIcon('mdi6.eye'))
+        self._editCoordSysVisibilityBtn.setToolTip('Change visibility of coordinate systems...')
+        self._editCoordSysVisibilityBtn.clicked.connect(self._onEditCoordSysVisibilityClicked)
+        fieldLayout.addRow('Coordinate systems:', self._editCoordSysVisibilityBtn)
+        self.session.coordinateSystems.sigItemsChanged.connect(self._onCoordSysCollectionChanged)
+        self._updateEditCoordSysVisibilityBtnVisibility()
 
         self._export3DBtn = QtWidgets.QPushButton('Export 3D view...')
         self._export3DBtn.clicked.connect(self._onExport3DBtnClicked)
@@ -615,6 +626,25 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         showCrosshairs = (state == QtCore.Qt.CheckState.Checked.value)
         for view in self._views.values():
             view.doShowCrosshairs = showCrosshairs
+
+    def _onCoordSysCollectionChanged(self, keys: list[str], attribsChanged: list[str] | None = None):
+        if attribsChanged is None or 'isVisible' in attribsChanged:
+            self._updateEditCoordSysVisibilityBtnVisibility()
+
+    def _updateEditCoordSysVisibilityBtnVisibility(self):
+        # Hide the button when there are no real (non-placeholder) coord systems
+        # beyond World, since there's nothing for the user to toggle.
+        hasAnyToggleableCoordSys = any(
+            not isinstance(cs, PlaceholderCoordinateSystem) for cs in self.session.coordinateSystems.values()
+        )
+        self._editCoordSysVisibilityBtn.setVisible(hasAnyToggleableCoordSys)
+
+    def _onEditCoordSysVisibilityClicked(self, _: bool = False):
+        from NaviNIBS.Navigator.GUI.EditWindows.EditCoordinateSystemVisibility import (
+            EditCoordinateSystemVisibilityDialog,
+        )
+        dialog = EditCoordinateSystemVisibilityDialog(session=self.session, parent=self._wdgt)
+        dialog.exec()
 
     def _onExport3DBtnClicked(self):
         filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt,
