@@ -36,7 +36,7 @@ class FiducialsPanel(MainViewPanel):
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-snowflake-outline'))
     _tblWdgt: PlanningFiducialsTableWidget = attrs.field(init=False)
     _views: tp.Dict[str, tp.Union[MRISliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
-    _surfKey: str = 'skinSurf'
+    _surfKey: str = 'skinDisplaySurf'
     _fiducialActors: tp.Dict[str, tp.Any] = attrs.field(init=False, factory=dict)
     _autosetBtn: QtWidgets.QPushButton = attrs.field(init=False)
 

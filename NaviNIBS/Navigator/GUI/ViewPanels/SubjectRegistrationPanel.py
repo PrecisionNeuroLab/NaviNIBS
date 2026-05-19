@@ -311,7 +311,7 @@ class SubjectRegistrationPanel(MainViewPanel):
     """
     _key: str = 'Register'
     _icon: QtGui.QIcon = attrs.field(init=False, factory=lambda: getIcon('mdi6.head-snowflake'))
-    _surfKey: str = 'skinSurf'
+    _surfKey: str = 'skinDisplaySurf'
 
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _fidTblWdgt: RegistrationFiducialsTableWidget = attrs.field(init=False)
