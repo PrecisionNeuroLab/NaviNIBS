@@ -330,7 +330,11 @@ class Surf3DView(SurfSliceView):
                         opacity=surfOpacities[iSurf % len(surfOpacities)],
                         name=actorName,
                         render=False,
-                        reset_camera=False)
+                        reset_camera=False,
+                        smooth_shading=True,
+                        ambient=0.25,
+                        diffuse=0.6,
+                        specular=0.1,)
                     actors[actorName] = actor
 
                     self._surfPlotInitialized = True
