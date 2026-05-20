@@ -642,8 +642,12 @@ class EditTargetWidget:
             self._colorResetBtn,
         ]
 
+        # Force combobox to -1 first so that the sync below produces a real
+        # index transition (and a currentIndexChanged emission) even when
+        # the preselected target is at index 0 — which is QComboBox.setModel's
+        # default for a populated model.
         self._targetComboBox.setCurrentIndex(-1)
-        self._onTargetComboBoxCurrentIndexChanged(self._targetComboBox.currentIndex())  # enable/disable widgets
+        self._syncComboBoxToCurrentSelection(deferIndexUpdate=False)
 
     @property
     def wdgt(self):
@@ -705,6 +709,9 @@ class EditTargetWidget:
             if self._targetsModel.getCollectionItemIsSelected(menuCurrentTargetKey):
                 return
 
+        self._syncComboBoxToCurrentSelection(deferIndexUpdate=True)
+
+    def _syncComboBoxToCurrentSelection(self, deferIndexUpdate: bool) -> None:
         firstSelectedTargetKey = None
         for target in self._session.targets.values():
             if target.isSelected:
@@ -713,13 +720,14 @@ class EditTargetWidget:
 
         if firstSelectedTargetKey is None:
             self._targetComboBox.setCurrentIndex(-1)
+            return
+
+        index = self._targetsModel.getIndexFromCollectionItemKey(firstSelectedTargetKey)
+        if deferIndexUpdate:
+            # run after short delay to prevent issue with nested model changes
+            QtCore.QTimer.singleShot(0, lambda index=index: self._targetComboBox.setCurrentIndex(index))
         else:
-            index = self._targetsModel.getIndexFromCollectionItemKey(firstSelectedTargetKey)
-            if False:
-                self._targetComboBox.setCurrentIndex(index)
-            else:
-                # run after short delay to prevent issue with nested model changes
-                QtCore.QTimer.singleShot(0, lambda index=index: self._targetComboBox.setCurrentIndex(index))
+            self._targetComboBox.setCurrentIndex(index)
 
     def _onTargetComboBoxCurrentIndexChanged(self, index: int):
 
