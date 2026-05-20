@@ -21,13 +21,19 @@ class QueuedRedrawMixin:
     _redrawQueueModified: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _redrawingNotPaused: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _pauseStackCount_: int = attrs.field(init=False, default=0)
+    _redrawLoopTask: asyncio.Task | None = attrs.field(init=False, default=None)
 
     redrawQueueIsEmpty: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
     def __attrs_post_init__(self):
         self.redrawQueueIsEmpty.set()
         self._redrawingNotPaused.set()
-        asyncCreateTask(self._loop_queuedRedraw)
+        self._redrawLoopTask = asyncCreateTask(self._loop_queuedRedraw)
+
+    def _stopRedrawLoop(self):
+        if self._redrawLoopTask is not None:
+            self._redrawLoopTask.cancel()
+            self._redrawLoopTask = None
 
     async def _loop_queuedRedraw(self):
         while True:
