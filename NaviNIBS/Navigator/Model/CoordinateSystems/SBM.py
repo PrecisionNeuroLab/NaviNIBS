@@ -10,9 +10,11 @@ import attrs
 import nibabel as nib
 import nitransforms as nit
 import numpy as np
+import pyvista as pv
 from scipy.spatial import cKDTree
 
 from NaviNIBS.Navigator.Model.CoordinateSystems.CoordinateSystem import CoordinateSystem
+from NaviNIBS.util.pyvista.dataset import find_closest_cell
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +30,14 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
     _nativeSphere_filepaths: tuple[str, str]
 
     _warnIfNearestPialDistanceExceeds_mm: float = 5.0
-    _smoothingK: int = 3
+    _interpolationMethod: tp.Literal['knn', 'barycentric'] = 'barycentric'
+    _smoothingK: int = 3  # only used when _interpolationMethod == 'knn'
 
     _cachedValues: dict[bytes, tp.Any] = attrs.field(init=False, factory=dict, repr=False)
+    _atlasPialPolysCache: dict[str, pv.PolyData] | None = attrs.field(init=False, default=None, repr=False)
+    _atlasSpherePolysCache: dict[str, pv.PolyData] | None = attrs.field(init=False, default=None, repr=False)
+    _nativePialPolysCache: dict[str, pv.PolyData] | None = attrs.field(init=False, default=None, repr=False)
+    _nativeSpherePolysCache: dict[str, pv.PolyData] | None = attrs.field(init=False, default=None, repr=False)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -71,36 +78,40 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
     @functools.cache
     def _getAtlasSphereSurf(cls, lr: tp.Literal['l', 'r']) -> tuple[np.ndarray, np.ndarray]:
         fsAverageDir = cls._getFSAverageDir()
-        fsSphere = nib.freesurfer.read_geometry(os.path.join(fsAverageDir, 'surf', f'{lr}h.sphere'))
-        return fsSphere
+        coords, faces = nib.freesurfer.read_geometry(os.path.join(fsAverageDir, 'surf', f'{lr}h.sphere'))
+        return np.asarray(coords, dtype=np.float64), np.asarray(faces, dtype=np.int64)
 
     @staticmethod
-    def _loadNativeSurfaceCoords(filepath: str) -> np.ndarray:
+    def _loadNativeSurface(filepath: str) -> tuple[np.ndarray, np.ndarray]:
         if filepath.endswith('.gii'):
             surf = nib.load(filepath)
-            return np.asarray(surf.darrays[0].data, dtype=np.float64)
-        coords, _ = nib.freesurfer.read_geometry(filepath)
-        return np.asarray(coords, dtype=np.float64)
+            coords = np.asarray(surf.darrays[0].data, dtype=np.float64)
+            faces = np.asarray(surf.darrays[1].data, dtype=np.int64)
+            return coords, faces
+        coords, faces = nib.freesurfer.read_geometry(filepath)
+        return np.asarray(coords, dtype=np.float64), np.asarray(faces, dtype=np.int64)
 
     @staticmethod
     @functools.cache
-    def _getNativePialCoords(filepath: str) -> np.ndarray:
+    def _getNativePialSurf(filepath: str) -> tuple[np.ndarray, np.ndarray]:
         logger.info(f'Loading native pial surface from {filepath}')
         if filepath.endswith('.gii'):
             surf = nib.load(filepath)
-            return np.asarray(surf.darrays[0].data, dtype=np.float64)
-        coords, _, info = nib.freesurfer.read_geometry(filepath, read_metadata=True)
+            coords = np.asarray(surf.darrays[0].data, dtype=np.float64)
+            faces = np.asarray(surf.darrays[1].data, dtype=np.int64)
+            return coords, faces
+        coords, faces, info = nib.freesurfer.read_geometry(filepath, read_metadata=True)
         # convert FreeSurfer tkr-RAS to scanner-RAS by adding cras translation
         cras = info.get('cras')
         if cras is not None:
             coords = coords + np.asarray(cras, dtype=coords.dtype)
-        return np.asarray(coords, dtype=np.float64)
+        return np.asarray(coords, dtype=np.float64), np.asarray(faces, dtype=np.int64)
 
     @staticmethod
     @functools.cache
-    def _getNativeSphereCoordsScaled(filepath: str, lr: tp.Literal['l', 'r']) -> np.ndarray:
+    def _getNativeSphereSurfScaled(filepath: str, lr: tp.Literal['l', 'r']) -> tuple[np.ndarray, np.ndarray]:
         logger.info(f'Loading native sphere surface from {filepath}')
-        coords = SBMTransformedCoordinateSystem._loadNativeSurfaceCoords(filepath)
+        coords, faces = SBMTransformedCoordinateSystem._loadNativeSurface(filepath)
         atlasCoords, _ = SBMTransformedCoordinateSystem._getAtlasSphereSurf(lr)
         nativeR = float(np.linalg.norm(coords[0]))
         atlasR = float(np.linalg.norm(atlasCoords[0]))
@@ -111,12 +122,12 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
                 f'(nativeR={nativeR:.4f}, atlasR={atlasR:.4f}); '
                 f'expected ~1 (FreeSurfer-binary) or ~100 (CHARM .gii).'
             )
-        return coords * scale
+        return coords * scale, faces
 
     @staticmethod
     @functools.cache
     def _getNativeSphereTree(filepath: str, lr: tp.Literal['l', 'r']) -> cKDTree:
-        return cKDTree(SBMTransformedCoordinateSystem._getNativeSphereCoordsScaled(filepath, lr))
+        return cKDTree(SBMTransformedCoordinateSystem._getNativeSphereSurfScaled(filepath, lr)[0])
 
     @classmethod
     @functools.cache
@@ -126,8 +137,8 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
     @staticmethod
     @functools.cache
     def _getCombinedNativePialTree(lhFilepath: str, rhFilepath: str) -> tuple[cKDTree, int]:
-        lh = SBMTransformedCoordinateSystem._getNativePialCoords(lhFilepath)
-        rh = SBMTransformedCoordinateSystem._getNativePialCoords(rhFilepath)
+        lh, _ = SBMTransformedCoordinateSystem._getNativePialSurf(lhFilepath)
+        rh, _ = SBMTransformedCoordinateSystem._getNativePialSurf(rhFilepath)
         return cKDTree(np.vstack([lh, rh])), len(lh)
 
     @classmethod
@@ -136,6 +147,53 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
         lh = cls._getAtlasPialSurf('l')[0]
         rh = cls._getAtlasPialSurf('r')[0]
         return cKDTree(np.vstack([lh, rh])), len(lh)
+
+    @staticmethod
+    def _facesToPyvistaFaces(faces: np.ndarray) -> np.ndarray:
+        n = len(faces)
+        return np.hstack([np.full((n, 1), 3, dtype=np.int64), faces.astype(np.int64)]).ravel()
+
+    @property
+    def _atlasPialPolys(self) -> dict[str, pv.PolyData]:
+        if self._atlasPialPolysCache is None:
+            self._atlasPialPolysCache = {
+                lr: pv.PolyData(c, self._facesToPyvistaFaces(f))
+                for lr in ('l', 'r')
+                for c, f in [self._getAtlasPialSurf(lr)]
+            }
+        return self._atlasPialPolysCache
+
+    @property
+    def _atlasSpherePolys(self) -> dict[str, pv.PolyData]:
+        if self._atlasSpherePolysCache is None:
+            self._atlasSpherePolysCache = {
+                lr: pv.PolyData(c, self._facesToPyvistaFaces(f))
+                for lr in ('l', 'r')
+                for c, f in [self._getAtlasSphereSurf(lr)]
+            }
+        return self._atlasSpherePolysCache
+
+    @property
+    def _nativePialPolys(self) -> dict[str, pv.PolyData]:
+        if self._nativePialPolysCache is None:
+            lhPath, rhPath = self._nativePial_filepaths
+            self._nativePialPolysCache = {
+                lr: pv.PolyData(c, self._facesToPyvistaFaces(f))
+                for lr, path in (('l', lhPath), ('r', rhPath))
+                for c, f in [self._getNativePialSurf(path)]
+            }
+        return self._nativePialPolysCache
+
+    @property
+    def _nativeSpherePolys(self) -> dict[str, pv.PolyData]:
+        if self._nativeSpherePolysCache is None:
+            lhPath, rhPath = self._nativeSphere_filepaths
+            self._nativeSpherePolysCache = {
+                lr: pv.PolyData(c, self._facesToPyvistaFaces(f))
+                for lr, path in (('l', lhPath), ('r', rhPath))
+                for c, f in [self._getNativeSphereSurfScaled(path, lr)]
+            }
+        return self._nativeSpherePolysCache
 
     def _cacheWrap(self, fn: tp.Callable[..., T], **kwargs) -> T:
         key = pickle.dumps((fn.__name__, kwargs))
@@ -147,6 +205,10 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
 
     def clearCache(self):
         self._cachedValues = dict()
+        self._atlasPialPolysCache = None
+        self._atlasSpherePolysCache = None
+        self._nativePialPolysCache = None
+        self._nativeSpherePolysCache = None
 
     def _warnIfFarFromPial(self, dists: np.ndarray, direction: str) -> None:
         threshold = self._warnIfNearestPialDistanceExceeds_mm
@@ -214,6 +276,102 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
 
         return out
 
+    @staticmethod
+    def _computeBarycentric(p: np.ndarray, v0: np.ndarray, v1: np.ndarray, v2: np.ndarray
+                            ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Barycentric coords (u, v, w) of point p (projected to triangle plane) in triangle (v0, v1, v2).
+        Returns u, v, w such that p ≈ u*v0 + v*v1 + w*v2. Broadcasts over the leading axis."""
+        e1 = v1 - v0
+        e2 = v2 - v0
+        d = p - v0
+        d00 = (e1 * e1).sum(-1)
+        d01 = (e1 * e2).sum(-1)
+        d11 = (e2 * e2).sum(-1)
+        d20 = (d * e1).sum(-1)
+        d21 = (d * e2).sum(-1)
+        denom = d00 * d11 - d01 * d01
+        v = (d11 * d20 - d01 * d21) / denom
+        w = (d00 * d21 - d01 * d20) / denom
+        u = 1.0 - v - w
+        return u, v, w
+
+    def _mapViaBarycentric(self,
+                            coords: np.ndarray,
+                            *,
+                            sourcePialPolys: dict[str, pv.PolyData],
+                            sourcePialFaces: dict[str, np.ndarray],
+                            sourceSphereCoords: dict[str, np.ndarray],
+                            destSpherePolys: dict[str, pv.PolyData],
+                            destSphereFaces: dict[str, np.ndarray],
+                            destPialCoords: dict[str, np.ndarray],
+                            direction: str) -> np.ndarray:
+        # Step 1: query each hemisphere's source pial for closest cell + closest point
+        cells = {}
+        closestPts = {}
+        dists = {}
+        for lr in ('l', 'r'):
+            cId, cPt = find_closest_cell(sourcePialPolys[lr], coords, return_closest_point=True)
+            cells[lr] = np.atleast_1d(cId)
+            closestPts[lr] = np.atleast_2d(cPt)
+            dists[lr] = np.linalg.norm(closestPts[lr] - coords, axis=-1)
+
+        # Step 2: pick hemisphere by min distance
+        lhMask = dists['l'] <= dists['r']
+
+        # Warn if any point is too far from either pial surface
+        minDists = np.minimum(dists['l'], dists['r'])
+        self._warnIfFarFromPial(minDists, direction)
+
+        out = np.empty((coords.shape[0], 3), dtype=np.float64)
+        for lr, mask in (('l', lhMask), ('r', ~lhMask)):
+            if not mask.any():
+                continue
+
+            # Step 3: barycentric coords in source pial triangle
+            srcFaces = sourcePialFaces[lr]  # (N, 3)
+            srcSphere = sourceSphereCoords[lr]
+            destFaces = destSphereFaces[lr]  # (M, 3)
+            destPial = destPialCoords[lr]
+
+            subCells = cells[lr][mask]
+            subClosest = closestPts[lr][mask]
+            faceIdx = srcFaces[subCells]  # (n, 3)
+            srcPialPts = sourcePialPolys[lr].points
+            us, vs, ws = self._computeBarycentric(
+                subClosest,
+                srcPialPts[faceIdx[:, 0]],
+                srcPialPts[faceIdx[:, 1]],
+                srcPialPts[faceIdx[:, 2]],
+            )
+
+            # Step 4: transfer barycentric to source sphere via shared connectivity
+            srcSpherePts = (us[:, None] * srcSphere[faceIdx[:, 0]]
+                            + vs[:, None] * srcSphere[faceIdx[:, 1]]
+                            + ws[:, None] * srcSphere[faceIdx[:, 2]])
+
+            # Step 5: find closest cell on dest sphere
+            dstCellIds, dstClosestPts = find_closest_cell(
+                destSpherePolys[lr], srcSpherePts, return_closest_point=True)
+            dstCellIds = np.atleast_1d(dstCellIds)
+            dstClosestPts = np.atleast_2d(dstClosestPts)
+            dstFaceIdx = destFaces[dstCellIds]  # (n, 3)
+            dstSpherePts = destSpherePolys[lr].points
+
+            # Step 6: barycentric on dest sphere triangle
+            ud, vd, wd = self._computeBarycentric(
+                dstClosestPts,
+                dstSpherePts[dstFaceIdx[:, 0]],
+                dstSpherePts[dstFaceIdx[:, 1]],
+                dstSpherePts[dstFaceIdx[:, 2]],
+            )
+
+            # Step 7: apply to dest pial vertices of same face
+            out[mask] = (ud[:, None] * destPial[dstFaceIdx[:, 0]]
+                         + vd[:, None] * destPial[dstFaceIdx[:, 1]]
+                         + wd[:, None] * destPial[dstFaceIdx[:, 2]])
+
+        return out
+
     def transformFromWorldToThis(self, coords: np.ndarray, doUseCache: bool = True) -> np.ndarray:
         if doUseCache:
             return self._cacheWrap(self.transformFromWorldToThis, coords=coords)
@@ -226,20 +384,36 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
 
         lhPialPath, rhPialPath = self._nativePial_filepaths
         lhSpherePath, rhSpherePath = self._nativeSphere_filepaths
-        nativePialTree, nLhNativePial = self._getCombinedNativePialTree(lhPialPath, rhPialPath)
 
-        res = self._mapViaSurface(
-            coords=coords,
-            sourcePialTree=nativePialTree,
-            nLhSourcePial=nLhNativePial,
-            lhSourceSphere=self._getNativeSphereCoordsScaled(lhSpherePath, 'l'),
-            rhSourceSphere=self._getNativeSphereCoordsScaled(rhSpherePath, 'r'),
-            lhDestSphereTree=self._getAtlasSphereTree('l'),
-            rhDestSphereTree=self._getAtlasSphereTree('r'),
-            lhDestPial=self._getAtlasPialSurf('l')[0],
-            rhDestPial=self._getAtlasPialSurf('r')[0],
-            direction='worldToThis',
-        )
+        if self._interpolationMethod == 'knn':
+            nativePialTree, nLhNativePial = self._getCombinedNativePialTree(lhPialPath, rhPialPath)
+            res = self._mapViaSurface(
+                coords=coords,
+                sourcePialTree=nativePialTree,
+                nLhSourcePial=nLhNativePial,
+                lhSourceSphere=self._getNativeSphereSurfScaled(lhSpherePath, 'l')[0],
+                rhSourceSphere=self._getNativeSphereSurfScaled(rhSpherePath, 'r')[0],
+                lhDestSphereTree=self._getAtlasSphereTree('l'),
+                rhDestSphereTree=self._getAtlasSphereTree('r'),
+                lhDestPial=self._getAtlasPialSurf('l')[0],
+                rhDestPial=self._getAtlasPialSurf('r')[0],
+                direction='worldToThis',
+            )
+        elif self._interpolationMethod == 'barycentric':
+            res = self._mapViaBarycentric(
+                coords=coords,
+                sourcePialPolys=self._nativePialPolys,
+                sourcePialFaces={lr: self._getNativePialSurf(p)[1]
+                                 for lr, p in (('l', lhPialPath), ('r', rhPialPath))},
+                sourceSphereCoords={lr: self._getNativeSphereSurfScaled(p, lr)[0]
+                                    for lr, p in (('l', lhSpherePath), ('r', rhSpherePath))},
+                destSpherePolys=self._atlasSpherePolys,
+                destSphereFaces={lr: self._getAtlasSphereSurf(lr)[1] for lr in ('l', 'r')},
+                destPialCoords={lr: self._getAtlasPialSurf(lr)[0] for lr in ('l', 'r')},
+                direction='worldToThis',
+            )
+        else:
+            raise NotImplementedError(f'Unsupported interpolation method: {self._interpolationMethod!r}')
 
         if shouldCollapse:
             res = res.flatten()
@@ -257,20 +431,36 @@ class SBMTransformedCoordinateSystem(CoordinateSystem):
 
         lhPialPath, rhPialPath = self._nativePial_filepaths
         lhSpherePath, rhSpherePath = self._nativeSphere_filepaths
-        atlasPialTree, nLhAtlasPial = self._getCombinedAtlasPialTree()
 
-        res = self._mapViaSurface(
-            coords=coords,
-            sourcePialTree=atlasPialTree,
-            nLhSourcePial=nLhAtlasPial,
-            lhSourceSphere=self._getAtlasSphereSurf('l')[0],
-            rhSourceSphere=self._getAtlasSphereSurf('r')[0],
-            lhDestSphereTree=self._getNativeSphereTree(lhSpherePath, 'l'),
-            rhDestSphereTree=self._getNativeSphereTree(rhSpherePath, 'r'),
-            lhDestPial=self._getNativePialCoords(lhPialPath),
-            rhDestPial=self._getNativePialCoords(rhPialPath),
-            direction='thisToWorld',
-        )
+        if self._interpolationMethod == 'knn':
+            atlasPialTree, nLhAtlasPial = self._getCombinedAtlasPialTree()
+            res = self._mapViaSurface(
+                coords=coords,
+                sourcePialTree=atlasPialTree,
+                nLhSourcePial=nLhAtlasPial,
+                lhSourceSphere=self._getAtlasSphereSurf('l')[0],
+                rhSourceSphere=self._getAtlasSphereSurf('r')[0],
+                lhDestSphereTree=self._getNativeSphereTree(lhSpherePath, 'l'),
+                rhDestSphereTree=self._getNativeSphereTree(rhSpherePath, 'r'),
+                lhDestPial=self._getNativePialSurf(lhPialPath)[0],
+                rhDestPial=self._getNativePialSurf(rhPialPath)[0],
+                direction='thisToWorld',
+            )
+        elif self._interpolationMethod == 'barycentric':
+            res = self._mapViaBarycentric(
+                coords=coords,
+                sourcePialPolys=self._atlasPialPolys,
+                sourcePialFaces={lr: self._getAtlasPialSurf(lr)[1] for lr in ('l', 'r')},
+                sourceSphereCoords={lr: self._getAtlasSphereSurf(lr)[0] for lr in ('l', 'r')},
+                destSpherePolys=self._nativeSpherePolys,
+                destSphereFaces={lr: self._getNativeSphereSurfScaled(p, lr)[1]
+                                 for lr, p in (('l', lhSpherePath), ('r', rhSpherePath))},
+                destPialCoords={lr: self._getNativePialSurf(p)[0]
+                                for lr, p in (('l', lhPialPath), ('r', rhPialPath))},
+                direction='thisToWorld',
+            )
+        else:
+            raise NotImplementedError(f'Unsupported interpolation method: {self._interpolationMethod!r}')
 
         if shouldCollapse:
             res = res.flatten()
