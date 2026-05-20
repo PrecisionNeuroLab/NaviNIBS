@@ -42,14 +42,14 @@ class SpatialTransformDisplayWidget(QtWidgets.QWidget):
         rootLayout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(rootLayout)
 
-        self._noneLabel.setVisible(self._transform is None)
         rootLayout.addWidget(self._noneLabel)
+        self._noneLabel.setVisible(self._transform is None)
 
         gridLayout = QtWidgets.QGridLayout()
         self._gridContainer.setLayout(gridLayout)
-        self._gridContainer.setVisible(self._transform is not None)
         gridLayout.setContentsMargins(0, 0, 0, 0)
         rootLayout.addWidget(self._gridContainer)
+        self._gridContainer.setVisible(self._transform is not None)
 
         gridLayout.setVerticalSpacing(1)
         gridLayout.setHorizontalSpacing(8)
