@@ -174,6 +174,8 @@ class HeadModelPanel(MainViewPanel):
         self.session.headModel.sigFilepathChanged.connect(self._updateFilepaths)
         self.session.headModel.sigDataChanged.connect(self._onHeadModelUpdated)
 
+        self._onHeadModelUpdated(whatChanged=None)
+
         self._meshToMRITransformWdgt.transform = self.session.headModel.meshToMRITransform
 
         self._defaceSkinCheckbox.blockSignals(True)
