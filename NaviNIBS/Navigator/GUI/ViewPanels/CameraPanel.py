@@ -14,6 +14,7 @@ from NaviNIBS.Devices.ToolPositionsServer import ToolPositionsServer
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
 from NaviNIBS.Devices.IGTLinkToolPositionsServer import IGTLinkToolPositionsServer
 from NaviNIBS.Navigator.Model.Session import Session, SubjectTracker
+from NaviNIBS.Navigator.GUI import headMeshDefaultKwargs, toolMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.ViewPanels.MainViewPanelWithDockWidgets import MainViewPanelWithDockWidgets
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from NaviNIBS.util.Asyncio import asyncCreateTask
@@ -182,7 +183,8 @@ class CameraObjectsView(QueuedRedrawMixin):
                                                                                            color=meshColor,
                                                                                            defaultMeshColor='#444444',
                                                                                            opacity=1.0 if meshOpacity is None else meshOpacity,
-                                                                                           name=actorKey)
+                                                                                           name=actorKey,
+                                                                                           **toolMeshDefaultKwargs)
 
                                             doResetCamera = True
 
@@ -206,7 +208,8 @@ class CameraObjectsView(QueuedRedrawMixin):
                                 self._actors[actorKey] = self._plotter.add_mesh(mesh=self.session.headModel.skinSimpleDisplaySurf,
                                                                                 color='#d9a5b2',
                                                                                 # opacity=0.8,
-                                                                                name=actorKey)
+                                                                                name=actorKey,
+                                                                                **headMeshDefaultKwargs)
                                 doResetCamera = True
 
                             with self._plotter.allowNonblockingCalls():

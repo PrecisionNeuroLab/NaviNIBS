@@ -16,6 +16,7 @@ import typing as tp
 
 from . import MainViewPanel
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient
+from NaviNIBS.Navigator.GUI import headMeshDefaultKwargs, toolMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.Widgets.CollectionTableWidget import DigitizedLocationsTableWidget
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
 from NaviNIBS.Navigator.Model.Session import Session
@@ -310,7 +311,8 @@ class DigitizeLocationsPanel(MainViewPanel):
             self._actors[actorKey] = self._plotter.add_mesh(mesh=getattr(self.session.headModel, self._surfKey),
                                                             color='#d9a5b2',
                                                             opacity=0.8,  # TODO: make GUI-configurable
-                                                            name=actorKey)
+                                                            name=actorKey,
+                                                            **headMeshDefaultKwargs)
 
         elif which == 'initSubjectTracker':
             subjectTracker = self.session.tools.subjectTracker
@@ -328,7 +330,8 @@ class DigitizeLocationsPanel(MainViewPanel):
                                                                color=self.session.tools.subjectTracker.trackerColor,
                                                                defaultMeshColor='#aaaaaa',
                                                                opacity=0.6,
-                                                               name=actorKey)
+                                                               name=actorKey,
+                                                               **toolMeshDefaultKwargs)
                 self._redraw(which='subjectTrackerPosition')
 
         elif which in ('sampleBtn',):
@@ -374,7 +377,8 @@ class DigitizeLocationsPanel(MainViewPanel):
                                                                    color=meshColor,
                                                                    defaultMeshColor='#999999',
                                                                    opacity=0.6,
-                                                                   name=actorKey)
+                                                                   name=actorKey,
+                                                                   **toolMeshDefaultKwargs)
                 self._redraw(which='pointerPosition')
 
             elif which == 'pointerPosition':

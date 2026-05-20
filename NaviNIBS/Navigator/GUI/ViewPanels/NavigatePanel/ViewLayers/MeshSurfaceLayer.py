@@ -11,6 +11,7 @@ from typing import ClassVar
 from . import PlotViewLayer
 from NaviNIBS.util.pyvista import setActorUserTransform, concatenateLineSegments
 from NaviNIBS.util.Transforms import concatenateTransforms, invertTransform
+from NaviNIBS.Navigator.GUI import headMeshDefaultKwargs, toolMeshDefaultKwargs
 
 
 logger = logging.getLogger(__name__)
@@ -96,12 +97,8 @@ class ToolMeshSurfaceLayer(PlotViewLayer):
                 self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                                 color=color,
                                                                 opacity=opacity,
-                                                                specular=0.5,
-                                                                diffuse=0.5,
-                                                                ambient=0.5,
-                                                                smooth_shading=True,
-                                                                split_sharp_edges=True,
-                                                                name=actorKey)
+                                                                name=actorKey,
+                                                                **toolMeshDefaultKwargs)
 
             self._plotter.reset_camera_clipping_range()
 
@@ -288,12 +285,8 @@ class HeadMeshSurfaceLayer(PlotViewLayer):
         self._actors[actorKey] = self._plotter.add_mesh(mesh=mesh,
                                                         color=self._color,
                                                         opacity=self._opacity,
-                                                        smooth_shading=True,
-                                                        ambient=0.25,
-                                                        diffuse=0.6,
-                                                        specular=0.1,
-                                                        split_sharp_edges=False,
-                                                        name=actorKey)
+                                                        name=actorKey,
+                                                        **headMeshDefaultKwargs)
 
         self._plotter.reset_camera_clipping_range()
 

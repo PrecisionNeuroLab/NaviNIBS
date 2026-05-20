@@ -9,6 +9,7 @@ import pyvista as pv
 from qtpy import QtWidgets, QtGui, QtCore
 import typing as tp
 
+from NaviNIBS.Navigator.GUI import toolMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.EditWindows.ToolCalibrationWindow import ToolCalibrationWindow
 from NaviNIBS.util.Asyncio import asyncCreateTask
 from NaviNIBS.util.Transforms import invertTransform, concatenateTransforms
@@ -237,7 +238,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     defaultMeshColor='#444444',
-                    opacity=0.5
+                    opacity=0.5,
+                    **toolMeshDefaultKwargs
                 )
 
                 setActorUserTransform(self._calibrationPlateToolActor, calibPlate.toolStlToToolTransf)
@@ -252,7 +254,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     defaultMeshColor='#444444',
-                    opacity=0.5
+                    opacity=0.5,
+                    **toolMeshDefaultKwargs
                 )
                 setActorUserTransform(self._calibrationPlateTrackerActor, concatenateTransforms([
                     calibPlate.trackerStlToTrackerTransf,
@@ -312,7 +315,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     defaultMeshColor='#444444',
-                    opacity=0.5
+                    opacity=0.5,
+                    **toolMeshDefaultKwargs
                 )
                 doResetCamera = True
 
@@ -331,7 +335,8 @@ class CoilCalibrationWithPlateWindow(ToolCalibrationWindow):
                     mesh=mesh,
                     color=meshColor,
                     defaultMeshColor='#444444',
-                    opacity=0.5)
+                    opacity=0.5,
+                    **toolMeshDefaultKwargs)
                 doResetCamera = True
 
         coilTrackerToCalibToolTransf = concatenateTransforms([

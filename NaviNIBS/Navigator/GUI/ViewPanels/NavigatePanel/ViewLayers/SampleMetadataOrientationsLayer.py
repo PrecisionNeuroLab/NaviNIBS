@@ -10,6 +10,7 @@ import typing as tp
 from typing import ClassVar
 import pyvista as pv
 
+from NaviNIBS.Navigator.GUI import headMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers import PlotViewLayer
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.OrientationsLayers import SampleOrientationsLayer, VisualizedOrientation
 from NaviNIBS.Navigator.GUI.ViewPanels.NavigatePanel.ViewLayers.MeshSurfaceLayer import HeadMeshSurfaceLayer
@@ -202,11 +203,8 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                                scalar_bar_args=scalar_bar_args,
                                                                annotations=self._scalarAnnotations,
                                                                opacity=opacity,
-                                                               specular=0.5,
-                                                               diffuse=0.5,
-                                                               ambient=0.5,
-                                                               # smooth_shading=True,  # disabled since this breaks scalar value updates later
-                                                               # split_sharp_edges=True,
+                                                               **headMeshDefaultKwargs,
+                                                               smooth_shading=False,  # disabled since this breaks scalar value updates later
                                                                name=actorKey)
 
                 with self._plotter.allowNonblockingCalls():
@@ -271,11 +269,8 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                        scalar_bar_args=scalar_bar_args,
                                                        annotations=self._scalarAnnotations,
                                                        opacity=opacity,
-                                                       specular=0.5,
-                                                       diffuse=0.5,
-                                                       ambient=0.5,
-                                                       # smooth_shading=True,  # disabled since this breaks scalar value updates later
-                                                       # split_sharp_edges=True,
+                                                       **headMeshDefaultKwargs,
+                                                       smooth_shading=False,  # disabled since this breaks scalar value updates later
                                                        name=actorKey)
 
         self.__colorbarLabel = colorbarLabel  # save as an effective actor key for the scalar bar

@@ -11,6 +11,7 @@ import numpy as np
 import pyvista as pv
 from qtpy import QtWidgets, QtGui, QtCore
 
+from NaviNIBS.Navigator.GUI import headMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.Widgets.SurfViews import Surf3DView, defaultSurfColor
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
@@ -79,10 +80,7 @@ class VisualizedROIsMesh(QueuedRedrawMixin):
             pickable=True,
             render=False,
             reset_camera=False,
-            smooth_shading=True,
-            ambient=0.25,
-            diffuse=0.6,
-            specular=0.1,
+            **headMeshDefaultKwargs
         )
 
         # Hide the Surf3DView's own actor for this surface to avoid duplication/z-fighting

@@ -14,6 +14,7 @@ from qtpy import QtWidgets, QtGui, QtCore
 import shutil
 import typing as tp
 
+from NaviNIBS.Navigator.GUI import headMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.Widgets.MRIViews import MRISliceView
 if tp.TYPE_CHECKING:
     from NaviNIBS.util.pyvista import Actor
@@ -183,7 +184,8 @@ class SurfSliceView(MRISliceView):
                                                       opacity=surfOpacities[iSurf % len(surfOpacities)],
                                                       name=actorName,
                                                       render=False,
-                                                      reset_camera=False)
+                                                      reset_camera=False,
+                                                      **headMeshDefaultKwargs)
 
                     actors[actorName] = actor
                     self._surfPlotInitialized = True
@@ -331,10 +333,7 @@ class Surf3DView(SurfSliceView):
                         name=actorName,
                         render=False,
                         reset_camera=False,
-                        smooth_shading=True,
-                        ambient=0.25,
-                        diffuse=0.6,
-                        specular=0.1,)
+                        **headMeshDefaultKwargs)
                     actors[actorName] = actor
 
                     self._surfPlotInitialized = True

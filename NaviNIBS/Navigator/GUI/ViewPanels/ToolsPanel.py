@@ -19,6 +19,7 @@ import typing as tp
 from NaviNIBS.util.numpy import array_equalish
 from . import MainViewPanel
 from NaviNIBS.Devices.ToolPositionsClient import ToolPositionsClient, TimestampedToolPosition
+from NaviNIBS.Navigator.GUI import toolMeshDefaultKwargs
 from NaviNIBS.Navigator.GUI.EditWindows.CoilCalibrationWindow import CoilCalibrationWithPlateWindow
 from NaviNIBS.Navigator.GUI.EditWindows.PointerCalibrationWindow import PointerCalibrationWindow
 from NaviNIBS.Navigator.GUI.Widgets.TrackingStatusWidget import TrackingStatusWidget
@@ -261,7 +262,8 @@ class ToolWidget:
                     mesh=self._tool.toolSurf,
                     color=meshColor,
                     defaultMeshColor='#444444',
-                    opacity=0.8
+                    opacity=0.8,
+                    **toolMeshDefaultKwargs
                 )
                 self._toolSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.toolStlToToolTransf)
@@ -275,7 +277,8 @@ class ToolWidget:
                     color=meshColor_tool,  # noqa
                     defaultMeshColor='#444444',
                     opacity=0.8,
-                    name=actorKey
+                    name=actorKey,
+                    **toolMeshDefaultKwargs
                 )
                 self._trackerSpaceActors[actorKey] = actor
                 setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
@@ -310,7 +313,8 @@ class ToolWidget:
                         color=meshColor,
                         defaultMeshColor='#444444',
                         opacity=0.8,
-                        name=actorKey
+                        name=actorKey,
+                        **toolMeshDefaultKwargs
                     )
                     self._trackerSpaceActors[actorKey] = actor
                     setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
@@ -324,7 +328,8 @@ class ToolWidget:
                             color=meshColor,
                             defaultMeshColor='#444444',
                             opacity=0.8,
-                            name=actorKey
+                            name=actorKey,
+                            **toolMeshDefaultKwargs
                         )
                         self._toolSpaceActors[actorKey] = actor
                         setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
