@@ -36,6 +36,7 @@ from NaviNIBS.util.GUI.Icons import getIcon
 from NaviNIBS.util.GUI.QFileSelectWidget import QFileSelectWidget
 from NaviNIBS.util.GUI.QFlowLayout import QFlowLayout
 from NaviNIBS.util.GUI.QLineEdit import QLineEditWithValidationFeedback
+from NaviNIBS.util.GUI.QueuedRedrawMixin import QueuedRedrawMixin
 from NaviNIBS.util.GUI.QTableWidgetDragRows import QTableWidgetDragRows
 from NaviNIBS.util.GUI.QValidators import OptionalTransformValidator
 from NaviNIBS.util.GUI.SpatialTransformWidget import SpatialTransformDisplayWidget
@@ -46,12 +47,14 @@ from NaviNIBS.util.pyvista.plotting import BackgroundPlotter
 logger = logging.getLogger(__name__)
 
 
-@attrs.define
-class ToolWidget:
+@attrs.define(kw_only=True)
+class ToolWidget(QueuedRedrawMixin):
     _tool: Tool
     _session: Session = attrs.field(repr=False)  # only used for cross-tool references like coil calibration
+    _toolSpacePlotter: DefaultBackgroundPlotter
+    _trackerSpacePlotter: DefaultBackgroundPlotter
 
-    _wdgt: QtWidgets.QWidget = attrs.field(init=False)
+    _wdgt: QtWidgets.QWidget = attrs.field(factory=QtWidgets.QWidget)
     _formLayout: QtWidgets.QFormLayout = attrs.field(init=False)
     _key: QtWidgets.QLineEdit = attrs.field(init=False)
     _trackerKey: QtWidgets.QLineEdit = attrs.field(init=False)
@@ -64,38 +67,34 @@ class ToolWidget:
     _toolToTrackerTransf: SpatialTransformDisplayWidget = attrs.field(init=False)
     _toolStlToToolTransf: SpatialTransformDisplayWidget = attrs.field(init=False)
     _trackerStlToTrackerTransf: SpatialTransformDisplayWidget = attrs.field(init=False)
-    _toolSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
-    _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
 
     _asyncInitTask: asyncio.Task = attrs.field(init=False)
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _isClosed: bool = attrs.field(init=False, default=False)
 
     _toolSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
     _trackerSpaceActors: dict[str, Actor] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
-        self._wdgt = QtWidgets.QGroupBox('Selected tool: {}'.format(self._tool.key))
-        self._wdgt.setLayout(QtWidgets.QVBoxLayout())
+        super().__attrs_post_init__()
 
-        formContainer = QtWidgets.QWidget()
         self._formLayout = QtWidgets.QFormLayout()
         self._formLayout.setContentsMargins(0, 0, 0, 0)
-        formContainer.setLayout(self._formLayout)
-        self._wdgt.layout().addWidget(formContainer)
+        self._wdgt.setLayout(self._formLayout)
 
         self._tool.sigItemChanged.connect(self._onToolChanged)
 
         self._key = QtWidgets.QLineEdit()
         self._key.editingFinished.connect(self._onKeyEdited)
-        formContainer.layout().addRow('Key', self._key)
+        self._formLayout.addRow('Key', self._key)
 
         self._trackerKey = QtWidgets.QLineEdit()
         self._trackerKey.editingFinished.connect(self._onTrackerKeyEdited)
-        formContainer.layout().addRow('TrackerKey', self._trackerKey)
+        self._formLayout.addRow('TrackerKey', self._trackerKey)
 
         self._label = QtWidgets.QLineEdit()
         self._label.editingFinished.connect(self._onLabelEdited)
-        formContainer.layout().addRow('Label', self._label)
+        self._formLayout.addRow('Label', self._label)
 
         self._usedFor = QtWidgets.QComboBox()
         self._usedFor.insertItems(0, ['coil', 'subject', 'pointer', 'calibration', 'visualization'])
@@ -106,12 +105,12 @@ class ToolWidget:
             index = -1
         self._usedFor.setCurrentIndex(index)
         self._usedFor.currentIndexChanged.connect(lambda index: self._onUsedForEdited())
-        formContainer.layout().addRow('Type', self._usedFor)
+        self._formLayout.addRow('Type', self._usedFor)
 
         self._isActive = QtWidgets.QCheckBox('')
         self._isActive.setChecked(self._tool.isActive)
         self._isActive.stateChanged.connect(lambda state: self._onIsActiveEdited())
-        formContainer.layout().addRow('Is active', self._isActive)
+        self._formLayout.addRow('Is active', self._isActive)
 
         self._romFilepath = QFileSelectWidget(
             browseMode='getOpenFilename',
@@ -122,7 +121,7 @@ class ToolWidget:
             browseCaption='Choose tracker definition file',
         )
         self._romFilepath.sigFilepathChanged.connect(lambda filepath: self._onRomFilepathEdited())
-        formContainer.layout().addRow('ROM filepath', self._romFilepath)
+        self._formLayout.addRow('ROM filepath', self._romFilepath)
 
         self._trackerStlFilepath = QFileSelectWidget(
             browseMode='getOpenFilename',
@@ -133,7 +132,7 @@ class ToolWidget:
             browseCaption='Choose 3D model for tracker visualization'
         )
         self._trackerStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onTrackerStlFilepathEdited())
-        formContainer.layout().addRow('Tracker STL filepath', self._trackerStlFilepath)
+        self._formLayout.addRow('Tracker STL filepath', self._trackerStlFilepath)
 
         self._toolStlFilepath = QFileSelectWidget(
             browseMode='getOpenFilename',
@@ -144,12 +143,12 @@ class ToolWidget:
             browseCaption='Choose 3D model for tool visualization'
         )
         self._toolStlFilepath.sigFilepathChanged.connect(lambda filepath: self._onToolStlFilepathEdited())
-        formContainer.layout().addRow('Tool STL filepath', self._toolStlFilepath)
+        self._formLayout.addRow('Tool STL filepath', self._toolStlFilepath)
 
         transformsContainer = QtWidgets.QWidget()
         transformsContainer.setLayout(QFlowLayout(layoutMode=QFlowLayout.LayoutMode.minimum))
         transformsContainer.layout().setContentsMargins(0, 0, 0, 0)
-        formContainer.layout().addRow('Transforms', transformsContainer)
+        self._formLayout.addRow('Transforms', transformsContainer)
 
         label = 'Tool STL to tool'
         self._toolStlToToolTransf = SpatialTransformDisplayWidget(
@@ -187,34 +186,9 @@ class ToolWidget:
         wdgt.layout().setContentsMargins(2, 2, 2, 2)
         transformsContainer.layout().addWidget(wdgt)
 
-        plotContainer = QtWidgets.QWidget()
-        plotContainer.setLayout(QtWidgets.QHBoxLayout())
-        plotContainer.layout().setContentsMargins(0, 0, 0, 0)
-        self._wdgt.layout().addWidget(plotContainer)
-
-        self._toolSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
-        # TODO: make sure these plotters (when RemotePlotterProxies) are appropriately terminated when switching between tools
-        # TODO: ideally actually repurpose previous RemotePlotter when switching between tools to avoid unnecessary process init times
-
-        plotterContainer = QtWidgets.QGroupBox('Tool space')
-        plotterContainer.setLayout(QtWidgets.QVBoxLayout())
-        plotterContainer.layout().setContentsMargins(0, 0, 0, 0)
-        plotterContainer.layout().addWidget(self._toolSpacePlotter)
-        plotContainer.layout().addWidget(plotterContainer)
-
-        self._trackerSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
-
-        plotterContainer = QtWidgets.QGroupBox('Tracker space')
-        plotterContainer.setLayout(QtWidgets.QVBoxLayout())
-        plotterContainer.layout().setContentsMargins(0, 0, 0, 0)
-        plotterContainer.layout().addWidget(self._trackerSpacePlotter)
-        plotContainer.layout().addWidget(plotterContainer)
-
         self._asyncInitTask = asyncCreateTask(self._finishInitialization_async)
 
         QtCore.QTimer.singleShot(0, lambda: self._onToolChanged(self._tool.key, attribsChanged=None))
-
-        self.redraw()
 
     async def _finishInitialization_async(self):
         if isinstance(self._toolSpacePlotter, RemotePlotterProxy):
@@ -223,26 +197,37 @@ class ToolWidget:
         if isinstance(self._trackerSpacePlotter, RemotePlotterProxy):
             await self._trackerSpacePlotter.isReadyEvent.wait()
 
-        for plotter in (self._toolSpacePlotter, self._trackerSpacePlotter):
-            with plotter.allowNonblockingCalls():
-                plotter.enable_parallel_projection()
-                plotter.enable_depth_peeling(4)
-
         self.finishedAsyncInit.set()
 
-        self.redraw()
+        self._queueRedraw(which='all')
 
-    def redraw(self, whatToRedraw: tp.Iterable[str] | None = None):
+    def _redraw(self, which: str | list[str] | None = None, **kwargs):
+        super()._redraw(which=which, **kwargs)
 
         if not self.finishedAsyncInit.is_set():
             return
 
-        if whatToRedraw is None or 'tool' in whatToRedraw:
+        if not isinstance(which, str):
+            # list[str] case is handled by _queueRedraw recursing per item;
+            # the (which is None) case maps to 'all'
+            if which is None:
+                which = 'all'
+            else:
+                return
+
+        if which == 'all':
+            self._redraw(which='tool')
+            self._redraw(which='tracker')
+            return
+
+        if which == 'tool':
             actorKey = 'tool'
             if actorKey in self._toolSpaceActors:
-                self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
+                with self._toolSpacePlotter.allowNonblockingCalls():
+                    self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
             if actorKey in self._trackerSpaceActors:
-                self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
+                with self._trackerSpacePlotter.allowNonblockingCalls():
+                    self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
 
             defaultGridKwargs = dict(
                 bold=False,
@@ -266,10 +251,11 @@ class ToolWidget:
                     **toolMeshDefaultKwargs
                 )
                 self._toolSpaceActors[actorKey] = actor
-                setActorUserTransform(actor, self._tool.toolStlToToolTransf)
-                self._toolSpacePlotter.showGrid(
-                    color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
-                    **defaultGridKwargs)
+                with self._toolSpacePlotter.allowNonblockingCalls():
+                    setActorUserTransform(actor, self._tool.toolStlToToolTransf)
+                    self._toolSpacePlotter.showGrid(
+                        color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                        **defaultGridKwargs)
 
             if self._tool.toolToTrackerTransf is not None and self._tool.toolSurf is not None:
                 actor = self._trackerSpacePlotter.addMesh(
@@ -281,19 +267,23 @@ class ToolWidget:
                     **toolMeshDefaultKwargs
                 )
                 self._trackerSpaceActors[actorKey] = actor
-                setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
-                self._trackerSpacePlotter.showGrid(
-                    color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
-                    **defaultGridKwargs)
+                with self._trackerSpacePlotter.allowNonblockingCalls():
+                    setActorUserTransform(actor, self._tool.toolToTrackerTransf @ self._tool.toolStlToToolTransf)
+                    self._trackerSpacePlotter.showGrid(
+                        color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                        **defaultGridKwargs)
 
-            self._toolSpacePlotter.reset_camera()
+            with self._toolSpacePlotter.allowNonblockingCalls():
+                self._toolSpacePlotter.reset_camera()
 
-        if whatToRedraw is None or 'tracker' in whatToRedraw:
+        elif which == 'tracker':
             actorKey = 'tracker'
             if actorKey in self._toolSpaceActors:
-                self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
+                with self._toolSpacePlotter.allowNonblockingCalls():
+                    self._toolSpacePlotter.remove_actor(self._toolSpaceActors.pop(actorKey))
             if actorKey in self._trackerSpaceActors:
-                self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
+                with self._trackerSpacePlotter.allowNonblockingCalls():
+                    self._trackerSpacePlotter.remove_actor(self._trackerSpaceActors.pop(actorKey))
 
             if self._tool.trackerStlToTrackerTransf is not None:
                 try:
@@ -317,10 +307,11 @@ class ToolWidget:
                         **toolMeshDefaultKwargs
                     )
                     self._trackerSpaceActors[actorKey] = actor
-                    setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
-                    self._trackerSpacePlotter.showGrid(
-                        color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
-                        **defaultGridKwargs)
+                    with self._trackerSpacePlotter.allowNonblockingCalls():
+                        setActorUserTransform(actor, self._tool.trackerStlToTrackerTransf)
+                        self._trackerSpacePlotter.showGrid(
+                            color=self._trackerSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                            **defaultGridKwargs)
 
                     if self._tool.toolToTrackerTransf is not None:
                         actor = self._toolSpacePlotter.addMesh(
@@ -332,12 +323,17 @@ class ToolWidget:
                             **toolMeshDefaultKwargs
                         )
                         self._toolSpaceActors[actorKey] = actor
-                        setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
-                        self._toolSpacePlotter.showGrid(
-                            color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
-                            **defaultGridKwargs)
+                        with self._toolSpacePlotter.allowNonblockingCalls():
+                            setActorUserTransform(actor, concatenateTransforms([self._tool.trackerStlToTrackerTransf, invertTransform(self._tool.toolToTrackerTransf)]))
+                            self._toolSpacePlotter.showGrid(
+                                color=self._toolSpacePlotter.palette().color(QtGui.QPalette.Text).name(),
+                                **defaultGridKwargs)
 
-            self._trackerSpacePlotter.reset_camera()
+            with self._trackerSpacePlotter.allowNonblockingCalls():
+                self._trackerSpacePlotter.reset_camera()
+
+        else:
+            raise NotImplementedError(f'Unexpected which: {which!r}')
 
     @property
     def wdgt(self):
@@ -395,6 +391,8 @@ class ToolWidget:
         self._tool.toolToTrackerTransf = newTransf
 
     def _onToolChanged(self, toolKey: str, attribsChanged: list[str] | None = None):
+        if self._isClosed:
+            return
         toRedraw = set()
         if attribsChanged is None or 'key' in attribsChanged:
             self._key.setText(self._tool.key)
@@ -436,17 +434,30 @@ class ToolWidget:
             toRedraw |= {'tracker', 'tool'}
 
         if attribsChanged is None:
-            self.redraw()
+            self._queueRedraw(which='all')
         else:
-            self.redraw(toRedraw)
+            self._queueRedraw(which=list(toRedraw))
 
     def close(self):
+        self._isClosed = True
+        self._stopRedrawLoop()
         if not self.finishedAsyncInit.is_set():
             self._asyncInitTask.cancel()
         self._tool.sigItemChanged.disconnect(self._onToolChanged)
-        self._toolSpacePlotter.close()
-        self._trackerSpacePlotter.close()
-        self._wdgt.deleteLater()  # TODO: verify this is correct way to remove from layout and also delete children
+        # detach from parent layout up front; subsequent remove_actor calls would otherwise
+        # spin processEvents, which can re-layout the dying widget tree.
+        # hide before setParent(None) so the dying widget can't briefly surface as a top-level window.
+        self._wdgt.hide()
+        self._wdgt.setParent(None)
+        with self._toolSpacePlotter.allowNonblockingCalls():
+            while self._toolSpaceActors:
+                _, actor = self._toolSpaceActors.popitem()
+                self._toolSpacePlotter.remove_actor(actor)
+        with self._trackerSpacePlotter.allowNonblockingCalls():
+            while self._trackerSpaceActors:
+                _, actor = self._trackerSpaceActors.popitem()
+                self._trackerSpacePlotter.remove_actor(actor)
+        self._wdgt.deleteLater()
 
     @staticmethod
     def _transfToStr(transf: tp.Optional[np.ndarray]) -> str:
@@ -463,7 +474,7 @@ class ToolWidget:
             return stringToTransform(inputStr)
 
 
-@attrs.define
+@attrs.define(kw_only=True)
 class CoilToolWidget(ToolWidget):
     _tool: CoilTool
 
@@ -509,11 +520,13 @@ class CoilToolWidget(ToolWidget):
         self._calibrationWindow = None
 
     def _onToolChanged(self, toolKey: str, attribsChanged: list[str] | None = None):
+        if self._isClosed:
+            return
         super()._onToolChanged(toolKey=toolKey, attribsChanged=attribsChanged)
         self._updateLastCalibratedAt()
 
 
-@attrs.define
+@attrs.define(kw_only=True)
 class PointerToolWidget(ToolWidget):
     _tool: Pointer
 
@@ -564,6 +577,13 @@ class ToolsPanel(MainViewPanel):
     _trackingStatusWdgt: TrackingStatusWidget = attrs.field(init=False)
     _tblWdgt: ToolsTableWidget = attrs.field(init=False)
     _toolWdgt: tp.Optional[ToolWidget] = attrs.field(init=False, default=None)
+    _currentTool: tp.Optional[Tool] = attrs.field(init=False, default=None)
+    _selectedToolGroupBox: QtWidgets.QGroupBox = attrs.field(init=False)
+    _toolSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _trackerSpacePlotter: DefaultBackgroundPlotter = attrs.field(init=False)
+    _plottersAsyncInitTask: asyncio.Task = attrs.field(init=False)
+    _isUpdatingSelectedTool: bool = attrs.field(init=False, default=False)
+    _pendingSelectedToolUpdate: bool = attrs.field(init=False, default=False)
     _wdgts: tp.Dict[str, QtWidgets.QWidget] = attrs.field(init=False, factory=dict)
 
     def __attrs_post_init__(self):
@@ -616,10 +636,45 @@ class ToolsPanel(MainViewPanel):
         self._tblWdgt.sigCurrentItemChanged.connect(lambda *args: self._updateSelectedToolWdgt())
         container.layout().addWidget(self._tblWdgt.wdgt)
 
+        self._selectedToolGroupBox = QtWidgets.QGroupBox('Selected tool')
+        self._selectedToolGroupBox.setLayout(QtWidgets.QVBoxLayout())
+        self._wdgt.layout().addWidget(self._selectedToolGroupBox)
+
+        plotContainer = QtWidgets.QWidget()
+        plotContainer.setLayout(QtWidgets.QHBoxLayout())
+        plotContainer.layout().setContentsMargins(0, 0, 0, 0)
+        self._selectedToolGroupBox.layout().addWidget(plotContainer)
+
+        self._toolSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
+        plotterContainer = QtWidgets.QGroupBox('Tool space')
+        plotterContainer.setLayout(QtWidgets.QVBoxLayout())
+        plotterContainer.layout().setContentsMargins(0, 0, 0, 0)
+        plotterContainer.layout().addWidget(self._toolSpacePlotter)
+        plotContainer.layout().addWidget(plotterContainer)
+
+        self._trackerSpacePlotter = DefaultBackgroundPlotter(parent=self._wdgt)
+        plotterContainer = QtWidgets.QGroupBox('Tracker space')
+        plotterContainer.setLayout(QtWidgets.QVBoxLayout())
+        plotterContainer.layout().setContentsMargins(0, 0, 0, 0)
+        plotterContainer.layout().addWidget(self._trackerSpacePlotter)
+        plotContainer.layout().addWidget(plotterContainer)
+
+        self._plottersAsyncInitTask = asyncCreateTask(self._initializePlotters_async)
+
         if self.session is not None:
             self._onPanelInitializedAndSessionSet()
 
         self._updateSelectedToolWdgt()
+
+    async def _initializePlotters_async(self):
+        for plotter in (self._toolSpacePlotter, self._trackerSpacePlotter):
+            if isinstance(plotter, RemotePlotterProxy):
+                await plotter.isReadyEvent.wait()
+
+        for plotter in (self._toolSpacePlotter, self._trackerSpacePlotter):
+            with plotter.allowNonblockingCalls():
+                plotter.enable_parallel_projection()
+                plotter.enable_depth_peeling(4)
 
     def _onSessionSet(self):
         super()._onSessionSet()
@@ -691,25 +746,64 @@ class ToolsPanel(MainViewPanel):
             self._tblWdgt.resizeColumnsToContents()  # resize immediately rather than waiting for delayed auto-resize
 
     def _updateSelectedToolWdgt(self):
+        if self._isUpdatingSelectedTool:
+            # blocking ZMQ calls inside our update can spin processEvents and re-fire
+            # signal handlers that call back into here; coalesce instead of re-entering
+            self._pendingSelectedToolUpdate = True
+            return
+        self._isUpdatingSelectedTool = True
+        try:
+            while True:
+                self._pendingSelectedToolUpdate = False
+                self._doUpdateSelectedToolWdgt()
+                if not self._pendingSelectedToolUpdate:
+                    break
+        finally:
+            self._isUpdatingSelectedTool = False
+
+    def _doUpdateSelectedToolWdgt(self):
         logger.debug('Updating selected tool widget')
         currentToolKey = self._tblWdgt.currentCollectionItemKey
-        # TODO: if possible, only update specific fields rather than fully recreating widget
+
         if self._toolWdgt is not None:
+            assert self._currentTool is not None
+            self._currentTool.sigItemChanged.disconnect(self._onCurrentToolChanged)
             self._toolWdgt.close()
             self._toolWdgt = None
+            self._currentTool = None
 
         if currentToolKey is None:
+            self._selectedToolGroupBox.setTitle('Selected tool')
+            self._selectedToolGroupBox.setVisible(False)
             return
 
-        if isinstance(self.session.tools[currentToolKey], CoilTool):
+        tool = self.session.tools[currentToolKey]
+        self._currentTool = tool
+        self._selectedToolGroupBox.setTitle('Selected tool: {}'.format(tool.key))
+        self._selectedToolGroupBox.setVisible(True)
+        tool.sigItemChanged.connect(self._onCurrentToolChanged)
+
+        if isinstance(tool, CoilTool):
             ToolWidgetCls = CoilToolWidget
-        elif isinstance(self.session.tools[currentToolKey], Pointer):
+        elif isinstance(tool, Pointer):
             ToolWidgetCls = PointerToolWidget
         else:
             ToolWidgetCls = ToolWidget
 
-        self._toolWdgt = ToolWidgetCls(tool=self.session.tools[currentToolKey], session=self.session)
-        self._wdgt.layout().addWidget(self._toolWdgt.wdgt)
+        toolWdgtWdgt = QtWidgets.QWidget()
+        self._selectedToolGroupBox.layout().insertWidget(0, toolWdgtWdgt)
+        self._toolWdgt = ToolWidgetCls(
+            wdgt=toolWdgtWdgt,
+            tool=tool,
+            session=self.session,
+            toolSpacePlotter=self._toolSpacePlotter,
+            trackerSpacePlotter=self._trackerSpacePlotter,
+        )
+
+    def _onCurrentToolChanged(self, toolKey: str, attribsChanged: list[str] | None = None):
+        if attribsChanged is None or 'key' in attribsChanged:
+            assert self._currentTool is not None
+            self._selectedToolGroupBox.setTitle('Selected tool: {}'.format(self._currentTool.key))
 
     def _onAddBtnClicked(self, checked: bool):
         logger.info('Add tool btn clicked')
