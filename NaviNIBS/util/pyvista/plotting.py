@@ -311,6 +311,12 @@ class PlotterImprovementsMixin:
         """
         r: pv.Renderer = self.renderer
 
+        # pyvista's show_bounds creates a fresh CubeAxesActor and only overwrites
+        # renderer.cube_axes_actor without removing the previous one from the scene.
+        # Drop the prior axes actor BEFORE querying r.bounds, so its stale (prior-tool)
+        # bounds don't contaminate the new bounds calculation via ComputeVisiblePropBounds.
+        self.remove_bounds_axes()
+
         if mesh is None and bounds is None:
             # Use the bounds of all data in the rendering window
             bounds = np.array(r.bounds)
