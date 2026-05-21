@@ -24,6 +24,7 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
     _atlasKey: str
     _hemisphere: tp.Literal['l', 'r'] | None = None
     _parcelKey: str | None = None  # if not specified, self.key will be used instead
+    _warpSource: tp.Literal['simnibs', 'freesurfer'] = 'simnibs'
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
@@ -65,44 +66,76 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
     def parcelKey(self, value: str | None):
         self._meshVertexIndices = None
 
-    @staticmethod
-    @functools.cache
-    def _getSubSphereRegCoords(m2mDir: str, hemisphere: str) -> np.ndarray:
-        import nibabel as nib
-        subSphereReg = nib.load(os.path.join(
-            m2mDir, 'surfaces', hemisphere + 'h.sphere.reg.gii'))
+    @property
+    def warpSource(self):
+        return self._warpSource
 
-        subSphereRegCoords = subSphereReg.darrays[0].data
-        # subSphereRegFaces = subSphereReg.darrays[1].data
-
-        return subSphereRegCoords
+    @warpSource.setter
+    @collectionDictItemAttrSetter(extraAttrsToSignalOnChange=['meshVertexIndices'])
+    def warpSource(self, value: tp.Literal['simnibs', 'freesurfer']):
+        self._meshVertexIndices = None
 
     @staticmethod
     @functools.cache
-    def _getPialCoords(m2mDir: str, hemisphere: str) -> np.ndarray:
-        import nibabel as nib
-        pial = nib.load(os.path.join(
-            m2mDir, 'surfaces', hemisphere + 'h.pial.gii'))
-        pialCoords = pial.darrays[0].data
-        return pialCoords
+    def _getSubSphereRegCoords(filepath: str) -> np.ndarray:
+        """Load sphere-registration vertex coords, rescaled to fsaverage radius (~100mm).
 
-    @staticmethod
-    @functools.cache
-    def _getNearestFsIndices(atlasKey: str, lr: str, m2mDir: str, hemisphere: str) -> np.ndarray:
+        SimNIBS sphere.reg.gii uses unit-sphere coords (-1..1); FreeSurfer sphere.reg binary
+        is already at fsaverage scale. Auto-detect from radius and scale up if needed.
         """
-        For each sphere.reg.gii vertex, return the index of its nearest fsaverage sphere vertex.
-        Cached per atlas+subject so the expensive KDTree query is shared across all parcels
-        loaded from the same atlas for the same subject.
+        import nibabel as nib
+        if filepath.endswith('.gii'):
+            coords = nib.load(filepath).darrays[0].data
+        else:
+            coords, _ = nib.freesurfer.read_geometry(filepath)
+        coords = np.asarray(coords, dtype=np.float64)
+        nativeR = float(np.linalg.norm(coords[0]))
+        if nativeR < 10:  # unit-sphere coords from SimNIBS .gii
+            coords = coords * 100.0
+        return coords
+
+    @staticmethod
+    @functools.cache
+    def _getPialCoords(filepath: str) -> np.ndarray:
+        import nibabel as nib
+        if filepath.endswith('.gii'):
+            return np.asarray(nib.load(filepath).darrays[0].data, dtype=np.float64)
+        # FreeSurfer binary: apply CRAS translation to bring tkr-RAS into scanner-RAS
+        coords, _, info = nib.freesurfer.read_geometry(filepath, read_metadata=True)
+        coords = np.asarray(coords, dtype=np.float64)
+        cras = info.get('cras')
+        if cras is not None:
+            coords = coords + np.asarray(cras, dtype=coords.dtype)
+        return coords
+
+    @staticmethod
+    @functools.cache
+    def _getNearestFsIndices(atlasKey: str, hemisphere: str, sphereFilepath: str) -> np.ndarray:
+        """
+        For each subject sphere.reg vertex, return the index of its nearest fsaverage
+        sphere vertex. Cached per atlas+sphere so the expensive KDTree query is shared
+        across all parcels loaded from the same atlas for the same subject.
         """
         from scipy.spatial import cKDTree
-        fsSphere, _ = AtlasSurfaceParcel._prepareAtlas(atlasKey=atlasKey, lr=lr)
-        subSphereRegCoords = AtlasSurfaceParcel._getSubSphereRegCoords(m2mDir=m2mDir, hemisphere=hemisphere)
+        fsSphere, _ = AtlasSurfaceParcel._prepareAtlas(atlasKey=atlasKey, hemisphere=hemisphere)
+        subSphereRegCoords = AtlasSurfaceParcel._getSubSphereRegCoords(filepath=sphereFilepath)
         fsSphereCoordsTree = cKDTree(fsSphere[0])
-        if True:
-            # convert from (-1,1) scale to (-100, 100)
-            subSphereRegCoords *= 100
         _, nearestFsIndices = fsSphereCoordsTree.query(subSphereRegCoords, workers=-1)
         return nearestFsIndices
+
+    def _resolveSurfPaths(self, lr: str) -> tuple[str, str]:
+        """Return (spherePath, pialPath) for the given hemisphere, per current warpSource."""
+        hm = self.session.headModel
+        if self._warpSource == 'simnibs':
+            return (os.path.join(hm.m2mDir, 'surfaces', f'{lr}h.sphere.reg.gii'),
+                    os.path.join(hm.m2mDir, 'surfaces', f'{lr}h.pial.gii'))
+        assert hm.freesurferFilepath is not None, \
+            'warpSource="freesurfer" requires HeadModel.freesurferFilepath to be set'
+        spherePath = hm.getFreesurferSubfilePath(os.path.join('surf', f'{lr}h.sphere.reg'))
+        pialPath = hm.getFreesurferSubfilePath(os.path.join('surf', f'{lr}h.pial.T1'))
+        assert spherePath is not None and os.path.exists(spherePath), f'Missing FreeSurfer sphere.reg for {lr}h'
+        assert pialPath is not None and os.path.exists(pialPath), f'Missing FreeSurfer pial.T1 for {lr}h'
+        return spherePath, pialPath
 
     def reload(self):
         logger.info(f'Reloading AtlasSurfaceParcel {self._parcelKey} from {self._hemisphere}h.{self._atlasKey}')
@@ -114,9 +147,11 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
         assert self._hemisphere is not None, 'Support for not specifying hemisphere not yet implemented'
 
-        _, fsParcels = self._prepareAtlas(atlasKey=self._atlasKey, lr=self._hemisphere)
+        _, fsParcels = self._prepareAtlas(atlasKey=self._atlasKey, hemisphere=self._hemisphere)
 
-        assert self.session.headModel.mshVersion == MshVersion.CHARM, 'Freesurfer registration currently only supported with CHARM head models'
+        if self._warpSource == 'simnibs':
+            assert self.session.headModel.mshVersion == MshVersion.CHARM, \
+                'SimNIBS sphere registration currently only supported with CHARM head models'
 
         for parcelKeySuffix in ['', '_ROI']:
             try:
@@ -131,16 +166,20 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
         if parcelIndex is None:
             raise KeyError(f'No parcel found with label {self._parcelKey} in {self._hemisphere} hemisphere of {self._atlasKey}')
 
-        # For each sphere.reg.gii vertex, find its nearest fsaverage sphere vertex and check
+        spherePath, pialPath = self._resolveSurfPaths(self._hemisphere)
+        otherHemisphere = 'lr'['rl'.index(self._hemisphere)]
+        _, otherPialPath = self._resolveSurfPaths(otherHemisphere)
+
+        # For each sphere.reg vertex, find its nearest fsaverage sphere vertex and check
         # whether that vertex carries the target parcel label. Reversing the search direction
         # (pial→atlas rather than atlas→pial) ensures every pial vertex is unambiguously
         # assigned to a parcel with no interior gaps.
-        # _getNearestFsIndices is cached per atlas+subject, so this is only computed once
+        # _getNearestFsIndices is cached per atlas+sphere, so this is only computed once
         # when loading multiple parcels from the same atlas.
         logger.debug('Getting nearest fsaverage indices for registered sphere vertices')
         nearestFsIndices = self._getNearestFsIndices(
-            atlasKey=self._atlasKey, lr=self._hemisphere,
-            m2mDir=self.session.headModel.m2mDir, hemisphere=self._hemisphere)
+            atlasKey=self._atlasKey, hemisphere=self._hemisphere,
+            sphereFilepath=spherePath)
         logger.debug('Finding pial vertices belonging to target parcel')
         pialVertexIndices = np.where(fsParcels[0][nearestFsIndices] == parcelIndex)[0]
 
@@ -148,14 +187,13 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
         assert self.meshKey is not None and self.meshKey.startswith('gm'), \
             f'AtlasSurfaceParcel requires a GM mesh key (e.g. gmSurf, gmSimpleSurf), got {self.meshKey!r}'
 
-        # Map head model mesh vertices → parcel membership via pial.gii.
-        # sphere.reg.gii and pial.gii share the same vertex topology, so pialVertexIndices
-        # index into pial.gii coordinates directly.
+        # Map head model mesh vertices → parcel membership via the pial surface.
+        # sphere.reg and pial share the same vertex topology, so pialVertexIndices
+        # index into pial coordinates directly.
         # We reverse the search direction (head mesh → pial) to correctly handle cases
         # where the head mesh has lower resolution than the pial surface.
-        pialCoords = self._getPialCoords(m2mDir=self.session.headModel.m2mDir, hemisphere=self._hemisphere)
-        otherHemisphere = 'lr'['rl'.index(self._hemisphere)]
-        otherPialCoords = self._getPialCoords(m2mDir=self.session.headModel.m2mDir, hemisphere=otherHemisphere)
+        pialCoords = self._getPialCoords(filepath=pialPath)
+        otherPialCoords = self._getPialCoords(filepath=otherPialPath)
         allPialCoords = np.vstack((pialCoords, otherPialCoords))
         pialTree = cKDTree(allPialCoords)
 
@@ -194,7 +232,7 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
     @staticmethod
     @functools.cache
-    def _prepareAtlas(atlasKey: str, lr: tp.Literal['l', 'r']) -> \
+    def _prepareAtlas(atlasKey: str, hemisphere: tp.Literal['l', 'r']) -> \
             tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray, list[bytes]]]:
         import platformdirs
         mneSubjectsDir = os.path.join(platformdirs.user_data_dir(appname='NaviNIBS', appauthor=False), 'Parcellations')
@@ -222,10 +260,10 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
         import nibabel as nib
 
         fsSphere: tuple[np.ndarray, np.ndarray] = nib.freesurfer.read_geometry(os.path.join(
-            mneSubjectsDir, 'fsaverage', 'surf', lr + 'h.sphere'))
+            mneSubjectsDir, 'fsaverage', 'surf', hemisphere + 'h.sphere'))
 
         fsParcels: tuple[np.ndarray, np.ndarray, list[bytes]] = nib.freesurfer.read_annot(os.path.join(
-            mneSubjectsDir, 'fsaverage', 'label', f'{lr}h.{atlasKey}.annot'))
+            mneSubjectsDir, 'fsaverage', 'label', f'{hemisphere}h.{atlasKey}.annot'))
 
         return fsSphere, fsParcels
 
@@ -257,7 +295,7 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
         allParcelLabels = []
         for lr in lrs:
             assert lr in ('l', 'r')
-            fsSphere, fsParcels = cls._prepareAtlas(atlasKey=atlasKey, lr=lr)
+            fsSphere, fsParcels = cls._prepareAtlas(atlasKey=atlasKey, hemisphere=lr)
 
             parcelKeys, parcelLabels = cls._decodeParcelLabels(fsParcels[2], lr)
 
@@ -267,7 +305,10 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
         return allParcelKeys, allParcelLabels
 
     @classmethod
-    def loadROIsFromAtlas(cls, session: Session, atlasKey: str, parcelKeys: list[str] | None = None) -> ROIs:
+    def loadROIsFromAtlas(cls, session: Session, atlasKey: str,
+                          parcelKeys: list[str] | None = None,
+                          warpSource: tp.Literal['simnibs', 'freesurfer'] = 'simnibs',
+                          meshKey: str | None = None) -> ROIs:
 
         if atlasKey[0:3] in ('lh.', 'rh.'):
             # allow specifying one hemisphere by prefixing atlasKey with 'lh.' or 'rh.'
@@ -281,9 +322,12 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
         if parcelKeys is not None:
             parcelKeys = parcelKeys.copy()  # prepare for modification below
 
+        if meshKey is None:
+            meshKey = 'gmFSSurf' if warpSource == 'freesurfer' else 'gmSurf'
+
         for lr in lrs:
             assert lr in ('l', 'r')
-            fsSphere, fsParcels = cls._prepareAtlas(atlasKey=atlasKey, lr=lr)
+            fsSphere, fsParcels = cls._prepareAtlas(atlasKey=atlasKey, hemisphere=lr)
 
             parcelKeys_lr, parcelLabels = cls._decodeParcelLabels(fsParcels[2], lr)
 
@@ -300,10 +344,11 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
                 color = (*(val / 255 for val in color[0:3]), 1 - color[3] / 255)
                 roi = cls(
                     key=parcelLabel.replace(' ', ''),  # spaces cause issues with pyvista actor keys, could fix this elsewhere if needed
-                    meshKey='gmSurf',
+                    meshKey=meshKey,
                     parcelKey=parcelKey,
                     atlasKey=atlasKey,
                     hemisphere=lr,
+                    warpSource=warpSource,
                     color=color,
                     session=session,
                 )

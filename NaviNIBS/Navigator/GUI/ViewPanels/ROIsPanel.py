@@ -51,6 +51,7 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     _atlasROIsImportDialog: QtWidgets.QDialog | None = attrs.field(init=False, default=None)
     _pendingAtlasKey: str | None = attrs.field(init=False, default=None)
     _atlasROIsTree: QtWidgets.QTreeWidget | None = attrs.field(init=False, default=None)
+    _atlasROIsWarpCombo: QtWidgets.QComboBox | None = attrs.field(init=False, default=None)
     _addBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _deleteBtn: QtWidgets.QPushButton = attrs.field(init=False)
     _duplicateBtn: QtWidgets.QPushButton = attrs.field(init=False)
@@ -560,6 +561,22 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
         topLayout = QtWidgets.QVBoxLayout(self._wdgt)
         dlg.setLayout(topLayout)
 
+        # Warp-source selector
+        warpRow = QtWidgets.QHBoxLayout()
+        warpRow.addWidget(QtWidgets.QLabel('Sphere warp:'))
+        warpCombo = QtWidgets.QComboBox()
+        warpCombo.addItem('SimNIBS', userData='simnibs')
+        warpCombo.addItem('FreeSurfer', userData='freesurfer')
+        if self.session.headModel.freesurferFilepath is None:
+            # disable the FreeSurfer entry if no FreeSurfer path is available
+            fsItemModel = warpCombo.model()
+            fsItem = fsItemModel.item(1)
+            fsItem.setEnabled(False)
+            fsItem.setToolTip('Requires a FreeSurfer path to be set on the head model')
+        warpRow.addWidget(warpCombo, stretch=1)
+        topLayout.addLayout(warpRow)
+        self._atlasROIsWarpCombo = warpCombo
+
         tree = QtWidgets.QTreeWidget()
         tree.setColumnCount(1)
         tree.setSelectionMode(tree.SelectionMode.ExtendedSelection)
@@ -586,16 +603,20 @@ class ROIsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     def _onImportAtlasROIsDialogFinished(self, result: int):
         self._atlasROIsImportDialog = None
         self._atlasROIsTree = None
+        self._atlasROIsWarpCombo = None
         self._pendingAtlasKey = None
 
     def _onImportAtlasROIsDialogAccepted(self):
         assert self._atlasROIsImportDialog is not None
         assert self._atlasROIsTree is not None
+        assert self._atlasROIsWarpCombo is not None
         selectedParcelKeys = [item.text(0) for item in self._atlasROIsTree.selectedItems()]
-        logger.info(f'Importing parcels from "{self._pendingAtlasKey}" atlas: {selectedParcelKeys}')
+        warpSource = self._atlasROIsWarpCombo.currentData()
+        logger.info(f'Importing parcels from "{self._pendingAtlasKey}" atlas using {warpSource} warp: {selectedParcelKeys}')
         newROIs = AtlasSurfaceParcel.loadROIsFromAtlas(session=self.session,
                                                             atlasKey=self._pendingAtlasKey,
-                                                            parcelKeys=selectedParcelKeys)
+                                                            parcelKeys=selectedParcelKeys,
+                                                            warpSource=warpSource)
         self.session.ROIs.merge(newROIs)
         self._atlasROIsImportDialog.accept()
 

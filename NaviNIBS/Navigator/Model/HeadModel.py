@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 from enum import StrEnum
+from glob import glob
 
 import attrs
 from datetime import datetime
@@ -95,6 +96,7 @@ class HeadModel:
     _skinSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _csfSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _gmSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
+    _gmFSSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinSimpleSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinConvexSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
     _skinDefacedSurf: tp.Optional[SurfMesh] = attrs.field(init=False, default=None)
@@ -264,8 +266,6 @@ class HeadModel:
 
             elif self.mshVersion == MshVersion.CHARM:
                 # separate surface from larger .msh file
-                fullMesh = self.msh
-
                 match which:
                     case 'gmSurf':
                         surfIndex = defaultCharmMshSurfIndexMapping['GM']
@@ -280,7 +280,13 @@ class HeadModel:
                     case _:
                         raise NotImplementedError
 
-                mesh = fullMesh.extract_values(values=surfIndex, scalars='gmsh:physical', adjacent_cells=False).extract_surface()
+                fullMesh = self.msh
+
+                if surfIndex is not None:
+                    mesh = fullMesh.extract_values(values=surfIndex, scalars='gmsh:physical', adjacent_cells=False).extract_surface()
+                else:
+                    # assume mesh was set above
+                    pass
 
             else:
                 raise NotImplementedError
@@ -290,6 +296,41 @@ class HeadModel:
                 mesh.transform(self._meshToMRITransform, inplace=True)
 
             setattr(self, '_' + which, mesh)
+
+        elif which in ('gmFSSurf',):
+            if self._freesurferFilepath is None:
+                logger.warning('No FreeSurfer path set for gmFSSurf')
+                return
+
+            pialSubpaths = [os.path.join('surf', f'{lr}h.pial') for lr in ('l', 'r')]
+            pialPaths = [self.getFreesurferSubfilePath(sp) for sp in pialSubpaths]
+            if not all(p is not None and os.path.exists(p) for p in pialPaths):
+                pialSubpaths = [os.path.join('surf', f'{lr}h.pial.T1') for lr in ('l', 'r')]
+                pialPaths = [self.getFreesurferSubfilePath(sp) for sp in pialSubpaths]
+                if not all(p is not None and os.path.exists(p) for p in pialPaths):
+                    logger.error(
+                        f'Could not find FreeSurfer pial surfaces at subpaths {pialSubpaths} '
+                        f'within {self._freesurferFilepath}'
+                    )
+                    return
+
+            hemisphereMeshes = []
+            for path in pialPaths:
+                logger.info(f'Loading FreeSurfer pial surface from {path}')
+                coords, faces, info = nib.freesurfer.read_geometry(path, read_metadata=True)
+                # convert FreeSurfer tkr-RAS to scanner-RAS by adding cras translation
+                cras = info.get('cras')
+                if cras is not None:
+                    coords = coords + np.asarray(cras, dtype=coords.dtype)
+                pv_faces = np.c_[np.full(len(faces), 3), faces].ravel()
+                hemisphereMeshes.append(pv.PolyData(coords, pv_faces))
+            mesh = hemisphereMeshes[0].merge(hemisphereMeshes[1])
+
+            if self._meshToMRITransform is not None:
+                logger.debug('Applying meshToMRITransform to gmFSSurf')
+                mesh.transform(self._meshToMRITransform, inplace=True)
+
+            self._gmFSSurf = mesh
 
         elif which in ('skinSimpleSurf', 'gmSimpleSurf'):
             if which == 'gmSimpleSurf':
@@ -427,13 +468,13 @@ class HeadModel:
     def clearCache(self, which: str):
 
         if which == 'all':
-            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'skinSimpleSurf', 'gmSimpleSurf',
+            allKeys = ('skinSurf', 'csfSurf', 'gmSurf', 'gmFSSurf', 'skinSimpleSurf', 'gmSimpleSurf',
                        'skinConvexSurf', 'skinDefacedSurf', 'skinSimpleDefacedSurf', 'eegPositions', 'mshVersion')
             for w in allKeys:
                 self.clearCache(which=w)
             return
 
-        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmSimpleSurf', 'skinSimpleSurf',
+        if which in ('skinSurf', 'csfSurf', 'gmSurf', 'gmFSSurf', 'gmSimpleSurf', 'skinSimpleSurf',
                      'skinConvexSurf', 'skinDefacedSurf', 'skinSimpleDefacedSurf', 'eegPositions', 'mshVersion'):
             if getattr(self, '_' + which) is None:
                 return
@@ -505,6 +546,7 @@ class HeadModel:
             assert os.path.exists(newPath), f'FreeSurfer path not found at {newPath}'
         self._freesurferFilepath = newPath
         self._freesurferTempDir = None  # invalidate cached extractions
+        self.clearCache('gmFSSurf')
         self.sigFilepathChanged.emit()
 
     def getFreesurferSubfilePath(self, subpath: str) -> str | None:
@@ -551,22 +593,33 @@ class HeadModel:
         if self._filepath is not None:
             # TODO: set this dynamically instead of hardcoded
             # TODO: add others
-            allSurfKeys = ('skinSurf', 'csfSurf', 'gmSurf')
+            allSurfKeys = ['skinSurf', 'csfSurf', 'gmSurf']
         else:
             allSurfKeys = []
             if self._skinSurfFilepath is not None:
                 allSurfKeys.append('skinSurf')
             if self._gmSurfFilepath is not None:
                 allSurfKeys.append('gmSurf')
-            allSurfKeys = tuple(allSurfKeys)
 
-        return allSurfKeys
+        if self._freesurferFilepath is not None:
+            allSurfKeys.append('gmFSSurf')
+
+        return tuple(allSurfKeys)
 
     @property
     def gmSurf(self):
         if self.gmSurfIsSet and self._gmSurf is None:
             self.loadCache(which='gmSurf')
         return self._gmSurf
+
+    @property
+    def gmFSSurf(self):
+        """
+        FreeSurfer gray-matter (pial) surface, if available
+        """
+        if self._gmFSSurf is None:
+            self.loadCache(which='gmFSSurf')
+        return self._gmFSSurf
 
     @property
     def gmSimpleSurf(self):
