@@ -17,6 +17,8 @@ class QueuedRedrawMixin:
     Especially useful for queueing redraws spawned by Qt events but that we want to handle
     in async loop, and for reducing redundant redraws.
     """
+
+    _queuedRedrawMinPeriod: float = 0.01  # in seconds, minimum time to wait between redraws
     _redrawQueue: list[str | tuple[str, dict]] = attrs.field(init=False, factory=list)
     _redrawQueueModified: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _redrawingNotPaused: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
@@ -38,7 +40,7 @@ class QueuedRedrawMixin:
     async def _loop_queuedRedraw(self):
         while True:
             await self._redrawQueueModified.wait()
-            await asyncio.sleep(0.01)  # rate limit  # TODO: make this a parameter
+            await asyncio.sleep(self._queuedRedrawMinPeriod)
             await self._redrawingNotPaused.wait()
             while len(self._redrawQueue) > 0:
                 toRedraw = self._redrawQueue.pop(0)
@@ -51,7 +53,6 @@ class QueuedRedrawMixin:
                     self._redraw(which=toRedraw[0], **toRedraw[1])
             self._redrawQueueModified.clear()
             self.redrawQueueIsEmpty.set()
-            await asyncio.sleep(0.01)  # rate limit  # TODO: make this a parameter
 
     def _queueRedraw(self, which: tp.Union[tp.Optional[str], tp.List[str]] = None, **kwargs):
 

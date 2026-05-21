@@ -146,6 +146,11 @@ class SinglePlotterNavigationView(NavigationView):
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
 
+    _pendingResumeCount: int = attrs.field(init=False, default=0)
+    _resumeRequested: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
+    _coordinatedResumeTask: asyncio.Task | None = attrs.field(init=False, default=None, repr=False)
+    _slowLayerKeys: set[str] = attrs.field(init=False, factory=set, repr=False)
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
@@ -188,17 +193,17 @@ class SinglePlotterNavigationView(NavigationView):
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
         self._coordinator.positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
 
-        if True:
-            # pause rendering during target changed and coil position changed updates to improve synchronization
-            # of visualization updates across layers
+        # Pause rendering across all layers during target/coil/positions changes,
+        # and only resume after every enabled layer has finished draining its
+        # redraw queue. The next render then flushes a single visually consistent
+        # frame instead of partial per-layer frames.
+        self._coordinatedResumeTask = asyncCreateTask(self._loop_coordinatedResume)
 
-            #self._plotter.pauseRendering()  # TODO: debug, delete
-
-            for sig in (self._coordinator.sigCurrentTargetChanged,
-                        self._coordinator.sigCurrentCoilPositionChanged,
-                        self._coordinator.positionsClient.sigLatestPositionsChanged,):
-                sig.connect(lambda *args: self._plotter.pauseRendering(), priority=2)
-                sig.connect(lambda *args: self._plotter.maybeResumeRendering(), priority=-2)
+        for sig in (self._coordinator.sigCurrentTargetChanged,
+                    self._coordinator.sigCurrentCoilPositionChanged,
+                    self._coordinator.positionsClient.sigLatestPositionsChanged,):
+            sig.connect(lambda *args: self._onCoordinatorSignalPre(), priority=2)
+            sig.connect(lambda *args: self._onCoordinatorSignalPost(), priority=-2)
 
         if self._doParallelProjection:
             self._plotter.camera.enable_parallel_projection()
@@ -382,6 +387,62 @@ class SinglePlotterNavigationView(NavigationView):
 
         if not self._wdgt.isVisible():
             self._wdgt.setVisible(True)
+
+    def _onCoordinatorSignalPre(self):
+        self._plotter.pauseRendering()
+        self._pendingResumeCount += 1
+
+    def _onCoordinatorSignalPost(self):
+        self._resumeRequested.set()
+
+    async def _loop_coordinatedResume(self):
+        """
+        Wait for every enabled layer's redraw queue (and this view's own
+        redraw queue, used for camera realignment) to drain, then drop one
+        plotter pause for each batched signal. Timeout guards against
+        a stuck layer; on timeout we log and resume anyway.
+        """
+        timeoutSec = 0.25
+        while True:
+            await self._resumeRequested.wait()
+            self._resumeRequested.clear()
+
+            # Coalesce: yield once so back-to-back emits on the same tick
+            # batch into a single drain cycle.
+            await asyncio.sleep(0)
+
+            resumesToDo = self._pendingResumeCount
+
+            layersToWaitFor = [
+                (key, layer) for key, layer in self._layers.items()
+                if isinstance(layer, PlotViewLayer)
+                and layer.isEnabled
+                and key not in self._slowLayerKeys
+            ]
+            waitables = [layer.redrawQueueIsEmpty.wait() for _, layer in layersToWaitFor]
+            waitables.append(self.redrawQueueIsEmpty.wait())
+
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*waitables),
+                    timeout=timeoutSec,
+                )
+            except asyncio.TimeoutError:
+                newlySlowLayers = [
+                    key for key, layer in layersToWaitFor
+                    if not layer.redrawQueueIsEmpty.is_set()
+                ]
+                slowSelf = not self.redrawQueueIsEmpty.is_set()
+                logger.warning(
+                    f'Coordinated resume timed out after {timeoutSec}s. '
+                    f'Slow layers: {newlySlowLayers}, view queue slow: {slowSelf}. '
+                    f'Resuming plotter anyway; slow layers may update separately.'
+                )
+                self._slowLayerKeys.update(newlySlowLayers)
+
+            for _ in range(resumesToDo):
+                self._plotter.maybeResumeRendering()
+            self._pendingResumeCount -= resumesToDo
 
     def addLayer(self, type: str, key: str, layeredPlotterKey: tp.Optional[str] = None,
                  plotterLayer: tp.Optional[int] = None, isEnabled: bool = True, **kwargs):
