@@ -521,12 +521,13 @@ class ImportSessionWindow:
         item = self._sessionTreeModel.rootItem.childByLabel('Head Model')
         if item is not None and item.checked == QtCore.Qt.CheckState.Checked:
             kwargs = self.otherSession.headModel.asDict(filepathRelTo=self.otherSession.filepath)
-            if 'filepath' in kwargs:
-                # TODO: if other session referenced a file inside its own folder, copy to primary session folder here
-                # or if relative path is different between sessions (e.g. due to them being in different parent directories)
-                # offer to copy the file here
-                # note: if copying files here, need to copy entire SimNIBS folder, not just the referenced .msh file
-                kwargs['filepath'] = os.path.join(self.otherSession.filepath, kwargs['filepath'])
+            for var in ('filepath', 'skinSurfFilepath', 'gmSurfFilepath', 'freesurferFilepath'):
+                if var in kwargs:
+                    # TODO: if other session referenced a file inside its own folder, copy to primary session folder here
+                    # or if relative path is different between sessions (e.g. due to them being in different parent directories)
+                    # offer to copy the file here
+                    # note: if copying files here, need to copy entire SimNIBS folder, not just the referenced .msh file
+                    kwargs[var] = os.path.join(self.otherSession.filepath, kwargs[var])
             for key, val in kwargs.items():
                 setattr(self.session.headModel, key, val)
 
