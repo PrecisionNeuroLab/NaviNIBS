@@ -43,8 +43,9 @@ class HeadModelPanel(MainViewPanel):
     _views: tp.Dict[str, tp.Union[SurfSliceView, Surf3DView]] = attrs.field(init=False, factory=dict)
     _surfAliases: tp.Dict[str, str] = attrs.field(init=False, factory=lambda: {
         'skinSurf': 'Skin',
-        'csfSurf': 'CSF', 
-        'gmSurf': 'Gray matter'
+        'csfSurf': 'CSF',
+        'gmSurf': 'Gray matter',
+        'gmFSSurf': 'Gray matter (FreeSurfer)',
     })  # show nice aliases for the surfaces
 
     finishedAsyncInit: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
