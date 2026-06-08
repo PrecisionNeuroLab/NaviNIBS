@@ -172,40 +172,13 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
 
                 assert actorKey in self._actors
 
-                if self._colorbarLabel is None:
-                    colorbarLabel = self._metadataKey
-                else:
-                    colorbarLabel = self._colorbarLabel
-                scalar_bar_args = dict(
-                    title=colorbarLabel,
-                    bold=True,
-                    title_font_size=12,
-                    label_font_size=10,
-                    vertical=True,
-                )
-
                 self._interpolateValuesOntoMesh()
-
-                if self._scalarsOpacityKey is not None:
-                    opacity = self._scalarsOpacityKey
-                else:
-                    opacity = self._opacity
 
                 with self._plotter.allowNonblockingCalls():
                     self._plotter.remove_actor(self._actors[actorKey])
                     self._actors.pop(actorKey)
 
-                self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
-                                                               color=self._color,
-                                                               nan_color=self._color,
-                                                               nan_opacity=self._meshOpacityOutsideInterpolatedRegion,
-                                                               scalars=self._scalarsKey,
-                                                               scalar_bar_args=scalar_bar_args,
-                                                               annotations=self._scalarAnnotations,
-                                                               opacity=opacity,
-                                                               **headMeshDefaultKwargs,
-                                                               smooth_shading=False,  # disabled since this breaks scalar value updates later
-                                                               name=actorKey)
+                self._addSurfMeshToPlotter()
 
                 with self._plotter.allowNonblockingCalls():
                     # self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
@@ -232,6 +205,39 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
         initValues[0] = -40  # TODO: debug, delete
         self._mesh[self._scalarsKey] = initValues
 
+        self._interpolateValuesOntoMesh()
+
+        if isinstance(self._plotter, RemotePlotterProxyBase):
+            # wrap mesh as a RemotePolyDataProxy so that future updates
+            # to mesh scalars are reflected in remote plotter
+            self._mesh = self._plotter.registerPolyData(
+                polyData=self._mesh,
+                id=self._key + '_mesh',  # specify ID so that previous mesh gets overwritten on re-adding
+            )
+
+        self._addSurfMeshToPlotter()
+
+        # self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
+
+        self._plotter.reset_camera_clipping_range()
+
+        if False:
+            # if not immmediately interpolating values above, need to do afterwards
+            self._redraw(['updatePosition', 'interpolateValues'])
+        else:
+            self._redraw(['updatePosition'])
+
+    def _addSurfMeshToPlotter(self):
+        """
+        (Re-)add the surface mesh actor to the plotter using the current mesh and metadata.
+
+        Shared by ``_redraw_initSurf`` (initial creation) and the ``interpolateValues`` redraw path.
+        The latter must fully re-add the mesh rather than update it in place because current pyvista
+        doesn't support dynamically changing color when a custom opacity is specified.
+
+        Assumes the mesh has already been (re-)interpolated via ``_interpolateValuesOntoMesh`` and,
+        for remote plotters, registered via ``registerPolyData``.
+        """
         actorKey = self._getActorKey('surf')
 
         if self._colorbarLabel is None:
@@ -246,20 +252,13 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
             vertical=True,
         )
 
-        self._interpolateValuesOntoMesh()
-
         if self._scalarsOpacityKey is not None:
             opacity = self._scalarsOpacityKey
         else:
             opacity = self._opacity
 
-        if isinstance(self._plotter, RemotePlotterProxyBase):
-            # wrap mesh as a RemotePolyDataProxy so that future updates
-            # to mesh scalars are reflected in remote plotter
-            self._mesh = self._plotter.registerPolyData(
-                polyData=self._mesh,
-                id=self._key + '_mesh',  # specify ID so that previous mesh gets overwritten on re-adding
-            )
+        headMeshKwargs = headMeshDefaultKwargs.copy()
+        headMeshKwargs['smooth_shading'] = False  # disabled since this breaks scalar value updates later
 
         self._actors[actorKey] = self._plotter.addMesh(mesh=self._mesh,
                                                        color=self._color,
@@ -269,21 +268,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
                                                        scalar_bar_args=scalar_bar_args,
                                                        annotations=self._scalarAnnotations,
                                                        opacity=opacity,
-                                                       **headMeshDefaultKwargs,
-                                                       smooth_shading=False,  # disabled since this breaks scalar value updates later
+                                                       **headMeshKwargs,
                                                        name=actorKey)
 
         self.__colorbarLabel = colorbarLabel  # save as an effective actor key for the scalar bar
-
-        # self._plotter.reset_scalar_bar_ranges([self._colorbarLabel])
-
-        self._plotter.reset_camera_clipping_range()
-
-        if False:
-            # if not immmediately interpolating values above, need to do afterwards
-            self._redraw(['updatePosition', 'interpolateValues'])
-        else:
-            self._redraw(['updatePosition'])
 
     def _hideActors(self):
         if self.__colorbarLabel is not None:
