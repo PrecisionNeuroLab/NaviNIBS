@@ -530,6 +530,8 @@ class AddFromTargetStageWidget(ROIStageWidget):
     _targetCombo: QtWidgets.QComboBox = attrs.field(init=False)
     _radiusXField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
     _radiusYField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _offsetXField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _offsetYField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
     _depthThicknessField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
 
     _preChangeTargetComboBoxIndex: list[int] = attrs.field(init=False, factory=list)
@@ -577,6 +579,20 @@ class AddFromTargetStageWidget(ROIStageWidget):
         self._depthThicknessField.valueChanged.connect(self._onDepthThicknessValueChanged)
         self._formLayout.addRow('Depth thickness (mm):', self._depthThicknessField)
 
+        self._offsetXField = QtWidgets.QDoubleSpinBox()
+        self._offsetXField.setRange(-1e3, 1e3)
+        self._offsetXField.setValue(self._stage.offsetX if self._stage.offsetX is not None else 0.0)
+        preventAnnoyingScrollBehaviour(self._offsetXField)
+        self._offsetXField.valueChanged.connect(self._onOffsetXValueChanged)
+        self._formLayout.addRow('Offset X (mm):', self._offsetXField)
+
+        self._offsetYField = QtWidgets.QDoubleSpinBox()
+        self._offsetYField.setRange(-1e3, 1e3)
+        self._offsetYField.setValue(self._stage.offsetY if self._stage.offsetY is not None else 0.0)
+        preventAnnoyingScrollBehaviour(self._offsetYField)
+        self._offsetYField.valueChanged.connect(self._onOffsetYValueChanged)
+        self._formLayout.addRow('Offset Y (mm):', self._offsetYField)
+
     def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
         super()._onStageChanged(stage, changedAttrs)
 
@@ -603,6 +619,16 @@ class AddFromTargetStageWidget(ROIStageWidget):
             self._depthThicknessField.valueChanged.disconnect(self._onDepthThicknessValueChanged)
             self._depthThicknessField.setValue(self._stage.depthThickness)
             self._depthThicknessField.valueChanged.connect(self._onDepthThicknessValueChanged)
+
+        if changedAttrs is None or 'offsetX' in changedAttrs:
+            self._offsetXField.valueChanged.disconnect(self._onOffsetXValueChanged)
+            self._offsetXField.setValue(self._stage.offsetX if self._stage.offsetX is not None else 0.0)
+            self._offsetXField.valueChanged.connect(self._onOffsetXValueChanged)
+
+        if changedAttrs is None or 'offsetY' in changedAttrs:
+            self._offsetYField.valueChanged.disconnect(self._onOffsetYValueChanged)
+            self._offsetYField.setValue(self._stage.offsetY if self._stage.offsetY is not None else 0.0)
+            self._offsetYField.valueChanged.connect(self._onOffsetYValueChanged)
 
     def _onTargetsCollectionAboutToChange(self, *args, **kwargs):
         if len(self._preChangeTargetComboBoxIndex) == 0:
@@ -650,6 +676,20 @@ class AddFromTargetStageWidget(ROIStageWidget):
             return
         logger.info(f'Updating AddFromTarget stage depthThickness to {newValue}')
         self._stage.depthThickness = newValue
+
+    def _onOffsetXValueChanged(self, newValue: float):
+        newOffset = None if newValue == 0.0 else newValue
+        if self._stage.offsetX == newOffset:
+            return
+        logger.info(f'Updating AddFromTarget stage offsetX to {newOffset}')
+        self._stage.offsetX = newOffset
+
+    def _onOffsetYValueChanged(self, newValue: float):
+        newOffset = None if newValue == 0.0 else newValue
+        if self._stage.offsetY == newOffset:
+            return
+        logger.info(f'Updating AddFromTarget stage offsetY to {newOffset}')
+        self._stage.offsetY = newOffset
 
     def deleteLater(self, /):
         logger.debug(f'Deleting AddFromTargetStageWidget for stage {self._stage}')
