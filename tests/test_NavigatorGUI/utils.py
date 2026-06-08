@@ -5,18 +5,17 @@ import contextlib
 import logging
 import numpy as np
 import os
-import platformdirs
 import pyperclip
 import pytest
 import pytest_asyncio
 import shutil
-import tempfile
 import time
 import typing as tp
 
 if tp.TYPE_CHECKING:
     from NaviNIBS.Navigator.GUI.NavigatorGUI import NavigatorGUI
 from NaviNIBS.Navigator.Model.Session import Session
+from NaviNIBS.util.testing.freshness import resolveTestWorkingDir
 
 logger = logging.getLogger(__name__)
 
@@ -37,22 +36,10 @@ def screenshotsDataSourcePath(existingResourcesDataPath):
 
 @pytest.fixture(scope='session')
 def workingDir(request):
-    path = request.config.cache.get('workingDir', None)
-    if True:
-        if path is None:
-            if False:
-                path = tempfile.mkdtemp(prefix='NaviNIBS_Tests_')
-            else:
-                path = os.path.join(platformdirs.user_cache_dir(appname='NaviNIBS', appauthor=False), 'tests')
-            request.config.cache.set('workingDir', path)
-        # note this directory will not be auto-deleted
-        if not os.path.exists(path):
-            os.makedirs(path)
-        yield path
-    else:
-        with tempfile.TemporaryDirectory(suffix='NaviNIBS_Test_Session') as path:
-            yield path
-        # note: directory will be auto-deleted
+    # note: path resolution lives in the freshness plugin so the test freshness registry/config land
+    # in the same directory; this fixture delegates to keep a single source of truth.
+    # (this directory is not auto-deleted)
+    yield resolveTestWorkingDir(request.config)
 
 
 @pytest_asyncio.fixture
