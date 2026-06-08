@@ -10,7 +10,7 @@ from NaviNIBS.Navigator.Model.GenericCollection import listItemAttrSetter
 from NaviNIBS.Navigator.Model.ROIs import ROI, SurfaceMeshROI
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import ROIStage
 from NaviNIBS.Navigator.Model.Calculations import getClosestPointToPointOnMesh
-from NaviNIBS.util.Transforms import invertTransform, applyTransform, decomposeTransform
+from NaviNIBS.util.Transforms import invertTransform, applyTransform
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,16 @@ class AddFromTarget(ROIStage):
     _radiusY: float | None = None
     """
     Radius along the target's coil Y axis (mm).
+    """
+
+    _offsetX: float | None = None
+    """
+    Offset of the ROI center along the target's coil X axis (mm).
+    """
+
+    _offsetY: float | None = None
+    """
+    Offset of the ROI center along the target's coil Y axis (mm).
     """
 
     _depthThickness: float = 20.
@@ -74,6 +84,24 @@ class AddFromTarget(ROIStage):
     @radiusY.setter
     @listItemAttrSetter()
     def radiusY(self, newValue: float | None):
+        pass
+
+    @property
+    def offsetX(self):
+        return self._offsetX
+
+    @offsetX.setter
+    @listItemAttrSetter()
+    def offsetX(self, newValue: float | None):
+        pass
+
+    @property
+    def offsetY(self):
+        return self._offsetY
+
+    @offsetY.setter
+    @listItemAttrSetter()
+    def offsetY(self, newValue: float | None):
         pass
 
     @property
@@ -127,7 +155,7 @@ class AddFromTarget(ROIStage):
         self.sigItemChanged.emit(self, ['targetUpdate'])
 
     def _process(self, roiKey: str, inputROI: ROI | None) -> SurfaceMeshROI:
-        logger.debug(f'Generating ROI from target: {self._targetKey} with radiusX={self._radiusX}, radiusY={self._radiusY}')
+        logger.debug(f'Generating ROI from target: {self._targetKey} with radiusX={self._radiusX}, radiusY={self._radiusY}, offsetX={self._offsetX}, offsetY={self._offsetY}')
 
         if self._targetKey is None:
             logger.warning('No target key specified, returning input ROI unchanged')
@@ -157,22 +185,30 @@ class AddFromTarget(ROIStage):
 
         mesh = getattr(self._session.headModel, inputROI.meshKey)
 
-        _, origin = decomposeTransform(coilToMRITransf)
+        offsetX = self._offsetX if self._offsetX is not None else 0.
+        offsetY = self._offsetY if self._offsetY is not None else 0.
+
+        # offset center in MRI space; coilToMRITransf already includes the target origin,
+        # so when offsets are zero this is exactly the target origin
+        center_MRISpace = applyTransform(coilToMRITransf,
+                                         np.array([offsetX, offsetY, 0.]),
+                                         doCheck=False)
 
         closestPt = getClosestPointToPointOnMesh(
             session=self._session,
             whichMesh=inputROI.meshKey,
-            point_MRISpace=origin
+            point_MRISpace=center_MRISpace
         )
 
         centerDepth = None
         if closestPt is not None:
-            centerDepth = np.linalg.norm(closestPt - origin)
+            centerDepth = np.linalg.norm(closestPt - center_MRISpace)
 
         MRIToCoilTransf = invertTransform(coilToMRITransf)
         localPts = applyTransform(MRIToCoilTransf, mesh.points, doCheck=False)
 
-        ellipseCheck = (localPts[:, 0] / self._radiusX) ** 2 + (localPts[:, 1] / self._radiusY) ** 2 <= 1
+        ellipseCheck = ((localPts[:, 0] - offsetX) / self._radiusX) ** 2 \
+                       + ((localPts[:, 1] - offsetY) / self._radiusY) ** 2 <= 1
 
         if centerDepth is not None:
             depthCheck = (localPts[:, 2] < -centerDepth + self._depthThickness/2) \
