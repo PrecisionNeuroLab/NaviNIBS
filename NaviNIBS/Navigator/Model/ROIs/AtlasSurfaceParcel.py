@@ -331,13 +331,22 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
 
             parcelKeys_lr, parcelLabels = cls._decodeParcelLabels(fsParcels[2], lr)
 
+            logger.info(f'Parcel keys: {parcelKeys_lr}\nParcel labels: {parcelLabels}')
+
             for iL, (parcelKey, parcelLabel) in enumerate(zip(parcelKeys_lr, parcelLabels)):
                 if parcelKeys is not None:
                     # only keep subset of parcelKeys_lr that are in parcelKeys, and corresponding parcelLabels
-                    if parcelKey not in parcelKeys:
-                        continue
-                    else:
-                        parcelKeys.remove(parcelKey)  # mark as consumed
+                    equivParcelKey = parcelKey
+                    if equivParcelKey not in parcelKeys:
+                        # also allow matching to parcel label
+                        equivParcelKey = parcelLabel
+                        if equivParcelKey not in parcelKeys:
+                            # also allow matching to de-spaced parcel label
+                            equivParcelKey = parcelLabel.replace(' ', '_')
+                            if equivParcelKey not in parcelKeys:
+                                continue
+
+                    parcelKeys.remove(equivParcelKey)  # mark as consumed
 
                 color = fsParcels[1][iL, :][0:4]
                 # convert from RGBT 0-255 format to RGBA 0-1 format
@@ -354,8 +363,8 @@ class AtlasSurfaceParcel(SurfaceMeshROI):
                 )
                 rois.addItem(roi)
 
-            if parcelKeys is not None:
-                if len(parcelKeys) > 0:
-                    logger.warning(f'Unmatched parcel keys: {parcelKeys}')
+        if parcelKeys is not None:
+            if len(parcelKeys) > 0:
+                logger.warning(f'Unmatched parcel keys: {parcelKeys}')
 
         return rois
