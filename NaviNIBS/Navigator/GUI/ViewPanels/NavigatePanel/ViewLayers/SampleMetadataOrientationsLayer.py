@@ -23,6 +23,16 @@ if DefaultBackgroundPlotter is RemotePlotterProxy or tp.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _sampleIsRejected(sample, rejectedMetadataKey: str | None) -> bool:
+    """
+    Whether a sample should be excluded from metadata-based plots, based on a truthy value
+    at ``rejectedMetadataKey`` in the sample's metadata (e.g. an externally computed QC flag).
+    """
+    if rejectedMetadataKey is None:
+        return False
+    return bool(sample.metadata.get(rejectedMetadataKey, False))
+
+
 @attrs.define(kw_only=True)
 class SampleMetadataOrientationsLayer(SampleOrientationsLayer):
 
@@ -31,6 +41,10 @@ class SampleMetadataOrientationsLayer(SampleOrientationsLayer):
     _metadataKey: str
     _colorbarLabel: str | None = None
     _metadataScaleFactor: float = 1.0
+    _rejectedMetadataKey: str | None = None
+    """
+    If specified, samples with a truthy value at this metadata key are excluded from plotting.
+    """
 
     _colorDepthIndicator: str | None = None
     _colorHandleIndicator: str | None = None
@@ -39,6 +53,14 @@ class SampleMetadataOrientationsLayer(SampleOrientationsLayer):
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
+
+    def _orientationIsVisible(self, key: str) -> bool:
+        if not super()._orientationIsVisible(key):
+            return False
+        sample = self._coordinator.session.samples.get(key, None)
+        if sample is None:
+            return False
+        return not _sampleIsRejected(sample, self._rejectedMetadataKey)
 
     def _createVisualizedOrientationForSample(self, key: str) -> VisualizedOrientation:
 
@@ -83,6 +105,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
     Which value in sample metadata to plot
     """
     _colorbarLabel: str | None = None
+    _rejectedMetadataKey: str | None = None
+    """
+    If specified, samples with a truthy value at this metadata key are excluded from interpolation.
+    """
     _scalarAnnotations: dict[float, str] | None = None
     """
     In form accepted by pyvista.mapper.set_scalars(..., annotations=...).
@@ -291,7 +317,10 @@ class SampleMetadataInterpolatedSurfaceLayer(HeadMeshSurfaceLayer):
         self._needsReinterpolation.clear()
 
         allSamples = self._coordinator.session.samples.values()
-        includeSamples = [sample for sample in allSamples if sample.isVisible]  # include only samples marked as visible
+        # include only samples marked as visible and not rejected
+        includeSamples = [sample for sample in allSamples
+                          if sample.isVisible
+                          and not _sampleIsRejected(sample, self._rejectedMetadataKey)]
 
         coords = np.full((len(includeSamples), 3), np.nan)
 
