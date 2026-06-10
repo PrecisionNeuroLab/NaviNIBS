@@ -560,7 +560,7 @@ async def test_combineROIs(navigatorGUIWithoutSession: NavigatorGUI,
     )
     ses.ROIs.merge(atlasROIs)
     for key in parcelKeys:
-        assert key in ses.ROIs
+        assert key in ses.ROIs.keys()
 
     # Create pipeline ROI: union of atlas parcels projected onto CSF surface
     combinedROI = PipelineROI(key='dlPFCAtlasUnionCSF')
