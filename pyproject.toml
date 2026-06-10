@@ -1,6 +1,6 @@
 [project]
 name = "NaviNIBS"
-version = "0.2.6a16"
+version = "0.2.6a17"
 description = "Software for neuronavigated non-invasive brain stimulation"
 readme = "README.md"
 authors = [
@@ -76,6 +76,9 @@ ipykernel = "^6.29.5"
 
 [project.scripts]
 navinibs = "NaviNIBS.Navigator.GUI.NavigatorGUI:main"
+
+[project.entry-points.pytest11]
+navinibs_freshness = "NaviNIBS.util.testing.freshness"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
