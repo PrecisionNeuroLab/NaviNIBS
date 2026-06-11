@@ -197,7 +197,6 @@ class CoordinateSystems(GenericCollection[str, CoordinateSystem]):
 
                     key = 'FSAvg_FreeSurfer_SBM'
                     coordSys = SBMTransformedCoordinateSystem(
-                        key='FSAvg_FreeSurfer_SBM',
                         key=key,
                         description='SBM (fsaverage) mapping via FreeSurfer surfaces',
                         nativePial_filepaths=(fsSurfPaths['lhPial'], fsSurfPaths['rhPial']),
