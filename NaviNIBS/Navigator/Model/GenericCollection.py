@@ -59,8 +59,11 @@ class GenericCollectionDictItem(ABC, tp.Generic[K]):
             return
         prevKey = self._key
         self.sigKeyAboutToChange.emit(prevKey, newKey)
-        self._key = newKey
-        self.sigKeyChanged.emit(prevKey, newKey)
+        try:
+            self._key = newKey
+        finally:
+            # always emit to balance sigKeyAboutToChange even if a slot raises
+            self.sigKeyChanged.emit(prevKey, newKey)
 
     def asDict(self) -> dict[str, tp.Any]:
         return attrsAsDict(self)
@@ -87,17 +90,17 @@ def collectionDictItemAttrSetter(
             attrsToSignal = [publicName]
             if extraAttrsToSignalOnChange is not None:
                 attrsToSignal.extend(extraAttrsToSignalOnChange)
-            self.sigItemAboutToChange.emit(self.key, attrsToSignal)
-            # allow any custom per-setter logic to run
+            # always emit sigItemChanged to balance sigItemAboutToChange, even if the about-change
+            #  emit, the setter logic, or a connected slot raises; otherwise listeners (e.g. table
+            #  models) that bracket changes between these signals can be left wedged.
             try:
+                self.sigItemAboutToChange.emit(self.key, attrsToSignal)
+                # allow any custom per-setter logic to run, then set the backing attribute
                 result = func(self, value)
-            except Exception:
+                setattr(self, privateName, value)
+                return result
+            finally:
                 self.sigItemChanged.emit(self.key, attrsToSignal)
-                raise
-            # actually set the backing attribute and trigger update
-            setattr(self, privateName, value)
-            self.sigItemChanged.emit(self.key, attrsToSignal)
-            return result
         return wrapper
     return decorator
 
@@ -119,15 +122,15 @@ def listItemAttrSetter(
             attrsToSignal = [publicName]
             if extraAttrsToSignalOnChange is not None:
                 attrsToSignal.extend(extraAttrsToSignalOnChange)
-            self.sigItemAboutToChange.emit(self, attrsToSignal)
+            # always emit sigItemChanged to balance sigItemAboutToChange (see note in
+            #  collectionDictItemAttrSetter), even if the about-change emit, setter, or a slot raises.
             try:
+                self.sigItemAboutToChange.emit(self, attrsToSignal)
                 result = func(self, value)
-            except Exception:
+                setattr(self, privateName, value)
+                return result
+            finally:
                 self.sigItemChanged.emit(self, attrsToSignal)
-                raise
-            setattr(self, privateName, value)
-            self.sigItemChanged.emit(self, attrsToSignal)
-            return result
         return wrapper
     return decorator
 
@@ -184,31 +187,35 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
         logger.info(f'Deleting {keys}')
 
         self.sigItemsAboutToChange.emit(keys, None)
-        for key in keys:
-            self._items[key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
-            self._items[key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
-            self._items[key].sigKeyChanged.disconnect(self._onItemKeyChanged)
-            self._items[key].sigItemChanged.disconnect(self._onItemChanged)
+        try:
+            for key in keys:
+                self._items[key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+                self._items[key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
+                self._items[key].sigKeyChanged.disconnect(self._onItemKeyChanged)
+                self._items[key].sigItemChanged.disconnect(self._onItemChanged)
 
-            del self._items[key]
-
-        self.sigItemsChanged.emit(keys, None)
+                del self._items[key]
+        finally:
+            # always emit to balance sigItemsAboutToChange, even on partial failure
+            self.sigItemsChanged.emit(keys, None)
 
     def setItem(self, item: CI):
         self.sigItemsAboutToChange.emit([item.key], None)
-        if item.key in self._items:
-            self._items[item.key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
-            self._items[item.key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
-            self._items[item.key].sigKeyChanged.disconnect(self._onItemKeyChanged)
-            self._items[item.key].sigItemChanged.disconnect(self._onItemChanged)
-        self._items[item.key] = item
+        try:
+            if item.key in self._items:
+                self._items[item.key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+                self._items[item.key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
+                self._items[item.key].sigKeyChanged.disconnect(self._onItemKeyChanged)
+                self._items[item.key].sigItemChanged.disconnect(self._onItemChanged)
+            self._items[item.key] = item
 
-        item.sigItemAboutToChange.connect(self._onItemAboutToChange)
-        item.sigKeyAboutToChange.connect(self._onItemKeyAboutToChange)
-        item.sigKeyChanged.connect(self._onItemKeyChanged)
-        item.sigItemChanged.connect(self._onItemChanged)
-
-        self.sigItemsChanged.emit([item.key], None)
+            item.sigItemAboutToChange.connect(self._onItemAboutToChange)
+            item.sigKeyAboutToChange.connect(self._onItemKeyAboutToChange)
+            item.sigKeyChanged.connect(self._onItemKeyChanged)
+            item.sigItemChanged.connect(self._onItemChanged)
+        finally:
+            # always emit to balance sigItemsAboutToChange, even on partial failure
+            self.sigItemsChanged.emit([item.key], None)
 
     def setItems(self, items: list[CI]):
         # assume all keys are changing, though we could do comparisons to find subset changed
@@ -217,18 +224,21 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
         newKeys = [item.key for item in items]
         combinedKeys = list(set(oldKeys) | set(newKeys))
         self.sigItemsAboutToChange.emit(combinedKeys, None)
-        for key in oldKeys:
-            self._items[key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
-            self._items[key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
-            self._items[key].sigKeyChanged.disconnect(self._onItemKeyChanged)
-            self._items[key].sigItemChanged.disconnect(self._onItemChanged)
-        self._items = {item.key: item for item in items}
-        for key, item in self._items.items():
-            self._items[key].sigItemAboutToChange.connect(self._onItemAboutToChange)
-            self._items[key].sigKeyAboutToChange.connect(self._onItemKeyAboutToChange)
-            self._items[key].sigKeyChanged.connect(self._onItemKeyChanged)
-            self._items[key].sigItemChanged.connect(self._onItemChanged)
-        self.sigItemsChanged.emit(combinedKeys, None)
+        try:
+            for key in oldKeys:
+                self._items[key].sigItemAboutToChange.disconnect(self._onItemAboutToChange)
+                self._items[key].sigKeyAboutToChange.disconnect(self._onItemKeyAboutToChange)
+                self._items[key].sigKeyChanged.disconnect(self._onItemKeyChanged)
+                self._items[key].sigItemChanged.disconnect(self._onItemChanged)
+            self._items = {item.key: item for item in items}
+            for key, item in self._items.items():
+                self._items[key].sigItemAboutToChange.connect(self._onItemAboutToChange)
+                self._items[key].sigKeyAboutToChange.connect(self._onItemKeyAboutToChange)
+                self._items[key].sigKeyChanged.connect(self._onItemKeyChanged)
+                self._items[key].sigItemChanged.connect(self._onItemChanged)
+        finally:
+            # always emit to balance sigItemsAboutToChange, even on partial failure
+            self.sigItemsChanged.emit(combinedKeys, None)
 
     def setAttribForItems(self, keys: Sequence[K], attribsAndValues: dict[str, Sequence[tp.Any]]) -> None:
         """
@@ -259,11 +269,14 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
             return
 
         self.sigItemsAboutToChange.emit(changingKeys, list(changingAttribsAndValues.keys()))
-        with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
-            for iKey, key in enumerate(changingKeys):
-                for attrib, values in changingAttribsAndValues.items():
-                    setattr(self._items[key], attrib, values[iKey])
-        self.sigItemsChanged.emit(changingKeys, list(changingAttribsAndValues.keys()))
+        try:
+            with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
+                for iKey, key in enumerate(changingKeys):
+                    for attrib, values in changingAttribsAndValues.items():
+                        setattr(self._items[key], attrib, values[iKey])
+        finally:
+            # always emit to balance sigItemsAboutToChange, even on partial failure
+            self.sigItemsChanged.emit(changingKeys, list(changingAttribsAndValues.keys()))
 
     def _onItemAboutToChange(self, key: str, attribKeys: tp.Optional[list[str]] = None):
         self.sigItemsAboutToChange.emit([key], attribKeys)
@@ -319,10 +332,13 @@ class GenericCollection(ABC, tp.Generic[K, CI]): # (minor note: it would be help
         else:
             otherItemKeys = [item.key for item in otherItems]
         self.sigItemsAboutToChange.emit(otherItemKeys, None)
-        with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
-            for item in otherItems:
-                self.setItem(item)
-        self.sigItemsChanged.emit(otherItemKeys, None)
+        try:
+            with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
+                for item in otherItems:
+                    self.setItem(item)
+        finally:
+            # always emit to balance sigItemsAboutToChange, even on partial failure
+            self.sigItemsChanged.emit(otherItemKeys, None)
 
     def asList(self) -> list[dict[str, tp.Any]]:
         return [item.asDict() for item in self._items.values()]

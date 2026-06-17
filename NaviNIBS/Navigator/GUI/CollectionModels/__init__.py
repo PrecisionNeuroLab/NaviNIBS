@@ -105,6 +105,37 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
     _collection: C = attrs.field(init=False, repr=False)
 
     _pendingChangeType: tp.Optional[str] = attrs.field(init=False, default=None)
+    """
+    Type of the currently in-flight (outermost) change: 'full', 'insertRows', 'modifyExisting',
+    or 'columns'. None when no change is in flight.
+    """
+
+    _changeDepth: int = attrs.field(init=False, default=0)
+    """
+    Re-entrancy nesting depth for row changes. A change started while another is in flight
+    (e.g. a connected slot mutates the same collection) increments this rather than raising;
+    only the outermost change emits a Qt begin/end bracket. Not used by the 'columns' path.
+    """
+
+    _pendingChangeKeys: tp.Optional[list[K]] = attrs.field(init=False, default=None)
+    """
+    Union of keys accumulated across nested 'modifyExisting' changes, used to size the final
+    dataChanged emission.
+    """
+
+    _pendingChangeAttrKeys: tp.Optional[list[str]] = attrs.field(init=False, default=None)
+
+    _needsDeferredFullRefresh: bool = attrs.field(init=False, default=False)
+    """
+    Set when a nested change can't be folded into an already-emitted 'insertRows' bracket;
+    triggers a self-contained layout refresh after the outer bracket closes.
+    """
+
+    _changeGeneration: int = attrs.field(init=False, default=0)
+    """
+    Incremented each time the outermost bracket opens; token carried by the failsafe timer so
+    a stale timer can't force-close a newer change cycle.
+    """
 
     _lastSelectedKeys: list[K] = attrs.field(init=False, factory=list)  # only used if _isSelectedAttr is None
 
@@ -183,41 +214,42 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
     def modifyingColumns(self):
 
         if self._pendingChangeType:
-            logger.error(f'Previous change still pending: {self._pendingChangeType}')
-            raise RuntimeError
+            logger.warning(f'Starting columns change while another change is pending: {self._pendingChangeType}')
+        assert self._changeDepth == 0, 'Cannot modify columns while a row change is in flight'
         self._pendingChangeType = 'columns'
         self.layoutAboutToBeChanged.emit()
 
-        yield
+        try:
+            yield
 
-        unreferencedColumns = set(self._columns)
-        for seq in (self._attrColumns,
-                    self._derivedColumns.keys()):
-            for key in seq:
-                try:
-                    unreferencedColumns.remove(key)
-                except KeyError:
-                    pass
-        if len(unreferencedColumns) > 0:
-            raise ValueError(f'Unreferenced columns: {unreferencedColumns}')
+            unreferencedColumns = set(self._columns)
+            for seq in (self._attrColumns,
+                        self._derivedColumns.keys()):
+                for key in seq:
+                    try:
+                        unreferencedColumns.remove(key)
+                    except KeyError:
+                        pass
+            if len(unreferencedColumns) > 0:
+                raise ValueError(f'Unreferenced columns: {unreferencedColumns}')
 
-        for seq in (self._attrColumns,
-                    self._derivedColumns.keys(),
-                    self._boolColumns,
-                    self._decoratedColumns,
-                    self._editableColumns,
-                    self._columnLabels.keys(),
-                    self._editableColumnValidators.keys(),
-                    self._derivedColumnSetters.keys(),
-                    self._placeholderNewRowDefaults.keys()):
-            for key in seq:
-                assert key in self._columns, f'{key} not in main columns list'
-
-        assert self._pendingChangeType == 'columns'
-        self.layoutChanged.emit()
-        self._pendingChangeType = None
-
-        self._updateSelection(keys=None, attrKeys=None)
+            for seq in (self._attrColumns,
+                        self._derivedColumns.keys(),
+                        self._boolColumns,
+                        self._decoratedColumns,
+                        self._editableColumns,
+                        self._columnLabels.keys(),
+                        self._editableColumnValidators.keys(),
+                        self._derivedColumnSetters.keys(),
+                        self._placeholderNewRowDefaults.keys()):
+                for key in seq:
+                    assert key in self._columns, f'{key} not in main columns list'
+        finally:
+            # always close the layout-change bracket and reset, even if validation above raises,
+            #  so the model can't be left wedged
+            self.layoutChanged.emit()
+            self._pendingChangeType = None
+            self._updateSelection(keys=None, attrKeys=None)
 
     def rowCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
         return len(self._collection) + (1 if self._hasPlaceholderNewRow else 0)
@@ -510,16 +542,44 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         Should be called by subclass (e.g. via connected signal) whenever underlying collection is about to change
         :param keys: keys (or indices for non-dict collections) of items about to change; if None, all items are assumed to be about to change
         :param attrKeys: optional keys of attributes about to change; if None, all attributes are assumed to be about to change
+
+        Re-entrancy: a change started while another is already in flight (e.g. a connected slot
+        mutates the same collection) does not raise; the nested change is coalesced into the
+        outermost one (see _coalesceNestedChange) so that only a single Qt begin/end bracket is
+        emitted. This must be paired with _onCollectionChanged; subclasses that conditionally skip
+        the super() call here MUST skip it in _onCollectionChanged under the identical condition,
+        or the depth counter will desync (the failsafe will eventually recover, but with a warning).
         """
 
-        if self._pendingChangeType:
-            logger.error(f'Previous change still pending: {self._pendingChangeType}')
-            raise RuntimeError
-        self._pendingChangeType = self._inferCollectionChangeType(keys=keys, attrKeys=attrKeys)
+        incoming = self._inferCollectionChangeType(keys=keys, attrKeys=attrKeys)
 
-        logger.debug(f'Signaling start of {self._pendingChangeType} change for keys {keys}, attrKeys {attrKeys}')
+        if self._changeDepth == 0:
+            # outermost change: open the Qt bracket and arm the recovery failsafe
+            self._pendingChangeType = incoming
+            self._pendingChangeKeys = list(keys) if keys is not None else None
+            self._pendingChangeAttrKeys = list(attrKeys) if attrKeys is not None else None
+            self._needsDeferredFullRefresh = False
+            self._changeDepth = 1
+            self._changeGeneration += 1
 
-        match self._pendingChangeType:
+            # If this change never completes (e.g. a caller emits aboutToChange directly and then
+            #  raises before emitting changed), a singleShot(0) timer reclaims the model on the next
+            #  event-loop turn. Because signals are synchronous, any legitimate nested change has
+            #  fully unwound (depth back to 0) by the time the timer fires, making it a no-op.
+            gen = self._changeGeneration
+            QtCore.QTimer.singleShot(0, lambda gen=gen: self._failsafeReset(gen))
+
+            logger.debug(f'Signaling start of {self._pendingChangeType} change for keys {keys}, attrKeys {attrKeys}')
+            self._emitChangeBegin(self._pendingChangeType, keys)
+        else:
+            # nested (re-entrant) change: do not open a second Qt bracket; coalesce instead
+            self._changeDepth += 1
+            logger.debug(f'Nested {incoming} change (depth {self._changeDepth}) while {self._pendingChangeType} '
+                         f'pending; coalescing. keys {keys}, attrKeys {attrKeys}')
+            self._coalesceNestedChange(incoming, keys, attrKeys)
+
+    def _emitChangeBegin(self, changeType: str, keys: tp.Optional[list[K]]):
+        match changeType:
             case 'full':
                 self.layoutAboutToBeChanged.emit()
 
@@ -535,6 +595,54 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
             case _:
                 raise NotImplementedError
 
+    def _coalesceNestedChange(self, incoming: str, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]]):
+        """
+        Fold a nested change into the already-open outermost change without emitting a second
+        Qt begin bracket.
+        """
+        match self._pendingChangeType:
+            case 'full':
+                pass  # a full layout change already covers any nested change
+
+            case 'modifyExisting':
+                if incoming == 'modifyExisting':
+                    # widen the range of the eventual dataChanged
+                    self._accumulatePendingKeys(keys, attrKeys)
+                else:
+                    # need to widen to a full change; safe because no begin bracket was emitted yet
+                    logger.debug('Upgrading pending modifyExisting change to full to absorb nested change')
+                    self._pendingChangeType = 'full'
+                    self._pendingChangeKeys = None
+                    self._pendingChangeAttrKeys = None
+                    self.layoutAboutToBeChanged.emit()
+
+            case 'insertRows':
+                # an insertRows bracket commits to fixed indices and cannot be widened; defer a
+                #  self-contained full refresh until after endInsertRows
+                logger.warning(f'Nested {incoming} change during insertRows; deferring a full refresh '
+                               f'until the insert completes')
+                self._needsDeferredFullRefresh = True
+
+            case _:
+                logger.warning(f'Unexpected pending change type {self._pendingChangeType} during nested '
+                               f'change; will refresh fully')
+                self._needsDeferredFullRefresh = True
+
+    def _accumulatePendingKeys(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]]):
+        if keys is None:
+            self._pendingChangeKeys = None  # None means "all"; cannot narrow
+        elif self._pendingChangeKeys is not None:
+            for key in keys:
+                if key not in self._pendingChangeKeys:
+                    self._pendingChangeKeys.append(key)
+
+        if attrKeys is None:
+            self._pendingChangeAttrKeys = None
+        elif self._pendingChangeAttrKeys is not None:
+            for attrKey in attrKeys:
+                if attrKey not in self._pendingChangeAttrKeys:
+                    self._pendingChangeAttrKeys.append(attrKey)
+
     def _onCollectionChanged(self, keys: tp.Optional[list[K]], attrKeys: tp.Optional[list[str]] = None):
         """
         Should be called by subclass (e.g. via connected signal) whenever underlying collection has changed
@@ -542,13 +650,43 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         :param attrKeys: optional keys of attributes changed; if None, all attributes are assumed to have changed
         """
 
-        assert self._pendingChangeType is not None
+        if self._changeDepth == 0:
+            # no change in flight: a stray/desynced changed signal, or the change was already
+            #  force-closed by the failsafe. Ignore rather than crash.
+            logger.warning(f'_onCollectionChanged called with no change in flight; ignoring. '
+                           f'keys {keys}, attrKeys {attrKeys}')
+            return
 
+        self._changeDepth -= 1
+
+        if self._changeDepth > 0:
+            # a nested change completing; its keys were already coalesced at about-to-change time
+            return
+
+        # outermost change completing: close the Qt bracket and reset state no matter what
         logger.debug(f'Signaling completion of {self._pendingChangeType} change for keys {keys}, attrKeys {attrKeys}')
 
+        pendingType = self._pendingChangeType
+        pendingKeys = self._pendingChangeKeys
+        pendingAttrKeys = self._pendingChangeAttrKeys
+        needsDeferredFullRefresh = self._needsDeferredFullRefresh
+        try:
+            self._emitChangeEnd(pendingType, pendingKeys, pendingAttrKeys, needsDeferredFullRefresh)
+        finally:
+            # always reset so the model can never be left wedged, even if an emit/slot raises
+            self._pendingChangeType = None
+            self._changeDepth = 0
+            self._pendingChangeKeys = None
+            self._pendingChangeAttrKeys = None
+            self._needsDeferredFullRefresh = False
+
+        logger.debug(f'Done signaling completion for keys {keys}, attrKeys {attrKeys}')
+
+    def _emitChangeEnd(self, changeType: tp.Optional[str], keys: tp.Optional[list[K]],
+                       attrKeys: tp.Optional[list[str]], needsDeferredFullRefresh: bool):
         doUpdateSelection = False
 
-        match self._pendingChangeType:
+        match changeType:
             case 'full':
                 # TODO: update persistent indices with `changePersistentIndex` as required (?) by Qt model interface
                 self.layoutChanged.emit()
@@ -558,27 +696,70 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                 self.endInsertRows()
 
             case 'modifyExisting':
-                indices = list(set(self.getIndexFromCollectionItemKey(key) for key in keys))
-                assert all(index is not None for index in indices)
-                assert len(indices) == len(keys), 'One or more keys repeated'
-                minIndex = min(indices)
-                maxIndex = max(indices)
-
-                # TODO: also only emit for certain columns if attrKeys specified
-                logger.debug(f'minIndex {minIndex}; maxIndex {maxIndex}, numColumns {len(self._columns)}')
-                self.dataChanged.emit(self.index(minIndex, 0), self.index(maxIndex, len(self._columns)-1))
-
+                self._emitDataChangedForKeys(keys)
                 doUpdateSelection = True
+
+            case None:
+                pass  # nothing was open (defensive; reached only via failsafe on odd states)
 
             case _:
                 raise NotImplementedError
 
-        self._pendingChangeType = None
+        if needsDeferredFullRefresh:
+            # a nested change couldn't be folded into an insertRows bracket; resync the view with a
+            #  self-contained layout change now that the insert bracket has closed
+            self.layoutAboutToBeChanged.emit()
+            self.layoutChanged.emit()
+            doUpdateSelection = True
 
         if doUpdateSelection:
             self._updateSelection(keys=keys, attrKeys=attrKeys)
 
-        logger.debug(f'Done signaling completion for keys {keys}, attrKeys {attrKeys}')
+    def _emitDataChangedForKeys(self, keys: tp.Optional[list[K]]):
+        if keys is None:
+            # treat as a modify across the whole collection
+            if len(self._collection) == 0:
+                return
+            minIndex = 0
+            maxIndex = len(self._collection) - 1
+        else:
+            indices = [self.getIndexFromCollectionItemKey(key) for key in keys]
+            indices = [index for index in indices if index is not None]  # items may have been removed mid-change
+            if len(indices) == 0:
+                return
+            minIndex = min(indices)
+            maxIndex = max(indices)
+
+        # TODO: also only emit for certain columns if attrKeys specified
+        logger.debug(f'minIndex {minIndex}; maxIndex {maxIndex}, numColumns {len(self._columns)}')
+        self.dataChanged.emit(self.index(minIndex, 0), self.index(maxIndex, len(self._columns)-1))
+
+    def _failsafeReset(self, generation: int):
+        """
+        Backstop scheduled when the outermost change opens. Reclaims the model if a change was
+        started but never balanced by a matching completion (e.g. external code emitted
+        sigItemsAboutToChange directly and then raised). See _onCollectionAboutToChange.
+        """
+        if generation != self._changeGeneration:
+            return  # a newer change cycle has since opened; this timer is stale
+        if self._changeDepth == 0:
+            return  # change completed normally; nothing leaked
+
+        logger.warning(f'Change "{self._pendingChangeType}" did not complete (depth {self._changeDepth}); '
+                       f'force-closing to recover model.')
+
+        pendingType = self._pendingChangeType
+        pendingKeys = self._pendingChangeKeys
+        pendingAttrKeys = self._pendingChangeAttrKeys
+        needsDeferredFullRefresh = self._needsDeferredFullRefresh
+        try:
+            self._emitChangeEnd(pendingType, pendingKeys, pendingAttrKeys, needsDeferredFullRefresh)
+        finally:
+            self._pendingChangeType = None
+            self._changeDepth = 0
+            self._pendingChangeKeys = None
+            self._pendingChangeAttrKeys = None
+            self._needsDeferredFullRefresh = False
 
     def _updateSelection(self, keys: list[str] | None, attrKeys: list[str] | None):
         logger.debug(f'Updating selection')
