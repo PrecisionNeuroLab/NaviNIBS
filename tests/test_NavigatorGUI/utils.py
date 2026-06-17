@@ -42,7 +42,7 @@ def workingDir(request):
     yield resolveTestWorkingDir(request.config)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope='function')
 async def navigatorGUIWithoutSession() -> NavigatorGUI:
 
     if True:

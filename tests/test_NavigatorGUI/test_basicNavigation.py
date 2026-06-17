@@ -552,3 +552,4 @@ async def test_basicNavigation_manySamples(navigatorGUIWithoutSession: Navigator
                                             screenshotName='BasicNav_ManySamples',
                                             screenshotsDataSourcePath=screenshotsDataSourcePath)
 
+    # await utils.waitForever()

@@ -217,6 +217,7 @@ class TargetingCrosshairsLayer(PlotViewLayer):
         return lines
 
 
+
 @attrs.define
 class TargetingTargetCrosshairsLayer(TargetingCrosshairsLayer):
     _type: ClassVar[str] = 'TargetingTargetCrosshairs'

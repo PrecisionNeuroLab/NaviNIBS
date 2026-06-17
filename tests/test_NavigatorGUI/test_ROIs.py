@@ -66,7 +66,6 @@ async def test_setROIs(navigatorGUIWithoutSession: NavigatorGUI,
                        screenshotsDataSourcePath: str,
                        exampleCorticalROISeedPointsAndRadii,
                        exampleCSFROISeedPointAndRadius,
-
                        ):
     navigatorGUI = navigatorGUIWithoutSession
 
@@ -379,6 +378,8 @@ async def test_importSurfaceParcellationROIs(navigatorGUIWithoutSession, #: Navi
     ses = utils.assertSavedSessionIsValid(sessionPath)
     assert len(ses.ROIs) > 0
 
+    # await utils.waitForever()
+
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_setTargets.py::test_setTargets')
@@ -559,6 +560,7 @@ async def test_combineROIs(navigatorGUIWithoutSession: NavigatorGUI,
         parcelKeys=parcelKeys,
     )
     ses.ROIs.merge(atlasROIs)
+    logger.info(f'ROI keys: {ses.ROIs.keys()}')
     for key in parcelKeys:
         assert key in ses.ROIs.keys()
 
