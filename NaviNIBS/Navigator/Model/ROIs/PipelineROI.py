@@ -42,6 +42,7 @@ class PipelineROI(ROI):
             from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages import PassthroughStage, SelectSurfaceMesh
             from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint, AddFromSeedLine
             from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+            from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTwoTargets import AddFromTwoTargets
             from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Intersect, Union, Difference
             from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Project import ProjectBetweenSurfaces
 
@@ -51,6 +52,7 @@ class PipelineROI(ROI):
                     AddFromSeedPoint,
                     AddFromSeedLine,
                     AddFromTarget,
+                    AddFromTwoTargets,
                     Intersect,
                     Union,
                     Difference,

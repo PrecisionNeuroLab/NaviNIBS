@@ -13,6 +13,7 @@ from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTwoTargets import AddFromTwoTargets
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Union
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Project import ProjectBetweenSurfaces
 from NaviNIBS.Navigator.Model.Targets import Target
@@ -58,6 +59,14 @@ async def test_openImportParcellationROIsSession(workingDir):
 async def test_openTargetROIsSession(workingDir):
     # with utils.tracer(workingDir, 'TargetROI', True):
     await utils.openSessionForInteraction(workingDir, 'TargetROI')
+
+@pytest.mark.asyncio
+@pytest.mark.skip(reason='For troubleshooting')
+async def test_openTwoTargetROISession(workingDir):
+    # with utils.tracer(workingDir, 'TwoTargetsROI', True):
+    await utils.openSessionForInteraction(workingDir, 'TwoTargetsROI')
+
+
 
 @pytest.mark.asyncio
 @pytest.mark.order(after='test_planFiducials.py::test_planFiducials')
@@ -602,4 +611,74 @@ async def test_combineROIs(navigatorGUIWithoutSession: NavigatorGUI,
     assert 'dlPFCAtlasUnionCSF' in ses.ROIs
     for key in parcelKeys:
         assert key in ses.ROIs
+
+
+@pytest.mark.asyncio
+@pytest.mark.order(after='test_headModel.py::test_setHeadModel')
+async def test_twoTargetsROI(navigatorGUIWithoutSession: NavigatorGUI,
+                             workingDir: str,
+                             screenshotsDataSourcePath: str):
+    navigatorGUI = navigatorGUIWithoutSession
+
+    sessionPath = utils.copySessionFolder(workingDir, 'SetCharmFSHeadModel', 'TwoTargetsROI')
+
+    navigatorGUI.manageSessionPanel.loadSession(sesFilepath=sessionPath)
+    await asyncio.sleep(1.)
+
+    ses = navigatorGUI.session
+
+    # Create two targets ~20 mm apart, each with auto-computed entry coord
+    ses.targets.addItem(Target(key='twoTgtA', targetCoord=np.array([-38.8, 32.35, 40.65]), angle=0.0))
+    ses.targets.addItem(Target(key='twoTgtB', targetCoord=np.array([-38.8, 12.35, 45.65]), angle=0.0))
+
+    # Build a PipelineROI on the CSF surface using AddFromTwoTargets
+    roi = PipelineROI(key='twoTargetsROI')
+    ses.ROIs.addItem(roi)
+    roi.stages[:] = [
+        ROIStages.SelectSurfaceMesh(meshKey='csfSurf'),
+        AddFromTwoTargets(target1Key='twoTgtA', target2Key='twoTgtB',
+                          minorAxisRatio=0.5, depthThickness=20.,
+                          majorAxisPadding=10,),
+    ]
+
+    output = roi.getOutput()
+    assert isinstance(output, ROIs.SurfaceMeshROI)
+    assert output.meshVertexIndices is not None
+    assert len(output.meshVertexIndices) > 0
+
+    # render the ROI in the ROIs panel and capture a screenshot before widening
+    navigatorGUI._activateView(navigatorGUI.roisPanel.key)
+    await navigatorGUI.roisPanel.finishedAsyncInit.wait()
+    assert navigatorGUI.activeViewKey == navigatorGUI.roisPanel.key
+
+    navigatorGUI.roisPanel._tableWdgt.currentCollectionItemKey = 'twoTargetsROI'
+    navigatorGUI.roisPanel._queueRedraw('cameraPos')
+    await asyncio.sleep(1.)
+
+    await utils.captureAndCompareScreenshot(navigatorGUI=navigatorGUI,
+                                            sessionPath=sessionPath,
+                                            screenshotName='TwoTargetsROI',
+                                            screenshotsDataSourcePath=screenshotsDataSourcePath)
+
+    # widening the minor axis should select at least as many vertices
+    narrowCount = len(output.meshVertexIndices)
+    roi.stages[1].minorAxisRatio = 1.5
+    widerOutput = roi.getOutput()
+    assert widerOutput.meshVertexIndices is not None
+    assert len(widerOutput.meshVertexIndices) >= narrowCount
+
+    # asDict/fromDict round-trip of the stage preserves its fields
+    stage = roi.stages[1]
+    d = stage.asDict()
+    assert d['type'] == AddFromTwoTargets.type
+    d.pop('type')
+    restored = AddFromTwoTargets.fromDict(d)
+    assert restored.target1Key == 'twoTgtA'
+    assert restored.target2Key == 'twoTgtB'
+    assert restored.minorAxisRatio == 1.5
+
+    # Save and validate full session round-trip
+    navigatorGUI.manageSessionPanel._onSaveSessionBtnClicked(checked=False)
+    ses = utils.assertSavedSessionIsValid(sessionPath)
+    assert 'twoTargetsROI' in ses.ROIs
 

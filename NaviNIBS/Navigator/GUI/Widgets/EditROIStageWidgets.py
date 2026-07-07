@@ -20,6 +20,7 @@ from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 from NaviNIBS.Navigator.Model.ROIs import PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTwoTargets import AddFromTwoTargets
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Combine
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Project import ProjectBetweenSurfaces
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetsTableModel import FullTargetsTableModel
@@ -695,6 +696,182 @@ class AddFromTargetStageWidget(ROIStageWidget):
         logger.debug(f'Deleting AddFromTargetStageWidget for stage {self._stage}')
         self._targetsModel.collection.sigItemsAboutToChange.disconnect(self._onTargetsCollectionAboutToChange)
         self._targetsModel.collection.sigItemsChanged.disconnect(self._onTargetsCollectionChanged)
+        super().deleteLater()
+
+
+@attrs.define(init=False, slots=False, kw_only=True)
+class AddFromTwoTargetsStageWidget(ROIStageWidget):
+    _stage: AddFromTwoTargets
+
+    _target1Model: FullTargetsTableModel = attrs.field(init=False)
+    _target1Combo: QtWidgets.QComboBox = attrs.field(init=False)
+    _target2Model: FullTargetsTableModel = attrs.field(init=False)
+    _target2Combo: QtWidgets.QComboBox = attrs.field(init=False)
+    _minorAxisRatioField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _majorAxisPaddingField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+    _depthThicknessField: QtWidgets.QDoubleSpinBox = attrs.field(init=False)
+
+    _preChange1: list[int] = attrs.field(init=False, factory=list)
+    _preChange2: list[int] = attrs.field(init=False, factory=list)
+
+    def __attrs_post_init__(self):
+        super().__attrs_post_init__()
+
+        self._target1Model, self._target1Combo = self._buildTargetCombo(
+            self._stage.target1Key,
+            self._onTarget1ComboCurrentIndexChanged,
+            self._onTarget1CollectionAboutToChange,
+            self._onTarget1CollectionChanged)
+        self._formLayout.addRow('Target 1:', self._target1Combo)
+
+        self._target2Model, self._target2Combo = self._buildTargetCombo(
+            self._stage.target2Key,
+            self._onTarget2ComboCurrentIndexChanged,
+            self._onTarget2CollectionAboutToChange,
+            self._onTarget2CollectionChanged)
+        self._formLayout.addRow('Target 2:', self._target2Combo)
+
+        self._minorAxisRatioField = QtWidgets.QDoubleSpinBox()
+        self._minorAxisRatioField.setRange(0.0, 1e3)
+        self._minorAxisRatioField.setSingleStep(0.1)
+        self._minorAxisRatioField.setValue(self._stage.minorAxisRatio)
+        preventAnnoyingScrollBehaviour(self._minorAxisRatioField)
+        self._minorAxisRatioField.valueChanged.connect(self._onMinorAxisRatioValueChanged)
+        self._formLayout.addRow('Minor axis ratio:', self._minorAxisRatioField)
+
+        self._majorAxisPaddingField = QtWidgets.QDoubleSpinBox()
+        self._majorAxisPaddingField.setRange(-1e3, 1e3)
+        self._majorAxisPaddingField.setValue(self._stage.majorAxisPadding)
+        preventAnnoyingScrollBehaviour(self._majorAxisPaddingField)
+        self._majorAxisPaddingField.valueChanged.connect(self._onMajorAxisPaddingValueChanged)
+        self._formLayout.addRow('Major axis padding (mm):', self._majorAxisPaddingField)
+
+        self._depthThicknessField = QtWidgets.QDoubleSpinBox()
+        self._depthThicknessField.setRange(0.0, 1e3)
+        self._depthThicknessField.setValue(self._stage.depthThickness)
+        preventAnnoyingScrollBehaviour(self._depthThicknessField)
+        self._depthThicknessField.valueChanged.connect(self._onDepthThicknessValueChanged)
+        self._formLayout.addRow('Depth thickness (mm):', self._depthThicknessField)
+
+    def _buildTargetCombo(self, currentKey, comboSlot, aboutSlot, changedSlot):
+        model = FullTargetsTableModel(session=self._session)
+        combo = QtWidgets.QComboBox()
+        combo.setModel(model)
+        preventAnnoyingScrollBehaviour(combo)
+        model.collection.sigItemsAboutToChange.connect(aboutSlot, priority=1)
+        model.collection.sigItemsChanged.connect(changedSlot, priority=-1)
+        combo.setCurrentIndex(-1)
+        if currentKey is not None:
+            index = model.getIndexFromCollectionItemKey(currentKey)
+            if index is not None:
+                combo.setCurrentIndex(index)
+        combo.currentIndexChanged.connect(comboSlot)
+        return model, combo
+
+    def _onStageChanged(self, stage: ROIStages.ROIStage, changedAttrs: list[str] | None = None):
+        super()._onStageChanged(stage, changedAttrs)
+
+        if changedAttrs is None or 'target1Key' in changedAttrs:
+            self._refreshTargetCombo(self._target1Combo, self._target1Model,
+                                     self._stage.target1Key, self._onTarget1ComboCurrentIndexChanged)
+
+        if changedAttrs is None or 'target2Key' in changedAttrs:
+            self._refreshTargetCombo(self._target2Combo, self._target2Model,
+                                     self._stage.target2Key, self._onTarget2ComboCurrentIndexChanged)
+
+        if changedAttrs is None or 'minorAxisRatio' in changedAttrs:
+            self._minorAxisRatioField.valueChanged.disconnect(self._onMinorAxisRatioValueChanged)
+            self._minorAxisRatioField.setValue(self._stage.minorAxisRatio)
+            self._minorAxisRatioField.valueChanged.connect(self._onMinorAxisRatioValueChanged)
+
+        if changedAttrs is None or 'majorAxisPadding' in changedAttrs:
+            self._majorAxisPaddingField.valueChanged.disconnect(self._onMajorAxisPaddingValueChanged)
+            self._majorAxisPaddingField.setValue(self._stage.majorAxisPadding)
+            self._majorAxisPaddingField.valueChanged.connect(self._onMajorAxisPaddingValueChanged)
+
+        if changedAttrs is None or 'depthThickness' in changedAttrs:
+            self._depthThicknessField.valueChanged.disconnect(self._onDepthThicknessValueChanged)
+            self._depthThicknessField.setValue(self._stage.depthThickness)
+            self._depthThicknessField.valueChanged.connect(self._onDepthThicknessValueChanged)
+
+    def _refreshTargetCombo(self, combo: QtWidgets.QComboBox, model: FullTargetsTableModel,
+                            key: str | None, slot):
+        combo.currentIndexChanged.disconnect(slot)
+        if key is None:
+            combo.setCurrentIndex(-1)
+        else:
+            index = model.getIndexFromCollectionItemKey(key)
+            combo.setCurrentIndex(index if index is not None else -1)
+        combo.currentIndexChanged.connect(slot)
+
+    def _onTarget1CollectionAboutToChange(self, *args, **kwargs):
+        if len(self._preChange1) == 0:
+            self._target1Combo.currentIndexChanged.disconnect(self._onTarget1ComboCurrentIndexChanged)
+        self._preChange1.append(self._target1Combo.currentIndex())
+
+    def _onTarget1CollectionChanged(self, *args, **kwargs):
+        if len(self._preChange1) > 0:
+            prevIndex = self._preChange1.pop()
+            if len(self._preChange1) == 0:
+                if prevIndex == -1:
+                    self._target1Combo.setCurrentIndex(-1)
+                elif prevIndex != self._target1Combo.currentIndex():
+                    self._onTarget1ComboCurrentIndexChanged(self._target1Combo.currentIndex())
+                self._target1Combo.currentIndexChanged.connect(self._onTarget1ComboCurrentIndexChanged)
+
+    def _onTarget2CollectionAboutToChange(self, *args, **kwargs):
+        if len(self._preChange2) == 0:
+            self._target2Combo.currentIndexChanged.disconnect(self._onTarget2ComboCurrentIndexChanged)
+        self._preChange2.append(self._target2Combo.currentIndex())
+
+    def _onTarget2CollectionChanged(self, *args, **kwargs):
+        if len(self._preChange2) > 0:
+            prevIndex = self._preChange2.pop()
+            if len(self._preChange2) == 0:
+                if prevIndex == -1:
+                    self._target2Combo.setCurrentIndex(-1)
+                elif prevIndex != self._target2Combo.currentIndex():
+                    self._onTarget2ComboCurrentIndexChanged(self._target2Combo.currentIndex())
+                self._target2Combo.currentIndexChanged.connect(self._onTarget2ComboCurrentIndexChanged)
+
+    def _onTarget1ComboCurrentIndexChanged(self, index: int):
+        newKey = None if index == -1 else self._target1Model.getCollectionItemKeyFromIndex(index)
+        if self._stage.target1Key == newKey:
+            return
+        logger.info(f'Updating AddFromTwoTargets stage target1Key to {newKey!r}')
+        self._stage.target1Key = newKey
+
+    def _onTarget2ComboCurrentIndexChanged(self, index: int):
+        newKey = None if index == -1 else self._target2Model.getCollectionItemKeyFromIndex(index)
+        if self._stage.target2Key == newKey:
+            return
+        logger.info(f'Updating AddFromTwoTargets stage target2Key to {newKey!r}')
+        self._stage.target2Key = newKey
+
+    def _onMinorAxisRatioValueChanged(self, newValue: float):
+        if self._stage.minorAxisRatio == newValue:
+            return
+        logger.info(f'Updating AddFromTwoTargets stage minorAxisRatio to {newValue}')
+        self._stage.minorAxisRatio = newValue
+
+    def _onMajorAxisPaddingValueChanged(self, newValue: float):
+        if self._stage.majorAxisPadding == newValue:
+            return
+        logger.info(f'Updating AddFromTwoTargets stage majorAxisPadding to {newValue}')
+        self._stage.majorAxisPadding = newValue
+
+    def _onDepthThicknessValueChanged(self, newValue: float):
+        if self._stage.depthThickness == newValue:
+            return
+        logger.info(f'Updating AddFromTwoTargets stage depthThickness to {newValue}')
+        self._stage.depthThickness = newValue
+
+    def deleteLater(self, /):
+        logger.debug(f'Deleting AddFromTwoTargetsStageWidget for stage {self._stage}')
+        self._target1Model.collection.sigItemsAboutToChange.disconnect(self._onTarget1CollectionAboutToChange)
+        self._target1Model.collection.sigItemsChanged.disconnect(self._onTarget1CollectionChanged)
+        self._target2Model.collection.sigItemsAboutToChange.disconnect(self._onTarget2CollectionAboutToChange)
+        self._target2Model.collection.sigItemsChanged.disconnect(self._onTarget2CollectionChanged)
         super().deleteLater()
 
 

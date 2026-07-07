@@ -22,6 +22,7 @@ from NaviNIBS.Navigator.Model.ROIs.PipelineROI import PipelineROI
 import NaviNIBS.Navigator.Model.ROIs.PipelineROIStages as ROIStages
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromSeed import AddFromSeedPoint
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTarget import AddFromTarget
+from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.AddFromTwoTargets import AddFromTwoTargets
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Combine import Intersect, Union, Difference
 from NaviNIBS.Navigator.Model.ROIs.PipelineROIStages.Project import ProjectBetweenSurfaces
 from NaviNIBS.Navigator.Model.Session import Session
@@ -145,6 +146,8 @@ class EditPipelineROIInnerWidget(EditROIInnerWidget):
                     StageWidgetCls = StageWidgets.AddFromSeedPointStageWidget
                 case AddFromTarget.type:
                     StageWidgetCls = StageWidgets.AddFromTargetStageWidget
+                case AddFromTwoTargets.type:
+                    StageWidgetCls = StageWidgets.AddFromTwoTargetsStageWidget
                 case Intersect.type:
                     StageWidgetCls = StageWidgets.CombineStageWidget
                 case Union.type:
