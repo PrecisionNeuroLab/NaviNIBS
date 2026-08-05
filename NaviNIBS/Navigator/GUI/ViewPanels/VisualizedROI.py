@@ -116,7 +116,7 @@ class VisualizedROIsMesh(QueuedRedrawMixin):
                 if np.any(roiMask):
                     buf[roiMask, :4] /= buf[roiMask, 4:5]  # average to 0-1
                     buf[roiMask, :4] *= 255
-                    buf[roiMask, 4] *= self._opacity
+                    buf[roiMask, 3] *= self._opacity
 
                 buf[~roiMask, :4] = self._backgroundColor  # broadcast single background RGBA tuple
 
