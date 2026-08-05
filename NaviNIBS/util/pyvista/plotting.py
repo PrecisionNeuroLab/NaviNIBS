@@ -106,6 +106,43 @@ class _DelayedPlotter:
             self._needsRender.set()
 
 
+_nonColorArrayNames = ('Normals', 'TCoords', 'TextureCoordinates')
+"""
+Names of multi-component arrays that are definitely not colors, despite having a color-like shape.
+"""
+
+
+def findColorArrayName(mesh: pv.DataSet) -> str | None:
+    """
+    Find an array in mesh that holds per-point or per-cell colors, if any, for use as `scalars`
+    with `rgb=True`.
+
+    Matching on shape alone is not enough: pyvista adds an n x 3 float `Normals` array to a mesh
+    in place when rendering with `smooth_shading=True, split_sharp_edges=False`, and mesh files
+    can carry other vector fields (e.g. SimNIBS E/J fields). Rendering any of those as direct
+    RGB paints the mesh in rainbow colors instead of its intended color.
+    """
+    excludeNames = set(_nonColorArrayNames)
+    for dataAttrs in (mesh.point_data, mesh.cell_data):
+        normalsName = dataAttrs.active_normals_name
+        if normalsName is not None:
+            excludeNames.add(normalsName)
+
+    for arrayName in mesh.array_names:
+        if arrayName in excludeNames:
+            continue
+        arr = mesh[arrayName]
+        if len(arr.shape) != 2 or arr.shape[1] not in (3, 4):
+            continue
+        if arr.dtype == np.uint8:
+            # what VTK color arrays actually are
+            return arrayName
+        if arrayName.lower() in ('rgb', 'rgba', 'color', 'colors') \
+                or arrayName.lower().endswith(('_rgb', '_rgba')):
+            return arrayName
+    return None
+
+
 class PlotterImprovementsMixin:
     def __init__(self):
         pass
@@ -272,10 +309,9 @@ class PlotterImprovementsMixin:
         scalars = kwargs.pop('scalars', None)
         rgb = kwargs.pop('rgb', None)
         if color is None and scalars is None:
-            for arrayName in mesh.array_names:
-                if len(mesh[arrayName].shape) > 1 and mesh[arrayName].shape[1] in (3, 4):
-                    scalars = arrayName
-                    break
+            scalars = findColorArrayName(mesh)
+            if scalars is not None:
+                logger.debug(f'Auto-selected color array {scalars!r} for mesh')
 
         if color is None and scalars is None:
             color = defaultMeshColor  # default color if nothing else provided
