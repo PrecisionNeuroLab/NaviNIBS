@@ -1,6 +1,6 @@
 [project]
 name = "NaviNIBS"
-version = "0.2.6a19"
+version = "0.2.6a20"
 description = "Software for neuronavigated non-invasive brain stimulation"
 readme = "README.md"
 authors = [
