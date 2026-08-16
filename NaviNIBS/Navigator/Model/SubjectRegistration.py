@@ -509,7 +509,7 @@ class SubjectRegistration:
         lpa = self.fiducials.get('LPA', None)
         rpa = self.fiducials.get('RPA', None)
         if lpa is not None and rpa is not None and lpa.plannedCoord is not None and rpa.plannedCoord is not None:
-            center = (lpa + rpa) / 2
+            center = (lpa.plannedCoord + rpa.plannedCoord) / 2
         else:
             logger.warning('Insufficient information for determining approximate header center')
             # TODO: implement more general method of estimating center, e.g. more variety of LPA/RPA naming, name-agnostic averaging, etc.

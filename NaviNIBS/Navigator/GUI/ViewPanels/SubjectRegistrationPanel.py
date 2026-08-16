@@ -759,8 +759,10 @@ class SubjectRegistrationPanel(MainViewPanel):
             lookAt = None
         if lookAt is not None:
             self._plotter.camera.focal_point = lookAt
-            vec = lookAt - subReg.approxHeadCenter
-            self._plotter.camera.position = lookAt + vec*10
+            headCenter = subReg.approxHeadCenter
+            if headCenter is not None:
+                vec = lookAt - headCenter
+                self._plotter.camera.position = lookAt + vec*10
             self._plotter.reset_camera()
 
     def _getSelectedFiducialKeys(self):
