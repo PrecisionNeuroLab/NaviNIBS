@@ -28,6 +28,17 @@ logger = logging.getLogger(__name__)
 
 SurfMesh = pv.PolyData
 
+_sessionPathDependentAttribs = [
+    'romFilepath',
+    'toolStlFilepath',
+    'trackerStlFilepath',
+    'sessionPath',
+]
+"""
+Attribs signaled as changed when a tool's session path changes, since session-relative
+filepaths resolve differently afterward.
+"""
+
 
 @attrs.define
 class Tool(GenericCollectionDictItem[str]):
@@ -303,12 +314,7 @@ class Tool(GenericCollectionDictItem[str]):
         if self._sessionPath == newPath:
             return
 
-        filepathAttribs = [
-            'romFilepath',
-            'toolStlFilepath',
-            'trackerStlFilepath'
-            'sessionPath'
-        ]
+        filepathAttribs = _sessionPathDependentAttribs
 
         if self._filepathsRelTo == '<session>':
             self.sigItemAboutToChange.emit(self.key, filepathAttribs)
@@ -656,13 +662,14 @@ class Tools(GenericCollection[str, Tool]):
         if self._sessionPath == newPath:
             return
 
-        changingKeys = [tool.key for tool in self.values() if tool.filepathsRelTo == '<session>']
-        self.sigItemsAboutToChange.emit(changingKeys)
+        changingKeys = [tool.key for tool in self.values() if tool.filepathsRelToKey == '<session>']
+        filepathAttribs = _sessionPathDependentAttribs
+        self.sigItemsAboutToChange.emit(changingKeys, filepathAttribs)
         self._sessionPath = newPath
         with self.sigItemsAboutToChange.blocked(), self.sigItemsChanged.blocked():
             for tool in self.values():
                 tool.sessionPath = self._sessionPath
-        self.sigItemsChanged.emit(changingKeys)
+        self.sigItemsChanged.emit(changingKeys, filepathAttribs)
 
     def asList(self) -> tp.List[tp.Dict[str, tp.Any]]:
         toolList = super().asList()
