@@ -661,7 +661,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                 dir = str(pathlib.Path.home())
             fromSesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt, 'Choose session to clone', dir,
                                                                 "Session file (*.navinibs)")
-            if len(sesFilepath) == 0:
+            if len(fromSesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return
 
@@ -672,7 +672,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
         if toSesFilepath is None:
             dir, _ = os.path.split(fromSesFilepath)
             toSesFilepath, _ = QtWidgets.QFileDialog.getSaveFileName(self._wdgt, 'Create save cloned session file', dir, "Session file (*.navinibs)")
-            if len(sesFilepath) == 0:
+            if len(toSesFilepath) == 0:
                 logger.info('Browse clone session cancelled')
                 return
 
