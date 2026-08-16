@@ -20,7 +20,17 @@ isMac = platform.system() == 'Darwin'
 if False or isMac:
     from NaviNIBS.util.pyvista.plotting import BackgroundPlotter, PrimaryLayeredPlotter, SecondaryLayeredPlotter
     DefaultBackgroundPlotter = BackgroundPlotter
-    RemotePlotterProxy = type('__None')  # for callers to easily check if DefaultBackgroundPlotter is RemotePlotterProxy
+
+    class RemotePlotterProxy:
+        """
+        Never-instantiated stand-in so that callers can check
+        ``isinstance(plotter, RemotePlotterProxy)`` when remote plotting is unavailable.
+
+        (Note: ``type('__None')`` previously used here evaluated to ``str``, making
+        strings unintentionally satisfy such isinstance checks.)
+        """
+        pass
+
     DefaultPrimaryLayeredPlotter = PrimaryLayeredPlotter
     DefaultSecondaryLayeredPlotter = SecondaryLayeredPlotter
 else:
