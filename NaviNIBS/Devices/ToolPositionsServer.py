@@ -78,7 +78,8 @@ class ToolPositionsServer:
     async def recordNewPosition(self, key: str, position: TimestampedToolPosition | dict):
         if isinstance(position, dict):
             position = TimestampedToolPosition.fromDict(position)
-        if key in self._latestPositions and self._latestPositions[key].time > position.time:
+        existingPosition = self._latestPositions.get(key, None)
+        if existingPosition is not None and existingPosition.time > position.time:
             logger.warning('New position appears to have been received out of order. Discarding.')
             return
         logger.debug('Received new position for {}: {}'.format(key, position))
