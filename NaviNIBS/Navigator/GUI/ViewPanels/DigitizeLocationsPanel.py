@@ -172,20 +172,6 @@ class DigitizeLocationsPanel(MainViewPanel):
             self._redraw(which='initSampledLocations')
         # TODO: add support for redrawing plannedCoords as needed
 
-    def _onSelectedLocationsChanged(self, selectedIndices: list[int]):
-        numSelLocs = len(self._tblWdgt.selectedCollectionItemKeys)
-        if numSelLocs > 0:
-            if numSelLocs == 1:
-                self._deleteLocationBtn.setText('Delete row')
-            else:
-                self._deleteLocationBtn.setText('Delete rows')
-            self._deleteLocationBtn.setEnabled(True)
-        else:
-            self._deleteLocationBtn.setText('Delete row')
-            self._deleteLocationBtn.setEnabled(False)
-
-
-
     def _onSelectedLocationsChanged(self, selKeys: list[str]):
         if len(selKeys) == 0:
             self._clearSampleLocationBtn.setEnabled(False)
