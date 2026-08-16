@@ -181,7 +181,11 @@ class ToolPositionsClient(ToolPositionsClientBase):
                             positionsChanged = True
                             break
                         else:
-                            if not array_equalish(oldPos.transf, newPos.transf) or oldPos.relativeTo != newPos.relativeTo:
+                            if oldPos is None or newPos is None:
+                                if (oldPos is None) != (newPos is None):
+                                    positionsChanged = True
+                                    break
+                            elif not array_equalish(oldPos.transf, newPos.transf) or oldPos.relativeTo != newPos.relativeTo:
                                 positionsChanged = True
                                 break
 
@@ -195,13 +199,14 @@ class ToolPositionsClient(ToolPositionsClientBase):
                     logger.debug('Positions not changed during update, not signaling.')
                     continue
 
-                self._latestPositions = {key: (TimestampedToolPosition.fromDict(val) if val is not None else None) for key, val in msg.items()}
+                self._latestPositions = newPositions
                 logger.debug('Signaling change in latest positions')
                 try:
                     self.sigLatestPositionsChanged.emit()  # only emit for latest in series of updates to avoid falling behind
                 except Exception as e:
+                    # don't re-raise: an exception in one subscriber would kill this loop
+                    # and permanently freeze position updates for all other subscribers
                     logger.error('Exception during position update:\n {}'.format(exceptionToStr(e)))
-                    raise e
 
     async def _monitorServerStatus(self):
         while True:
@@ -220,7 +225,13 @@ class ToolPositionsClient(ToolPositionsClientBase):
         isConnected = self._timeLastHeardFromServer is not None
         if isConnected != self._isConnected:
             self._isConnected = isConnected
-            self.sigIsConnectedChanged.emit()
+            try:
+                self.sigIsConnectedChanged.emit()
+            except Exception as e:
+                # don't re-raise: this is called from the receive and monitor loops, and an
+                # exception in one subscriber would kill the calling loop and permanently
+                # freeze connection monitoring for all other subscribers
+                logger.error('Exception during connection status update:\n {}'.format(exceptionToStr(e)))
 
     @property
     def isConnected(self):
