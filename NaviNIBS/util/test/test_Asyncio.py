@@ -2,7 +2,7 @@ import asyncio
 import logging
 import pytest
 
-from NaviNIBS.util.Asyncio import asyncNonCancellable, asyncAtomicCancel
+from NaviNIBS.util.Asyncio import asyncNonCancellable, asyncAtomicCancellable
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ async def fn2():
     logger.debug('Done task 2')
 
 
-@asyncAtomicCancel
+@asyncAtomicCancellable
 async def fn3():
     logger.debug('Starting task 3')
     await asyncio.sleep(1.)
