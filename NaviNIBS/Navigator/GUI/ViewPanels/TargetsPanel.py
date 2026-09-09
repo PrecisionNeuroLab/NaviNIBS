@@ -348,7 +348,7 @@ class TargetsPanel(MainViewPanelWithDockWidgets, QueuedRedrawMixin):
     @staticmethod
     def _getRotMatForCoilAxis(axis: str) -> np.ndarray:
         if axis == 'x':
-            return ptr.active_matrix_from_extrinsic_euler_yxy([-np.pi/2, np.pi/2, 0])
+            return ptr.matrix_from_euler([-np.pi/2, np.pi/2, 0], 1, 0, 1, extrinsic=True)
         elif axis == 'y':
             return ptr.active_matrix_from_angle(0, np.pi/2)
         elif axis in ('z', '3D'):

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 import traceback
 from functools import wraps
 import typing as tp
@@ -52,7 +53,7 @@ async def asyncTryAndLogExceptionOnError(fn: tp.Callable[..., tp.Awaitable], *ar
         logger.error('Exception: %s' % exceptionToStr(e))
         raise e
 
-_asyncTasks = []
+_asyncTasks = set()
 
 def asyncCreateTask(
         fn: tp.Callable[..., tp.Awaitable],
@@ -61,7 +62,11 @@ def asyncCreateTask(
         raiseException: bool = False,
         **kwargs) -> asyncio.Task:
     name = asyncTaskName if asyncTaskName is not None else fn.__qualname__
-    creationTraceback = traceback.extract_stack()[:-1]
+    # lookup_lines=False: don't eagerly load source line text for every frame on every task
+    # creation; lines are looked up lazily only if this traceback is actually formatted below
+    creationTraceback = traceback.StackSummary.extract(
+        traceback.walk_stack(sys._getframe().f_back), lookup_lines=False)
+    creationTraceback.reverse()  # match extract_stack() order (outermost first)
 
     async def _wrapper():
         try:
@@ -76,7 +81,10 @@ def asyncCreateTask(
 
     newTask = asyncio.create_task(_wrapper(), name=name)
 
-    _asyncTasks.append(newTask)  # keep reference to task to prevent garbage collection of task before it finishes
+    # keep reference to task to prevent garbage collection of task before it finishes,
+    # then drop the reference on completion so finished tasks don't accumulate
+    _asyncTasks.add(newTask)
+    newTask.add_done_callback(_asyncTasks.discard)
 
     return newTask
 

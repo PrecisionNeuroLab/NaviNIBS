@@ -256,17 +256,17 @@ class SinglePlotterNavigationView(NavigationView):
             case '':
                 extraRot = np.eye(3)
             case '+X':
-                extraRot = ptr.active_matrix_from_intrinsic_euler_yzy([np.pi / 2, np.pi/2, 0])
+                extraRot = ptr.matrix_from_euler([np.pi / 2, np.pi/2, 0], 1, 2, 1, extrinsic=False)
             case '-X':
-                extraRot = ptr.active_matrix_from_intrinsic_euler_yzy([-np.pi / 2, -np.pi/2, 0])
+                extraRot = ptr.matrix_from_euler([-np.pi / 2, -np.pi/2, 0], 1, 2, 1, extrinsic=False)
             case '+Y':
-                extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([-np.pi / 2, 0, np.pi])
+                extraRot = ptr.matrix_from_euler([-np.pi / 2, 0, np.pi], 0, 1, 2, extrinsic=True)
             case '-Y':
-                extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi / 2, 0, 0])
+                extraRot = ptr.matrix_from_euler([np.pi / 2, 0, 0], 0, 1, 2, extrinsic=True)
             case '+Z':
                 extraRot = np.eye(3)
             case '-Z':
-                extraRot = ptr.active_matrix_from_extrinsic_euler_xyz([np.pi, 0, 0])
+                extraRot = ptr.matrix_from_euler([np.pi, 0, 0], 0, 1, 2, extrinsic=True)
             case _:
                 raise NotImplementedError
         return extraRot

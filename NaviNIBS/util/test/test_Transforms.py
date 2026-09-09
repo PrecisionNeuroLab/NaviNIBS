@@ -10,7 +10,7 @@ from NaviNIBS.util.Transforms import transformToString, stringToTransform, compo
 @pytest.fixture
 def transf1():
     transf = np.eye(4)
-    transf[:3, :3] = ptr.active_matrix_from_extrinsic_euler_xyx([0, 1, 2])
+    transf[:3, :3] = ptr.matrix_from_euler([0, 1, 2], 0, 1, 0, extrinsic=True)
     transf[:3, 3] = np.asarray([1, 2, 3])
     return transf
 
@@ -18,7 +18,7 @@ def transf1():
 @pytest.fixture
 def transf2():
     transf = np.eye(4)
-    transf[:3, :3] = ptr.active_matrix_from_extrinsic_euler_xyx([3, 2, 1])
+    transf[:3, :3] = ptr.matrix_from_euler([3, 2, 1], 0, 1, 0, extrinsic=True)
     transf[:3, 3] = np.asarray([4, 5, 6])
     return transf
 

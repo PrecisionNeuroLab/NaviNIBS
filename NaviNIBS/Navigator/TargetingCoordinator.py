@@ -547,10 +547,12 @@ class TargetingCoordinator:
 
 
         calculator = PoseMetricCalculator(sample=sample, session=self.session)
-
-        coilToScalpDist = calculator.getSampleCoilToScalpDist()
-        coilToBrainDist = calculator.getSampleCoilToCortexDist()
-        handleAngle = calculator.getAngleFromMidline()
+        try:
+            coilToScalpDist = calculator.getSampleCoilToScalpDist()
+            coilToBrainDist = calculator.getSampleCoilToCortexDist()
+            handleAngle = calculator.getAngleFromMidline()
+        finally:
+            calculator.close()  # disconnect from session signals so this throwaway calculator doesn't leak
 
         targetCoord = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToBrainDist]))
         entryCoord = applyTransform(sample.coilToMRITransf, np.asarray([0, 0, -coilToScalpDist]))

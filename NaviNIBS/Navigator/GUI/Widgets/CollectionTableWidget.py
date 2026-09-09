@@ -213,6 +213,11 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         # scroll to end of new rows automatically
         self._tableView.scrollTo(self._model.index(last, 0))
         self._needsResizeToContents.set()
+        # re-evaluate size-adjust policy immediately: during continuous sampling the
+        # resize-to-contents loop never reaches its refresh (it requires a 20 s quiet period),
+        # so without this a session that grew from small would stay on the expensive
+        # AdjustToContents policy no matter how many rows accumulate
+        self._refreshSizeAdjustPolicy()
 
     def _onModelSelectionChanged(self, changedKeys: list[K]):
         logger.debug(f'Updating selection for keys {changedKeys}')
@@ -242,11 +247,14 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             return
         if self._doAdjustSizeToContents is None:
             if self._model.rowCount() > 200:
-                self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustIgnored)
+                policy = self._tableView.SizeAdjustPolicy.AdjustIgnored
             elif self._model.rowCount() > 50:
-                self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContentsOnFirstShow)
+                policy = self._tableView.SizeAdjustPolicy.AdjustToContentsOnFirstShow
             else:
-                self._tableView.setSizeAdjustPolicy(self._tableView.SizeAdjustPolicy.AdjustToContents)
+                policy = self._tableView.SizeAdjustPolicy.AdjustToContents
+            if self._tableView.sizeAdjustPolicy() != policy:
+                logger.debug(f'Changing size adjust policy to {policy} at {self._model.rowCount()} rows')
+                self._tableView.setSizeAdjustPolicy(policy)
 
     async def _resizeToContentsLoop(self):
         """

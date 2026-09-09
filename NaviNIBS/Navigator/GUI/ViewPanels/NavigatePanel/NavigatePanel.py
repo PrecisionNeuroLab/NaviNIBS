@@ -71,6 +71,9 @@ class _PoseMetricGroup:
 
         assert isinstance(calculator, PoseMetricCalculator)
 
+        if self._calculator is not None:
+            self._calculator.sigCacheReset.disconnect(self._updateSoon)
+
         self._calculator = calculator
 
         poseMetrics = [poseMetric for poseMetric in self._calculator.supportedMetrics if poseMetric.doShowByDefault]

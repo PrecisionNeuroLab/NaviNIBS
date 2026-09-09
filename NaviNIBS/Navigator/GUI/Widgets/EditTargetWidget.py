@@ -488,7 +488,7 @@ class EntryAnglesWidgets:
         angleY = np.deg2rad(self._angleYWdgt.value)
 
         pivotTransf = np.eye(4)
-        pivotTransf[:3, :3] = ptr.active_matrix_from_extrinsic_euler_zxy(np.asarray([0, angleX, angleY]))  # TODO: double check signs
+        pivotTransf[:3, :3] = ptr.matrix_from_euler(np.asarray([0, angleX, angleY]), 2, 0, 1, extrinsic=True)  # TODO: double check signs
 
         pivotedCoilToMRITransf = concatenateTransforms([coilToPivotSpaceTransf, pivotTransf, invertTransform(coilToPivotSpaceTransf), prepivotTargetCoilToMRITransf])
 

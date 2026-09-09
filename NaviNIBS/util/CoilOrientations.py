@@ -39,6 +39,7 @@ class PoseMetricCalculator:
 
     _cachedValues: dict[str, tp.Any] = attrs.field(init=False, factory=dict, repr=False)
     _supportedMetrics: list[MetricSpecification] = attrs.field(init=False, factory=list)
+    _isClosed: bool = attrs.field(init=False, default=False)
 
     sigCacheReset: Signal = attrs.field(init=False, factory=Signal)
     """
@@ -47,7 +48,7 @@ class PoseMetricCalculator:
 
     def __attrs_post_init__(self):
         # self.session.MNIRegistration.sigTransformChanged.connect(lambda *args: self._clearCachedValues())  # TODO: debug, uncomment
-        self.session.headModel.sigDataChanged.connect(lambda *args: self._clearCachedValues())
+        self.session.headModel.sigDataChanged.connect(self._onHeadModelDataChanged)
         self.session.targets.sigItemsChanged.connect(self._onTargetsChanged)
         self.session.subjectRegistration.fiducials.sigItemsChanged.connect(self._onFiducialsChanged)
         if self._sample is not None:
@@ -119,6 +120,24 @@ class PoseMetricCalculator:
         self._sample = newSample
         if self._sample is not None:
             self._sample.sigItemChanged.connect(self._onSampleChanged)
+        self._clearCachedValues()
+
+    def close(self):
+        """
+        Disconnect from session-lifetime signals. Must be called on any short-lived calculator
+        (e.g. one created per operation) — otherwise the session's signals keep a strong
+        reference to it forever, and it keeps reacting to every session change.
+        """
+        if self._isClosed:
+            return
+        self._isClosed = True
+        self.session.headModel.sigDataChanged.disconnect(self._onHeadModelDataChanged)
+        self.session.targets.sigItemsChanged.disconnect(self._onTargetsChanged)
+        self.session.subjectRegistration.fiducials.sigItemsChanged.disconnect(self._onFiducialsChanged)
+        if self._sample is not None:
+            self._sample.sigItemChanged.disconnect(self._onSampleChanged)
+
+    def _onHeadModelDataChanged(self, *args):
         self._clearCachedValues()
 
     def _onTargetsChanged(self, targetKeys: list[str], targetAttrs: tp.Optional[list[str]] = None):

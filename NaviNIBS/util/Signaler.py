@@ -65,6 +65,7 @@ class Signal(tp.Generic[*ET]):
     def emit(self, *args: *ET, **kwargs) -> None:
         if self._blockedSemaphoreCounter > 0:
             return
+        exceptions: list[Exception] = []
         priorities = sorted(self._connections.keys(), reverse=True)
         for priority in priorities:
             connectionSet = self._connections[priority].copy()
@@ -74,7 +75,16 @@ class Signal(tp.Generic[*ET]):
                         fn(*args, **kwargs)
                     except Exception as e:
                         logger.error(f'Exception in connected slot: {exceptionToStr(e)}')
-                        raise e
+                        exceptions.append(e)
+        # surface exception(s) only after all slots have run, so that paired handlers
+        # (e.g. pause at high priority / resume at low priority) are never left unbalanced
+        # by an exception in an unrelated slot in between
+        if len(exceptions) == 1:
+            raise exceptions[0]
+        elif len(exceptions) > 1:
+            raise ExceptionGroup(
+                f'{len(exceptions)} exceptions in slots connected to signal',
+                exceptions)
 
     @contextlib.contextmanager
     def blocked(self):

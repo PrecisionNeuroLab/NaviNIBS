@@ -33,16 +33,37 @@ logger.setLevel(logging.INFO)
 class ActorManager:
     _counter: int = 0
     _actors: dict[ActorRef, Actor] = attrs.field(factory=dict)
+    _refsByActorId: dict[int, ActorRef] = attrs.field(factory=dict)
+    """
+    Reverse lookup keyed by id(actor), so that an actor returned multiple times maps to a
+    single ref, and so removal can release the manager's strong reference (otherwise every
+    actor ever created is retained forever, growing with actor churn during a session).
+    """
+
 
     def addActor(self, actor: Actor) -> ActorRef:
+        existingRef = self._refsByActorId.get(id(actor), None)
+        if existingRef is not None:
+            return existingRef
         self._counter += 1
         actorID = f'<Actor{self._counter}>'
         actorRef = ActorRef(actorID)
         self._actors[actorRef] = actor
+        self._refsByActorId[id(actor)] = actorRef
         return actorRef
 
     def getActor(self, actorRef: ActorRef) -> Actor:
         return self._actors[actorRef]
+
+    def removeActor(self, actorRef: ActorRef) -> None:
+        actor = self._actors.pop(actorRef, None)
+        if actor is not None:
+            self._refsByActorId.pop(id(actor), None)
+
+    def removeActorByInstance(self, actor: Actor) -> None:
+        actorRef = self._refsByActorId.pop(id(actor), None)
+        if actorRef is not None:
+            self._actors.pop(actorRef, None)
 
 
 @attrs.define(kw_only=True)
@@ -229,7 +250,44 @@ class RemotePlotManagerBase:
         args = list(msg[1])
         kwargs = msg[2]
 
-        return self._callMethod(fn, args, kwargs)
+        actorsToRelease: list[Actor] = []
+        if msg[0] == 'remove_actor':
+            # resolve before _callMethod converts refs in-place / executes the removal
+            for arg in list(args) + list(kwargs.values()):
+                actorsToRelease.extend(self._resolveActorInstances(arg))
+
+        result = self._callMethod(fn, args, kwargs)
+
+        # release removed actors from the ActorManager so they (with their mappers and
+        # datasets) can actually be garbage collected
+        for actor in actorsToRelease:
+            self._actorManager.removeActorByInstance(actor)
+
+        return result
+
+    def _resolveActorInstances(self, arg) -> list[Actor]:
+        """
+        Resolve a remove_actor argument (ActorRef, pyvista actor name string, or a list of
+        either) to actor instances. Names not found in any renderer resolve to nothing.
+        """
+        if isinstance(arg, ActorRef):
+            try:
+                return [self._actorManager.getActor(arg)]
+            except KeyError:
+                return []
+        elif isinstance(arg, str):
+            for renderer in self._plotter.renderers:
+                actor = renderer.actors.get(arg, None)
+                if actor is not None:
+                    return [actor]
+            return []
+        elif isinstance(arg, (list, tuple)):
+            resolved = []
+            for subarg in arg:
+                resolved.extend(self._resolveActorInstances(subarg))
+            return resolved
+        else:
+            return []
 
     def _callActorMethod(self, actor: ActorRef, msg):
         actor = self._actorManager.getActor(actor)
