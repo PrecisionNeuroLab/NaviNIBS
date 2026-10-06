@@ -130,6 +130,10 @@ class SinglePlotterNavigationView(NavigationView):
     _plotInSpace: str = 'MRI'
     _alignCameraTo: str | None = None
     _alignCameraOffset: tuple[float, float, float] | None = None
+    _alignCameraRoll: float = 0.
+    """
+    Extra rotation (in degrees) about the camera viewing axis, applied after any rotation specified by alignCameraTo
+    """
     _cameraDist: float = 100
     """
     None to use default camera perspective; 'target' to align camera space to target space, etc.
@@ -192,6 +196,7 @@ class SinglePlotterNavigationView(NavigationView):
         self._coordinator.sigCurrentTargetChanged.connect(self._onCurrentTargetChanged)
         self._coordinator.sigCurrentCoilPositionChanged.connect(self._onCurrentCoilPositionChanged)
         self._coordinator.positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+        self._coordinator.session.tools.sigItemsChanged.connect(self._onToolsChanged)
 
         # Pause rendering across all layers during target/coil/positions changes,
         # and only resume after every enabled layer has finished draining its
@@ -222,12 +227,26 @@ class SinglePlotterNavigationView(NavigationView):
         if self._alignCameraTo.startswith('coil'):
             self._queueRedraw(which='camera')
 
+    def _getAlignedToolKey(self) -> str | None:
+        if self._alignCameraTo is None or not self._alignCameraTo.startswith('tool-'):
+            return None
+        if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
+            return self._alignCameraTo[len('tool-'):-2]
+        else:
+            return self._alignCameraTo[len('tool-'):]
+
+    def _onToolsChanged(self, keys: list[str], attribKeys: list[str] | None = None):
+        toolKey = self._getAlignedToolKey()
+        if toolKey is None or toolKey not in keys:
+            return
+        if attribKeys is None or 'toolToTrackerTransf' in attribKeys or 'trackerKey' in attribKeys:
+            self._onLatestPositionsChanged()
+
     def _onLatestPositionsChanged(self):
-        if self._alignCameraTo.startswith('tool-'):
-            if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
-                toolKey = self._alignCameraTo[len('tool-'):-2]
-            else:
-                toolKey = self._alignCameraTo[len('tool-'):]
+        toolKey = self._getAlignedToolKey()
+        if toolKey is not None:
+            if toolKey not in self._coordinator.session.tools:
+                return
 
             tool = self._coordinator.session.tools[toolKey]
             trackerKey = tool.trackerKey
@@ -260,7 +279,7 @@ class SinglePlotterNavigationView(NavigationView):
             case '-X':
                 extraRot = ptr.matrix_from_euler([-np.pi / 2, -np.pi/2, 0], 1, 2, 1, extrinsic=False)
             case '+Y':
-                extraRot = ptr.matrix_from_euler([-np.pi / 2, 0, np.pi], 0, 1, 2, extrinsic=True)
+                extraRot = ptr.matrix_from_euler([np.pi / 2, 0, np.pi], 0, 1, 2, extrinsic=True)
             case '-Y':
                 extraRot = ptr.matrix_from_euler([np.pi / 2, 0, 0], 0, 1, 2, extrinsic=True)
             case '+Z':
@@ -270,6 +289,17 @@ class SinglePlotterNavigationView(NavigationView):
             case _:
                 raise NotImplementedError
         return extraRot
+
+    def _getExtraTransfForToAlignCamera(self, rotSuffix: str) -> np.ndarray:
+        extraRot = self._getExtraRotationForToAlignCamera(rotSuffix)
+        if self._alignCameraRoll != 0:
+            extraRot = extraRot @ ptr.active_matrix_from_angle(2, np.deg2rad(self._alignCameraRoll))
+        extraTransf = composeTransform(extraRot)
+
+        if self._alignCameraOffset is not None:
+            extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
+
+        return extraTransf
 
     def _alignCamera(self):
         class NoValidCameraPoseAvailable(Exception):
@@ -284,11 +314,7 @@ class SinglePlotterNavigationView(NavigationView):
                     self._plotter.render()
 
             elif self._alignCameraTo.startswith('target'):
-                extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('target'):])
-                extraTransf = composeTransform(extraRot)
-
-                if self._alignCameraOffset is not None:
-                    extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
+                extraTransf = self._getExtraTransfForToAlignCamera(self._alignCameraTo[len('target'):])
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentTarget is not None and self._coordinator.currentTarget.coilToMRITransf is not None:
@@ -300,11 +326,7 @@ class SinglePlotterNavigationView(NavigationView):
                     raise NotImplementedError()
 
             elif self._alignCameraTo.startswith('coil'):
-                extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[len('coil'):])
-                extraTransf = composeTransform(extraRot)
-
-                if self._alignCameraOffset is not None:
-                    extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
+                extraTransf = self._getExtraTransfForToAlignCamera(self._alignCameraTo[len('coil'):])
 
                 if self._plotInSpace == 'MRI':
                     if self._coordinator.currentCoilToMRITransform is not None:
@@ -316,15 +338,11 @@ class SinglePlotterNavigationView(NavigationView):
 
             elif self._alignCameraTo.startswith('tool-'):
                 if self._alignCameraTo[-2:] in ('+X', '-X', '+Y', '-Y', '+Z', '-Z'):
-                    extraRot = self._getExtraRotationForToAlignCamera(self._alignCameraTo[-2:])
-                    extraTransf = composeTransform(extraRot)
+                    extraTransf = self._getExtraTransfForToAlignCamera(self._alignCameraTo[-2:])
                     toolKey = self._alignCameraTo[len('tool-'):-2]
                 else:
-                    extraTransf = np.eye(4)
+                    extraTransf = self._getExtraTransfForToAlignCamera('')
                     toolKey = self._alignCameraTo[len('tool-'):]
-
-                if self._alignCameraOffset is not None:
-                    extraTransf[0:3, 3] = np.asarray(self._alignCameraOffset)
 
                 trackerKey = self._coordinator.session.tools[toolKey].trackerKey
                 trackerToWorldTransf = self._coordinator.positionsClient.getLatestTransf(trackerKey, None)

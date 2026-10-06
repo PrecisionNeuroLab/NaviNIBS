@@ -35,14 +35,35 @@ class ToolMeshSurfaceLayer(PlotViewLayer):
     If None, will use tool's defined opacity
     """
 
+    _meshAttribs: ClassVar[frozenset[str]] = frozenset({
+        'toolStlFilepath', 'trackerStlFilepath', 'filepathsRelToKey', 'sessionPath',
+        'toolColor', 'trackerColor', 'toolOpacity', 'trackerOpacity'})
+    _positionAttribs: ClassVar[frozenset[str]] = frozenset({
+        'toolToTrackerTransf', 'toolStlToToolTransf', 'trackerStlToTrackerTransf', 'trackerKey'})
+
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
         self._coordinator.positionsClient.sigLatestPositionsChanged.connect(self._onLatestPositionsChanged)
+        self._coordinator.session.tools.sigItemsChanged.connect(self._onToolsChanged)
 
     def _onLatestPositionsChanged(self):
         self._queueRedraw(which='updatePosition')
-        # TODO: connect to signals to redraw mesh when tool mesh, color, or opacity changes
+
+    def _onToolsChanged(self, keys: list[str], attribKeys: list[str] | None = None):
+        if self._toolKey not in keys:
+            return
+
+        if self._toolKey not in self._coordinator.session.tools:
+            # tool was removed
+            self._hideActors()
+            return
+
+        if attribKeys is None or not set(attribKeys).isdisjoint(self._meshAttribs):
+            # mesh, color, opacity, etc. may have changed (or entire tool was replaced)
+            self._queueRedraw(which='initSurfs')
+        elif not set(attribKeys).isdisjoint(self._positionAttribs):
+            self._queueRedraw(which='updatePosition')
 
     def _redraw(self, which: tp.Union[tp.Optional[str], tp.List[str, ...]] = None):
         super()._redraw(which=which)
