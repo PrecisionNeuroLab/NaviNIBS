@@ -487,7 +487,7 @@ class ManageSessionPanel(MainViewPanelWithDockWidgets):
                     dir = str(pathlib.Path.home())
             sesFilepath, _ = QtWidgets.QFileDialog.getOpenFileName(self._wdgt,
                                                                    'Choose session to load', dir,
-                                                                   'Session file (*.navinibs);;Config file (*.json)')
+                                                                   'Session files (*.navinibs *.json);;Session file (*.navinibs);;Config file (*.json)')
             if len(sesFilepath) == 0:
                 logger.info('Browse existing session cancelled')
                 return None
