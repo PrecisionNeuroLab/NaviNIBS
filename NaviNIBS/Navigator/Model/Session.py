@@ -548,7 +548,7 @@ class Session:
         self.saveToUnpackedDir(saveDirtyOnly=updateDirtyOnly)
         if self._filepath == self._unpackedSessionDir:
             # original session file was already an unpacked dir, don't need to compress now
-            logger.info('Saving to unpacked session dir only, skipping save of compressed session file.')
+            logger.info('Saved to unpacked session dir only, skipping save of compressed session file.')
             return
 
         if not self._compressedFileIsDirty:
