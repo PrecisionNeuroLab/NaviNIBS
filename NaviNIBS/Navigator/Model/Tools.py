@@ -306,7 +306,7 @@ class Tool(GenericCollectionDictItem[str]):
         filepathAttribs = [
             'romFilepath',
             'toolStlFilepath',
-            'trackerStlFilepath'
+            'trackerStlFilepath',
             'sessionPath'
         ]
 
