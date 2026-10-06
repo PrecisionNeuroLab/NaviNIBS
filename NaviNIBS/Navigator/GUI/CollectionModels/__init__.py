@@ -19,6 +19,13 @@ C = tp.TypeVar('C', bound=GenericCollection)  # collection type
 CI = tp.TypeVar('CI', bound=GenericCollectionDictItem)  # collection item type
 
 
+SortRole = QtCore.Qt.ItemDataRole.UserRole + 1
+"""
+Data role returning raw (un-stringified) cell values, used by FilteredCollectionModel for sorting
+so that numeric and boolean columns sort by value rather than by display text.
+"""
+
+
 @attrs.define(slots=False, kw_only=True)
 class CollectionTableModelBase(tp.Generic[K, C, CI]):
     _session: Session = attrs.field(repr=False)
@@ -139,6 +146,28 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
 
     _lastSelectedKeys: list[K] = attrs.field(init=False, factory=list)  # only used if _isSelectedAttr is None
 
+    sigCollectionAboutToChange: Signal = attrs.field(init=False, factory=Signal)
+    """
+    Emitted whenever a change to the underlying collection (or to the set of columns) is beginning, i.e.
+    before the collection is mutated and therefore before any of the corresponding Qt signals.
+
+    Used by FilteredCollectionModel to drop caches that depend on row contents, which must happen before
+    Qt re-sorts in response to dataChanged / layoutChanged. Note that this deliberately does not depend on
+    the underlying collection's own signals, since those are not uniform across collection types
+    (e.g. HeadPoints emits sigHeadpointsAboutToChange rather than sigItemsAboutToChange); every model
+    funnels its collection's signals through _onCollectionAboutToChange regardless.
+    """
+
+    _cachedKeys: tp.Optional[list[K]] = attrs.field(init=False, default=None)
+    """
+    Cached ordered list of collection keys, and below the inverse key->row mapping. Without these,
+    every row<->key conversion would rebuild the key list (O(n)), which is prohibitive for the
+    sorting and filtering in FilteredCollectionModel since those convert on the order of n*log(n) times
+    per operation. Invalidated whenever the collection changes (see _invalidateKeyCache).
+    Only used for dict collections; list collections index directly.
+    """
+    _cachedKeyIndices: tp.Optional[dict[K, int]] = attrs.field(init=False, default=None)
+
     def __attrs_post_init__(self):
         CollectionTableModelBase.__attrs_post_init__(self)
         QtCore.QAbstractTableModel.__init__(self)
@@ -208,6 +237,10 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         self._derivedColumns = derivedColumns
         # validation handled at end of modifyingColumns context
 
+    @property
+    def columnLabels(self) -> dict[str, str]:
+        return self._columnLabels
+
     # TODO: write other column getter/setters in similar format (asserting modifyingColumns context)
 
     @contextlib.contextmanager
@@ -217,6 +250,9 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
             logger.warning(f'Starting columns change while another change is pending: {self._pendingChangeType}')
         assert self._changeDepth == 0, 'Cannot modify columns while a row change is in flight'
         self._pendingChangeType = 'columns'
+        # note: a column change can alter which column a given index refers to, so dependent caches
+        #  (e.g. the proxy's sort values) must be dropped here too
+        self.sigCollectionAboutToChange.emit()
         self.layoutAboutToBeChanged.emit()
 
         try:
@@ -253,6 +289,13 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
 
     def rowCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
         return len(self._collection) + (1 if self._hasPlaceholderNewRow else 0)
+
+    @property
+    def hasPlaceholderNewRow(self) -> bool:
+        return self._hasPlaceholderNewRow
+
+    def isPlaceholderRow(self, row: int) -> bool:
+        return self._hasPlaceholderNewRow and row == len(self._collection)
 
     def columnCount(self, parent: tp.Union[QtCore.QModelIndex, QtCore.QPersistentModelIndex]=...) -> int:
         return len(self._columns)
@@ -380,6 +423,21 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                         return int(QtCore.Qt.CheckState.Unchecked.value)
                 else:
                     return None
+            case _ if role == SortRole:
+                # raw value for sorting (see FilteredCollectionModel.lessThan)
+                if item is None:
+                    return None  # placeholder row
+                if colKey in self._attrColumns:
+                    colVal = getattr(item, colKey)
+                elif colKey in self._derivedColumns:
+                    colVal = self._derivedColumns[colKey](self.getCollectionItemKeyFromIndex(index=index.row()))
+                else:
+                    raise KeyError
+                if colKey in self._decoratedColumns:
+                    # (icon, text) tuple; sort by text
+                    assert len(colVal) == 2
+                    colVal = colVal[1]
+                return colVal
             case _:
                 return None
 
@@ -454,6 +512,54 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
             case _:
                 return False
 
+    def _invalidateKeyCache(self):
+        """
+        Drop cached key<->row mappings. Called whenever the underlying collection changes
+        (items added / removed / reordered, or a key renamed).
+        """
+        self._cachedKeys = None
+        self._cachedKeyIndices = None
+
+    @staticmethod
+    def _keyCacheIsInvalidatedBy(changeType: tp.Optional[str], attrKeys: tp.Optional[list[str]]) -> bool:
+        """
+        Whether a change of the given type can alter the set or ordering of collection keys, and so
+        requires dropping the key cache.
+
+        A 'modifyExisting' change only touches named attributes of already-present items, so key ordering
+        is unchanged and the cache stays valid. (Key renames don't reach here as 'modifyExisting': they
+        signal attrKeys=None, which infers as 'full'. The explicit 'key' check below is just a safeguard
+        in case a future setter signals a key change as a normal attribute.)
+        """
+        if changeType != 'modifyExisting':
+            return True
+        return attrKeys is None or 'key' in attrKeys
+
+    @property
+    def _keyList(self) -> list[K]:
+        """
+        Cached ordered list of collection keys. Only valid for dict collections.
+        """
+        cached = self._cachedKeys
+        if cached is None or len(cached) != len(self._collection):
+            # (length check is a cheap safety net in case a mutation didn't signal a change)
+            cached = list(self._collection.keys())
+            self._cachedKeys = cached
+            self._cachedKeyIndices = None
+        return cached
+
+    @property
+    def _keyIndices(self) -> dict[K, int]:
+        """
+        Cached mapping from collection key to row index. Only valid for dict collections.
+        """
+        keyList = self._keyList  # note: may reset _cachedKeyIndices
+        indices = self._cachedKeyIndices
+        if indices is None:
+            indices = {key: index for index, key in enumerate(keyList)}
+            self._cachedKeyIndices = indices
+        return indices
+
     def getCollectionItemFromIndex(self, index: int) -> tp.Optional[CI]:
         key = self.getCollectionItemKeyFromIndex(index)
         if key is None:
@@ -472,17 +578,13 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
                 raise IndexError
 
         if self.collectionIsDict:
-            key = list(self._collection.keys())[index]
-            return key
+            return self._keyList[index]
         else:
             return index
 
     def getIndexFromCollectionItemKey(self, key: K) -> tp.Optional[int]:
         if self.collectionIsDict:
-            try:
-                index = list(self._collection.keys()).index(key)
-            except ValueError:
-                index = None
+            index = self._keyIndices.get(key, None)
         else:
             if key < len(self._collection):
                 index = key
@@ -551,7 +653,13 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         or the depth counter will desync (the failsafe will eventually recover, but with a warning).
         """
 
+        self.sigCollectionAboutToChange.emit()
+
+        # note: infer before invalidating, since inference itself uses the (still-valid) key cache
         incoming = self._inferCollectionChangeType(keys=keys, attrKeys=attrKeys)
+
+        if self._keyCacheIsInvalidatedBy(incoming, attrKeys):
+            self._invalidateKeyCache()
 
         if self._changeDepth == 0:
             # outermost change: open the Qt bracket and arm the recovery failsafe
@@ -649,6 +757,9 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         :param keys: keys (or indices for non-dict collections) of items changed; if None, all items are assumed to be about to change
         :param attrKeys: optional keys of attributes changed; if None, all attributes are assumed to have changed
         """
+
+        if self._keyCacheIsInvalidatedBy(self._pendingChangeType, attrKeys):
+            self._invalidateKeyCache()
 
         if self._changeDepth == 0:
             # no change in flight: a stray/desynced changed signal, or the change was already
@@ -780,13 +891,37 @@ class CollectionTableModel(CollectionTableModelBase[K, C, CI], QtCore.QAbstractT
         return getattr(self._collection[key], self._isSelectedAttr)
 
 
-@attrs.define(slots=False)
+@attrs.define(slots=False, kw_only=True)
 class FilteredCollectionModel(CollectionTableModelBase[K, C, CI], QtCore.QSortFilterProxyModel):
     """
-    Base class for models that filter a collection model, e.g. Targets subset
+    Proxy over a CollectionTableModel providing:
+
+    - Text filtering (case-insensitive substring match, across all columns or a single column)
+      via Qt's built-in QSortFilterProxyModel filter machinery.
+    - Sorting by column via Qt's built-in sort machinery, comparing raw values (SortRole)
+      rather than display text, with any placeholder "new entry" row pinned to the bottom.
+    - An optional subclass-defined row predicate (see `filterAcceptsRowCustom`), e.g. hiding
+      historical targets.
+
+    Can be used directly (``FilteredCollectionModel(session=..., proxiedModel=model)``) or
+    subclassed; subclasses may instead set ``_proxiedModel`` in ``__attrs_post_init__`` before
+    calling ``super().__attrs_post_init__()``.
     """
 
-    _proxiedModel: CollectionTableModel = attrs.field(init=False, default=None)
+    _proxiedModel: CollectionTableModel = attrs.field(default=None)
+
+    _filterText: str = attrs.field(init=False, default='')
+    _filterColumnKey: str | None = attrs.field(init=False, default=None)
+
+    _sortValueCache: dict[int, tp.Any] = attrs.field(init=False, factory=dict)
+    """
+    Cache of SortRole values, keyed by source row, valid only for the current sort column and the current
+    state of the collection. Sorting makes on the order of n*log(n) comparisons but involves only n distinct
+    values, so without this each value would be recomputed ~log(n) times over.
+
+    Since entries are keyed by source row, they go stale as soon as rows shift or a sorted value changes;
+    see _clearSortValueCache for where this is dropped.
+    """
 
     def __attrs_post_init__(self):
         CollectionTableModelBase.__attrs_post_init__(self)
@@ -794,33 +929,174 @@ class FilteredCollectionModel(CollectionTableModelBase[K, C, CI], QtCore.QSortFi
         assert self._proxiedModel is not None, 'Should be set by subclass before calling super().__attrs_post_init__'
         self._proxiedModel.sigSelectionChanged.connect(self._onFullSelectionChanged, priority=-1)
         self._proxiedModel.sigItemEdited.connect(self.sigItemEdited.emit)
+
+        """
+        Drop cached sort values before any change to the proxied model's contents. Note that this must
+        happen before Qt re-sorts, which it does in response to the layoutChanged / dataChanged that the
+        proxied model emits while handling that same change. sigCollectionAboutToChange guarantees that
+        ordering, since it is emitted before the collection is even mutated. Hooking Qt's dataChanged
+        instead would make correctness depend on this slot running before the internal re-sort handler
+        that QSortFilterProxyModel connects in setSourceModel().
+        """
+        self._proxiedModel.sigCollectionAboutToChange.connect(self._clearSortValueCache)
+
+        self.setSortRole(SortRole)
+        self.setFilterCaseSensitivity(QtCore.Qt.CaseSensitivity.CaseInsensitive)
+        self.setFilterKeyColumn(-1)  # all columns
         self.setSourceModel(self._proxiedModel)
 
+    @property
+    def proxiedModel(self) -> CollectionTableModel:
+        return self._proxiedModel
+
+    @property
+    def columns(self) -> list[str]:
+        """
+        Column keys visible through this proxy (i.e. source columns passing filterAcceptsColumn), in proxy column order.
+        """
+        return [colKey for iCol, colKey in enumerate(self._proxiedModel.columns)
+                if self.filterAcceptsColumn(iCol, QtCore.QModelIndex())]
+
+    @property
+    def columnLabels(self) -> dict[str, str]:
+        return self._proxiedModel.columnLabels
+
+    @property
+    def filterText(self) -> str:
+        return self._filterText
+
+    @filterText.setter
+    def filterText(self, text: str):
+        if text == self._filterText:
+            return
+        self._filterText = text
+        self.setFilterFixedString(text)
+
+    @property
+    def filterColumnKey(self) -> str | None:
+        """
+        Column key to restrict text filter to, or None to match against all columns.
+        """
+        return self._filterColumnKey
+
+    @filterColumnKey.setter
+    def filterColumnKey(self, colKey: str | None):
+        if colKey == self._filterColumnKey:
+            return
+        self._filterColumnKey = colKey
+        if colKey is None:
+            self.setFilterKeyColumn(-1)
+        else:
+            self.setFilterKeyColumn(self._proxiedModel.columns.index(colKey))  # note: source column index
+
+    def isKeyHiddenByTextFilter(self, key: K) -> bool:
+        """
+        Whether an item is present in the underlying collection but hidden solely because of the current text filter
+        (as opposed to being hidden by a subclass predicate in filterAcceptsRowCustom).
+        """
+        sourceRow = self._proxiedModel.getIndexFromCollectionItemKey(key)
+        if sourceRow is None:
+            return False
+        if self.mapFromSource(self._proxiedModel.index(sourceRow, 0)).isValid():
+            return False  # not hidden
+        return self.filterAcceptsRowCustom(sourceRow, QtCore.QModelIndex())
+
     def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
-        raise NotImplementedError  # should be implemented by subclass
+        if self._proxiedModel.isPlaceholderRow(sourceRow):
+            return True  # always show placeholder new-entry row
+        if not self.filterAcceptsRowCustom(sourceRow, sourceParent):
+            return False
+        # apply Qt's built-in text filter (filterFixedString / filterKeyColumn)
+        return QtCore.QSortFilterProxyModel.filterAcceptsRow(self, sourceRow, sourceParent)
+
+    def filterAcceptsRowCustom(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
+        """
+        Can be implemented by subclass to hide rows based on item content, independent of text filter.
+        """
+        return True
 
     def filterAcceptsColumn(self, source_column: int, source_parent: QtCore.QModelIndex) -> bool:
         return True  # can be implemented by subclass to filter specific columns
 
+    def _clearSortValueCache(self):
+        self._sortValueCache.clear()
+
+    def sort(self, column: int, order: QtCore.Qt.SortOrder = QtCore.Qt.SortOrder.AscendingOrder):
+        self._clearSortValueCache()  # sort column may be changing, and cached values are per-column
+        super().sort(column, order)
+
+    def _getSortValue(self, sourceIndex: QtCore.QModelIndex) -> tp.Any:
+        """
+        SortRole value for a source index, cached by row (see _sortValueCache).
+
+        Note: uses try/except rather than dict.get, since None is itself a legitimate cached value
+        (an empty cell) and must not be confused with a cache miss.
+        """
+        row = sourceIndex.row()
+        try:
+            return self._sortValueCache[row]
+        except KeyError:
+            value = self._proxiedModel.data(sourceIndex, SortRole)
+            self._sortValueCache[row] = value
+            return value
+
+    def lessThan(self, left: QtCore.QModelIndex, right: QtCore.QModelIndex) -> bool:
+        # note: for descending sorts, Qt calls lessThan with swapped arguments
+        isDescending = self.sortOrder() == QtCore.Qt.SortOrder.DescendingOrder
+
+        leftIsPlaceholder = self._proxiedModel.isPlaceholderRow(left.row())
+        rightIsPlaceholder = self._proxiedModel.isPlaceholderRow(right.row())
+        if leftIsPlaceholder or rightIsPlaceholder:
+            # pin placeholder row to bottom regardless of sort order
+            if leftIsPlaceholder and rightIsPlaceholder:
+                return False
+            return leftIsPlaceholder if isDescending else rightIsPlaceholder
+
+        leftVal = self._getSortValue(left)
+        rightVal = self._getSortValue(right)
+
+        leftIsMissing = leftVal is None or (isinstance(leftVal, str) and len(leftVal) == 0)
+        rightIsMissing = rightVal is None or (isinstance(rightVal, str) and len(rightVal) == 0)
+        if leftIsMissing or rightIsMissing:
+            # missing (None or empty) values sort last regardless of sort order
+            if leftIsMissing and rightIsMissing:
+                return False
+            return leftIsMissing if isDescending else rightIsMissing
+
+        try:
+            return bool(leftVal < rightVal)
+        except (TypeError, ValueError):
+            # incomparable types; fall back to string comparison
+            return str(leftVal) < str(rightVal)
+
     def getCollectionItemFromIndex(self, index: int) -> CI | None:
-        return self._proxiedModel.getCollectionItemFromIndex(self.mapToSource(self.index(index, 0)).row())
+        sourceIndex = self.mapToSource(self.index(index, 0))
+        if not sourceIndex.isValid():
+            return None
+        return self._proxiedModel.getCollectionItemFromIndex(sourceIndex.row())
 
-    def getCollectionItemKeyFromIndex(self, index: int) -> str | None:
-        return self._proxiedModel.getCollectionItemKeyFromIndex(self.mapToSource(self.index(index, 0)).row())
+    def getCollectionItemKeyFromIndex(self, index: int) -> K | None:
+        sourceIndex = self.mapToSource(self.index(index, 0))
+        if not sourceIndex.isValid():
+            return None
+        return self._proxiedModel.getCollectionItemKeyFromIndex(sourceIndex.row())
 
-    def getIndexFromCollectionItemKey(self, key: str) -> int | None:
+    def getIndexFromCollectionItemKey(self, key: K) -> int | None:
         proxiedRow = self._proxiedModel.getIndexFromCollectionItemKey(key)
         if proxiedRow is None:
             return None
-        return self.mapFromSource(self._proxiedModel.index(proxiedRow, 0)).row()
+        proxyIndex = self.mapFromSource(self._proxiedModel.index(proxiedRow, 0))
+        if not proxyIndex.isValid():
+            return None  # filtered out
+        return proxyIndex.row()
 
-    def getCollectionItemIsSelected(self, key: str) -> bool:
+    def getCollectionItemIsSelected(self, key: K) -> bool:
         return self._proxiedModel.getCollectionItemIsSelected(key)
 
     def setWhichItemsSelected(self, selectedKeys: list[K]):
         logger.debug(f'setWhichItemsSelected: {selectedKeys}')
-        if True:
-            # keep any keys in full model that were filtered out here still selected
+        if self.rowCount() != self._proxiedModel.rowCount():
+            # some rows are filtered out; keep any keys in full model that were filtered out here still selected
             selectedKeys = set(selectedKeys)
             for sourceRow in range(self._proxiedModel.rowCount()):
                 if not self.filterAcceptsRow(sourceRow=sourceRow, sourceParent=QtCore.QModelIndex()):

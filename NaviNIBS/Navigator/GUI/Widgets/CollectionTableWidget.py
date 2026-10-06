@@ -9,7 +9,7 @@ import typing as tp
 from NaviNIBS.Navigator.GUI.CollectionModels.TargetGridsTableModel import TargetGridsTableModel
 from NaviNIBS.Navigator.Model.TargetGrids import TargetGrid
 from NaviNIBS.util.Asyncio import asyncCreateTask
-from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, K, C, CI
+from NaviNIBS.Navigator.GUI.CollectionModels import CollectionTableModel, FilteredCollectionModel, K, C, CI
 from NaviNIBS.Navigator.GUI.CollectionModels.DigitizedLocationsTableModel import DigitizedLocationsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.FiducialsTableModels import PlanningFiducialsTableModel, RegistrationFiducialsTableModel
 from NaviNIBS.Navigator.GUI.CollectionModels.HeadPointsTableModel import HeadPointsTableModel
@@ -31,7 +31,23 @@ from NaviNIBS.util.Signaler import Signal
 logger = logging.getLogger(__name__)
 
 
-TM = tp.TypeVar('TM', bound=CollectionTableModel)
+TM = tp.TypeVar('TM', bound=CollectionTableModel | FilteredCollectionModel)
+
+
+class _HeaderGeometryWatcher(QtCore.QObject):
+    """
+    Small event filter that invokes a callback whenever a watched widget (e.g. a QHeaderView) is moved or resized.
+    Used to keep the corner filter button aligned with the table's header corner.
+    """
+    def __init__(self, callback: tp.Callable[[], None], parent: QtCore.QObject | None = None):
+        super().__init__(parent)
+        self._callback = callback
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if event.type() in (QtCore.QEvent.Type.Resize, QtCore.QEvent.Type.Move,
+                            QtCore.QEvent.Type.Show, QtCore.QEvent.Type.Hide):
+            self._callback()
+        return False
 
 
 @attrs.define
@@ -40,14 +56,43 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
     _modelKwargs: tp.Dict[str, tp.Any] = attrs.field(factory=dict)
     _session: tp.Optional[Session] = attrs.field(default=None, repr=False)
 
+    _container: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
     _tableView: QtWidgets.QTableView = attrs.field(init=False, factory=QtWidgets.QTableView)
-    _model: tp.Optional[TM] = attrs.field(init=False, default=None)
+    _sourceModel: CollectionTableModel | None = attrs.field(init=False, default=None)
+    _model: FilteredCollectionModel | None = attrs.field(init=False, default=None)
+    """
+    Proxy model set on the table view, providing text filtering and sorting over `_sourceModel`.
+    If `_Model` itself produces a FilteredCollectionModel (e.g. TargetsTableModel), it is used directly.
+    """
 
     _doAdjustSizeToContents: bool | None = None
     """
     if None, will change automatically based on number of rows, to avoid performance issues with large tables
     """
     _doAdjustColumnWidthsToContents: bool = True
+
+    _doAllowSorting: bool = True
+    """
+    Whether clicking on column headers sorts by that column (click again for descending, a third time to clear).
+    """
+    _doShowFilterButton: bool = True
+    """
+    Whether to show a small search icon in the table's top-left corner for opening the filter bar.
+    (Filter bar can still be opened via Ctrl+F or header context menu.)
+    """
+
+    _filterBar: QtWidgets.QWidget = attrs.field(init=False, factory=QtWidgets.QWidget)
+    _filterLineEdit: QtWidgets.QLineEdit = attrs.field(init=False, factory=QtWidgets.QLineEdit)
+    _filterColumnComboBox: QtWidgets.QComboBox = attrs.field(init=False, factory=QtWidgets.QComboBox)
+    _filterBarColumnKeys: list[str] = attrs.field(init=False, factory=list)
+    _filterDebounceTimer: QtCore.QTimer = attrs.field(init=False, factory=QtCore.QTimer)
+    _filterDebounceInterval_ms: int = 150
+    """
+    How long to wait after the last keystroke in the filter box before re-filtering, so that typing a
+    multi-character query in a large table doesn't trigger a re-filter per character.
+    """
+    _cornerFilterBtn: QtWidgets.QToolButton | None = attrs.field(init=False, default=None)
+    _headerGeometryWatcher: _HeaderGeometryWatcher | None = attrs.field(init=False, default=None)
 
     _needsResizeToContents: asyncio.Event = attrs.field(init=False, factory=asyncio.Event)
     _resizeToContentsPending: bool = attrs.field(init=False, default=False)
@@ -92,12 +137,229 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         # TODO: add extra infrastructure to make these reorderings persistent
         # TODO: add right click context menu to hide / show columns
 
+        from NaviNIBS.util.DiagnosticTelemetry import registerObject
+        registerObject('collectionTableWidgets', self)
+
+        self._initFilterBar()
+
         if self._session is not None:
             self._onSessionSet()
 
+    def _initFilterBar(self):
+        """
+        Set up container layout with (initially hidden) filter bar above table view, plus the various ways of
+        opening it: corner search button, Ctrl+F, and header context menu.
+        """
+        layout = QtWidgets.QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        self._container.setLayout(layout)
+
+        barLayout = QtWidgets.QHBoxLayout()
+        barLayout.setContentsMargins(0, 0, 0, 0)
+        barLayout.setSpacing(2)
+        self._filterBar.setLayout(barLayout)
+
+        self._filterLineEdit.setPlaceholderText('Filter…')
+        self._filterLineEdit.setClearButtonEnabled(True)
+        self._filterLineEdit.setToolTip('Show only rows containing this text (case-insensitive). Press Escape to clear and close.')
+        self._filterLineEdit.textChanged.connect(self._onFilterTextChanged)
+        barLayout.addWidget(self._filterLineEdit, stretch=1)
+
+        self._filterDebounceTimer.setSingleShot(True)
+        self._filterDebounceTimer.timeout.connect(self._applyFilterTextNow)
+
+        self._filterColumnComboBox.setToolTip('Which column(s) to search within')
+        self._filterColumnComboBox.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._filterColumnComboBox.currentIndexChanged.connect(self._onFilterColumnChanged)
+        barLayout.addWidget(self._filterColumnComboBox)
+
+        closeBtn = QtWidgets.QToolButton()
+        closeBtn.setIcon(qta.icon('mdi6.close'))
+        closeBtn.setAutoRaise(True)
+        closeBtn.setToolTip('Clear filter and close filter bar (Escape)')
+        closeBtn.clicked.connect(lambda *args: self.hideFilterBar())
+        barLayout.addWidget(closeBtn)
+
+        self._filterBar.setVisible(False)
+        layout.addWidget(self._filterBar)
+        layout.addWidget(self._tableView)
+
+        # Escape within filter box clears and closes it
+        escShortcut = QtGui.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key.Key_Escape), self._filterLineEdit)
+        escShortcut.setContext(QtCore.Qt.ShortcutContext.WidgetShortcut)
+        escShortcut.activated.connect(self.hideFilterBar)
+
+        # Ctrl+F anywhere within table opens filter bar
+        findShortcut = QtGui.QShortcut(QtGui.QKeySequence(QtGui.QKeySequence.StandardKey.Find), self._container)
+        findShortcut.setContext(QtCore.Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        findShortcut.activated.connect(lambda: self.showFilterBar())
+
+        # right-click on column header for filter / sort options
+        header = self._tableView.horizontalHeader()
+        header.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        header.customContextMenuRequested.connect(self._onHeaderContextMenuRequested)
+
+        if self._doShowFilterButton:
+            # small search button occupying the (otherwise unused) corner between row and column headers
+            self._tableView.setCornerButtonEnabled(False)
+            btn = QtWidgets.QToolButton(self._tableView)
+            btn.setIcon(qta.icon('mdi6.magnify'))
+            btn.setAutoRaise(True)
+            btn.setToolTip('Filter table rows (Ctrl+F)')
+            btn.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+            btn.clicked.connect(lambda *args: self.showFilterBar())
+            self._cornerFilterBtn = btn
+            self._headerGeometryWatcher = _HeaderGeometryWatcher(self._updateCornerFilterBtnGeometry,
+                                                                  parent=self._tableView)
+            self._tableView.horizontalHeader().installEventFilter(self._headerGeometryWatcher)
+            self._tableView.verticalHeader().installEventFilter(self._headerGeometryWatcher)
+            self._updateCornerFilterBtnGeometry()
+
+    def _updateCornerFilterBtnGeometry(self):
+        if self._cornerFilterBtn is None:
+            return
+        hHeader = self._tableView.horizontalHeader()
+        vHeader = self._tableView.verticalHeader()
+        if hHeader.isHidden() or vHeader.isHidden() or vHeader.width() <= 0 or hHeader.height() <= 0:
+            self._cornerFilterBtn.hide()
+            return
+        rect = QtCore.QRect(vHeader.geometry().x(), hHeader.geometry().y(), vHeader.width(), hHeader.height())
+        self._cornerFilterBtn.setGeometry(rect)
+        iconSize = max(8, min(rect.width(), rect.height()) - 6)
+        self._cornerFilterBtn.setIconSize(QtCore.QSize(iconSize, iconSize))
+        self._cornerFilterBtn.show()
+        self._cornerFilterBtn.raise_()
+
     @property
-    def wdgt(self):
+    def wdgt(self) -> QtWidgets.QWidget:
+        """
+        Container widget including table view and (usually hidden) filter bar. Add this to layouts.
+        """
+        return self._container
+
+    @property
+    def tableView(self) -> QtWidgets.QTableView:
         return self._tableView
+
+    @property
+    def filterText(self) -> str:
+        return self._filterLineEdit.text()
+
+    @filterText.setter
+    def filterText(self, text: str):
+        self._filterLineEdit.setText(text)
+        self._applyFilterTextNow()  # apply immediately when set programmatically, without debounce delay
+
+    @property
+    def filterColumnKey(self) -> str | None:
+        if self._model is None:
+            return None
+        return self._model.filterColumnKey
+
+    @filterColumnKey.setter
+    def filterColumnKey(self, colKey: str | None):
+        if colKey is None:
+            self._filterColumnComboBox.setCurrentIndex(0)
+        else:
+            iCombo = self._filterBarColumnKeys.index(colKey) + 1
+            self._filterColumnComboBox.setCurrentIndex(iCombo)
+
+    @property
+    def isFilterBarVisible(self) -> bool:
+        return not self._filterBar.isHidden()
+
+    def showFilterBar(self, columnKey: str | None = None):
+        """
+        Show filter bar and focus the text field. If columnKey is specified, restrict the filter to that column;
+        otherwise keep current column scope.
+        """
+        if columnKey is not None:
+            self.filterColumnKey = columnKey
+        self._filterBar.setVisible(True)
+        self._filterLineEdit.setFocus()
+        self._filterLineEdit.selectAll()
+
+    def hideFilterBar(self):
+        """
+        Clear filter (revealing all rows) and hide filter bar.
+        """
+        self.clearFilter()
+        self._filterBar.setVisible(False)
+        self._tableView.setFocus()
+
+    def clearFilter(self):
+        self._filterLineEdit.clear()
+        self._applyFilterTextNow()  # also covers case where line edit was already empty
+
+    def _onFilterTextChanged(self, text: str):
+        """
+        Note: doesn't apply the filter immediately, but instead restarts a short debounce timer, so that
+        typing a multi-character query in a large table doesn't re-filter on every keystroke.
+        """
+        self._filterDebounceTimer.start(self._filterDebounceInterval_ms)
+
+    def _applyFilterTextNow(self):
+        """
+        Apply the filter text currently in the line edit immediately, cancelling any pending debounce.
+        """
+        self._filterDebounceTimer.stop()
+        if self._model is None:
+            return
+        self._model.filterText = self._filterLineEdit.text()
+
+    def _onFilterColumnChanged(self, iCombo: int):
+        if self._model is None or iCombo < 0:
+            return
+        self._model.filterColumnKey = self._filterColumnComboBox.itemData(iCombo)
+
+    def _refreshFilterColumnComboBox(self):
+        """
+        Populate column scope combobox from model's columns; called on init and whenever model columns may have changed.
+        """
+        if self._model is None:
+            return
+        colKeys = list(self._model.columns)
+        if colKeys == self._filterBarColumnKeys:
+            return
+        colLabels = self._model.columnLabels
+        prevColKey = self._model.filterColumnKey
+
+        with QtCore.QSignalBlocker(self._filterColumnComboBox):
+            self._filterColumnComboBox.clear()
+            self._filterColumnComboBox.addItem('All columns', None)
+            for colKey in colKeys:
+                self._filterColumnComboBox.addItem(colLabels.get(colKey, colKey), colKey)
+            self._filterBarColumnKeys = colKeys
+
+            if prevColKey is not None and prevColKey in colKeys:
+                self._filterColumnComboBox.setCurrentIndex(colKeys.index(prevColKey) + 1)
+            else:
+                self._filterColumnComboBox.setCurrentIndex(0)
+                self._model.filterColumnKey = None
+
+    def _onHeaderContextMenuRequested(self, pos: QtCore.QPoint):
+        if self._model is None:
+            return
+        header = self._tableView.horizontalHeader()
+        logicalIndex = header.logicalIndexAt(pos)
+
+        menu = QtWidgets.QMenu(header)
+        action = menu.addAction(qta.icon('mdi6.magnify'), 'Filter…')
+        action.triggered.connect(lambda *args: self.showFilterBar(columnKey=None))
+        colKeys = self._model.columns
+        if 0 <= logicalIndex < len(colKeys):
+            colKey = colKeys[logicalIndex]
+            colLabel = self._model.columnLabels.get(colKey, colKey)
+            action = menu.addAction(f"Filter by '{colLabel}'…")
+            action.triggered.connect(lambda *args, colKey=colKey: self.showFilterBar(columnKey=colKey))
+
+        if self._doAllowSorting and header.sortIndicatorSection() >= 0:
+            menu.addSeparator()
+            action = menu.addAction('Clear sort')
+            action.triggered.connect(lambda *args: header.setSortIndicator(-1, QtCore.Qt.SortOrder.AscendingOrder))
+
+        menu.exec(header.mapToGlobal(pos))
 
     @property
     def session(self):
@@ -114,11 +376,29 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._onSessionSet()
 
     @property
-    def model(self):
+    def model(self) -> FilteredCollectionModel | None:
+        """
+        The (proxy) model set on the table view. Row indices are in view coordinates (i.e. after filtering and sorting).
+        """
         return self._model
 
+    @property
+    def sourceModel(self) -> CollectionTableModel | None:
+        """
+        The underlying collection model. Row indices are in collection order.
+        """
+        return self._sourceModel
+
     def _onSessionSet(self):
-        self._model = self._Model(session=self._session, **self._modelKwargs)
+        model = self._Model(session=self._session, **self._modelKwargs)
+        if isinstance(model, FilteredCollectionModel):
+            # model already provides filtering/sorting (e.g. TargetsTableModel)
+            self._model = model
+            self._sourceModel = model.proxiedModel
+        else:
+            self._sourceModel = model
+            self._model = FilteredCollectionModel(session=self._session, proxiedModel=model)
+
         self._model.sigSelectionChanged.connect(self._onModelSelectionChanged)
         self._model.sigItemEdited.connect(lambda *args: asyncCreateTask(self._resizeToContentsSoon))
         self._refreshSizeAdjustPolicy()
@@ -126,7 +406,23 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         self._tableView.selectionModel().currentChanged.connect(self._onTableCurrentChanged)
         self._tableView.selectionModel().selectionChanged.connect(self._onTableSelectionChanged)
         self._model.rowsInserted.connect(self._onTableRowsInserted)
+
+        if self._doAllowSorting:
+            header = self._tableView.horizontalHeader()
+            # start unsorted (in collection order); without this, enabling sorting would immediately sort by first column
+            header.setSortIndicator(-1, QtCore.Qt.SortOrder.AscendingOrder)
+            # allow a third click on a header to clear sort and return to collection order
+            header.setSortIndicatorClearable(True)
+            self._tableView.setSortingEnabled(True)
+
+        self._refreshFilterColumnComboBox()
+        self._model.layoutChanged.connect(lambda *args: self._refreshFilterColumnComboBox())
+        self._model.modelReset.connect(lambda *args: self._refreshFilterColumnComboBox())
+        self._model.columnsInserted.connect(lambda *args: self._refreshFilterColumnComboBox())
+        self._model.columnsRemoved.connect(lambda *args: self._refreshFilterColumnComboBox())
+
         self._tableView.resizeColumnsToContents()  # adjust regardless of doAdjustColumnWidthsToContents when initializing
+        self._updateCornerFilterBtnGeometry()
 
     @property
     def currentCollectionItemKey(self) -> tp.Optional[K]:
@@ -149,6 +445,11 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
             return
         # logger.debug(f'Setting current item to {key}')
         index = self._model.getIndexFromCollectionItemKey(key)
+        if index is None and self._model.isKeyHiddenByTextFilter(key):
+            # item exists but is hidden by (temporary) text filter; clear filter to reveal it
+            logger.info(f'Clearing table filter to reveal {key}')
+            self.clearFilter()
+            index = self._model.getIndexFromCollectionItemKey(key)
         if index is None:
             logger.warning(f'Cannot set current item to {key}, it is not in the model')
             raise KeyError(f'Key {key} not found in model')
@@ -187,7 +488,10 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         for key in keys:
             row = self._model.getIndexFromCollectionItemKey(key)
             if row is None:
-                logger.warning(f'Cannot select item with key {key}, it is not in the model')
+                if self._model.isKeyHiddenByTextFilter(key):
+                    logger.debug(f'Cannot select item with key {key} in view, it is hidden by text filter')
+                else:
+                    logger.warning(f'Cannot select item with key {key}, it is not in the model')
                 continue
             leftIndex = self._model.index(row, 0)
             rightIndex = self._model.index(row, self._model.columnCount() - 1)
@@ -211,7 +515,9 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
 
     def _onTableRowsInserted(self, parent: QtCore.QModelIndex, first: int, last: int):
         # scroll to end of new rows automatically
-        self._tableView.scrollTo(self._model.index(last, 0))
+        index = self._model.index(last, 0)
+        if index.isValid():
+            self._tableView.scrollTo(index)
         self._needsResizeToContents.set()
         # re-evaluate size-adjust policy immediately: during continuous sampling the
         # resize-to-contents loop never reaches its refresh (it requires a 20 s quiet period),

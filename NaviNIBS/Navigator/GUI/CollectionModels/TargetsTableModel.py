@@ -88,8 +88,10 @@ class TargetsTableModel(FilteredCollectionModel[str, Targets, Target]):
 
         FilteredCollectionModel.__attrs_post_init__(self)
 
-    def filterAcceptsRow(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
+    def filterAcceptsRowCustom(self, sourceRow: int, sourceParent: QtCore.QModelIndex) -> bool:
         target = self._proxiedModel.getCollectionItemFromIndex(sourceRow)
+        if target is None:
+            return True
         return not target.isHistorical
 
     def filterAcceptsColumn(self, source_column: int, source_parent: QtCore.QModelIndex):
