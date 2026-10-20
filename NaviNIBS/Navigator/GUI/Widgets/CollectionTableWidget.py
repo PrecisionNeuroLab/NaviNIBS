@@ -137,9 +137,6 @@ class CollectionTableWidget(tp.Generic[K, CI, C, TM]):
         # TODO: add extra infrastructure to make these reorderings persistent
         # TODO: add right click context menu to hide / show columns
 
-        from NaviNIBS.util.DiagnosticTelemetry import registerObject
-        registerObject('collectionTableWidgets', self)
-
         self._initFilterBar()
 
         if self._session is not None:
